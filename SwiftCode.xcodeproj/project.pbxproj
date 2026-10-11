@@ -2555,6 +2555,9 @@
 		FF52F891987748E884AFFD15 /* JSMinifierView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6F97765BE6AC4E869BDE597A /* JSMinifierView.swift */; };
 		FF9CAC60CA0CBCF5791DE39B /* SimulatorDeviceCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3832577F2F7AF231BCD96229 /* SimulatorDeviceCard.swift */; };
 		GOOAUTHBLD00000000000001 /* GoogleAccountAuthService.swift in Sources */ = {isa = PBXBuildFile; fileRef = GOOAUTHREF00000000000001 /* GoogleAccountAuthService.swift */; };
+		AGQUOTABLD000000000001 /* AntigravityQuotaService.swift in Sources */ = {isa = PBXBuildFile; fileRef = AGQUOTAREF000000000001 /* AntigravityQuotaService.swift */; };
+		AGMDFETCHBLD0000000001 /* AntigravitySDKModelFetcher.swift in Sources */ = {isa = PBXBuildFile; fileRef = AGMDFETCHREF0000000001 /* AntigravitySDKModelFetcher.swift */; };
+		AGLMUBLD00000000000001 /* AntigravityLimitsModelsUI.swift in Sources */ = {isa = PBXBuildFile; fileRef = AGLMUREF00000000000001 /* AntigravityLimitsModelsUI.swift */; };
 		SNDBLD000000000000000001 /* SwiftCode_Notification_A.aiff in Resources */ = {isa = PBXBuildFile; fileRef = SNDREF000000000000000001 /* SwiftCode_Notification_A.aiff */; };
 		SNDBLD000000000000000002 /* SwiftCode_Notification_B.aiff in Resources */ = {isa = PBXBuildFile; fileRef = SNDREF000000000000000002 /* SwiftCode_Notification_B.aiff */; };
 		SNDBLD000000000000000003 /* SwiftCode_Message_A.aiff in Resources */ = {isa = PBXBuildFile; fileRef = SNDREF000000000000000003 /* SwiftCode_Message_A.aiff */; };
@@ -5152,6 +5155,9 @@
 		FEC57C221292EA2EC981D1B1 /* Models/CloudStorageInfo.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = Models/CloudStorageInfo.swift; sourceTree = "<group>"; };
 		FECDF3B19AFE35EDD3CC54A0 /* ZipImporter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ZipImporter.swift; sourceTree = "<group>"; };
 		GOOAUTHREF00000000000001 /* GoogleAccountAuthService.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = GoogleAccountAuthService.swift; sourceTree = "<group>"; };
+		AGQUOTAREF000000000001 /* AntigravityQuotaService.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = AntigravityQuotaService.swift; sourceTree = "<group>"; };
+		AGMDFETCHREF0000000001 /* AntigravitySDKModelFetcher.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = AntigravitySDKModelFetcher.swift; sourceTree = "<group>"; };
+		AGLMUREF00000000000001 /* AntigravityLimitsModelsUI.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = AntigravityLimitsModelsUI.swift; sourceTree = "<group>"; };
 		SNDREF000000000000000001 /* SwiftCode_Notification_A.aiff */ = {isa = PBXFileReference; lastKnownFileType = audio.aiff; path = SwiftCode_Notification_A.aiff; sourceTree = "<group>"; };
 		SNDREF000000000000000002 /* SwiftCode_Notification_B.aiff */ = {isa = PBXFileReference; lastKnownFileType = audio.aiff; path = SwiftCode_Notification_B.aiff; sourceTree = "<group>"; };
 		SNDREF000000000000000003 /* SwiftCode_Message_A.aiff */ = {isa = PBXFileReference; lastKnownFileType = audio.aiff; path = SwiftCode_Message_A.aiff; sourceTree = "<group>"; };
@@ -5770,6 +5776,7 @@
 				5C5E70000000000000000203 /* AddFilesAgentContext.swift */,
 				6D3F79ABA55559EF6F44BF84 /* AssistDiffView.swift */,
 				1E9D7E2F8F62E029750AD8AA /* AssistMainView.swift */,
+				AGLMUREF00000000000001 /* AntigravityLimitsModelsUI.swift */,
 				D9F800020000000000000003 /* PlanUserAskView.swift */,
 				D1A0000128C0000100000004 /* AssistActivityView.swift */,
 				1E9D7E2F8F62E029750AD8AB /* AgentNotesInspectorView.swift */,
@@ -6350,6 +6357,8 @@
 				FECDF3B19AFE35EDD3CC54A0 /* ZipImporter.swift */,
 				CMPREF000000000000000001 /* ComposioService.swift */,
 				GOOAUTHREF00000000000001 /* GoogleAccountAuthService.swift */,
+				AGQUOTAREF000000000001 /* AntigravityQuotaService.swift */,
+				AGMDFETCHREF0000000001 /* AntigravitySDKModelFetcher.swift */,
 			);
 			path = Services;
 			sourceTree = "<group>";
@@ -10521,6 +10530,9 @@
 				8D9E00030001000100000018 /* GoogleCloudSDKLifecycleManager.swift in Sources */,
 				CMPBLD000000000000000001 /* ComposioService.swift in Sources */,
 				GOOAUTHBLD00000000000001 /* GoogleAccountAuthService.swift in Sources */,
+				AGQUOTABLD000000000001 /* AntigravityQuotaService.swift in Sources */,
+				AGMDFETCHBLD0000000001 /* AntigravitySDKModelFetcher.swift in Sources */,
+				AGLMUBLD00000000000001 /* AntigravityLimitsModelsUI.swift in Sources */,
 				CMPBLD000000000000000002 /* AssistComposioTool.swift in Sources */,
 				CMPBLD000000000000000003 /* AgentUseComposio.swift in Sources */,
 				CMPBLD000000000000000004 /* ComposioSettingsView.swift in Sources */,

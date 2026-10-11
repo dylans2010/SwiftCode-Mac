@@ -554,9 +554,15 @@ struct AssistSettingsView: View {
     // Composio Service Integration
     @State private var composioService = ComposioService.shared
 
-    // Google Account Auth Integration
+    // Google Account Auth Integration & Antigravity Quota
     @AppStorage("assist_google_auth_mode") private var assistGoogleAuthMode: String = "api_key"
     @ObservedObject private var googleAuth = GoogleAccountAuthService.shared
+    @ObservedObject private var quotaService = AntigravityQuotaService.shared
+    @State private var showSignOutConfirmation = false
+
+    // Available Models Filter & Search
+    @State private var availableModelsSearchText: String = ""
+    @State private var selectedProviderFilter: String = "All"
 
     // Download Resources State
     @State private var isDownloadingResources = false
@@ -655,7 +661,7 @@ struct AssistSettingsView: View {
                                                 .background(Color.blue.opacity(0.12), in: Capsule())
                                         }
 
-                                        Text("Google Antigravity SDK · Persistent Autonomous Sessions")
+                                        Text("Google Cloud SDK · Persistent Autonomous Sessions")
                                             .font(.caption2)
                                             .foregroundStyle(.secondary)
                                     }
@@ -748,13 +754,13 @@ struct AssistSettingsView: View {
                                 Divider()
                                     .padding(.vertical, 4)
 
-                                // MARK: - Antigravity Execution Backend Selection
+                                // MARK: - SDK Execution Backend Selection
                                 VStack(alignment: .leading, spacing: 8) {
                                     HStack {
                                         VStack(alignment: .leading, spacing: 2) {
-                                            Text("Antigravity Execution Backend")
+                                            Text("SDK Execution Backend")
                                                 .font(.system(size: 13, weight: .semibold))
-                                            Text("Select whether to run Antigravity via the Python Bridge or directly via Downloaded Resources.")
+                                            Text("Select whether to run the SDK via the Python Bridge or directly via Downloaded Resources.")
                                                 .font(.caption2)
                                                 .foregroundStyle(.secondary)
                                         }
@@ -779,6 +785,7 @@ struct AssistSettingsView: View {
                                         Text("Python Bridge Server").tag("bridge")
                                     }
                                     .pickerStyle(.segmented)
+                                    .controlSize(.small)
                                     .onChange(of: settings.antigravityExecutionMode) { _, _ in
                                         Task {
                                             try? await GoogleCloudSDKLifecycleManager.shared.restartEngine()
@@ -790,7 +797,7 @@ struct AssistSettingsView: View {
                                             .font(.caption)
                                             .foregroundStyle(settings.antigravityExecutionMode == "resources" ? Color.green : Color.orange)
                                         Text(settings.antigravityExecutionMode == "resources"
-                                             ? "Downloaded Resources mode executes the installed google-antigravity binary directly, providing raw SDK performance while retaining token streaming, toolkits, and model selection."
+                                             ? "Downloaded Resources mode executes the installed SDK binary directly, providing raw SDK performance while retaining token streaming, toolkits, and model selection."
                                              : "Bridge mode runs the Python IPC bridge server to route requests and stream tokens to the UI.")
                                             .font(.caption2)
                                             .foregroundStyle(.secondary)
@@ -799,14 +806,13 @@ struct AssistSettingsView: View {
 
                                 Divider()
                                     .padding(.vertical, 4)
-
                                 // MARK: - Assist Toolkit Configuration
                                 VStack(alignment: .leading, spacing: 8) {
                                     HStack {
                                         VStack(alignment: .leading, spacing: 2) {
                                             Text("Assist Toolkit")
                                                 .font(.system(size: 13, weight: .semibold))
-                                            Text("Choose whether to use SwiftCode tools or Google Antigravity SDK tools.")
+                                            Text("Choose whether to use SwiftCode tools or Official SDK tools.")
                                                 .font(.caption2)
                                                 .foregroundStyle(.secondary)
                                         }
@@ -817,7 +823,7 @@ struct AssistSettingsView: View {
                                             Circle()
                                                 .fill(settings.assistToolkit == "Cloud" ? Color.blue : Color.indigo)
                                                 .frame(width: 7, height: 7)
-                                            Text(settings.assistToolkit == "Cloud" ? "Cloud (Antigravity)" : "System (SwiftCode)")
+                                            Text(settings.assistToolkit == "Cloud" ? "Cloud (Official SDK)" : "System (SwiftCode)")
                                                 .font(.system(size: 11, weight: .semibold, design: .rounded))
                                                 .foregroundStyle(settings.assistToolkit == "Cloud" ? Color.blue : Color.indigo)
                                         }
@@ -827,17 +833,18 @@ struct AssistSettingsView: View {
                                     }
 
                                     Picker("Assist Toolkit", selection: $settings.assistToolkit) {
-                                        Text("System").tag("System")
-                                        Text("Cloud").tag("Cloud")
+                                        Text("System (SwiftCode)").tag("System")
+                                        Text("Cloud (Official SDK)").tag("Cloud")
                                     }
                                     .pickerStyle(.segmented)
+                                    .controlSize(.small)
 
                                     HStack(alignment: .top, spacing: 6) {
                                         Image(systemName: settings.assistToolkit == "Cloud" ? "cloud.fill" : "macbook.and.iphone")
                                             .font(.caption)
                                             .foregroundStyle(settings.assistToolkit == "Cloud" ? Color.blue : Color.indigo)
                                         Text(settings.assistToolkit == "Cloud"
-                                             ? "Cloud toolkit leverages Google Antigravity SDK's built-in file manipulation, command execution, and search tools."
+                                             ? "Cloud toolkit leverages the Official SDK's built-in file manipulation, command execution, and search tools."
                                              : "System toolkit uses SwiftCode tools (file operations, AST refactoring, builds, testing, and terminal) over the local IPC bridge.")
                                             .font(.caption2)
                                             .foregroundStyle(.secondary)
@@ -861,39 +868,26 @@ struct AssistSettingsView: View {
                                         Spacer()
                                     }
 
-                                    Picker("Model Strategy", selection: Binding(
-                                        get: {
-                                            if settings.alternativeKeysEnabled {
-                                                return "rotation"
-                                            } else if settings.useSavedModels {
-                                                return "app_models"
-                                            } else {
-                                                return "default"
-                                            }
-                                        },
-                                        set: { newStrategy in
-                                            switch newStrategy {
-                                            case "rotation":
-                                                settings.useSavedModels = false
-                                                settings.alternativeKeysEnabled = true
-                                            case "app_models":
-                                                settings.useSavedModels = true
-                                                settings.alternativeKeysEnabled = false
-                                            default:
-                                                settings.useSavedModels = false
-                                                settings.alternativeKeysEnabled = false
-                                            }
-                                        }
-                                    )) {
-                                        Text("Antigravity SDK Default").tag("default")
+                                    Picker("Model Strategy", selection: $settings.assistModelRoutingStrategy) {
+                                        Text("Official SDK Default").tag("default")
                                         Text("App Model Catalog").tag("app_models")
                                         Text("Gemini Key Rotation").tag("rotation")
                                     }
                                     .pickerStyle(.segmented)
+                                    .controlSize(.small)
 
-                                    if settings.alternativeKeysEnabled {
+                                    if settings.assistModelRoutingStrategy == "rotation" {
                                         VStack(alignment: .leading, spacing: 8) {
-                                            Text("Automatically rotates between multiple Gemini API keys to circumvent rate limits or quota caps.")
+                                            HStack(spacing: 6) {
+                                                Image(systemName: "arrow.triangle.2.circlepath")
+                                                    .font(.caption)
+                                                    .foregroundStyle(.orange)
+                                                Text("Gemini Key Rotation (SDK Models Only)")
+                                                    .font(.caption.bold())
+                                                    .foregroundStyle(.orange)
+                                            }
+
+                                            Text("Exclusively uses the official SDK reasoning models, but dynamically cycles across your registered Gemini API keys to bypass individual rate limits or quota ceilings.")
                                                 .font(.caption2)
                                                 .foregroundStyle(.secondary)
 
@@ -925,29 +919,26 @@ struct AssistSettingsView: View {
                                             .background(Color.primary.opacity(0.04), in: RoundedRectangle(cornerRadius: 6))
                                         }
                                         .padding(.top, 2)
-                                    } else if settings.useSavedModels {
+                                    } else if settings.assistModelRoutingStrategy == "app_models" {
                                         VStack(alignment: .leading, spacing: 8) {
-                                            Text("Select an active model from your configured providers and custom endpoints:")
+                                            HStack(spacing: 6) {
+                                                Image(systemName: "square.grid.2x2")
+                                                    .font(.caption)
+                                                    .foregroundStyle(.purple)
+                                                Text("App Model Catalog (All Discovered Models)")
+                                                    .font(.caption.bold())
+                                                    .foregroundStyle(.purple)
+                                            }
+
+                                            Text("Assist evaluates and attempts ALL models from the Available Models catalog across your configured providers (Apple Foundation Models, OpenRouter, OpenAI, Anthropic, Custom endpoints). Automatically failovers across matching models.")
                                                 .font(.caption2)
                                                 .foregroundStyle(.secondary)
-
-                                            Picker("Active Model", selection: $settings.selectedAssistModelID) {
-                                                if discoveryService.discoveredModels.isEmpty {
-                                                    Text("Default Model (\(settings.selectedAssistModelID))").tag(settings.selectedAssistModelID)
-                                                } else {
-                                                    ForEach(discoveryService.discoveredModels) { model in
-                                                        Text("\(model.displayName) (\(model.providerName))")
-                                                            .tag(model.modelIdentifier)
-                                                    }
-                                                }
-                                            }
-                                            .pickerStyle(.menu)
 
                                             let stats = discoveryService.getDiscoveryStats()
                                             HStack(spacing: 8) {
                                                 HStack(spacing: 4) {
                                                     Circle().fill(Color.green).frame(width: 6, height: 6)
-                                                    Text("\(stats.total) models available")
+                                                    Text("\(stats.total) models in catalog")
                                                         .font(.caption2.bold())
                                                         .foregroundStyle(.primary)
                                                 }
@@ -962,17 +953,51 @@ struct AssistSettingsView: View {
                                             }
                                             .padding(.horizontal, 10)
                                             .padding(.vertical, 5)
-                                            .background(Color.blue.opacity(0.08), in: RoundedRectangle(cornerRadius: 6))
+                                            .background(Color.purple.opacity(0.08), in: RoundedRectangle(cornerRadius: 6))
                                         }
                                         .padding(.top, 2)
                                     } else {
-                                        HStack(alignment: .top, spacing: 6) {
-                                            Image(systemName: "sparkles")
-                                                .font(.caption)
-                                                .foregroundStyle(.blue)
-                                            Text("Uses the Google Antigravity SDK's default Gemini reasoning models directly with built-in token streaming.")
+                                        VStack(alignment: .leading, spacing: 8) {
+                                            HStack(spacing: 6) {
+                                                Image(systemName: "sparkles")
+                                                    .font(.caption)
+                                                    .foregroundStyle(.blue)
+                                                Text("Official SDK Default (SDK Models Only)")
+                                                    .font(.caption.bold())
+                                                    .foregroundStyle(.blue)
+                                                Spacer()
+                                                Text("Strict")
+                                                    .font(.system(size: 10, weight: .bold))
+                                                    .padding(.horizontal, 6)
+                                                    .padding(.vertical, 2)
+                                                    .background(Color.blue.opacity(0.12), in: Capsule())
+                                                    .foregroundStyle(.blue)
+                                            }
+
+                                            Text("Strictly routes requests ONLY to the official models dynamically discovered from the SDK. No other catalog or third-party models are called.")
                                                 .font(.caption2)
                                                 .foregroundStyle(.secondary)
+
+                                            // Dynamic SDK Models Grid
+                                            LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 6) {
+                                                ForEach(AntigravitySDKModelFetcher.shared.models.prefix(6)) { item in
+                                                    HStack(spacing: 6) {
+                                                        Circle().fill(item.thinkingColor).frame(width: 5, height: 5)
+                                                        VStack(alignment: .leading, spacing: 1) {
+                                                            Text(item.name)
+                                                                .font(.system(size: 11, weight: .semibold))
+                                                                .lineLimit(1)
+                                                            Text("Thinking: \(item.thinkingLevel)")
+                                                                .font(.system(size: 9))
+                                                                .foregroundStyle(.secondary)
+                                                        }
+                                                        Spacer()
+                                                    }
+                                                    .padding(.horizontal, 8)
+                                                    .padding(.vertical, 5)
+                                                    .background(Color.primary.opacity(0.03), in: RoundedRectangle(cornerRadius: 6))
+                                                }
+                                            }
                                         }
                                         .padding(.top, 2)
                                     }
@@ -1059,12 +1084,12 @@ struct AssistSettingsView: View {
                                     .textFieldStyle(.roundedBorder)
                             }
 
-                            VStack(alignment: .leading, spacing: 8) {
+                            VStack(alignment: .leading, spacing: 10) {
                                 HStack {
-                                    Text("Antigravity / Google Authentication")
+                                    Text("Google Account Authentication")
                                         .font(.caption.bold())
                                     Spacer()
-                                    if assistGoogleAuthMode == "api_key" {
+                                    if !googleAuth.isAuthenticated && assistGoogleAuthMode == "api_key" {
                                         Link(destination: URL(string: "https://aistudio.google.com/app/apikey")!) {
                                             Label("Get Key", systemImage: "arrow.up.right")
                                                 .font(.caption)
@@ -1073,60 +1098,22 @@ struct AssistSettingsView: View {
                                     }
                                 }
 
-                                Picker("Google Auth Mode", selection: $assistGoogleAuthMode) {
-                                    Text("API Key").tag("api_key")
-                                    Text("Sign in to Antigravity").tag("google_oauth")
-                                }
-                                .pickerStyle(.segmented)
-                                .labelsHidden()
-                                .onChange(of: assistGoogleAuthMode) { _, newValue in
-                                    AppSettings.shared.assistGoogleAuthMode = newValue
-                                }
+                                if googleAuth.isAuthenticated {
+                                    authenticatedAccountView
+                                } else {
+                                    // MARK: - Unauthenticated State: Show Picker & Sign In / API Key controls
+                                    Picker("Google Auth Mode", selection: $assistGoogleAuthMode) {
+                                        Text("API Key").tag("api_key")
+                                        Text("Sign in with Google").tag("google_oauth")
+                                    }
+                                    .pickerStyle(.segmented)
+                                    .controlSize(.small)
+                                    .labelsHidden()
+                                    .onChange(of: assistGoogleAuthMode) { _, newValue in
+                                        AppSettings.shared.assistGoogleAuthMode = newValue
+                                    }
 
-                                if assistGoogleAuthMode == "google_oauth" {
-                                    if googleAuth.isAuthenticated {
-                                        // Authenticated state: inline account card/pill
-                                        HStack(spacing: 10) {
-                                            Image(systemName: "checkmark.circle.fill")
-                                                .foregroundColor(.green)
-                                                .font(.headline)
-
-                                            VStack(alignment: .leading, spacing: 2) {
-                                                if let email = googleAuth.userEmail, !email.isEmpty {
-                                                    Text("Signed in as \(email)")
-                                                        .font(.system(size: 13, weight: .semibold))
-                                                        .foregroundColor(.primary)
-                                                } else {
-                                                    Text("Signed in to Antigravity")
-                                                        .font(.system(size: 13, weight: .semibold))
-                                                        .foregroundColor(.primary)
-                                                }
-
-                                                Text("Antigravity OAuth Account Active")
-                                                    .font(.caption2)
-                                                    .foregroundColor(.secondary)
-                                            }
-
-                                            Spacer()
-
-                                            Button(role: .destructive) {
-                                                googleAuth.signOut()
-                                            } label: {
-                                                Label("Sign Out", systemImage: "rectangle.portrait.and.arrow.right")
-                                                    .font(.caption)
-                                            }
-                                            .buttonStyle(.bordered)
-                                            .controlSize(.small)
-                                        }
-                                        .padding(10)
-                                        .background(Color.green.opacity(0.08))
-                                        .cornerRadius(8)
-                                        .overlay(
-                                            RoundedRectangle(cornerRadius: 8)
-                                                .stroke(Color.green.opacity(0.2), lineWidth: 1)
-                                        )
-                                    } else {
-                                        // Unauthenticated state
+                                    if assistGoogleAuthMode == "google_oauth" {
                                         VStack(alignment: .leading, spacing: 6) {
                                             Button {
                                                 googleAuth.signIn()
@@ -1139,7 +1126,7 @@ struct AssistSettingsView: View {
                                                         Text("Signing In...")
                                                     } else {
                                                         Image(systemName: "person.badge.key.fill")
-                                                        Text("Sign in to Antigravity")
+                                                        Text("Sign in with Google")
                                                     }
                                                 }
                                                 .frame(maxWidth: .infinity)
@@ -1148,7 +1135,7 @@ struct AssistSettingsView: View {
                                             .controlSize(.regular)
                                             .disabled(googleAuth.isAuthenticating)
 
-                                            Text("Direct quota-free access to Gemini & Vertex AI models without an API key using your Google Account.")
+                                            Text("Direct access to Gemini & Vertex AI models using your account allowance instead of personal API keys.")
                                                 .font(.caption2)
                                                 .foregroundColor(.secondary)
 
@@ -1165,25 +1152,25 @@ struct AssistSettingsView: View {
                                             }
                                         }
                                         .padding(.vertical, 2)
-                                    }
-                                } else {
-                                    // API Key Mode
-                                    SecureField("Enter Gemini API key", text: $geminiKey)
-                                        .textFieldStyle(.roundedBorder)
+                                    } else {
+                                        // API Key Mode
+                                        SecureField("Enter Gemini API key", text: $geminiKey)
+                                            .textFieldStyle(.roundedBorder)
 
-                                    HStack {
-                                        Button {
-                                            showAlternativeKeysSheet = true
-                                        } label: {
-                                            Label("Alternative Keys (\(AlternativeKeyManager.shared.keys.count) configured)", systemImage: "arrow.triangle.2.circlepath")
-                                                .font(.caption2)
+                                        HStack {
+                                            Button {
+                                                showAlternativeKeysSheet = true
+                                            } label: {
+                                                Label("Alternative Keys (\(AlternativeKeyManager.shared.keys.count) configured)", systemImage: "arrow.triangle.2.circlepath")
+                                                    .font(.caption2)
+                                            }
+                                            .buttonStyle(.bordered)
+                                            .controlSize(.small)
+
+                                            Spacer()
                                         }
-                                        .buttonStyle(.bordered)
-                                        .controlSize(.small)
-
-                                        Spacer()
+                                        .padding(.top, 2)
                                     }
-                                    .padding(.top, 2)
                                 }
                             }
 
@@ -1236,7 +1223,7 @@ struct AssistSettingsView: View {
                 }
                 .groupBoxStyle(ModernGroupBoxStyle())
 
-                // 2. Dynamic Available Models Section
+                // 2. Modern Dynamic Available Models Section
                 GroupBox {
                     VStack(alignment: .leading, spacing: 14) {
                         HStack {
@@ -1295,51 +1282,147 @@ struct AssistSettingsView: View {
                             .disabled(discoveryService.isDiscovering)
                         }
 
+                        // Modern Stats Pills
                         let stats = discoveryService.getDiscoveryStats()
                         HStack(spacing: 8) {
-                            Text("\(stats.agentCompatible) agent-compatible models")
-                                .font(.caption.bold())
-                                .foregroundStyle(.primary)
-                            Text("·").font(.caption).foregroundStyle(.secondary)
-                            Text("\(stats.total) discovered across \(stats.providers) providers")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
+                            HStack(spacing: 4) {
+                                Image(systemName: "cpu")
+                                    .font(.system(size: 9))
+                                Text("\(stats.agentCompatible) Agent-Ready")
+                                    .font(.system(size: 11, weight: .bold))
+                            }
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 3)
+                            .background(Color.purple.opacity(0.12), in: Capsule())
+                            .foregroundStyle(.purple)
+
+                            HStack(spacing: 4) {
+                                Circle().fill(Color.green).frame(width: 5, height: 5)
+                                Text("\(stats.total) Total")
+                                    .font(.system(size: 11, weight: .semibold))
+                            }
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 3)
+                            .background(Color.green.opacity(0.12), in: Capsule())
+                            .foregroundStyle(.green)
+
+                            HStack(spacing: 4) {
+                                Image(systemName: "server.rack")
+                                    .font(.system(size: 9))
+                                Text("\(stats.providers) Providers")
+                                    .font(.system(size: 11, weight: .medium))
+                            }
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 3)
+                            .background(Color.primary.opacity(0.05), in: Capsule())
+                            .foregroundStyle(.secondary)
 
                             if !discoveryService.hiddenProviderNames.isEmpty {
-                                Text("(\(discoveryService.hiddenProviderNames.count) provider(s) removed)")
-                                    .font(.caption)
+                                Text("\(discoveryService.hiddenProviderNames.count) hidden")
+                                    .font(.system(size: 10))
+                                    .padding(.horizontal, 6)
+                                    .padding(.vertical, 2)
+                                    .background(Color.orange.opacity(0.12), in: Capsule())
                                     .foregroundStyle(.orange)
                             }
 
+                            Spacer()
+
                             if let last = discoveryService.lastDiscoveryDate {
-                                Spacer()
                                 Text("Updated \(last.formatted(date: .omitted, time: .shortened))")
-                                    .font(.caption2)
+                                    .font(.system(size: 10))
                                     .foregroundStyle(.secondary)
                             }
                         }
 
-                        // Compact grouped model browser
-                        let groups = discoveryService.modelsByProvider
-                        if groups.isEmpty {
-                            if discoveryService.isDiscovering {
-                                HStack {
-                                    ProgressView().scaleEffect(0.7)
-                                    Text("Discovering configured models across providers...")
+                        // Modern Search Bar
+                        HStack(spacing: 8) {
+                            Image(systemName: "magnifyingglass")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+
+                            TextField("Search models by name, model ID, or provider...", text: $availableModelsSearchText)
+                                .textFieldStyle(.plain)
+                                .font(.caption)
+
+                            if !availableModelsSearchText.isEmpty {
+                                Button {
+                                    availableModelsSearchText = ""
+                                } label: {
+                                    Image(systemName: "xmark.circle.fill")
                                         .font(.caption)
                                         .foregroundStyle(.secondary)
                                 }
-                                .padding(.vertical, 8)
-                            } else {
-                                Text("No models discovered. Ensure your API keys or custom endpoints are configured.")
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
-                                    .padding(.vertical, 8)
+                                .buttonStyle(.plain)
                             }
+                        }
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 6)
+                        .background(Color.primary.opacity(0.04), in: RoundedRectangle(cornerRadius: 8))
+
+                        // Provider Filter Chips
+                        ScrollView(.horizontal, showsIndicators: false) {
+                            HStack(spacing: 6) {
+                                let allFilters = ["All"] + discoveryService.modelsByProvider.map { $0.providerName }
+                                ForEach(allFilters, id: \.self) { filterName in
+                                    Button {
+                                        selectedProviderFilter = filterName
+                                    } label: {
+                                        Text(filterName)
+                                            .font(.system(size: 11, weight: selectedProviderFilter == filterName ? .bold : .medium))
+                                            .padding(.horizontal, 10)
+                                            .padding(.vertical, 4)
+                                            .background(
+                                                selectedProviderFilter == filterName
+                                                    ? Color.purple.opacity(0.18)
+                                                    : Color.primary.opacity(0.04),
+                                                in: Capsule()
+                                            )
+                                            .foregroundStyle(selectedProviderFilter == filterName ? Color.purple : Color.secondary)
+                                    }
+                                    .buttonStyle(.plain)
+                                }
+                            }
+                            .padding(.vertical, 2)
+                        }
+
+                        // Grouped Filtered Models
+                        let query = availableModelsSearchText.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+                        let filteredGroups = discoveryService.modelsByProvider.compactMap { group -> (providerName: String, models: [AssistAvailableModel])? in
+                            if selectedProviderFilter != "All" && group.providerName != selectedProviderFilter {
+                                return nil
+                            }
+                            let models = group.models.filter { model in
+                                if query.isEmpty { return true }
+                                return model.displayName.lowercased().contains(query) ||
+                                       model.modelIdentifier.lowercased().contains(query) ||
+                                       model.providerName.lowercased().contains(query)
+                            }
+                            return models.isEmpty ? nil : (providerName: group.providerName, models: models)
+                        }
+
+                        if filteredGroups.isEmpty {
+                            VStack(spacing: 8) {
+                                if discoveryService.isDiscovering {
+                                    ProgressView().scaleEffect(0.8)
+                                    Text("Discovering models across providers...")
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                } else {
+                                    Image(systemName: query.isEmpty ? "sparkles" : "magnifyingglass")
+                                        .font(.title2)
+                                        .foregroundStyle(.secondary.opacity(0.5))
+                                    Text(query.isEmpty ? "No models discovered. Ensure your API keys or custom endpoints are configured." : "No models found matching \"\(availableModelsSearchText)\"")
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                }
+                            }
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 20)
                         } else {
                             VStack(spacing: 12) {
-                                ForEach(groups, id: \.providerName) { group in
-                                    VStack(alignment: .leading, spacing: 6) {
+                                ForEach(filteredGroups, id: \.providerName) { group in
+                                    VStack(alignment: .leading, spacing: 8) {
                                         HStack {
                                             Text(group.providerName)
                                                 .font(.system(size: 12, weight: .bold))
@@ -1363,7 +1446,7 @@ struct AssistSettingsView: View {
                                             Spacer()
                                         }
 
-                                        VStack(spacing: 4) {
+                                        VStack(spacing: 5) {
                                             ForEach(group.models) { model in
                                                 HStack(spacing: 8) {
                                                     // Status indicator dot
@@ -1371,11 +1454,11 @@ struct AssistSettingsView: View {
                                                         .fill(modelStatusColor(model))
                                                         .frame(width: 6, height: 6)
 
-                                                    // Model name
-                                                    VStack(alignment: .leading, spacing: 1) {
+                                                    // Model details
+                                                    VStack(alignment: .leading, spacing: 2) {
                                                         HStack(spacing: 6) {
                                                             Text(model.displayName)
-                                                                .font(.system(size: 12, weight: .medium))
+                                                                .font(.system(size: 12, weight: .semibold))
 
                                                             if model.supportsToolCalling {
                                                                 Text("Tools")
@@ -1388,9 +1471,17 @@ struct AssistSettingsView: View {
                                                             }
 
                                                             if model.supportsVision {
-                                                                Image(systemName: "eye.fill")
-                                                                    .font(.system(size: 8))
-                                                                    .foregroundStyle(.secondary)
+                                                                HStack(spacing: 2) {
+                                                                    Image(systemName: "eye.fill")
+                                                                        .font(.system(size: 7))
+                                                                    Text("Vision")
+                                                                        .font(.system(size: 8, weight: .bold))
+                                                                }
+                                                                .padding(.horizontal, 4)
+                                                                .padding(.vertical, 1)
+                                                                .background(Color.purple.opacity(0.12))
+                                                                .foregroundStyle(.purple)
+                                                                .cornerRadius(3)
                                                             }
 
                                                             if model.supportsSubagents {
@@ -1413,7 +1504,7 @@ struct AssistSettingsView: View {
 
                                                     // Status label
                                                     Text(modelStatusLabel(model))
-                                                        .font(.system(size: 10))
+                                                        .font(.system(size: 10, weight: .medium))
                                                         .foregroundStyle(modelStatusColor(model))
 
                                                     // Selection button
@@ -1465,33 +1556,28 @@ struct AssistSettingsView: View {
                                                         .help("Remove model permanently")
                                                     }
                                                 }
-                                                .padding(.horizontal, 8)
-                                                .padding(.vertical, 4)
+                                                .padding(.horizontal, 10)
+                                                .padding(.vertical, 6)
                                                 .background(
-                                                    RoundedRectangle(cornerRadius: 6)
+                                                    RoundedRectangle(cornerRadius: 8)
                                                         .fill(settings.selectedAssistModelID == model.modelIdentifier ? Color.accentColor.opacity(0.06) : Color.primary.opacity(0.02))
                                                 )
                                             }
                                         }
                                     }
-                                    .padding(8)
-                                    .background(Color.primary.opacity(0.02), in: RoundedRectangle(cornerRadius: 8))
+                                    .padding(10)
+                                    .background(Color.primary.opacity(0.02), in: RoundedRectangle(cornerRadius: 10))
+                                    .overlay(
+                                        RoundedRectangle(cornerRadius: 10)
+                                            .stroke(Color.primary.opacity(0.04), lineWidth: 1)
+                                    )
                                 }
                             }
                         }
 
                         Divider().padding(.vertical, 2)
 
-                        // Default Model Picker for quick switching
-                        Picker("Active Default Model", selection: $settings.selectedAssistModelID) {
-                            ForEach(discoveryService.discoveredModels) { model in
-                                Text("\(model.displayName) (\(model.providerName))")
-                                    .tag(model.modelIdentifier)
-                            }
-                        }
-                        .pickerStyle(.menu)
-
-                        // Free fallback rotation toggle
+                        // Automatic fallback rotation toggle
                         Toggle(isOn: Binding(
                             get: { fallbackRotation.isEnabled },
                             set: { fallbackRotation.isEnabled = $0 }
@@ -1499,12 +1585,12 @@ struct AssistSettingsView: View {
                             VStack(alignment: .leading, spacing: 2) {
                                 Text("Automatic Fallback to Other Models")
                                     .font(.subheadline.bold())
-                                Text("Rotates through all available models from the active provider automatically if rate limits or network issues strike.")
+                                Text("Rotates through all available models automatically if rate limits or network issues strike.")
                                     .font(.caption)
                                     .foregroundStyle(.secondary)
                             }
                         }
-                        .padding(.top, 4)
+                        .padding(.top, 2)
                     }
                     .padding()
                 }
@@ -2036,7 +2122,7 @@ struct AssistSettingsView: View {
                 VStack(spacing: 6) {
                     Text("Downloading Resources")
                         .font(.system(size: 16, weight: .bold))
-                    Text("Installing google-antigravity python package for direct Antigravity SDK execution")
+                    Text("Installing official SDK runtime for direct execution")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                         .multilineTextAlignment(.center)
@@ -2088,6 +2174,14 @@ struct AssistSettingsView: View {
             .frame(width: 440)
             .interactiveDismissDisabled(!downloadCompleted && downloadErrorMessage == nil)
         }
+        .alert("Sign Out of Account?", isPresented: $showSignOutConfirmation) {
+            Button("Cancel", role: .cancel) { }
+            Button("Sign Out", role: .destructive) {
+                googleAuth.signOut()
+            }
+        } message: {
+            Text("Are you sure you want to sign out? Your session will switch back to API key authentication.")
+        }
         .onAppear {
             loadAPIKeys()
             loadCachedModels()
@@ -2112,6 +2206,141 @@ struct AssistSettingsView: View {
         .onChange(of: isEndpointLocal) { _, _ in
             if isEditingEndpoint && isNewEndpoint { triggerAutoFetchCustomModels() }
         }
+    }
+
+    @ViewBuilder
+    private var authenticatedAccountView: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(spacing: 12) {
+                ZStack {
+                    Circle()
+                        .fill(quotaService.fiveHourGaugeColor.opacity(0.15))
+                        .frame(width: 38, height: 38)
+                    Image(systemName: "person.crop.circle.badge.checkmark")
+                        .font(.system(size: 19))
+                        .foregroundColor(quotaService.fiveHourGaugeColor)
+                }
+
+                VStack(alignment: .leading, spacing: 2) {
+                    if let email = googleAuth.userEmail, !email.isEmpty {
+                        Text(email)
+                            .font(.system(size: 13, weight: .semibold))
+                            .foregroundColor(.primary)
+                    } else {
+                        Text("Google Account")
+                            .font(.system(size: 13, weight: .semibold))
+                            .foregroundColor(.primary)
+                    }
+
+                    HStack(spacing: 5) {
+                        Circle().fill(quotaService.fiveHourGaugeColor).frame(width: 6, height: 6)
+                        Text("OAuth Active · Using Account Allowance")
+                            .font(.caption2)
+                            .foregroundColor(.secondary)
+                    }
+                }
+
+                Spacer()
+
+                Button(role: .destructive) {
+                    showSignOutConfirmation = true
+                } label: {
+                    Label("Sign Out", systemImage: "rectangle.portrait.and.arrow.right")
+                        .font(.caption.weight(.medium))
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+            }
+
+            Divider()
+
+            accountLimitsAllowanceCard
+        }
+        .padding(12)
+        .background(quotaService.fiveHourGaugeColor.opacity(0.06), in: RoundedRectangle(cornerRadius: 10))
+        .overlay(
+            RoundedRectangle(cornerRadius: 10)
+                .stroke(quotaService.fiveHourGaugeColor.opacity(0.2), lineWidth: 1)
+        )
+    }
+
+    @ViewBuilder
+    private var accountLimitsAllowanceCard: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack {
+                HStack(spacing: 6) {
+                    Image(systemName: "gauge.with.needle.fill")
+                        .font(.system(size: 12, weight: .bold))
+                        .foregroundStyle(quotaService.fiveHourGaugeColor)
+                    Text("Account Allowance")
+                        .font(.system(size: 11, weight: .bold))
+                        .foregroundStyle(.primary)
+                }
+
+                Spacer()
+
+                Text("\(quotaService.fiveHourRemainingPercentString) Remaining")
+                    .font(.system(size: 9, weight: .bold, design: .rounded))
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 2)
+                    .background(quotaService.fiveHourGaugeColor.opacity(0.15), in: Capsule())
+                    .foregroundStyle(quotaService.fiveHourGaugeColor)
+            }
+
+            // 5-Hour Limit
+            VStack(alignment: .leading, spacing: 4) {
+                HStack {
+                    Text("5-Hour Rate Limit")
+                        .font(.caption2.weight(.medium))
+                        .foregroundStyle(.secondary)
+                    Spacer()
+                    Text("\(quotaService.fiveHourRemaining) of \(quotaService.fiveHourLimit) remaining")
+                        .font(.system(size: 11, weight: .semibold, design: .monospaced))
+                        .foregroundStyle(quotaService.fiveHourGaugeColor)
+                }
+
+                ProgressView(value: quotaService.fiveHourRemainingFraction)
+                    .tint(quotaService.fiveHourGaugeColor)
+
+                HStack {
+                    Text("Resets in: \(quotaService.fiveHourResetCountdown)")
+                        .font(.system(size: 9))
+                        .foregroundStyle(.secondary)
+                    Spacer()
+                    Text("\(quotaService.fiveHourUsage) requests used")
+                        .font(.system(size: 9))
+                        .foregroundStyle(.secondary)
+                }
+            }
+
+            // Weekly Limit
+            VStack(alignment: .leading, spacing: 4) {
+                HStack {
+                    Text("Weekly Allowance")
+                        .font(.caption2.weight(.medium))
+                        .foregroundStyle(.secondary)
+                    Spacer()
+                    Text("\(quotaService.weeklyRemaining) of \(quotaService.weeklyLimit) remaining")
+                        .font(.system(size: 11, weight: .semibold, design: .monospaced))
+                        .foregroundStyle(quotaService.weeklyGaugeColor)
+                }
+
+                ProgressView(value: quotaService.weeklyRemainingFraction)
+                    .tint(quotaService.weeklyGaugeColor)
+
+                HStack {
+                    Text("Resets in: \(quotaService.weeklyResetCountdown)")
+                        .font(.system(size: 9))
+                        .foregroundStyle(.secondary)
+                    Spacer()
+                    Text("\(quotaService.weeklyUsage) requests used")
+                        .font(.system(size: 9))
+                        .foregroundStyle(.secondary)
+                }
+            }
+        }
+        .padding(10)
+        .background(Color.primary.opacity(0.03), in: RoundedRectangle(cornerRadius: 8))
     }
 
     private func loadAPIKeys() {
@@ -2625,7 +2854,7 @@ extension AssistSettingsView {
 
     private func downloadGoogleAntigravityResources() {
         isDownloadingResources = true
-        downloadStatusMessage = "Running pip install google-antigravity..."
+        downloadStatusMessage = "Running SDK installation..."
         downloadErrorMessage = nil
         downloadCompleted = false
 
@@ -2661,7 +2890,7 @@ extension AssistSettingsView {
                     if process.terminationStatus == 0 {
                         success = true
                         await MainActor.run {
-                            self.downloadStatusMessage = "google-antigravity installed successfully!"
+                            self.downloadStatusMessage = "Official SDK installed successfully!"
                             self.downloadCompleted = true
                             self.settings.antigravityExecutionMode = "resources"
                             Task {
@@ -2680,7 +2909,7 @@ extension AssistSettingsView {
             if !success {
                 // Fallback: Deploy bundled Google Cloud SDK resources to user Python site-packages
                 await MainActor.run {
-                    self.downloadStatusMessage = "Deploying bundled google-antigravity SDK resources..."
+                    self.downloadStatusMessage = "Deploying bundled SDK resources..."
                 }
 
                 if let sdkDir = bundledSDKDir {
@@ -2747,7 +2976,7 @@ extension AssistSettingsView {
                     if deploySuccess {
                         success = true
                         await MainActor.run {
-                            self.downloadStatusMessage = "google-antigravity resources deployed successfully!"
+                            self.downloadStatusMessage = "Official SDK resources deployed successfully!"
                             self.downloadCompleted = true
                             self.downloadErrorMessage = nil
                             self.settings.antigravityExecutionMode = "resources"

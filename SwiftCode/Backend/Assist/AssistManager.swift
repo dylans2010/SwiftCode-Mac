@@ -1014,6 +1014,11 @@ public final class AssistManager: ObservableObject {
                 }
 
                 metrics?.mark(.requestSent)
+                if GoogleAccountAuthService.shared.isAuthenticated {
+                    await MainActor.run {
+                        AntigravityQuotaService.shared.recordRequest()
+                    }
+                }
                 do {
                     try await currentSession.sendMessage(currentPrompt, attachments: currentAttachments)
                     _ = await streamTask.result

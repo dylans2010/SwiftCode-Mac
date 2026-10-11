@@ -59,7 +59,7 @@ public struct AssistMainView: View {
     @State private var composerTriggerMode: ComposerTriggerMode? = nil
     @State private var showCustomModelPicker = false
     @State private var discoveryService = AssistModelDiscoveryService.shared
-
+    @ObservedObject private var googleAuth = GoogleAccountAuthService.shared
 
     public init() {}
 
@@ -890,16 +890,30 @@ public struct AssistMainView: View {
                 .buttonStyle(.borderless)
                 .help("Choose Model")
                 .popover(isPresented: $showCustomModelPicker, arrowEdge: .top) {
-                    AssistCustomModelPickerPopover(
-                        selectedModelID: currentActiveModelID(),
-                        onSelect: { selectedModel in
-                            selectDiscoveredModel(selectedModel)
-                            showCustomModelPicker = false
-                        },
-                        onDismiss: {
-                            showCustomModelPicker = false
-                        }
-                    )
+                    if googleAuth.isAuthenticated && AppSettings.shared.assistModelRoutingStrategy == "default" {
+                        AntigravityLimitsModelsUI(
+                            selectedModelID: currentActiveModelID(),
+                            onSelect: { selectedModelID in
+                                let model = AssistModelRouter.shared.createSyntheticSDKModel(modelID: selectedModelID)
+                                selectDiscoveredModel(model)
+                                showCustomModelPicker = false
+                            },
+                            onDismiss: {
+                                showCustomModelPicker = false
+                            }
+                        )
+                    } else {
+                        AssistCustomModelPickerPopover(
+                            selectedModelID: currentActiveModelID(),
+                            onSelect: { selectedModel in
+                                selectDiscoveredModel(selectedModel)
+                                showCustomModelPicker = false
+                            },
+                            onDismiss: {
+                                showCustomModelPicker = false
+                            }
+                        )
+                    }
                 }
 
                 Button {

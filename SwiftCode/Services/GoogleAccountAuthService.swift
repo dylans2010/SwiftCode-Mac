@@ -298,6 +298,8 @@ public final class GoogleAccountAuthService: NSObject, ObservableObject {
 
         logger.info("Signed out from Google Account.")
 
+        AntigravityQuotaService.shared.resetToFresh()
+
         Task {
             await AssistModelDiscoveryService.shared.discoverAllModels(forceRefresh: true)
         }

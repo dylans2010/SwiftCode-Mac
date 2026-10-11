@@ -87,6 +87,31 @@ class AppSettings: ObservableObject {
         }
     }
 
+    public var assistModelRoutingStrategy: String {
+        get {
+            if alternativeKeysEnabled {
+                return "rotation"
+            } else if useSavedModels {
+                return "app_models"
+            } else {
+                return "default"
+            }
+        }
+        set {
+            switch newValue {
+            case "rotation":
+                useSavedModels = false
+                alternativeKeysEnabled = true
+            case "app_models":
+                useSavedModels = true
+                alternativeKeysEnabled = false
+            default:
+                useSavedModels = false
+                alternativeKeysEnabled = false
+            }
+        }
+    }
+
     @Published var assistGoogleAuthMode: String {
         didSet {
             debouncedSave("assist_google_auth_mode", assistGoogleAuthMode)

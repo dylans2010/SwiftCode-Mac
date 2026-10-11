@@ -149,17 +149,65 @@ public final class AssistModelRouter: Sendable {
         )
     }
 
+    // MARK: - SDK Default Model Identifiers (Dynamically Fetched from Antigravity SDK)
+    public static var sdkDefaultModelIDs: [String] {
+        AntigravitySDKModelFetcher.shared.allModelIDs
+    }
+
     public func resolveSavedModel() async -> AssistAvailableModel? {
         let candidates = await getEligibleCandidates()
         return candidates.first
     }
 
     public func selectModelForSDK(objective: String = "") async -> (model: AssistAvailableModel, config: GoogleCloudSDKConfiguration)? {
-        let isSavedModelsEnabled = AppSettings.shared.useSavedModels
+        let strategy = AppSettings.shared.assistModelRoutingStrategy
         let selectedId = AppSettings.shared.selectedAssistModelID
 
         let targetModel: AssistAvailableModel
-        if isSavedModelsEnabled {
+
+        switch strategy {
+        case "default":
+            // Antigravity SDK Default: ONLY use models listed in the SDK, NOTHING ELSE.
+            let validIds = Self.sdkDefaultModelIDs
+            let effectiveModelID: String
+            if validIds.contains(selectedId) {
+                effectiveModelID = selectedId
+            } else if let first = validIds.first {
+                effectiveModelID = first
+            } else {
+                effectiveModelID = selectedId
+            }
+            let candidates = await getEligibleCandidates()
+            if let match = candidates.first(where: { $0.id == effectiveModelID || $0.modelIdentifier == effectiveModelID }) {
+                targetModel = match
+            } else if let firstSdk = candidates.first {
+                targetModel = firstSdk
+            } else {
+                targetModel = createSyntheticSDKModel(modelID: effectiveModelID)
+            }
+
+        case "rotation":
+            // Gemini Key Rotation: ONLY use models listed in the SDK, BUT rotate API keys.
+            let validIds = Self.sdkDefaultModelIDs
+            let effectiveModelID: String
+            if validIds.contains(selectedId) {
+                effectiveModelID = selectedId
+            } else if let first = validIds.first {
+                effectiveModelID = first
+            } else {
+                effectiveModelID = selectedId
+            }
+            let candidates = await getEligibleCandidates()
+            if let match = candidates.first(where: { $0.id == effectiveModelID || $0.modelIdentifier == effectiveModelID }) {
+                targetModel = match
+            } else if let firstSdk = candidates.first {
+                targetModel = firstSdk
+            } else {
+                targetModel = createSyntheticSDKModel(modelID: effectiveModelID)
+            }
+
+        case "app_models":
+            // App Model Catalog: try ALL the models that will be on the Available Models card.
             let discovery = AssistModelDiscoveryService.shared
             let cachedCandidates = eligibleCandidates(from: discovery.discoveredModels)
             if let match = cachedCandidates.first(where: { $0.id == selectedId || $0.modelIdentifier == selectedId }) {
@@ -177,7 +225,8 @@ public final class AssistModelRouter: Sendable {
                     targetModel = await resolveDefaultModel()
                 }
             }
-        } else {
+
+        default:
             targetModel = await resolveDefaultModel()
         }
 
@@ -198,8 +247,27 @@ public final class AssistModelRouter: Sendable {
     }
 
     private func eligibleCandidates(from allModels: [AssistAvailableModel]) -> [AssistAvailableModel] {
+        let strategy = AppSettings.shared.assistModelRoutingStrategy
+
+        var baseModels: [AssistAvailableModel]
+        if strategy == "default" || strategy == "rotation" {
+            // STRICT SDK ONLY: Restrict exclusively to models listed in the SDK
+            let filtered = allModels.filter { model in
+                Self.sdkDefaultModelIDs.contains(model.modelIdentifier) || Self.sdkDefaultModelIDs.contains(model.id)
+            }
+            if filtered.isEmpty {
+                // Ensure default SDK models are always present even before provider sync completes
+                baseModels = Self.sdkDefaultModelIDs.map { createSyntheticSDKModel(modelID: $0) }
+            } else {
+                baseModels = filtered
+            }
+        } else {
+            // App Model Catalog: try ALL models from the Available Models card
+            baseModels = allModels
+        }
+
         // Filter: must support agentic use and tool calling, must be configured, must not be quarantined
-        let eligible = allModels.filter { model in
+        let eligible = baseModels.filter { model in
             guard model.supportsAgenticUse && model.supportsToolCalling else { return false }
             guard model.isConfigured else { return false }
 
@@ -215,6 +283,63 @@ public final class AssistModelRouter: Sendable {
         }
 
         return rankModels(eligible)
+    }
+
+    public func createSyntheticSDKModel(modelID: String) -> AssistAvailableModel {
+        if let sdkModel = AntigravitySDKModelFetcher.shared.getModel(byID: modelID) {
+            return AssistAvailableModel(
+                id: sdkModel.id,
+                displayName: sdkModel.displayName,
+                providerID: sdkModel.category.lowercased(),
+                providerName: sdkModel.category == "Google" ? "Google" : sdkModel.category,
+                modelIdentifier: sdkModel.id,
+                capabilities: [.streaming, .toolCalling, .vision, .structuredOutput, .subagents],
+                source: .gemini,
+                isConfigured: true,
+                isAvailable: true,
+                supportsStreaming: true,
+                supportsToolCalling: true,
+                supportsVision: true,
+                supportsStructuredOutput: true,
+                supportsAgenticUse: true,
+                supportsSubagents: !sdkModel.isImageModel,
+                priority: 1,
+                statusDescription: "\(sdkModel.thinkingLevel) Thinking",
+                status: .available,
+                contextWindow: sdkModel.contextWindow
+            )
+        }
+
+        let level = AntigravitySDKModelFetcher.deriveThinkingLevel(modelID: modelID, displayName: modelID)
+        let contextWindow = AntigravitySDKModelFetcher.deriveContextWindow(modelID: modelID)
+        let category = AntigravitySDKModelFetcher.deriveCategory(modelID: modelID)
+
+        let formattedName = modelID
+            .split(separator: "-")
+            .map { $0.capitalized }
+            .joined(separator: " ")
+
+        return AssistAvailableModel(
+            id: modelID,
+            displayName: "\(formattedName) (\(level))",
+            providerID: category.lowercased(),
+            providerName: category == "Google" ? "Google" : category,
+            modelIdentifier: modelID,
+            capabilities: [.streaming, .toolCalling, .vision, .structuredOutput, .subagents],
+            source: .gemini,
+            isConfigured: true,
+            isAvailable: true,
+            supportsStreaming: true,
+            supportsToolCalling: true,
+            supportsVision: true,
+            supportsStructuredOutput: true,
+            supportsAgenticUse: true,
+            supportsSubagents: !modelID.contains("image"),
+            priority: 5,
+            statusDescription: "\(level) Thinking",
+            status: .available,
+            contextWindow: contextWindow
+        )
     }
 
     public var availableCandidates: [AssistAvailableModel] {
@@ -422,6 +547,19 @@ public final class AssistModelRouter: Sendable {
             markModelUnavailable(modelID: failedModel.id, reason: error.localizedDescription)
         }
 
+        // If on Gemini Key Rotation and hit rate limit, rotate key first
+        if AppSettings.shared.alternativeKeysEnabled && (failureClass == .rateLimited || failureClass == .quotaExhausted) {
+            if let activeId = AlternativeKeyManager.shared.activeKeyId {
+                AlternativeKeyManager.shared.markRateLimited(id: activeId, retryAfterSeconds: 60)
+            }
+            if let nextKeyInfo = AlternativeKeyManager.shared.selectNextAvailableKey() {
+                logger.info("[ModelRouter] Key Rotation: Switched to next Gemini key: \(nextKeyInfo.metadata.maskedValue)")
+                let nextConfig = buildSDKConfiguration(for: failedModel, objective: objective)
+                let handoff = "CONTINUATION DIRECTIVE:\nRotated to next Gemini API key (\(nextKeyInfo.metadata.maskedValue)) due to rate limit.\n\n" + (completedTurnContent.isEmpty ? "" : "Partial output:\n\"\"\"\n\(completedTurnContent)\n\"\"\"\n\n") + "Continue fulfilling the objective without repeating already completed work."
+                return (failedModel, handoff, nextConfig)
+            }
+        }
+
         var excluding = Set<String>()
         excluding.insert(failedModel.id)
         excluding.insert(failedModel.modelIdentifier)
@@ -479,16 +617,31 @@ public final class AssistModelRouter: Sendable {
 
         let provider = model.providerID.lowercased()
         let apiKey: String?
-        if (provider == "gemini" || provider == "google") && AppSettings.shared.alternativeKeysEnabled && baseConfig.apiKey != nil {
-            apiKey = baseConfig.apiKey
+        let oauthToken: String?
+
+        let googleAuthMode = UserDefaults.standard.string(forKey: "assist_google_auth_mode") ?? AppSettings.shared.assistGoogleAuthMode
+        let isOAuthAuthenticated = (googleAuthMode == "google_oauth" || GoogleAccountAuthService.shared.isAuthenticated) && !AppSettings.shared.alternativeKeysEnabled
+
+        if isOAuthAuthenticated {
+            // Strictly rely ONLY on Antigravity allowance / OAuth session. NO API keys.
+            apiKey = nil
+            oauthToken = GoogleAccountAuthService.shared.getValidAccessToken()
+        } else if AppSettings.shared.alternativeKeysEnabled {
+            // Gemini Key Rotation: rotate through keys strictly with no OAuth
+            apiKey = AlternativeKeyManager.shared.getActiveOrNextKey()?.key
+                ?? KeychainService.shared.get(forKey: LLMProvider.google.keychainKey)
+                ?? APIKeyManager.shared.retrieveKey(service: .google)
+                ?? baseConfig.apiKey
+            oauthToken = nil
         } else {
             apiKey = resolveAPIKey(for: provider) ?? baseConfig.apiKey
+            oauthToken = baseConfig.oauthToken
         }
 
         return GoogleCloudSDKConfiguration(
             model: model.modelIdentifier,
             apiKey: apiKey,
-            oauthToken: baseConfig.oauthToken,
+            oauthToken: oauthToken,
             vertex: false,
             project: nil,
             location: nil,

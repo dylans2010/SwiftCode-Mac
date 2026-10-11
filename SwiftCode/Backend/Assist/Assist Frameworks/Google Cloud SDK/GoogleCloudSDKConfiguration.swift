@@ -269,8 +269,9 @@ public struct GoogleCloudSDKConfiguration: Codable, @unchecked Sendable {
 
         var oauthToken: String? = nil
         let googleAuthMode = UserDefaults.standard.string(forKey: "assist_google_auth_mode") ?? AppSettings.shared.assistGoogleAuthMode
-        if googleAuthMode == "google_oauth" {
+        if (googleAuthMode == "google_oauth" || GoogleAccountAuthService.shared.isAuthenticated) && !AppSettings.shared.alternativeKeysEnabled {
             oauthToken = GoogleAccountAuthService.shared.getValidAccessToken()
+            apiKey = nil // Strictly zero API key reliance; rely purely on Antigravity allowance
         }
 
         return GoogleCloudSDKConfiguration(
