@@ -455,21 +455,19 @@ public final class AntigravityQuotaService: NSObject, ObservableObject {
     private nonisolated static func fetchQuotaDataInBackground() async -> Data? {
         await Task.detached(priority: .userInitiated) {
             let script = """
-            PS_LINE=$(pgrep -fl "language_server_macos_arm" | grep -v "node" | head -n 1)
-            if [ -n "$PS_LINE" ]; then
-                PID=$(echo "$PS_LINE" | awk '{print $1}')
-                CSRF=$(echo "$PS_LINE" | sed -n 's/.*--csrf_token \\([a-f0-9-]*\\).*/\\1/p')
-                if [ -n "$PID" ] && [ -n "$CSRF" ]; then
-                    PORTS=$(lsof -Pan -p "$PID" -i -sTCP:LISTEN 2>/dev/null | grep -oE ":[0-9]+" | tr -d ":" | sort -u)
-                    for PORT in $PORTS; do
-                        RES=$(curl -k -s -m 2 -X POST "https://127.0.0.1:$PORT/exa.language_server_pb.LanguageServerService/RetrieveUserQuotaSummary" -H "Content-Type: application/json" -H "x-codeium-csrf-token: $CSRF" -d "{}" 2>/dev/null)
-                        if echo "$RES" | grep -q "remainingFraction"; then
-                            echo "$RES"
+            for pid in $(pgrep -f "language_server_macos_arm" 2>/dev/null | grep -v "node"); do
+                line=$(ps -p "$pid" -o command= 2>/dev/null)
+                csrf=$(echo "$line" | sed -n 's/.*--csrf_token \\([a-f0-9-]*\\).*/\\1/p')
+                if [ -n "$csrf" ]; then
+                    for port in $(lsof -Pan -p "$pid" -i -sTCP:LISTEN 2>/dev/null | grep -oE ":[0-9]+" | tr -d ":" | sort -u); do
+                        res=$(curl -k -s -m 2 -X POST "https://127.0.0.1:$port/exa.language_server_pb.LanguageServerService/RetrieveUserQuotaSummary" -H "Content-Type: application/json" -H "x-codeium-csrf-token: $csrf" -d "{}" 2>/dev/null)
+                        if echo "$res" | grep -q "remainingFraction"; then
+                            echo "$res"
                             exit 0
                         fi
                     done
                 fi
-            fi
+            done
             """
 
             let process = Process()

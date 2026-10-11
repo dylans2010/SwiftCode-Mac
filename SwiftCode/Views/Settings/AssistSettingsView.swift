@@ -579,27 +579,28 @@ struct AssistSettingsView: View {
             VStack(spacing: 24) {
                 // 0. Assist System Selection (Native Assist vs Assist on Google Cloud)
                 GroupBox {
-                    VStack(alignment: .leading, spacing: 18) {
+                    VStack(alignment: .leading, spacing: 14) {
+                        // Header
                         HStack(alignment: .center) {
                             HStack(spacing: 10) {
                                 ZStack {
-                                    Circle()
+                                    RoundedRectangle(cornerRadius: 8)
                                         .fill(
                                             LinearGradient(
-                                                colors: [Color.blue.opacity(0.2), Color.indigo.opacity(0.3)],
+                                                colors: [Color.blue.opacity(0.18), Color.indigo.opacity(0.14)],
                                                 startPoint: .topLeading,
                                                 endPoint: .bottomTrailing
                                             )
                                         )
                                         .frame(width: 32, height: 32)
                                     Image(systemName: "cpu.fill")
-                                        .font(.system(size: 15, weight: .bold))
+                                        .font(.system(size: 14, weight: .bold))
                                         .foregroundStyle(LinearGradient(colors: [.blue, .indigo], startPoint: .topLeading, endPoint: .bottomTrailing))
                                 }
 
                                 VStack(alignment: .leading, spacing: 2) {
                                     Text("Assist System Architecture")
-                                        .font(.system(size: 15, weight: .semibold))
+                                        .font(.system(size: 14, weight: .semibold))
                                     Text("Select the underlying reasoning and tool execution engine")
                                         .font(.caption2)
                                         .foregroundStyle(.secondary)
@@ -612,17 +613,17 @@ struct AssistSettingsView: View {
                             HStack(spacing: 5) {
                                 Circle()
                                     .fill(settings.isGoogleCloudAssist ? Color.blue : Color.purple)
-                                    .frame(width: 7, height: 7)
+                                    .frame(width: 6, height: 6)
                                 Text(settings.isGoogleCloudAssist ? "Google Cloud SDK" : "Native Engine")
                                     .font(.system(size: 11, weight: .semibold, design: .rounded))
                                     .foregroundStyle(settings.isGoogleCloudAssist ? Color.blue : Color.purple)
                             }
-                            .padding(.horizontal, 10)
-                            .padding(.vertical, 4)
+                            .padding(.horizontal, 9)
+                            .padding(.vertical, 3.5)
                             .background((settings.isGoogleCloudAssist ? Color.blue : Color.purple).opacity(0.1), in: Capsule())
                         }
 
-                        // Modern segmented picker
+                        // Segmented picker
                         Picker("Active Assist System", selection: $settings.assistSystemID) {
                             Text("Native Assist System")
                                 .tag(AppSettings.nativeAssistSystemID)
@@ -632,348 +633,224 @@ struct AssistSettingsView: View {
                         .pickerStyle(.segmented)
 
                         if settings.assistSystemID == AppSettings.googleCloudAssistSystemID {
-                            VStack(alignment: .leading, spacing: 16) {
-                                // Status banner card
+                            VStack(alignment: .leading, spacing: 12) {
+                                // Modern unified engine control card
                                 HStack(spacing: 12) {
                                     ZStack {
-                                        RoundedRectangle(cornerRadius: 10)
-                                            .fill(
-                                                LinearGradient(
-                                                    colors: [Color.blue.opacity(0.18), Color.cyan.opacity(0.12)],
-                                                    startPoint: .topLeading,
-                                                    endPoint: .bottomTrailing
-                                                )
-                                            )
-                                            .frame(width: 40, height: 40)
-                                        Image(systemName: "cloud.rainbow.half")
-                                            .symbolRenderingMode(.multicolor)
-                                            .font(.system(size: 20))
+                                        RoundedRectangle(cornerRadius: 8)
+                                            .fill(Color.blue.opacity(0.12))
+                                            .frame(width: 36, height: 36)
+                                        Image(systemName: "cloud.fill")
+                                            .font(.system(size: 17))
+                                            .foregroundStyle(.blue)
                                     }
 
                                     VStack(alignment: .leading, spacing: 3) {
                                         HStack(spacing: 6) {
-                                            Text("Assist on Google Cloud")
-                                                .font(.system(size: 13, weight: .semibold))
-                                            Text("Active Engine")
-                                                .font(.system(size: 9, weight: .heavy, design: .rounded))
-                                                .foregroundStyle(.blue)
-                                                .padding(.horizontal, 6)
-                                                .padding(.vertical, 2)
-                                                .background(Color.blue.opacity(0.12), in: Capsule())
+                                            Text("Google Cloud SDK Engine")
+                                                .font(.system(size: 12.5, weight: .semibold))
+                                            googleCloudStatusBadge
                                         }
 
-                                        Text("Google Cloud SDK · Persistent Autonomous Sessions")
-                                            .font(.caption2)
-                                            .foregroundStyle(.secondary)
+                                        HStack(spacing: 6) {
+                                            Text("Gemini Reasoning")
+                                            Text("·")
+                                            Text("Subagents")
+                                            Text("·")
+                                            Text("Background Daemon")
+                                        }
+                                        .font(.system(size: 10))
+                                        .foregroundStyle(.secondary)
                                     }
 
                                     Spacer()
 
-                                    // Dynamic runtime status indicator
-                                    googleCloudStatusBadge
+                                    // Compact Action Buttons
+                                    HStack(spacing: 6) {
+                                        Button {
+                                            Task {
+                                                if GoogleCloudSDKRuntime.shared.isRunning {
+                                                    await GoogleCloudSDKLifecycleManager.shared.stopEngine()
+                                                } else {
+                                                    try? await GoogleCloudSDKLifecycleManager.shared.startEngine()
+                                                }
+                                            }
+                                        } label: {
+                                            Text(GoogleCloudSDKRuntime.shared.isRunning ? "Stop" : "Start")
+                                                .font(.system(size: 11, weight: .semibold))
+                                        }
+                                        .buttonStyle(.borderedProminent)
+                                        .tint(GoogleCloudSDKRuntime.shared.isRunning ? Color.secondary : Color.blue)
+                                        .controlSize(.small)
+
+                                        Button {
+                                            Task {
+                                                try? await GoogleCloudSDKLifecycleManager.shared.restartEngine()
+                                            }
+                                        } label: {
+                                            Image(systemName: "arrow.clockwise")
+                                                .font(.system(size: 11, weight: .medium))
+                                        }
+                                        .buttonStyle(.bordered)
+                                        .controlSize(.small)
+                                        .help("Restart SDK Engine")
+
+                                        Button {
+                                            downloadGoogleAntigravityResources()
+                                        } label: {
+                                            Image(systemName: "arrow.down.circle")
+                                                .font(.system(size: 11, weight: .medium))
+                                        }
+                                        .buttonStyle(.bordered)
+                                        .controlSize(.small)
+                                        .help("Download SDK Resources")
+                                    }
                                 }
-                                .padding(12)
-                                .background(
-                                    RoundedRectangle(cornerRadius: 12)
-                                        .fill(Color.primary.opacity(0.03))
-                                        .overlay(
-                                            RoundedRectangle(cornerRadius: 12)
-                                                .stroke(Color.blue.opacity(0.18), lineWidth: 1)
-                                        )
+                                .padding(10)
+                                .background(Color.primary.opacity(0.025), in: RoundedRectangle(cornerRadius: 9))
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 9)
+                                        .stroke(Color.primary.opacity(0.06), lineWidth: 1)
                                 )
 
-                                // Feature pill highlights
-                                HStack(spacing: 8) {
-                                    Label("Gemini Reasoning", systemImage: "sparkles")
-                                        .font(.system(size: 10, weight: .medium))
-                                        .foregroundStyle(.blue)
-                                        .padding(.horizontal, 8)
-                                        .padding(.vertical, 4)
-                                        .background(Color.blue.opacity(0.08), in: Capsule())
-
-                                    Label("Subagent Coordination", systemImage: "person.2.fill")
-                                        .font(.system(size: 10, weight: .medium))
-                                        .foregroundStyle(.indigo)
-                                        .padding(.horizontal, 8)
-                                        .padding(.vertical, 4)
-                                        .background(Color.indigo.opacity(0.08), in: Capsule())
-
-                                    Label("Background Daemon", systemImage: "bolt.horizontal.fill")
-                                        .font(.system(size: 10, weight: .medium))
-                                        .foregroundStyle(.teal)
-                                        .padding(.horizontal, 8)
-                                        .padding(.vertical, 4)
-                                        .background(Color.teal.opacity(0.08), in: Capsule())
-
-                                    Spacer()
-                                }
-
-                                // Interactive engine controls
-                                HStack(spacing: 12) {
-                                    Button {
-                                        Task {
-                                            if GoogleCloudSDKRuntime.shared.isRunning {
-                                                await GoogleCloudSDKLifecycleManager.shared.stopEngine()
-                                            } else {
-                                                try? await GoogleCloudSDKLifecycleManager.shared.startEngine()
-                                            }
-                                        }
-                                    } label: {
-                                        Text(GoogleCloudSDKRuntime.shared.isRunning ? "Stop Engine" : "Start Engine")
-                                            .font(.system(size: 12, weight: .semibold))
-                                            .frame(maxWidth: .infinity)
-                                    }
-                                    .buttonStyle(.borderedProminent)
-                                    .tint(GoogleCloudSDKRuntime.shared.isRunning ? Color.secondary : Color.blue)
-                                    .controlSize(.regular)
-
-                                    Button {
-                                        Task {
-                                            try? await GoogleCloudSDKLifecycleManager.shared.restartEngine()
-                                        }
-                                    } label: {
-                                        Label("Restart Engine", systemImage: "arrow.clockwise")
-                                            .font(.system(size: 12, weight: .medium))
-                                    }
-                                    .buttonStyle(.bordered)
-                                    .controlSize(.regular)
-
-                                    Button {
-                                        downloadGoogleAntigravityResources()
-                                    } label: {
-                                        Label("Download Resources", systemImage: "arrow.down.circle.fill")
-                                            .font(.system(size: 12, weight: .medium))
-                                    }
-                                    .buttonStyle(.bordered)
-                                    .controlSize(.regular)
-                                }
-
-                                Text("The Google Cloud engine runs continuously in the background to deliver instant autonomous tool calls, subagent orchestration, and token streaming.")
-                                    .font(.caption2)
-                                    .foregroundStyle(.secondary)
-
-                                Divider()
-                                    .padding(.vertical, 4)
-
-                                // MARK: - SDK Execution Backend Selection
-                                VStack(alignment: .leading, spacing: 8) {
-                                    HStack {
-                                        VStack(alignment: .leading, spacing: 2) {
-                                            Text("SDK Execution Backend")
-                                                .font(.system(size: 13, weight: .semibold))
-                                            Text("Select whether to run the SDK via the Python Bridge or directly via Downloaded Resources.")
-                                                .font(.caption2)
-                                                .foregroundStyle(.secondary)
-                                        }
-
-                                        Spacer()
-
-                                        HStack(spacing: 5) {
-                                            Circle()
-                                                .fill(settings.antigravityExecutionMode == "resources" ? Color.green : Color.orange)
-                                                .frame(width: 7, height: 7)
-                                            Text(settings.antigravityExecutionMode == "resources" ? "Downloaded Resources" : "Python Bridge")
-                                                .font(.system(size: 11, weight: .semibold, design: .rounded))
-                                                .foregroundStyle(settings.antigravityExecutionMode == "resources" ? Color.green : Color.orange)
-                                        }
-                                        .padding(.horizontal, 10)
-                                        .padding(.vertical, 4)
-                                        .background((settings.antigravityExecutionMode == "resources" ? Color.green : Color.orange).opacity(0.1), in: Capsule())
-                                    }
-
-                                    Picker("Execution Mode", selection: $settings.antigravityExecutionMode) {
-                                        Text("Downloaded Resources (Direct Binary)").tag("resources")
-                                        Text("Python Bridge Server").tag("bridge")
-                                    }
-                                    .pickerStyle(.segmented)
-                                    .controlSize(.small)
-                                    .onChange(of: settings.antigravityExecutionMode) { _, _ in
-                                        Task {
-                                            try? await GoogleCloudSDKLifecycleManager.shared.restartEngine()
-                                        }
-                                    }
-
-                                    HStack(alignment: .top, spacing: 6) {
-                                        Image(systemName: settings.antigravityExecutionMode == "resources" ? "terminal.fill" : "arrow.triangle.pull")
-                                            .font(.caption)
-                                            .foregroundStyle(settings.antigravityExecutionMode == "resources" ? Color.green : Color.orange)
-                                        Text(settings.antigravityExecutionMode == "resources"
-                                             ? "Downloaded Resources mode executes the installed SDK binary directly, providing raw SDK performance while retaining token streaming, toolkits, and model selection."
-                                             : "Bridge mode runs the Python IPC bridge server to route requests and stream tokens to the UI.")
-                                            .font(.caption2)
-                                            .foregroundStyle(.secondary)
-                                    }
-                                }
-
-                                Divider()
-                                    .padding(.vertical, 4)
-                                // MARK: - Assist Toolkit Configuration
-                                VStack(alignment: .leading, spacing: 8) {
-                                    HStack {
-                                        VStack(alignment: .leading, spacing: 2) {
-                                            Text("Assist Toolkit")
-                                                .font(.system(size: 13, weight: .semibold))
-                                            Text("Choose whether to use SwiftCode tools or Official SDK tools.")
-                                                .font(.caption2)
-                                                .foregroundStyle(.secondary)
-                                        }
-
-                                        Spacer()
-
-                                        HStack(spacing: 5) {
-                                            Circle()
-                                                .fill(settings.assistToolkit == "Cloud" ? Color.blue : Color.indigo)
-                                                .frame(width: 7, height: 7)
-                                            Text(settings.assistToolkit == "Cloud" ? "Cloud (Official SDK)" : "System (SwiftCode)")
-                                                .font(.system(size: 11, weight: .semibold, design: .rounded))
-                                                .foregroundStyle(settings.assistToolkit == "Cloud" ? Color.blue : Color.indigo)
-                                        }
-                                        .padding(.horizontal, 10)
-                                        .padding(.vertical, 4)
-                                        .background((settings.assistToolkit == "Cloud" ? Color.blue : Color.indigo).opacity(0.1), in: Capsule())
-                                    }
-
-                                    Picker("Assist Toolkit", selection: $settings.assistToolkit) {
-                                        Text("System (SwiftCode)").tag("System")
-                                        Text("Cloud (Official SDK)").tag("Cloud")
-                                    }
-                                    .pickerStyle(.segmented)
-                                    .controlSize(.small)
-
-                                    HStack(alignment: .top, spacing: 6) {
-                                        Image(systemName: settings.assistToolkit == "Cloud" ? "cloud.fill" : "macbook.and.iphone")
-                                            .font(.caption)
-                                            .foregroundStyle(settings.assistToolkit == "Cloud" ? Color.blue : Color.indigo)
-                                        Text(settings.assistToolkit == "Cloud"
-                                             ? "Cloud toolkit leverages the Official SDK's built-in file manipulation, command execution, and search tools."
-                                             : "System toolkit uses SwiftCode tools (file operations, AST refactoring, builds, testing, and terminal) over the local IPC bridge.")
-                                            .font(.caption2)
-                                            .foregroundStyle(.secondary)
-                                    }
-                                }
-
-                                Divider()
-                                    .padding(.vertical, 4)
-
-                                // MARK: - Model Routing Strategy
+                                // Configuration Grid in clean cards
                                 VStack(alignment: .leading, spacing: 10) {
-                                    HStack {
-                                        VStack(alignment: .leading, spacing: 2) {
-                                            Text("Model Routing Strategy")
-                                                .font(.system(size: 13, weight: .semibold))
-                                            Text("Configure which model catalog or key rotation system Assist utilizes for requests.")
-                                                .font(.caption2)
-                                                .foregroundStyle(.secondary)
+                                    // 1. SDK Execution Backend
+                                    VStack(alignment: .leading, spacing: 6) {
+                                        HStack {
+                                            Text("SDK Execution Backend")
+                                                .font(.system(size: 12, weight: .medium))
+                                            Spacer()
+                                            Text(settings.antigravityExecutionMode == "resources" ? "Direct Binary" : "Python Bridge")
+                                                .font(.system(size: 10, weight: .semibold))
+                                                .foregroundStyle(settings.antigravityExecutionMode == "resources" ? .green : .orange)
                                         }
 
-                                        Spacer()
-                                    }
-
-                                    Picker("Model Strategy", selection: $settings.assistModelRoutingStrategy) {
-                                        Text("Official SDK Default").tag("default")
-                                        Text("App Model Catalog").tag("app_models")
-                                        Text("Gemini Key Rotation").tag("rotation")
-                                    }
-                                    .pickerStyle(.segmented)
-                                    .controlSize(.small)
-
-                                    if settings.assistModelRoutingStrategy == "rotation" {
-                                        VStack(alignment: .leading, spacing: 8) {
-                                            HStack(spacing: 6) {
-                                                Image(systemName: "arrow.triangle.2.circlepath")
-                                                    .font(.caption)
-                                                    .foregroundStyle(.orange)
-                                                Text("Gemini Key Rotation (SDK Models Only)")
-                                                    .font(.caption.bold())
-                                                    .foregroundStyle(.orange)
+                                        Picker("Execution Mode", selection: $settings.antigravityExecutionMode) {
+                                            Text("Downloaded Resources (Direct Binary)").tag("resources")
+                                            Text("Python Bridge Server").tag("bridge")
+                                        }
+                                        .pickerStyle(.segmented)
+                                        .controlSize(.small)
+                                        .onChange(of: settings.antigravityExecutionMode) { _, _ in
+                                            Task {
+                                                try? await GoogleCloudSDKLifecycleManager.shared.restartEngine()
                                             }
+                                        }
 
-                                            Text("Exclusively uses the official SDK reasoning models, but dynamically cycles across your registered Gemini API keys to bypass individual rate limits or quota ceilings.")
-                                                .font(.caption2)
-                                                .foregroundStyle(.secondary)
+                                        Text(settings.antigravityExecutionMode == "resources"
+                                             ? "Executes the compiled SDK binary directly for maximum speed and raw performance."
+                                             : "Runs the Python IPC bridge server to route requests and stream rich token events.")
+                                            .font(.system(size: 10))
+                                            .foregroundStyle(.secondary)
+                                    }
 
+                                    Divider()
+
+                                    // 2. Assist Toolkit
+                                    VStack(alignment: .leading, spacing: 6) {
+                                        HStack {
+                                            Text("Assist Toolkit")
+                                                .font(.system(size: 12, weight: .medium))
+                                            Spacer()
+                                            Text(settings.assistToolkit == "Cloud" ? "Cloud Tools" : "SwiftCode Tools")
+                                                .font(.system(size: 10, weight: .semibold))
+                                                .foregroundStyle(settings.assistToolkit == "Cloud" ? .blue : .indigo)
+                                        }
+
+                                        Picker("Assist Toolkit", selection: $settings.assistToolkit) {
+                                            Text("System (SwiftCode)").tag("System")
+                                            Text("Cloud (Official SDK)").tag("Cloud")
+                                        }
+                                        .pickerStyle(.segmented)
+                                        .controlSize(.small)
+
+                                        Text(settings.assistToolkit == "Cloud"
+                                             ? "Cloud toolkit leverages the official SDK's built-in file manipulation and execution tools."
+                                             : "System toolkit uses SwiftCode's native code editing, build diagnostics, and terminal tools.")
+                                            .font(.system(size: 10))
+                                            .foregroundStyle(.secondary)
+                                    }
+
+                                    Divider()
+
+                                    // 3. Model Routing Strategy
+                                    VStack(alignment: .leading, spacing: 6) {
+                                        HStack {
+                                            Text("Model Routing Strategy")
+                                                .font(.system(size: 12, weight: .medium))
+                                            Spacer()
+                                        }
+
+                                        Picker("Model Strategy", selection: $settings.assistModelRoutingStrategy) {
+                                            Text("Official SDK Default").tag("default")
+                                            Text("App Model Catalog").tag("app_models")
+                                            Text("Gemini Key Rotation").tag("rotation")
+                                        }
+                                        .pickerStyle(.segmented)
+                                        .controlSize(.small)
+
+                                        if settings.assistModelRoutingStrategy == "rotation" {
                                             HStack(spacing: 8) {
                                                 let keyCount = AlternativeKeyManager.shared.keys.count
                                                 let readyCount = AlternativeKeyManager.shared.keys.filter { $0.isAvailableForUse }.count
-                                                HStack(spacing: 5) {
-                                                    Circle()
-                                                        .fill(readyCount > 0 ? Color.green : Color.secondary)
-                                                        .frame(width: 6, height: 6)
-                                                    Text("\(keyCount) Gemini keys saved (\(readyCount) ready)")
-                                                        .font(.caption2.weight(.medium))
-                                                        .foregroundStyle(.primary)
-                                                }
-
+                                                Circle()
+                                                    .fill(readyCount > 0 ? Color.green : Color.secondary)
+                                                    .frame(width: 6, height: 6)
+                                                Text("\(keyCount) Gemini keys saved (\(readyCount) ready)")
+                                                    .font(.system(size: 10.5, weight: .medium))
                                                 Spacer()
-
                                                 Button {
                                                     showAlternativeKeysSheet = true
                                                 } label: {
-                                                    Label("Manage Keys", systemImage: "key.fill")
-                                                        .font(.caption2.bold())
+                                                    Text("Manage Keys")
+                                                        .font(.system(size: 10.5, weight: .semibold))
                                                 }
                                                 .buttonStyle(.bordered)
-                                                .controlSize(.small)
+                                                .controlSize(.mini)
                                             }
-                                            .padding(.horizontal, 10)
-                                            .padding(.vertical, 6)
-                                            .background(Color.primary.opacity(0.04), in: RoundedRectangle(cornerRadius: 6))
-                                        }
-                                        .padding(.top, 2)
-                                    } else if settings.assistModelRoutingStrategy == "app_models" {
-                                        VStack(alignment: .leading, spacing: 8) {
-                                            HStack(spacing: 6) {
-                                                Image(systemName: "square.grid.2x2")
-                                                    .font(.caption)
-                                                    .foregroundStyle(.purple)
-                                                Text("App Model Catalog (All Discovered Models)")
-                                                    .font(.caption.bold())
-                                                    .foregroundStyle(.purple)
-                                            }
-
-                                            Text("Assist evaluates and attempts ALL models from the Available Models catalog across your configured providers (Apple Foundation Models, OpenRouter, OpenAI, Anthropic, Custom endpoints). Automatically failovers across matching models.")
-                                                .font(.caption2)
-                                                .foregroundStyle(.secondary)
-
+                                            .padding(.horizontal, 9)
+                                            .padding(.vertical, 5)
+                                            .background(Color.orange.opacity(0.08), in: RoundedRectangle(cornerRadius: 6))
+                                        } else if settings.assistModelRoutingStrategy == "app_models" {
                                             let stats = discoveryService.getDiscoveryStats()
-                                            HStack(spacing: 8) {
-                                                HStack(spacing: 4) {
-                                                    Circle().fill(Color.green).frame(width: 6, height: 6)
-                                                    Text("\(stats.total) models in catalog")
-                                                        .font(.caption2.bold())
-                                                        .foregroundStyle(.primary)
-                                                }
-                                                Text("·").font(.caption2).foregroundStyle(.secondary)
+                                            HStack(spacing: 6) {
+                                                Circle().fill(Color.green).frame(width: 5, height: 5)
+                                                Text("\(stats.total) models in catalog")
+                                                    .font(.system(size: 10.5, weight: .semibold))
+                                                Text("·").foregroundStyle(.secondary)
                                                 Text("\(stats.providers) providers")
-                                                    .font(.caption2)
+                                                    .font(.system(size: 10.5))
                                                     .foregroundStyle(.secondary)
-                                                Text("·").font(.caption2).foregroundStyle(.secondary)
+                                                Text("·").foregroundStyle(.secondary)
                                                 Text("\(stats.agentCompatible) agent-compatible")
-                                                    .font(.caption2.bold())
+                                                    .font(.system(size: 10.5, weight: .semibold))
                                                     .foregroundStyle(.blue)
+                                                Spacer()
                                             }
-                                            .padding(.horizontal, 10)
+                                            .padding(.horizontal, 9)
                                             .padding(.vertical, 5)
                                             .background(Color.purple.opacity(0.08), in: RoundedRectangle(cornerRadius: 6))
                                         }
                                     }
                                 }
+                                .padding(10)
+                                .background(Color.primary.opacity(0.02), in: RoundedRectangle(cornerRadius: 8))
                             }
-                            .padding(.top, 2)
                         } else {
-                            HStack(spacing: 10) {
+                            HStack(spacing: 8) {
                                 Image(systemName: "checkmark.circle.fill")
-                                    .foregroundColor(.purple)
-                                    .font(.body)
-                                Text("Using the Native Assist System. Standard local compiler loops and multi-provider pipelines are active.")
-                                    .font(.caption)
+                                    .foregroundStyle(.purple)
+                                    .font(.subheadline)
+                                Text("Native Assist System is active. Standard local compiler loops and multi-provider pipelines are enabled.")
+                                    .font(.caption2)
                                     .foregroundStyle(.secondary)
                             }
-                            .padding(10)
-                            .background(Color.purple.opacity(0.05), in: RoundedRectangle(cornerRadius: 8))
+                            .padding(8)
+                            .background(Color.purple.opacity(0.05), in: RoundedRectangle(cornerRadius: 6))
                         }
                     }
-                    .padding()
+                    .padding(14)
                 }
                 .groupBoxStyle(ModernGroupBoxStyle())
 
@@ -2280,6 +2157,23 @@ struct AssistSettingsView: View {
 
                 Spacer()
 
+                Button {
+                    quotaService.refreshRealGoogleQuota()
+                } label: {
+                    if quotaService.isRefreshingQuota {
+                        ProgressView()
+                            .scaleEffect(0.55)
+                            .frame(width: 14, height: 14)
+                    } else {
+                        Image(systemName: "arrow.clockwise")
+                            .font(.system(size: 10, weight: .semibold))
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                .buttonStyle(.plain)
+                .help("Refresh live rate limits via CLI script")
+                .disabled(quotaService.isRefreshingQuota)
+
                 Text("\(quotaService.fiveHourRemainingPercentString) Remaining")
                     .font(.system(size: 9, weight: .bold, design: .rounded))
                     .padding(.horizontal, 6)
@@ -2291,11 +2185,11 @@ struct AssistSettingsView: View {
             // 5-Hour Limit
             VStack(alignment: .leading, spacing: 4) {
                 HStack {
-                    Text("5-Hour Rate Limit")
+                    Text("Gemini 5-Hour Rate Limit")
                         .font(.caption2.weight(.medium))
                         .foregroundStyle(.secondary)
                     Spacer()
-                    Text("\(quotaService.fiveHourRemaining) of \(quotaService.fiveHourLimit) remaining")
+                    Text("\(quotaService.fiveHourRemainingPercentString) remaining")
                         .font(.system(size: 11, weight: .semibold, design: .monospaced))
                         .foregroundStyle(quotaService.fiveHourGaugeColor)
                 }
@@ -2304,11 +2198,11 @@ struct AssistSettingsView: View {
                     .tint(quotaService.fiveHourGaugeColor)
 
                 HStack {
-                    Text("Resets in: \(quotaService.fiveHourResetCountdown)")
+                    Text("Resets in: \(quotaService.fiveHourResetCountdownString)")
                         .font(.system(size: 9))
                         .foregroundStyle(.secondary)
                     Spacer()
-                    Text("\(quotaService.fiveHourUsage) requests used")
+                    Text("Live CLI Allowance")
                         .font(.system(size: 9))
                         .foregroundStyle(.secondary)
                 }
@@ -2317,11 +2211,11 @@ struct AssistSettingsView: View {
             // Weekly Limit
             VStack(alignment: .leading, spacing: 4) {
                 HStack {
-                    Text("Weekly Allowance")
+                    Text("Gemini Weekly Allowance")
                         .font(.caption2.weight(.medium))
                         .foregroundStyle(.secondary)
                     Spacer()
-                    Text("\(quotaService.weeklyRemaining) of \(quotaService.weeklyLimit) remaining")
+                    Text("\(quotaService.weeklyRemainingPercentString) remaining")
                         .font(.system(size: 11, weight: .semibold, design: .monospaced))
                         .foregroundStyle(quotaService.weeklyGaugeColor)
                 }
@@ -2330,11 +2224,11 @@ struct AssistSettingsView: View {
                     .tint(quotaService.weeklyGaugeColor)
 
                 HStack {
-                    Text("Resets in: \(quotaService.weeklyResetCountdown)")
+                    Text("Resets: \(quotaService.weeklyResetString)")
                         .font(.system(size: 9))
                         .foregroundStyle(.secondary)
                     Spacer()
-                    Text("\(quotaService.weeklyUsage) requests used")
+                    Text("Live CLI Allowance")
                         .font(.system(size: 9))
                         .foregroundStyle(.secondary)
                 }
@@ -2342,6 +2236,9 @@ struct AssistSettingsView: View {
         }
         .padding(10)
         .background(Color.primary.opacity(0.03), in: RoundedRectangle(cornerRadius: 8))
+        .onAppear {
+            quotaService.refreshRealGoogleQuota()
+        }
     }
 
     private func loadAPIKeys() {

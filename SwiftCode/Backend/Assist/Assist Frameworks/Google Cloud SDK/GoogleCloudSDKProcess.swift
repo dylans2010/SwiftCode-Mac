@@ -154,6 +154,9 @@ public actor GoogleCloudSDKProcess {
 
         if let apiKey = KeychainService.shared.get(forKey: LLMProvider.google.keychainKey), !apiKey.isEmpty {
             env["GEMINI_API_KEY"] = apiKey
+        } else if let oauthToken = GoogleAccountAuthService.shared.getValidAccessToken(), !oauthToken.isEmpty {
+            env["GEMINI_API_KEY"] = oauthToken
+            env["GOOGLE_OAUTH_ACCESS_TOKEN"] = oauthToken
         }
 
         proc.environment = env

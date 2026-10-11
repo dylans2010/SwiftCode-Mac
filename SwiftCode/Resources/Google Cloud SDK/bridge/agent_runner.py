@@ -758,10 +758,13 @@ class AgentRunner:
             base_url = params.get("baseURL") or ""
 
             # Extract optional OAuth token and headers
-            oauth_token = params.get("oauthToken") or params.get("oauth_token")
+            oauth_token = params.get("oauthToken") or params.get("oauth_token") or os.environ.get("GOOGLE_OAUTH_ACCESS_TOKEN")
             http_headers = dict(params.get("headers") or {})
             if oauth_token:
                 http_headers["Authorization"] = f"Bearer {oauth_token}"
+                if not api_key:
+                    api_key = oauth_token
+                    os.environ["GEMINI_API_KEY"] = oauth_token
 
             is_litert = (
                 provider == "litert"
@@ -862,7 +865,7 @@ class AgentRunner:
                         endpoint = VertexEndpoint(
                             project=project,
                             location=location,
-                            api_key=api_key,
+                            api_key=api_key or oauth_token,
                             http_headers=http_headers,
                         )
                         config_kwargs["models"] = [
@@ -874,7 +877,7 @@ class AgentRunner:
                         ]
                     elif GeminiAPIEndpoint is not None:
                         endpoint = GeminiAPIEndpoint(
-                            api_key=api_key,
+                            api_key=api_key or oauth_token,
                             http_headers=http_headers,
                         )
                         config_kwargs["models"] = [

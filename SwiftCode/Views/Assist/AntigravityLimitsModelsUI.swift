@@ -263,102 +263,150 @@ public struct AntigravityLimitsModelsUI: View {
             // Header
             HStack(spacing: 8) {
                 Image(systemName: "gauge.with.needle.fill")
-                    .font(.headline)
+                    .font(.system(size: 13, weight: .bold))
                     .foregroundStyle(quotaService.fiveHourGaugeColor)
                 VStack(alignment: .leading, spacing: 1) {
                     Text("Usage Details")
-                        .font(.system(size: 13, weight: .bold))
-                    Text("Google Account Allowance")
-                        .font(.caption2)
+                        .font(.system(size: 12, weight: .bold))
+                    Text("Live Google Allowance")
+                        .font(.system(size: 9))
                         .foregroundStyle(.secondary)
                 }
                 Spacer()
+
+                Button {
+                    quotaService.refreshRealGoogleQuota()
+                } label: {
+                    if quotaService.isRefreshingQuota {
+                        ProgressView()
+                            .scaleEffect(0.55)
+                            .frame(width: 14, height: 14)
+                    } else {
+                        Image(systemName: "arrow.clockwise")
+                            .font(.system(size: 10, weight: .semibold))
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                .buttonStyle(.plain)
+                .help("Check live rate limits via CLI")
+                .disabled(quotaService.isRefreshingQuota)
             }
 
             Divider()
 
-            // Gemini 5-Hour Rate Limit Card
-            quotaCard(
-                title: "Gemini 5-Hour Rate Limit",
-                subtitle: "Resets in \(quotaService.fiveHourResetCountdownString)",
-                percentage: quotaService.fiveHourRemainingPercentage,
-                gaugeColor: quotaService.fiveHourGaugeColor,
-                icon: "arrow.clockwise"
-            )
+            // MARK: - Section 1: Gemini
+            VStack(alignment: .leading, spacing: 5) {
+                HStack(spacing: 4) {
+                    Image(systemName: "sparkles")
+                        .font(.system(size: 9, weight: .bold))
+                        .foregroundStyle(.blue)
+                    Text("Gemini")
+                        .font(.system(size: 10, weight: .bold))
+                        .foregroundStyle(.primary)
+                    Spacer()
+                }
 
-            // Gemini Weekly Limit Card
-            quotaCard(
-                title: "Gemini Weekly Limit",
-                subtitle: "Resets \(quotaService.weeklyResetString)",
-                percentage: quotaService.weeklyRemainingPercentage,
-                gaugeColor: quotaService.weeklyGaugeColor,
-                icon: "calendar"
-            )
+                compactQuotaCard(
+                    title: "Gemini 5-Hour Rate Limit",
+                    subtitle: "Resets in \(quotaService.fiveHourResetCountdownString)",
+                    percentage: quotaService.fiveHourRemainingPercentage,
+                    gaugeColor: quotaService.fiveHourGaugeColor,
+                    icon: "arrow.clockwise"
+                )
 
-            // Claude & GPT 5-Hour Limit Card
-            quotaCard(
-                title: "Claude & GPT 5-Hour Limit",
-                subtitle: "Resets in \(quotaService.fiveHourResetCountdownString)",
-                percentage: quotaService.realThreeP5hPercentage,
-                gaugeColor: AntigravityQuotaService.gaugeColor(forPercentage: quotaService.realThreeP5hPercentage),
-                icon: "clock.arrow.circlepath"
-            )
+                compactQuotaCard(
+                    title: "Gemini Weekly Limit",
+                    subtitle: "Resets \(quotaService.weeklyResetString)",
+                    percentage: quotaService.weeklyRemainingPercentage,
+                    gaugeColor: quotaService.weeklyGaugeColor,
+                    icon: "calendar"
+                )
+            }
 
-            // Claude & GPT Weekly Limit Card
-            quotaCard(
-                title: "Claude & GPT Weekly Limit",
-                subtitle: "Resets \(quotaService.weeklyResetString)",
-                percentage: quotaService.realThreePWeeklyPercentage,
-                gaugeColor: AntigravityQuotaService.gaugeColor(forPercentage: quotaService.realThreePWeeklyPercentage),
-                icon: "calendar.badge.clock"
-            )
+            Divider()
+
+            // MARK: - Section 2: Claude & GPT
+            VStack(alignment: .leading, spacing: 5) {
+                HStack(spacing: 4) {
+                    Image(systemName: "cpu")
+                        .font(.system(size: 9, weight: .bold))
+                        .foregroundStyle(.purple)
+                    Text("Claude & GPT")
+                        .font(.system(size: 10, weight: .bold))
+                        .foregroundStyle(.primary)
+                    Spacer()
+                }
+
+                compactQuotaCard(
+                    title: "Claude & GPT 5-Hour Limit",
+                    subtitle: "Resets in \(quotaService.fiveHourResetCountdownString)",
+                    percentage: quotaService.realThreeP5hPercentage,
+                    gaugeColor: AntigravityQuotaService.gaugeColor(forPercentage: quotaService.realThreeP5hPercentage),
+                    icon: "clock.arrow.circlepath"
+                )
+
+                compactQuotaCard(
+                    title: "Claude & GPT Weekly Limit",
+                    subtitle: "Resets \(quotaService.weeklyResetString)",
+                    percentage: quotaService.realThreePWeeklyPercentage,
+                    gaugeColor: AntigravityQuotaService.gaugeColor(forPercentage: quotaService.realThreePWeeklyPercentage),
+                    icon: "calendar.badge.clock"
+                )
+            }
         }
-        .padding(12)
-        .frame(width: 280)
+        .padding(10)
+        .frame(width: 250)
         .background(.ultraThinMaterial)
     }
 
-    private func quotaCard(
+    private func compactQuotaCard(
         title: String,
         subtitle: String,
         percentage: Double,
         gaugeColor: Color,
         icon: String
     ) -> some View {
-        HStack(spacing: 12) {
+        HStack(spacing: 8) {
             ZStack {
                 Circle()
-                    .stroke(Color.primary.opacity(0.08), lineWidth: 4.5)
-                    .frame(width: 42, height: 42)
+                    .stroke(Color.primary.opacity(0.08), lineWidth: 2.8)
+                    .frame(width: 24, height: 24)
                 Circle()
                     .trim(from: 0, to: CGFloat(max(0, min(1.0, percentage / 100.0))))
                     .stroke(
                         gaugeColor,
-                        style: StrokeStyle(lineWidth: 4.5, lineCap: .round)
+                        style: StrokeStyle(lineWidth: 2.8, lineCap: .round)
                     )
                     .rotationEffect(.degrees(-90))
-                    .frame(width: 42, height: 42)
-                Text("\(Int(round(percentage)))%")
-                    .font(.system(size: 11, weight: .bold, design: .rounded))
+                    .frame(width: 24, height: 24)
+                Image(systemName: icon)
+                    .font(.system(size: 8))
                     .foregroundStyle(gaugeColor)
             }
 
-            VStack(alignment: .leading, spacing: 3) {
+            VStack(alignment: .leading, spacing: 1) {
                 Text(title)
-                    .font(.system(size: 11, weight: .bold))
+                    .font(.system(size: 9.5, weight: .semibold))
+                    .lineLimit(1)
 
-                HStack(spacing: 3) {
-                    Image(systemName: icon)
-                        .font(.system(size: 8))
-                    Text(subtitle)
-                        .font(.system(size: 9, weight: .medium))
-                }
-                .foregroundStyle(gaugeColor)
+                Text(subtitle)
+                    .font(.system(size: 8, weight: .medium))
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
             }
+
             Spacer()
+
+            Text("\(Int(round(percentage)))%")
+                .font(.system(size: 10, weight: .bold, design: .rounded))
+                .foregroundStyle(gaugeColor)
+                .padding(.horizontal, 5)
+                .padding(.vertical, 2)
+                .background(gaugeColor.opacity(0.12), in: Capsule())
         }
-        .padding(10)
-        .background(gaugeColor.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+        .padding(.horizontal, 8)
+        .padding(.vertical, 5)
+        .background(Color.primary.opacity(0.03), in: RoundedRectangle(cornerRadius: 6))
     }
 
     // MARK: - Helpers
