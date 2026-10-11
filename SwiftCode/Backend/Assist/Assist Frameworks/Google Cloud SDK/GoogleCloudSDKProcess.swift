@@ -137,19 +137,14 @@ public actor GoogleCloudSDKProcess {
 
         // Configure environment
         var env = ProcessInfo.processInfo.environment
-        let homeDir = FileManager.default.homeDirectoryForCurrentUser.path
         let sitePackages = sdkDir.appendingPathComponent("runtime/lib/python3.14/site-packages").path
-        let userSite = "\(homeDir)/Library/Python/3.14/lib/python/site-packages"
-        let localSite = "\(homeDir)/.local/lib/python3.14/site-packages"
-        let brewSite = "/opt/homebrew/lib/python3.14/site-packages"
-        let allSearchPaths = [userSite, localSite, brewSite, sitePackages].filter { FileManager.default.fileExists(atPath: $0) }
-        let searchPathString = allSearchPaths.joined(separator: ":")
 
         if let existing = env["PYTHONPATH"] {
-            env["PYTHONPATH"] = "\(searchPathString):\(existing)"
+            env["PYTHONPATH"] = "\(sitePackages):\(existing)"
         } else {
-            env["PYTHONPATH"] = searchPathString
+            env["PYTHONPATH"] = sitePackages
         }
+        env["PYTHONNOUSERSITE"] = "1"
         env["PYTHONUNBUFFERED"] = "1"
 
         let harnessURL = sdkDir.appendingPathComponent("runtime/lib/python3.14/site-packages/google/antigravity/bin/localharness")

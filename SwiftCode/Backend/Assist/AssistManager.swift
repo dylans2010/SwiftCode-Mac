@@ -73,15 +73,31 @@ public final class AssistManager: ObservableObject {
     }
 
     @MainActor
-    public func requestTerminalApproval(_ request: TerminalApprovalRequest) async -> Bool {
+    public func requestTerminalApproval(_ request: TerminalApprovalRequest, timeoutSeconds: TimeInterval = 180.0) async -> Bool {
         self.pendingTerminalRequest = request
         self.terminalLiveOutput = ""
         self.terminalRunning = false
         self.terminalExitCode = nil
         self.terminalCompleted = false
 
-        return await withCheckedContinuation { continuation in
-            self.terminalContinuation = continuation
+        return await withTaskGroup(of: Bool.self) { group in
+            group.addTask { @MainActor in
+                await withCheckedContinuation { continuation in
+                    self.terminalContinuation = continuation
+                }
+            }
+            group.addTask {
+                try? await Task.sleep(nanoseconds: UInt64(timeoutSeconds * 1_000_000_000))
+                return false
+            }
+            let result = await group.next() ?? false
+            group.cancelAll()
+            await MainActor.run {
+                if self.pendingTerminalRequest?.id == request.id {
+                    self.denyTerminalRequest()
+                }
+            }
+            return result
         }
     }
 
@@ -967,10 +983,10 @@ public final class AssistManager: ObservableObject {
 
                             if var activity = self.messages[idx].activityGroup {
                                 for tIdx in activity.tools.indices where activity.tools[tIdx].status == .running {
-                                    activity.tools[tIdx].status = .completed
-                                    if let comp = activity.tools[tIdx].completedLabel {
-                                        activity.tools[tIdx].purpose = comp
-                                    }
+                                    activity.tools[tIdx].status = .failed
+                                    activity.tools[tIdx].result = "Turn ended before tool reported completion"
+                                    let label = activity.tools[tIdx].displayLabel ?? activity.tools[tIdx].toolId
+                                    activity.tools[tIdx].purpose = "\(label) (Unreported)"
                                 }
                                 activity.isExecuting = false
                                 self.messages[idx].activityGroup = activity

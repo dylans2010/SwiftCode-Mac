@@ -26,41 +26,83 @@ public struct AssistVersionControlOperator: AssistTool {
     public func execute(input: [String: Any], context: AssistContext) async throws -> AssistToolResult {
         #if os(macOS)
         let action = (input["action"] as? String ?? "status").lowercased()
-        let command: String
+        let cwd = context.workspaceRoot.path
+
         switch action {
         case "commit":
             let message = input["message"] as? String ?? "Assist automated commit"
-            command = "git add -A && git commit -m \"\(message.replacingOccurrences(of: "\"", with: "\\\""))\""
+            _ = try runGit(args: ["add", "-A"], cwd: cwd)
+            let result = try runGit(args: ["commit", "-m", message], cwd: cwd)
+            guard result.status == 0 else {
+                return .failure("Git commit failed: \(result.output)")
+            }
+            return .success("Git action executed: commit", data: ["output": result.output])
+
         case "branch":
             let name = input["name"] as? String ?? "assist/automation"
-            command = "git checkout -b \(name)"
+            guard isValidRefName(name) else {
+                return .failure("Invalid branch name: \(name)")
+            }
+            let result = try runGit(args: ["checkout", "-b", name], cwd: cwd)
+            guard result.status == 0 else {
+                return .failure("Git branch checkout failed: \(result.output)")
+            }
+            return .success("Git action executed: branch", data: ["output": result.output])
+
         case "rollback":
             let ref = input["ref"] as? String ?? "HEAD~1"
-            command = "git reset --hard \(ref)"
+            guard isValidRefName(ref) else {
+                return .failure("Invalid git ref: \(ref)")
+            }
+            let result = try runGit(args: ["reset", "--hard", ref], cwd: cwd)
+            guard result.status == 0 else {
+                return .failure("Git rollback failed: \(result.output)")
+            }
+            return .success("Git action executed: rollback", data: ["output": result.output])
+
         case "diff":
-            command = "git diff -- ."
+            let result = try runGit(args: ["diff", "--", "."], cwd: cwd)
+            guard result.status == 0 else {
+                return .failure("Git diff failed: \(result.output)")
+            }
+            return .success("Git action executed: diff", data: ["output": result.output])
+
         default:
-            command = "git status --short"
+            let result = try runGit(args: ["status", "--short"], cwd: cwd)
+            guard result.status == 0 else {
+                return .failure("Git status failed: \(result.output)")
+            }
+            return .success("Git action executed: status", data: ["output": result.output])
         }
-        let output = try run(command: command, cwd: context.workspaceRoot.path)
-        return .success("Git action executed: \(action)", data: ["output": output])
         #else
         return .failure("Version control operations require macOS runtime")
         #endif
     }
 
     #if os(macOS)
-    private func run(command: String, cwd: String) throws -> String {
+    private func isValidRefName(_ ref: String) -> Bool {
+        guard !ref.isEmpty else { return false }
+        let forbidden = [" ", ";", "&", "|", "`", "$", "(", ")", "<", ">", "\"", "'", "\\", "\n", "\r", "\t", "..", "~", "^", ":", "?", "*", "["]
+        for char in forbidden {
+            if ref.contains(char) && !(ref.contains("HEAD~") || ref.contains("HEAD^")) {
+                return false
+            }
+        }
+        return true
+    }
+
+    private func runGit(args: [String], cwd: String) throws -> (status: Int32, output: String) {
         let p = Process()
         let pipe = Pipe()
-        p.executableURL = URL(fileURLWithPath: "/bin/bash")
-        p.arguments = ["-lc", command]
+        p.executableURL = URL(fileURLWithPath: "/usr/bin/git")
+        p.arguments = args
         p.currentDirectoryURL = URL(fileURLWithPath: cwd)
         p.standardOutput = pipe
         p.standardError = pipe
         try p.run()
         p.waitUntilExit()
-        return String(data: pipe.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8) ?? ""
+        let output = String(data: pipe.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8) ?? ""
+        return (p.terminationStatus, output)
     }
     #endif
 }

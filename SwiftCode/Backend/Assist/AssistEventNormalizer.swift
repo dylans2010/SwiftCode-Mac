@@ -377,7 +377,6 @@ public final class AssistEventNormalizer {
         if isTest {
             for tIdx in activityGroup.tests.indices where activityGroup.tests[tIdx].status == .running {
                 activityGroup.tests[tIdx].status = .completed
-                activityGroup.tests[tIdx].passedCount = max(1, activityGroup.tests[tIdx].passedCount)
                 activityGroup.tests[tIdx].duration = max(0.1, Date().timeIntervalSince(activityGroup.tests[tIdx].timestamp))
             }
         }
