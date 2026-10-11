@@ -585,6 +585,17 @@ class ModelAdapterServer:
             await writer.drain()
             writer.close()
 
+    def _normalize_target_url(self, raw_url: Optional[str], default_base: str = "https://api.openai.com/v1") -> str:
+        base = raw_url.strip().rstrip("/") if raw_url and raw_url.strip() else default_base
+        if not base.startswith(("http://", "https://")):
+            if base.startswith(("localhost", "127.0.0.1")):
+                base = f"http://{base}"
+            else:
+                base = f"https://{base}"
+        if base.endswith("/chat/completions"):
+            return base
+        return f"{base}/chat/completions"
+
     # MARK: - OpenAI / OpenRouter / Custom Forwarder
     async def _forward_to_openai(
         self,
@@ -594,7 +605,7 @@ class ModelAdapterServer:
         writer: asyncio.StreamWriter,
         client: httpx.AsyncClient,
     ):
-        url = (target.base_url.rstrip("/") if target.base_url else "https://api.openai.com/v1") + "/chat/completions"
+        url = self._normalize_target_url(target.base_url, "https://api.openai.com/v1")
         headers = {
             "Authorization": f"Bearer {target.api_key}",
             "Content-Type": "application/json",
@@ -627,8 +638,7 @@ class ModelAdapterServer:
         writer: asyncio.StreamWriter,
         client: httpx.AsyncClient,
     ):
-        base = target.base_url.rstrip("/") if target.base_url else "http://localhost:11434/v1"
-        url = base if base.endswith("/chat/completions") else f"{base}/chat/completions"
+        url = self._normalize_target_url(target.base_url, "http://localhost:11434/v1")
         headers = {"Content-Type": "application/json"}
         if target.api_key:
             headers["Authorization"] = f"Bearer {target.api_key}"
@@ -642,8 +652,7 @@ class ModelAdapterServer:
         writer: asyncio.StreamWriter,
         client: httpx.AsyncClient,
     ):
-        base = target.base_url.rstrip("/")
-        url = base if base.endswith("/chat/completions") else f"{base}/chat/completions"
+        url = self._normalize_target_url(target.base_url, "http://localhost:11434/v1")
         headers = {"Content-Type": "application/json"}
         if target.api_key:
             headers["Authorization"] = f"Bearer {target.api_key}"

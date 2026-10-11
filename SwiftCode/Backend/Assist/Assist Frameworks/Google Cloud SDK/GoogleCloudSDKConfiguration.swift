@@ -325,8 +325,15 @@ public struct GoogleCloudSDKConfiguration: Codable, @unchecked Sendable {
         if let provider = provider, !provider.isEmpty {
             dict["provider"] = provider
         }
-        if let baseURL = baseURL, !baseURL.isEmpty {
-            dict["baseURL"] = baseURL
+        if let baseURL = baseURL, !baseURL.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            let trimmed = baseURL.trimmingCharacters(in: .whitespacesAndNewlines)
+            if trimmed.hasPrefix("http://") || trimmed.hasPrefix("https://") {
+                dict["baseURL"] = trimmed
+            } else if trimmed.hasPrefix("127.0.0.1") || trimmed.hasPrefix("localhost") {
+                dict["baseURL"] = "http://\(trimmed)"
+            } else {
+                dict["baseURL"] = "https://\(trimmed)"
+            }
         }
         if let apiKey = apiKey, !apiKey.isEmpty {
             dict["apiKey"] = apiKey

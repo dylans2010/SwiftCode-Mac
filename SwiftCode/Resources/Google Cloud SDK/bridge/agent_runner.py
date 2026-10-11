@@ -845,6 +845,12 @@ class AgentRunner:
 
                 if api_key:
                     config_kwargs["api_key"] = api_key
+                elif oauth_token:
+                    config_kwargs["api_key"] = oauth_token
+
+                if http_headers:
+                    config_kwargs["http_headers"] = http_headers
+
                 if vertex:
                     config_kwargs["vertex"] = True
                     if project:
@@ -858,7 +864,7 @@ class AgentRunner:
                         endpoint = VertexEndpoint(
                             project=project,
                             location=location,
-                            api_key=api_key,
+                            api_key=api_key or oauth_token,
                             http_headers=http_headers,
                         )
                         config_kwargs["models"] = [
@@ -870,7 +876,7 @@ class AgentRunner:
                         ]
                     elif GeminiAPIEndpoint is not None:
                         endpoint = GeminiAPIEndpoint(
-                            api_key=api_key,
+                            api_key=api_key or oauth_token,
                             http_headers=http_headers,
                         )
                         config_kwargs["models"] = [
