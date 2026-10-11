@@ -558,6 +558,7 @@ struct AssistSettingsView: View {
     @AppStorage("assist_google_auth_mode") private var assistGoogleAuthMode: String = "api_key"
     @ObservedObject private var googleAuth = GoogleAccountAuthService.shared
     @ObservedObject private var quotaService = AntigravityQuotaService.shared
+    @ObservedObject private var sdkModelFetcher = AntigravitySDKModelFetcher.shared
     @State private var showSignOutConfirmation = false
 
     // Available Models Filter & Search
@@ -978,24 +979,35 @@ struct AssistSettingsView: View {
                                                 .font(.caption2)
                                                 .foregroundStyle(.secondary)
 
-                                            // Dynamic SDK Models Grid
-                                            LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 6) {
-                                                ForEach(AntigravitySDKModelFetcher.shared.models.prefix(6)) { item in
-                                                    HStack(spacing: 6) {
-                                                        Circle().fill(item.thinkingColor).frame(width: 5, height: 5)
-                                                        VStack(alignment: .leading, spacing: 1) {
-                                                            Text(item.name)
-                                                                .font(.system(size: 11, weight: .semibold))
-                                                                .lineLimit(1)
-                                                            Text("Thinking: \(item.thinkingLevel)")
-                                                                .font(.system(size: 9))
-                                                                .foregroundStyle(.secondary)
+                                            if sdkModelFetcher.models.isEmpty {
+                                                HStack(spacing: 6) {
+                                                    ProgressView()
+                                                        .controlSize(.small)
+                                                    Text("Loading official SDK reasoning models...")
+                                                        .font(.caption2)
+                                                        .foregroundStyle(.secondary)
+                                                }
+                                                .padding(.vertical, 4)
+                                            } else {
+                                                // Dynamic SDK Models Grid
+                                                LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 6) {
+                                                    ForEach(Array(sdkModelFetcher.models.prefix(6))) { item in
+                                                        HStack(spacing: 6) {
+                                                            Circle().fill(item.thinkingColor).frame(width: 5, height: 5)
+                                                            VStack(alignment: .leading, spacing: 1) {
+                                                                Text(item.name)
+                                                                    .font(.system(size: 11, weight: .semibold))
+                                                                    .lineLimit(1)
+                                                                Text("Thinking: \(item.thinkingLevel)")
+                                                                    .font(.system(size: 9))
+                                                                    .foregroundStyle(.secondary)
+                                                            }
+                                                            Spacer()
                                                         }
-                                                        Spacer()
+                                                        .padding(.horizontal, 8)
+                                                        .padding(.vertical, 5)
+                                                        .background(Color.primary.opacity(0.03), in: RoundedRectangle(cornerRadius: 6))
                                                     }
-                                                    .padding(.horizontal, 8)
-                                                    .padding(.vertical, 5)
-                                                    .background(Color.primary.opacity(0.03), in: RoundedRectangle(cornerRadius: 6))
                                                 }
                                             }
                                         }

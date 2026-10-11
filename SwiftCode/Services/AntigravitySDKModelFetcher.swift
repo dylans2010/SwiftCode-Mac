@@ -115,14 +115,25 @@ public final class AntigravitySDKModelFetcher: ObservableObject {
         return self.models
     }
 
+    public static let seedModels: [AntigravitySDKModel] = [
+        AntigravitySDKModel(id: "gemini-3.8-flash-high", displayName: "Gemini 3.8 Flash (High)", thinkingLevel: "High", contextWindow: 1_048_576, category: "Google"),
+        AntigravitySDKModel(id: "gemini-3.8-flash-medium", displayName: "Gemini 3.8 Flash (Medium)", thinkingLevel: "Medium", contextWindow: 1_048_576, category: "Google"),
+        AntigravitySDKModel(id: "gemini-3.8-flash-low", displayName: "Gemini 3.8 Flash (Low)", thinkingLevel: "Low", contextWindow: 1_048_576, category: "Google"),
+        AntigravitySDKModel(id: "gemini-3.1-pro-high", displayName: "Gemini 3.1 Pro (High)", thinkingLevel: "High", contextWindow: 2_097_152, category: "Google"),
+        AntigravitySDKModel(id: "gemini-3.1-pro-medium", displayName: "Gemini 3.1 Pro (Medium)", thinkingLevel: "Medium", contextWindow: 2_097_152, category: "Google"),
+        AntigravitySDKModel(id: "gemini-3.1-pro-low", displayName: "Gemini 3.1 Pro (Low)", thinkingLevel: "Low", contextWindow: 2_097_152, category: "Google"),
+        AntigravitySDKModel(id: "claude-sonnet-4-6", displayName: "Claude Sonnet 4.6", thinkingLevel: "Medium", contextWindow: 200_000, category: "Anthropic")
+    ]
+
     // MARK: - Disk Cache
     private func loadCachedModels() {
-        guard let data = UserDefaults.standard.data(forKey: Self.cacheKey),
-              let decoded = try? JSONDecoder().decode([AntigravitySDKModel].self, from: data),
-              !decoded.isEmpty else {
+        if let data = UserDefaults.standard.data(forKey: Self.cacheKey),
+           let decoded = try? JSONDecoder().decode([AntigravitySDKModel].self, from: data),
+           !decoded.isEmpty {
+            self.models = decoded
             return
         }
-        self.models = decoded
+        self.models = Self.seedModels
     }
 
     private func saveCachedModels(_ models: [AntigravitySDKModel]) {
@@ -133,65 +144,61 @@ public final class AntigravitySDKModelFetcher: ObservableObject {
 
     // MARK: - SDK Execution
     private func fetchFromSDKRuntime() async -> [AntigravitySDKModel] {
-        // 1. Try running /Users/dylan/.gemini/bin/agy models or any agy in PATH
-        let agyBinaryCandidates = [
-            "/Users/dylan/.gemini/bin/agy",
-            "/usr/local/bin/agy",
-            "/opt/homebrew/bin/agy",
-            FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".gemini/bin/agy").path
-        ]
+        return await Task.detached(priority: .userInitiated) {
+            // 1. Try running /Users/dylan/.gemini/bin/agy models or any agy in PATH
+            let agyBinaryCandidates = [
+                "/Users/dylan/.gemini/bin/agy",
+                "/usr/local/bin/agy",
+                "/opt/homebrew/bin/agy",
+                FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".gemini/bin/agy").path
+            ]
 
-        for binaryPath in agyBinaryCandidates {
-            if FileManager.default.isExecutableFile(atPath: binaryPath) {
-                if let parsed = await runAgyModels(binaryPath: binaryPath), !parsed.isEmpty {
-                    return parsed
+            for binaryPath in agyBinaryCandidates {
+                if FileManager.default.isExecutableFile(atPath: binaryPath) {
+                    if let parsed = Self.runAgyProcess(binaryPath: binaryPath), !parsed.isEmpty {
+                        return parsed
+                    }
                 }
             }
-        }
 
-        // 2. Try python SDK query via bundled runtime or system python
-        if let parsedPython = await runPythonSDKModelDiscovery(), !parsedPython.isEmpty {
-            return parsedPython
-        }
+            // 2. Try python SDK query via bundled runtime or system python
+            if let parsedPython = Self.runPythonSDKModelDiscoverySync(), !parsedPython.isEmpty {
+                return parsedPython
+            }
 
-        return []
+            return []
+        }.value
     }
 
-    private func runAgyModels(binaryPath: String) async -> [AntigravitySDKModel]? {
-        await withCheckedContinuation { continuation in
-            DispatchQueue.global(qos: .userInitiated).async {
-                let process = Process()
-                let stdoutPipe = Pipe()
-                let stderrPipe = Pipe()
+    private nonisolated static func runAgyProcess(binaryPath: String) -> [AntigravitySDKModel]? {
+        let process = Process()
+        let stdoutPipe = Pipe()
+        let stderrPipe = Pipe()
 
-                process.executableURL = URL(fileURLWithPath: binaryPath)
-                process.arguments = ["models"]
-                process.standardOutput = stdoutPipe
-                process.standardError = stderrPipe
+        process.executableURL = URL(fileURLWithPath: binaryPath)
+        process.arguments = ["models"]
+        process.standardOutput = stdoutPipe
+        process.standardError = stderrPipe
 
-                var env = ProcessInfo.processInfo.environment
-                env["PAGER"] = "cat"
-                env["NO_COLOR"] = "1"
-                env["TERM"] = "dumb"
-                process.environment = env
+        var env = ProcessInfo.processInfo.environment
+        env["PAGER"] = "cat"
+        env["NO_COLOR"] = "1"
+        env["TERM"] = "dumb"
+        process.environment = env
 
-                do {
-                    try process.run()
-                    process.waitUntilExit()
+        do {
+            try process.run()
+            process.waitUntilExit()
 
-                    let data = stdoutPipe.fileHandleForReading.readDataToEndOfFile()
-                    guard let output = String(data: data, encoding: .utf8) else {
-                        continuation.resume(returning: nil)
-                        return
-                    }
-
-                    let parsed = self.parseAgyModelsOutput(output)
-                    continuation.resume(returning: parsed.isEmpty ? nil : parsed)
-                } catch {
-                    logger.error("[AntigravitySDKModelFetcher] Failed to run agy models: \(error.localizedDescription)")
-                    continuation.resume(returning: nil)
-                }
+            let data = stdoutPipe.fileHandleForReading.readDataToEndOfFile()
+            guard let output = String(data: data, encoding: .utf8) else {
+                return nil
             }
+
+            let parsed = parseAgyModelsOutput(output)
+            return parsed.isEmpty ? nil : parsed
+        } catch {
+            return nil
         }
     }
 
@@ -201,7 +208,7 @@ public final class AntigravitySDKModelFetcher: ObservableObject {
         saveCachedModels(newModels)
     }
 
-    public func parseAgyModelsOutput(_ output: String) -> [AntigravitySDKModel] {
+    public nonisolated static func parseAgyModelsOutput(_ output: String) -> [AntigravitySDKModel] {
         var result: [AntigravitySDKModel] = []
 
         // Strip ANSI escape codes
@@ -255,61 +262,56 @@ public final class AntigravitySDKModelFetcher: ObservableObject {
         return result
     }
 
-    private func runPythonSDKModelDiscovery() async -> [AntigravitySDKModel]? {
-        await withCheckedContinuation { continuation in
-            DispatchQueue.global(qos: .userInitiated).async {
-                let script = """
-                import sys
-                paths = ['/Users/dylan/SwiftCode-Mac/SwiftCode/Resources/Google Cloud SDK/runtime/lib/python3.14/site-packages']
-                for p in paths:
-                    sys.path.insert(0, p)
-                try:
-                    import google.antigravity.models as m
-                    print(getattr(m, 'DEFAULT_MODEL', 'gemini-3.8-flash'))
-                except Exception:
-                    pass
-                """
+    private nonisolated static func runPythonSDKModelDiscoverySync() -> [AntigravitySDKModel]? {
+        let script = """
+        import sys
+        paths = ['/Users/dylan/SwiftCode-Mac/SwiftCode/Resources/Google Cloud SDK/runtime/lib/python3.14/site-packages']
+        for p in paths:
+            sys.path.insert(0, p)
+        try:
+            import google.antigravity.models as m
+            print(getattr(m, 'DEFAULT_MODEL', 'gemini-3.8-flash'))
+        except Exception:
+            pass
+        """
 
-                let pythonExecs = ["/opt/homebrew/opt/python@3.14/bin/python3.14", "/usr/bin/python3"]
-                for py in pythonExecs {
-                    guard FileManager.default.isExecutableFile(atPath: py) else { continue }
-                    let process = Process()
-                    let stdoutPipe = Pipe()
+        let pythonExecs = ["/opt/homebrew/opt/python@3.14/bin/python3.14", "/usr/bin/python3"]
+        for py in pythonExecs {
+            guard FileManager.default.isExecutableFile(atPath: py) else { continue }
+            let process = Process()
+            let stdoutPipe = Pipe()
 
-                    process.executableURL = URL(fileURLWithPath: py)
-                    process.arguments = ["-c", script]
-                    process.standardOutput = stdoutPipe
-                    process.standardError = Pipe()
+            process.executableURL = URL(fileURLWithPath: py)
+            process.arguments = ["-c", script]
+            process.standardOutput = stdoutPipe
+            process.standardError = Pipe()
 
-                    do {
-                        try process.run()
-                        process.waitUntilExit()
+            do {
+                try process.run()
+                process.waitUntilExit()
 
-                        let data = stdoutPipe.fileHandleForReading.readDataToEndOfFile()
-                        if let output = String(data: data, encoding: .utf8) {
-                            let lines = output.components(separatedBy: .newlines).filter { !$0.trimmingCharacters(in: .whitespaces).isEmpty }
-                            if !lines.isEmpty {
-                                var models: [AntigravitySDKModel] = []
-                                for id in lines {
-                                    let level = Self.deriveThinkingLevel(modelID: id, displayName: id)
-                                    models.append(AntigravitySDKModel(
-                                        id: id,
-                                        displayName: id,
-                                        thinkingLevel: level,
-                                        contextWindow: Self.deriveContextWindow(modelID: id),
-                                        isImageModel: id.contains("image"),
-                                        category: Self.deriveCategory(modelID: id)
-                                    ))
-                                }
-                                continuation.resume(returning: models)
-                                return
-                            }
+                let data = stdoutPipe.fileHandleForReading.readDataToEndOfFile()
+                if let output = String(data: data, encoding: .utf8) {
+                    let lines = output.components(separatedBy: .newlines).filter { !$0.trimmingCharacters(in: .whitespaces).isEmpty }
+                    if !lines.isEmpty {
+                        var models: [AntigravitySDKModel] = []
+                        for id in lines {
+                            let level = Self.deriveThinkingLevel(modelID: id, displayName: id)
+                            models.append(AntigravitySDKModel(
+                                id: id,
+                                displayName: id,
+                                thinkingLevel: level,
+                                contextWindow: Self.deriveContextWindow(modelID: id),
+                                isImageModel: id.contains("image"),
+                                category: Self.deriveCategory(modelID: id)
+                            ))
                         }
-                    } catch {}
+                        return models
+                    }
                 }
-                continuation.resume(returning: nil)
-            }
+            } catch {}
         }
+        return nil
     }
 
     public nonisolated static func deriveThinkingLevel(modelID: String, displayName: String) -> String {

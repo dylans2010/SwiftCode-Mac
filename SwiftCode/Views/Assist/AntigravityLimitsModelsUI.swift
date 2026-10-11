@@ -936,7 +936,7 @@ public struct AntigravityLimitsModelsUI: View {
 
             let parsed: [AntigravitySDKModel]
             if let output = foundOutput {
-                parsed = AntigravitySDKModelFetcher.shared.parseAgyModelsOutput(output)
+                parsed = AntigravitySDKModelFetcher.parseAgyModelsOutput(output)
             } else {
                 parsed = []
             }

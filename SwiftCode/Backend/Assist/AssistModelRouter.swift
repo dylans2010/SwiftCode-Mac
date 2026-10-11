@@ -151,7 +151,11 @@ public final class AssistModelRouter: Sendable {
 
     // MARK: - SDK Default Model Identifiers (Dynamically Fetched from Antigravity SDK)
     public static var sdkDefaultModelIDs: [String] {
-        AntigravitySDKModelFetcher.shared.allModelIDs
+        let list = AntigravitySDKModelFetcher.shared.allModelIDs
+        if !list.isEmpty {
+            return list
+        }
+        return AntigravitySDKModelFetcher.seedModels.map { $0.id }
     }
 
     public func resolveSavedModel() async -> AssistAvailableModel? {
