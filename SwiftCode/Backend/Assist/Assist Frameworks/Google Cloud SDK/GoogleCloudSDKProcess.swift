@@ -152,11 +152,10 @@ public actor GoogleCloudSDKProcess {
             env["ANTIGRAVITY_HARNESS_PATH"] = harnessURL.path
         }
 
-        if let apiKey = KeychainService.shared.get(forKey: LLMProvider.google.keychainKey), !apiKey.isEmpty {
-            env["GEMINI_API_KEY"] = apiKey
-        } else if let oauthToken = GoogleAccountAuthService.shared.getValidAccessToken(), !oauthToken.isEmpty {
-            env["GEMINI_API_KEY"] = oauthToken
+        if let oauthToken = GoogleAccountAuthService.shared.getValidAccessToken(), !oauthToken.isEmpty {
             env["GOOGLE_OAUTH_ACCESS_TOKEN"] = oauthToken
+        } else if let apiKey = KeychainService.shared.get(forKey: LLMProvider.google.keychainKey), !apiKey.isEmpty {
+            env["GEMINI_API_KEY"] = apiKey
         }
 
         proc.environment = env
