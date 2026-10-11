@@ -409,11 +409,52 @@ public final class AssistModelDiscoveryService: Sendable {
                 )
             }
 
+            if results.isEmpty && isOauthActive {
+                return await fallbackAntigravityModels()
+            }
             return results
         } catch {
             logger.error("Gemini model discovery error: \(error.localizedDescription)")
+            if isOauthActive {
+                return await fallbackAntigravityModels()
+            }
             return []
         }
+    }
+
+    private func fallbackAntigravityModels() async -> [AssistAvailableModel] {
+        let models = await MainActor.run {
+            AntigravitySDKModelFetcher.shared.models.isEmpty
+                ? AntigravitySDKModelFetcher.seedModels
+                : AntigravitySDKModelFetcher.shared.models
+        }
+        var list: [AssistAvailableModel] = []
+        for sdk in models where sdk.category.lowercased() == "google" {
+            list.append(
+                AssistAvailableModel(
+                    id: sdk.id,
+                    displayName: sdk.displayName,
+                    providerID: "gemini",
+                    providerName: "Gemini",
+                    modelIdentifier: sdk.id,
+                    capabilities: .advancedReasoning,
+                    source: .gemini,
+                    isConfigured: true,
+                    isAvailable: true,
+                    supportsStreaming: true,
+                    supportsToolCalling: true,
+                    supportsVision: true,
+                    supportsStructuredOutput: true,
+                    supportsAgenticUse: true,
+                    supportsSubagents: true,
+                    priority: sdk.thinkingLevel.lowercased() == "low" ? 10 : 20,
+                    statusDescription: "Available via Google Account",
+                    status: .available,
+                    contextWindow: sdk.contextWindow
+                )
+            )
+        }
+        return list
     }
 
     // MARK: - Claude / Anthropic Discovery (Dynamic API Call)

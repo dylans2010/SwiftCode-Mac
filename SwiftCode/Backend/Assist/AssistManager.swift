@@ -749,8 +749,8 @@ public final class AssistManager: ObservableObject {
 
         // --- Proactive OAuth Scope Verification ---
         // If the user is authenticated via Google account but their stored token lacks
-        // the required generative-language scope (from pre-fix sign-in), prompt them to approve
-        // the updated permissions rather than hitting a 403 ACCESS_TOKEN_SCOPE_INSUFFICIENT error.
+        // the required Antigravity scopes (from legacy sign-in), prompt them to approve
+        // the updated permissions rather than hitting an authentication scope error.
         let isGoogleAuthActive = (UserDefaults.standard.string(forKey: "assist_google_auth_mode") ?? AppSettings.shared.assistGoogleAuthMode) == "google_oauth" || GoogleAccountAuthService.shared.isAuthenticated
         let altKeysEnabled = await MainActor.run { AppSettings.shared.alternativeKeysEnabled }
         if isGoogleAuthActive && GoogleAccountAuthService.shared.isAuthenticated && !GoogleAccountAuthService.shared.hasRequiredAssistScopes() && !altKeysEnabled {
@@ -1124,7 +1124,7 @@ public final class AssistManager: ObservableObject {
 
                 if let errText = turnError {
                     // --- OAuth Scope Insufficient (403 ACCESS_TOKEN_SCOPE_INSUFFICIENT) ---
-                    // Occurs when the user is OAuth-authenticated but their token lacks the generative-language scope.
+                    // Occurs when the user is OAuth-authenticated but their token lacks the Antigravity scope.
                     // Automatically prompt the user to approve the updated scopes without failing into API key rotation.
                     let isScopeInsufficient = errText.contains("ACCESS_TOKEN_SCOPE_INSUFFICIENT") ||
                         (errText.contains("403") && (errText.contains("insufficient authentication scopes") || (errText.contains("PERMISSION_DENIED") && errText.contains("scope"))))

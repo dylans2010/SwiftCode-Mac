@@ -1071,25 +1071,42 @@ struct AssistSettingsView: View {
 
                                     if assistGoogleAuthMode == "google_oauth" {
                                         VStack(alignment: .leading, spacing: 6) {
-                                            Button {
-                                                googleAuth.signIn()
-                                            } label: {
-                                                HStack {
-                                                    if googleAuth.isAuthenticating {
-                                                        ProgressView()
-                                                            .controlSize(.small)
-                                                            .padding(.trailing, 4)
-                                                        Text("Signing In...")
-                                                    } else {
-                                                        Image(systemName: "person.badge.key.fill")
-                                                        Text("Sign in with Google")
+                                            HStack(spacing: 8) {
+                                                Button {
+                                                    googleAuth.signIn()
+                                                } label: {
+                                                    HStack {
+                                                        if googleAuth.isAuthenticating {
+                                                            ProgressView()
+                                                                .controlSize(.small)
+                                                                .padding(.trailing, 4)
+                                                            Text("Signing In...")
+                                                        } else {
+                                                            Image(systemName: "person.badge.key.fill")
+                                                            Text("Sign in with Google")
+                                                        }
                                                     }
+                                                    .frame(maxWidth: .infinity)
                                                 }
-                                                .frame(maxWidth: .infinity)
+                                                .buttonStyle(.borderedProminent)
+                                                .controlSize(.regular)
+                                                .disabled(googleAuth.isAuthenticating)
+
+                                                if googleAuth.findAgyCLI() != nil {
+                                                    Button {
+                                                        googleAuth.signInViaCLI()
+                                                    } label: {
+                                                        HStack(spacing: 4) {
+                                                            Image(systemName: "terminal.fill")
+                                                            Text("Via CLI")
+                                                        }
+                                                    }
+                                                    .buttonStyle(.bordered)
+                                                    .controlSize(.regular)
+                                                    .disabled(googleAuth.isAuthenticating)
+                                                    .help("Authenticate in the background using the agy CLI")
+                                                }
                                             }
-                                            .buttonStyle(.borderedProminent)
-                                            .controlSize(.regular)
-                                            .disabled(googleAuth.isAuthenticating)
 
                                             Text("Direct access to Gemini & Vertex AI models using your account allowance instead of personal API keys.")
                                                 .font(.caption2)

@@ -95,13 +95,15 @@ public final class GoogleAccountAuthService: NSObject, ObservableObject {
 
     // MARK: - OAuth Configuration
     private let callbackScheme = "swiftcode"
+    public static let antigravityClientID = "1071006060591-tmhssin2h21lcre235vtolojh4g403ep.apps.googleusercontent.com"
     public static let requiredScopes = [
-        "openid",
-        "email",
-        "profile",
         "https://www.googleapis.com/auth/cloud-platform",
-        "https://www.googleapis.com/auth/generative-language",
-        "https://www.googleapis.com/auth/generative-language.retriever"
+        "https://www.googleapis.com/auth/userinfo.email",
+        "https://www.googleapis.com/auth/userinfo.profile",
+        "https://www.googleapis.com/auth/cclog",
+        "https://www.googleapis.com/auth/experimentsandconfigs",
+        "https://www.googleapis.com/auth/aicode",
+        "openid"
     ]
     private var scopes: String {
         Self.requiredScopes.joined(separator: " ")
@@ -114,8 +116,8 @@ public final class GoogleAccountAuthService: NSObject, ObservableObject {
         if let info = Bundle.main.infoDictionary?["GOOGLE_CLIENT_ID"] as? String, !info.isEmpty {
             return info
         }
-        // Public desktop OAuth client ID for developer tools & Google Cloud SDK
-        return "764086051850-6qr4p6gpi6hn506pt8ejuq83di341hur.apps.googleusercontent.com"
+        // Public PKCE client ID for Google Antigravity IDE & developer tools
+        return Self.antigravityClientID
     }
 
     private var clientSecret: String? {
@@ -125,7 +127,11 @@ public final class GoogleAccountAuthService: NSObject, ObservableObject {
         if let info = Bundle.main.infoDictionary?["GOOGLE_CLIENT_SECRET"] as? String, !info.isEmpty {
             return info
         }
-        return "d-FL95Q19q7MQmFpd7hHD0Ty"
+        // Public PKCE OAuth client for Google Antigravity does not use a client secret
+        if clientID == Self.antigravityClientID {
+            return nil
+        }
+        return nil
     }
 
     // MARK: - Initialization
@@ -179,7 +185,7 @@ public final class GoogleAccountAuthService: NSObject, ObservableObject {
         let port = server.start()
         self.loopbackServer = server
 
-        let redirectURI = "http://127.0.0.1:\(port)"
+        let redirectURI = (port == 65000) ? "http://localhost:65000/auth/callback" : "http://127.0.0.1:\(port)"
         self.activeRedirectURI = redirectURI
 
         guard let authURL = buildAuthorizationURL(challenge: challenge, state: state, redirectURI: redirectURI) else {
@@ -314,21 +320,165 @@ public final class GoogleAccountAuthService: NSObject, ObservableObject {
 
     // MARK: - Assist Scope Verification & Re-Authentication
 
-    /// Verifies if the active OAuth session has the required scopes for Gemini / Generative Language API.
+    /// Verifies if the active OAuth session has the required scopes for Google Antigravity / Gemini models.
     public func hasRequiredAssistScopes() -> Bool {
         guard isAuthenticated else { return false }
         if let storedScope = KeychainService.shared.get(forKey: Self.scopeKey) {
-            return storedScope.contains("generative-language")
+            return storedScope.contains("aicode") || storedScope.contains("cloud-platform")
         }
-        // If scope was never recorded (e.g. legacy session), the token lacks generative-language
-        return false
+        // If authenticated without recorded scope, treat as valid
+        return true
     }
 
     /// Re-authenticates the user with the complete set of Assist scopes without requiring API keys.
     public func reAuthenticateForAssistScopes() {
-        logger.info("Re-authenticating user to request Gemini generative-language scopes...")
+        logger.info("Re-authenticating user to request Google Antigravity Assist scopes...")
         signOut()
         signIn()
+    }
+
+    // MARK: - Sign In via agy CLI (Process)
+
+    /// Authenticates via the background `agy` CLI process, automatically detecting and opening the Google Antigravity consent URL.
+    public func signInViaCLI() {
+        guard !isAuthenticating else { return }
+
+        authError = nil
+        isAuthenticating = true
+        UserDefaults.standard.set(false, forKey: Self.explicitlySignedOutKey)
+
+        Task {
+            do {
+                try await performCLISignIn()
+            } catch {
+                await MainActor.run {
+                    self.isAuthenticating = false
+                    self.authError = error.localizedDescription
+                    logger.error("CLI authentication failed: \(error.localizedDescription)")
+                }
+            }
+        }
+    }
+
+    public func findAgyCLI() -> String? {
+        if let custom = ProcessInfo.processInfo.environment["AGY_PATH"],
+           FileManager.default.isExecutableFile(atPath: custom) {
+            return custom
+        }
+        let homeDir = FileManager.default.homeDirectoryForCurrentUser.path
+        let candidates = [
+            "/Users/dylan/.local/bin/agy",
+            "\(homeDir)/.local/bin/agy",
+            "/opt/homebrew/bin/agy",
+            "/usr/local/bin/agy",
+            "/usr/bin/agy"
+        ]
+        for candidate in candidates {
+            if FileManager.default.isExecutableFile(atPath: candidate) {
+                return candidate
+            }
+        }
+        return nil
+    }
+
+private actor CLIAuthURLTracker {
+    private var hasOpened = false
+    func tryOpen(_ urlString: String) {
+        guard !hasOpened, let url = URL(string: urlString) else { return }
+        hasOpened = true
+        Task { @MainActor in
+            NSWorkspace.shared.open(url)
+        }
+    }
+}
+
+    private func performCLISignIn() async throws {
+        guard let agyPath = findAgyCLI() else {
+            throw NSError(
+                domain: "GoogleAccountAuthService",
+                code: -2,
+                userInfo: [NSLocalizedDescriptionKey: "The 'agy' CLI binary was not found. Please install it in ~/.local/bin/agy or use standard Sign in with Google."]
+            )
+        }
+
+        let proc = Process()
+        proc.executableURL = URL(fileURLWithPath: agyPath)
+        proc.arguments = ["models"]
+
+        let outPipe = Pipe()
+        let errPipe = Pipe()
+        proc.standardOutput = outPipe
+        proc.standardError = errPipe
+
+        let urlState = CLIAuthURLTracker()
+
+        let stdoutTask = Task.detached(priority: .userInitiated) {
+            for try await line in outPipe.fileHandleForReading.bytes.lines {
+                logger.info("[agy CLI stdout] \(line)")
+                if let urlString = Self.extractOAuthURL(from: line) {
+                    await urlState.tryOpen(urlString)
+                }
+            }
+        }
+
+        let stderrTask = Task.detached(priority: .userInitiated) {
+            for try await line in errPipe.fileHandleForReading.bytes.lines {
+                logger.info("[agy CLI stderr] \(line)")
+                if let urlString = Self.extractOAuthURL(from: line) {
+                    await urlState.tryOpen(urlString)
+                }
+            }
+        }
+
+        try proc.run()
+
+        let status = await withCheckedContinuation { (continuation: CheckedContinuation<Int32, Never>) in
+            proc.terminationHandler = { p in
+                continuation.resume(returning: p.terminationStatus)
+            }
+        }
+
+        stdoutTask.cancel()
+        stderrTask.cancel()
+
+        if status == 0 {
+            await MainActor.run {
+                self.isAuthenticated = true
+                self.isAuthenticating = false
+                self.authError = nil
+                if let email = self.ambientADCEmail() {
+                    self.userEmail = email
+                    KeychainService.shared.set(email, forKey: Self.userEmailKey)
+                } else if self.userEmail == nil {
+                    self.userEmail = "Google Account (Antigravity CLI)"
+                }
+                logger.info("Successfully authenticated via agy CLI.")
+                Task {
+                    AssistModelRouter.shared.clearAllQuarantines()
+                    try? await GoogleCloudSDKLifecycleManager.shared.restartEngine()
+                    await AssistModelDiscoveryService.shared.discoverAllModels(forceRefresh: true)
+                }
+            }
+        } else {
+            throw NSError(
+                domain: "GoogleAccountAuthService",
+                code: Int(status),
+                userInfo: [NSLocalizedDescriptionKey: "agy CLI process exited with status \(status)."]
+            )
+        }
+    }
+
+    private nonisolated static func extractOAuthURL(from line: String) -> String? {
+        let trimmed = line.trimmingCharacters(in: .whitespacesAndNewlines)
+        if trimmed.hasPrefix("https://accounts.google.com") {
+            return trimmed
+        }
+        if let range = trimmed.range(of: "https://accounts.google.com") {
+            let sub = String(trimmed[range.lowerBound...])
+            let parts = sub.components(separatedBy: " ")
+            return parts.first
+        }
+        return nil
     }
 
     // MARK: - Access Token Accessors
@@ -867,7 +1017,9 @@ public final class OAuthLoopbackServer: @unchecked Sendable {
     public init() {}
 
     public func start() -> UInt16 {
-        for candidatePort in UInt16(8085)...UInt16(8099) {
+        var candidatePorts: [UInt16] = [65000]
+        candidatePorts.append(contentsOf: (UInt16(8085)...UInt16(8099)))
+        for candidatePort in candidatePorts {
             do {
                 let params = NWParameters.tcp
                 guard let nwPort = NWEndpoint.Port(rawValue: candidatePort) else { continue }
@@ -927,7 +1079,8 @@ public final class OAuthLoopbackServer: @unchecked Sendable {
                 let parts = firstLine.components(separatedBy: " ")
                 if parts.count >= 2 {
                     let pathAndQuery = parts[1]
-                    if let url = URL(string: "http://127.0.0.1:\(self.port)\(pathAndQuery)") {
+                    let hostPrefix = (self.port == 65000) ? "http://localhost:65000" : "http://127.0.0.1:\(self.port)"
+                    if let url = URL(string: "\(hostPrefix)\(pathAndQuery)") ?? URL(string: "http://127.0.0.1:\(self.port)\(pathAndQuery)") {
                         Task { @MainActor in
                             self.onCallback?(url)
                         }
