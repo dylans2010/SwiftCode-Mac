@@ -68,7 +68,7 @@ public final class GoogleAccountAuthService: NSObject, ObservableObject {
     private let scopes = [
         "email",
         "profile",
-        "https://www.googleapis.com/auth/generative-language",
+        "openid",
         "https://www.googleapis.com/auth/cloud-platform"
     ].joined(separator: " ")
 

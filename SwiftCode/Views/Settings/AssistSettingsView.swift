@@ -558,6 +558,12 @@ struct AssistSettingsView: View {
     @AppStorage("assist_google_auth_mode") private var assistGoogleAuthMode: String = "api_key"
     @ObservedObject private var googleAuth = GoogleAccountAuthService.shared
 
+    // Download Resources State
+    @State private var isDownloadingResources = false
+    @State private var downloadStatusMessage = "Preparing pip installation..."
+    @State private var downloadCompleted = false
+    @State private var downloadErrorMessage: String? = nil
+
     // Fallback rotation reference
     @State private var fallbackRotation = FreeModelsFallback.shared
 
@@ -720,6 +726,15 @@ struct AssistSettingsView: View {
                                         }
                                     } label: {
                                         Label("Restart Engine", systemImage: "arrow.clockwise")
+                                            .font(.system(size: 12, weight: .medium))
+                                    }
+                                    .buttonStyle(.bordered)
+                                    .controlSize(.regular)
+
+                                    Button {
+                                        downloadGoogleAntigravityResources()
+                                    } label: {
+                                        Label("Download Resources", systemImage: "arrow.down.circle.fill")
                                             .font(.system(size: 12, weight: .medium))
                                     }
                                     .buttonStyle(.bordered)
@@ -1011,7 +1026,7 @@ struct AssistSettingsView: View {
 
                             VStack(alignment: .leading, spacing: 8) {
                                 HStack {
-                                    Text("Gemini / Google Authentication")
+                                    Text("Antigravity / Google Authentication")
                                         .font(.caption.bold())
                                     Spacer()
                                     if assistGoogleAuthMode == "api_key" {
@@ -1025,7 +1040,7 @@ struct AssistSettingsView: View {
 
                                 Picker("Google Auth Mode", selection: $assistGoogleAuthMode) {
                                     Text("API Key").tag("api_key")
-                                    Text("Sign In via Google").tag("google_oauth")
+                                    Text("Sign in to Antigravity").tag("google_oauth")
                                 }
                                 .pickerStyle(.segmented)
                                 .labelsHidden()
@@ -1042,7 +1057,7 @@ struct AssistSettingsView: View {
                                                 .font(.headline)
 
                                             VStack(alignment: .leading, spacing: 2) {
-                                                Text("Connected to Google Account")
+                                                Text("Connected to Antigravity Account")
                                                     .font(.caption.weight(.semibold))
                                                     .foregroundColor(.primary)
 
@@ -1072,7 +1087,7 @@ struct AssistSettingsView: View {
                                                 .stroke(Color.green.opacity(0.2), lineWidth: 1)
                                         )
                                     } else {
-                                        // Unauthenticated state: primary button with Google/person symbol, subtitle, error reporting
+                                        // Unauthenticated state
                                         VStack(alignment: .leading, spacing: 6) {
                                             Button {
                                                 googleAuth.signIn()
@@ -1085,7 +1100,7 @@ struct AssistSettingsView: View {
                                                         Text("Signing In...")
                                                     } else {
                                                         Image(systemName: "person.badge.key.fill")
-                                                        Text("Sign In via Google")
+                                                        Text("Sign in to Antigravity")
                                                     }
                                                 }
                                                 .frame(maxWidth: .infinity)
@@ -1935,6 +1950,69 @@ struct AssistSettingsView: View {
             }
             .frame(minWidth: 850, minHeight: 600)
         }
+        .sheet(isPresented: $isDownloadingResources) {
+            VStack(spacing: 20) {
+                ZStack {
+                    Circle()
+                        .fill(Color.blue.opacity(0.12))
+                        .frame(width: 64, height: 64)
+
+                    if downloadCompleted {
+                        Image(systemName: "checkmark.circle.fill")
+                            .font(.system(size: 34))
+                            .foregroundColor(.green)
+                    } else if downloadErrorMessage != nil {
+                        Image(systemName: "exclamationmark.triangle.fill")
+                            .font(.system(size: 34))
+                            .foregroundColor(.red)
+                    } else {
+                        ProgressView()
+                            .controlSize(.large)
+                    }
+                }
+
+                VStack(spacing: 6) {
+                    Text("Downloading Resources")
+                        .font(.system(size: 16, weight: .bold))
+                    Text("Installing google-antigravity python package for direct Antigravity SDK execution")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .multilineTextAlignment(.center)
+                }
+
+                VStack(alignment: .center, spacing: 6) {
+                    Text(downloadStatusMessage)
+                        .font(.system(size: 11, weight: .medium, design: .monospaced))
+                        .foregroundStyle(downloadErrorMessage != nil ? Color.red : (downloadCompleted ? Color.green : Color.blue))
+                        .multilineTextAlignment(.center)
+                        .frame(maxWidth: .infinity)
+
+                    if let err = downloadErrorMessage {
+                        ScrollView {
+                            Text(err)
+                                .font(.system(size: 10, design: .monospaced))
+                                .foregroundStyle(.secondary)
+                                .padding(8)
+                        }
+                        .frame(maxHeight: 90)
+                        .background(Color.red.opacity(0.06), in: RoundedRectangle(cornerRadius: 6))
+                    }
+                }
+                .padding(12)
+                .background(Color.primary.opacity(0.04), in: RoundedRectangle(cornerRadius: 8))
+
+                if downloadCompleted || downloadErrorMessage != nil {
+                    Button("Done") {
+                        isDownloadingResources = false
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .controlSize(.regular)
+                }
+            }
+            .padding(28)
+            .frame(width: 440)
+            .interactiveDismissDisabled(!downloadCompleted && downloadErrorMessage == nil)
+        }
         .onAppear {
             loadAPIKeys()
             loadCachedModels()
@@ -2531,6 +2609,63 @@ extension AssistSettingsView {
             .padding(.horizontal, 10)
             .padding(.vertical, 4)
             .background(Color.red.opacity(0.12), in: Capsule())
+        }
+    }
+
+    private func downloadGoogleAntigravityResources() {
+        isDownloadingResources = true
+        downloadStatusMessage = "Running pip install google-antigravity..."
+        downloadErrorMessage = nil
+        downloadCompleted = false
+
+        Task.detached(priority: .userInitiated) {
+            let candidatePythons = [
+                "/opt/homebrew/bin/python3",
+                "/usr/local/bin/python3",
+                "/usr/bin/python3"
+            ]
+
+            var success = false
+            var lastErr = ""
+
+            for pyPath in candidatePythons {
+                guard FileManager.default.fileExists(atPath: pyPath) else { continue }
+
+                let process = Process()
+                let pipe = Pipe()
+                process.executableURL = URL(fileURLWithPath: pyPath)
+                process.arguments = ["-m", "pip", "install", "google-antigravity", "--upgrade"]
+                process.standardOutput = pipe
+                process.standardError = pipe
+
+                do {
+                    try process.run()
+                    process.waitUntilExit()
+
+                    let data = pipe.fileHandleForReading.readDataToEndOfFile()
+                    let output = String(data: data, encoding: .utf8) ?? ""
+
+                    if process.terminationStatus == 0 {
+                        success = true
+                        await MainActor.run {
+                            self.downloadStatusMessage = "google-antigravity installed successfully!"
+                            self.downloadCompleted = true
+                        }
+                        break
+                    } else {
+                        lastErr = output.isEmpty ? "Process exited with code \(process.terminationStatus)" : output
+                    }
+                } catch {
+                    lastErr = error.localizedDescription
+                }
+            }
+
+            if !success {
+                await MainActor.run {
+                    self.downloadErrorMessage = lastErr.isEmpty ? "Failed to locate Python with pip." : lastErr
+                    self.downloadStatusMessage = "Installation failed."
+                }
+            }
         }
     }
 }
