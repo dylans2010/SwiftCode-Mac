@@ -87,6 +87,13 @@ class AppSettings: ObservableObject {
         }
     }
 
+    @Published var assistGoogleAuthMode: String {
+        didSet {
+            debouncedSave("assist_google_auth_mode", assistGoogleAuthMode)
+            UserDefaults.standard.set(assistGoogleAuthMode, forKey: "assist_google_auth_mode")
+        }
+    }
+
     @Published var selectedModel: String {
         didSet {
             debouncedSave("selectedModel", selectedModel)
@@ -314,6 +321,7 @@ class AppSettings: ObservableObject {
         alternativeKeysEnabled = UserDefaults.standard.object(forKey: "alternativeKeysEnabled") as? Bool
             ?? UserDefaults.standard.object(forKey: "assist.alternativeKeysEnabled") as? Bool
             ?? false
+        assistGoogleAuthMode = UserDefaults.standard.string(forKey: "assist_google_auth_mode") ?? "api_key"
         selectedModel = UserDefaults.standard.string(forKey: "selectedModel") ?? "openai/gpt-4o"
         customModel   = UserDefaults.standard.string(forKey: "customModel") ?? ""
         selectedAssistModelID = UserDefaults.standard.string(forKey: "selectedAssistModelID") ?? AssistModelOption.swiftCodeBalanced.id

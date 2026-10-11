@@ -459,6 +459,7 @@ public final class AssistModelRouter: Sendable {
         return GoogleCloudSDKConfiguration(
             model: model.modelIdentifier,
             apiKey: apiKey,
+            oauthToken: baseConfig.oauthToken,
             vertex: false,
             project: nil,
             location: nil,
@@ -482,6 +483,12 @@ public final class AssistModelRouter: Sendable {
     public func resolveAPIKey(for provider: String) -> String? {
         let p = provider.lowercased()
         if p == "gemini" || p == "google" {
+            let authMode = UserDefaults.standard.string(forKey: "assist_google_auth_mode") ?? AppSettings.shared.assistGoogleAuthMode
+            if authMode == "google_oauth" {
+                if let oauthToken = GoogleAccountAuthService.shared.getValidAccessToken() {
+                    return oauthToken
+                }
+            }
             return KeychainService.shared.get(forKey: LLMProvider.google.keychainKey)
                 ?? APIKeyManager.shared.retrieveKey(service: .google)
         } else if p == "anthropic" || p == "claude" {

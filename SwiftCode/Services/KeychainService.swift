@@ -115,4 +115,8 @@ extension KeychainService {
     static let codexUserAPIKey = "codex_user_api_key"
     static let codexAppAPIKey = "codex_app_api_key"
     static let composioAPIKey = "composio_api_key"
+    static let googleOAuthAccessToken = "google_oauth_access_token"
+    static let googleOAuthRefreshToken = "google_oauth_refresh_token"
+    static let googleAccountEmail = "google_account_email"
+    static let googleOAuthExpiresAt = "google_oauth_expires_at"
 }

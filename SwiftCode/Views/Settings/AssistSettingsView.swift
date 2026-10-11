@@ -554,6 +554,10 @@ struct AssistSettingsView: View {
     // Composio Service Integration
     @State private var composioService = ComposioService.shared
 
+    // Google Account Auth Integration
+    @AppStorage("assist_google_auth_mode") private var assistGoogleAuthMode: String = "api_key"
+    @ObservedObject private var googleAuth = GoogleAccountAuthService.shared
+
     // Fallback rotation reference
     @State private var fallbackRotation = FreeModelsFallback.shared
 
@@ -1046,33 +1050,128 @@ struct AssistSettingsView: View {
                                     .textFieldStyle(.roundedBorder)
                             }
 
-                            VStack(alignment: .leading, spacing: 6) {
+                            VStack(alignment: .leading, spacing: 8) {
                                 HStack {
-                                    Text("Gemini (Google) API Key")
+                                    Text("Gemini / Google Authentication")
                                         .font(.caption.bold())
                                     Spacer()
-                                    Link(destination: URL(string: "https://aistudio.google.com/app/apikey")!) {
-                                        Label("Get Key", systemImage: "arrow.up.right")
-                                            .font(.caption)
+                                    if assistGoogleAuthMode == "api_key" {
+                                        Link(destination: URL(string: "https://aistudio.google.com/app/apikey")!) {
+                                            Label("Get Key", systemImage: "arrow.up.right")
+                                                .font(.caption)
+                                        }
+                                        .buttonStyle(.plain)
                                     }
-                                    .buttonStyle(.plain)
                                 }
-                                SecureField("Enter Gemini API key", text: $geminiKey)
-                                    .textFieldStyle(.roundedBorder)
 
-                                HStack {
-                                    Button {
-                                        showAlternativeKeysSheet = true
-                                    } label: {
-                                        Label("Alternative Keys (\(AlternativeKeyManager.shared.keys.count) configured)", systemImage: "arrow.triangle.2.circlepath")
-                                            .font(.caption2)
+                                Picker("Google Auth Mode", selection: $assistGoogleAuthMode) {
+                                    Text("API Key").tag("api_key")
+                                    Text("Sign In via Google").tag("google_oauth")
+                                }
+                                .pickerStyle(.segmented)
+                                .labelsHidden()
+                                .onChange(of: assistGoogleAuthMode) { _, newValue in
+                                    AppSettings.shared.assistGoogleAuthMode = newValue
+                                }
+
+                                if assistGoogleAuthMode == "google_oauth" {
+                                    if googleAuth.isAuthenticated {
+                                        // Authenticated state: inline account card/pill
+                                        HStack(spacing: 10) {
+                                            Image(systemName: "checkmark.circle.fill")
+                                                .foregroundColor(.green)
+                                                .font(.headline)
+
+                                            VStack(alignment: .leading, spacing: 2) {
+                                                Text("Connected to Google Account")
+                                                    .font(.caption.weight(.semibold))
+                                                    .foregroundColor(.primary)
+
+                                                if let email = googleAuth.userEmail, !email.isEmpty {
+                                                    Text(email)
+                                                        .font(.caption2)
+                                                        .foregroundColor(.secondary)
+                                                }
+                                            }
+
+                                            Spacer()
+
+                                            Button(role: .destructive) {
+                                                googleAuth.signOut()
+                                            } label: {
+                                                Label("Sign Out", systemImage: "rectangle.portrait.and.arrow.right")
+                                                    .font(.caption)
+                                            }
+                                            .buttonStyle(.bordered)
+                                            .controlSize(.small)
+                                        }
+                                        .padding(10)
+                                        .background(Color.green.opacity(0.08))
+                                        .cornerRadius(8)
+                                        .overlay(
+                                            RoundedRectangle(cornerRadius: 8)
+                                                .stroke(Color.green.opacity(0.2), lineWidth: 1)
+                                        )
+                                    } else {
+                                        // Unauthenticated state: primary button with Google/person symbol, subtitle, error reporting
+                                        VStack(alignment: .leading, spacing: 6) {
+                                            Button {
+                                                googleAuth.signIn()
+                                            } label: {
+                                                HStack {
+                                                    if googleAuth.isAuthenticating {
+                                                        ProgressView()
+                                                            .controlSize(.small)
+                                                            .padding(.trailing, 4)
+                                                        Text("Signing In...")
+                                                    } else {
+                                                        Image(systemName: "person.badge.key.fill")
+                                                        Text("Sign In via Google")
+                                                    }
+                                                }
+                                                .frame(maxWidth: .infinity)
+                                            }
+                                            .buttonStyle(.borderedProminent)
+                                            .controlSize(.regular)
+                                            .disabled(googleAuth.isAuthenticating)
+
+                                            Text("Direct quota-free access to Gemini & Vertex AI models without an API key using your Google Account.")
+                                                .font(.caption2)
+                                                .foregroundColor(.secondary)
+
+                                            if let error = googleAuth.authError {
+                                                HStack(alignment: .top, spacing: 4) {
+                                                    Image(systemName: "exclamationmark.triangle.fill")
+                                                        .foregroundColor(.red)
+                                                        .font(.caption2)
+                                                    Text(error)
+                                                        .font(.caption2)
+                                                        .foregroundColor(.red)
+                                                }
+                                                .padding(.top, 2)
+                                            }
+                                        }
+                                        .padding(.vertical, 2)
                                     }
-                                    .buttonStyle(.bordered)
-                                    .controlSize(.small)
+                                } else {
+                                    // API Key Mode
+                                    SecureField("Enter Gemini API key", text: $geminiKey)
+                                        .textFieldStyle(.roundedBorder)
 
-                                    Spacer()
+                                    HStack {
+                                        Button {
+                                            showAlternativeKeysSheet = true
+                                        } label: {
+                                            Label("Alternative Keys (\(AlternativeKeyManager.shared.keys.count) configured)", systemImage: "arrow.triangle.2.circlepath")
+                                                .font(.caption2)
+                                        }
+                                        .buttonStyle(.bordered)
+                                        .controlSize(.small)
+
+                                        Spacer()
+                                    }
+                                    .padding(.top, 2)
                                 }
-                                .padding(.top, 2)
                             }
 
                             VStack(alignment: .leading, spacing: 6) {
@@ -2310,15 +2409,28 @@ extension AssistSettingsView {
                 }
             }
         case .gemini:
-            let trimmed = geminiKey.trimmingCharacters(in: .whitespacesAndNewlines)
-            if trimmed.isEmpty {
-                availableModelsFetchError = "Gemini API Key is empty."
+            if assistGoogleAuthMode == "google_oauth" {
+                if let token = try? await GoogleAccountAuthService.shared.getValidAccessToken() {
+                    do {
+                        let models = try await LLMService.shared.fetchAvailableModels(provider: .google, key: token)
+                        cachedModels = models.map { CachedModel(modelID: $0, providerName: "Gemini") }
+                    } catch {
+                        availableModelsFetchError = "Gemini fetch failed: \(error.localizedDescription)"
+                    }
+                } else {
+                    availableModelsFetchError = "Please sign in with your Google account first."
+                }
             } else {
-                do {
-                    let models = try await LLMService.shared.fetchAvailableModels(provider: .google, key: trimmed)
-                    cachedModels = models.map { CachedModel(modelID: $0, providerName: "Gemini") }
-                } catch {
-                    availableModelsFetchError = "Gemini fetch failed: \(error.localizedDescription)"
+                let trimmed = geminiKey.trimmingCharacters(in: .whitespacesAndNewlines)
+                if trimmed.isEmpty {
+                    availableModelsFetchError = "Gemini API Key is empty."
+                } else {
+                    do {
+                        let models = try await LLMService.shared.fetchAvailableModels(provider: .google, key: trimmed)
+                        cachedModels = models.map { CachedModel(modelID: $0, providerName: "Gemini") }
+                    } catch {
+                        availableModelsFetchError = "Gemini fetch failed: \(error.localizedDescription)"
+                    }
                 }
             }
         case .foundation:

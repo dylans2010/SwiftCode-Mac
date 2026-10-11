@@ -15,6 +15,7 @@ public enum GoogleCloudSDKServiceTier: String, Codable, Sendable {
 public struct GoogleCloudSDKConfiguration: Codable, @unchecked Sendable {
     public var model: String
     public var apiKey: String?
+    public var oauthToken: String?
     public var vertex: Bool
     public var project: String?
     public var location: String?
@@ -32,10 +33,15 @@ public struct GoogleCloudSDKConfiguration: Codable, @unchecked Sendable {
     public var baseURL: String?
     public var useSavedModels: Bool
     public var toolkit: String
+    public var litertModelPath: String?
+    public var litertBackend: String?
+    public var downloadIfMissing: Bool
+    public var enableSpeculativeDecoding: Bool
 
     public init(
         model: String = "gemini-3.8-flash",
         apiKey: String? = nil,
+        oauthToken: String? = nil,
         vertex: Bool = false,
         project: String? = nil,
         location: String? = nil,
@@ -52,10 +58,15 @@ public struct GoogleCloudSDKConfiguration: Codable, @unchecked Sendable {
         provider: String? = nil,
         baseURL: String? = nil,
         useSavedModels: Bool = false,
-        toolkit: String = "System"
+        toolkit: String = "System",
+        litertModelPath: String? = nil,
+        litertBackend: String? = nil,
+        downloadIfMissing: Bool = false,
+        enableSpeculativeDecoding: Bool = false
     ) {
         self.model = model
         self.apiKey = apiKey
+        self.oauthToken = oauthToken
         self.vertex = vertex
         self.project = project
         self.location = location
@@ -73,16 +84,22 @@ public struct GoogleCloudSDKConfiguration: Codable, @unchecked Sendable {
         self.baseURL = baseURL
         self.useSavedModels = useSavedModels
         self.toolkit = toolkit
+        self.litertModelPath = litertModelPath
+        self.litertBackend = litertBackend
+        self.downloadIfMissing = downloadIfMissing
+        self.enableSpeculativeDecoding = enableSpeculativeDecoding
     }
 
     public enum CodingKeys: String, CodingKey {
-        case model, apiKey, vertex, project, location, systemInstructions, skillsPaths, workspaces, appDataDir, saveDir, enableSubagents, maxSubagentDepth, allowedSubagents, serviceTier, provider, baseURL, useSavedModels, toolkit
+        case model, apiKey, oauthToken, vertex, project, location, systemInstructions, skillsPaths, workspaces, appDataDir, saveDir, enableSubagents, maxSubagentDepth, allowedSubagents, serviceTier, provider, baseURL, useSavedModels, toolkit
+        case litertModelPath, litertBackend, downloadIfMissing, enableSpeculativeDecoding
     }
 
     public init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         self.model = try container.decode(String.self, forKey: .model)
         self.apiKey = try container.decodeIfPresent(String.self, forKey: .apiKey)
+        self.oauthToken = try container.decodeIfPresent(String.self, forKey: .oauthToken)
         self.vertex = try container.decode(Bool.self, forKey: .vertex)
         self.project = try container.decodeIfPresent(String.self, forKey: .project)
         self.location = try container.decodeIfPresent(String.self, forKey: .location)
@@ -99,6 +116,10 @@ public struct GoogleCloudSDKConfiguration: Codable, @unchecked Sendable {
         self.baseURL = try container.decodeIfPresent(String.self, forKey: .baseURL)
         self.useSavedModels = try container.decodeIfPresent(Bool.self, forKey: .useSavedModels) ?? false
         self.toolkit = try container.decodeIfPresent(String.self, forKey: .toolkit) ?? "System"
+        self.litertModelPath = try container.decodeIfPresent(String.self, forKey: .litertModelPath)
+        self.litertBackend = try container.decodeIfPresent(String.self, forKey: .litertBackend)
+        self.downloadIfMissing = try container.decodeIfPresent(Bool.self, forKey: .downloadIfMissing) ?? false
+        self.enableSpeculativeDecoding = try container.decodeIfPresent(Bool.self, forKey: .enableSpeculativeDecoding) ?? false
         self.tools = nil
     }
 
@@ -106,6 +127,7 @@ public struct GoogleCloudSDKConfiguration: Codable, @unchecked Sendable {
         var container = encoder.container(keyedBy: CodingKeys.self)
         try container.encode(model, forKey: .model)
         try container.encodeIfPresent(apiKey, forKey: .apiKey)
+        try container.encodeIfPresent(oauthToken, forKey: .oauthToken)
         try container.encode(vertex, forKey: .vertex)
         try container.encodeIfPresent(project, forKey: .project)
         try container.encodeIfPresent(location, forKey: .location)
@@ -122,6 +144,10 @@ public struct GoogleCloudSDKConfiguration: Codable, @unchecked Sendable {
         try container.encodeIfPresent(baseURL, forKey: .baseURL)
         try container.encode(useSavedModels, forKey: .useSavedModels)
         try container.encode(toolkit, forKey: .toolkit)
+        try container.encodeIfPresent(litertModelPath, forKey: .litertModelPath)
+        try container.encodeIfPresent(litertBackend, forKey: .litertBackend)
+        try container.encode(downloadIfMissing, forKey: .downloadIfMissing)
+        try container.encode(enableSpeculativeDecoding, forKey: .enableSpeculativeDecoding)
     }
 
     /// Automatically resolves environment configuration from SwiftCode project, tools, and preferences.
@@ -241,9 +267,16 @@ public struct GoogleCloudSDKConfiguration: Codable, @unchecked Sendable {
             ? nil
             : AssistManager.shared.registry.getToolSchemas()
 
+        var oauthToken: String? = nil
+        let googleAuthMode = UserDefaults.standard.string(forKey: "assist_google_auth_mode") ?? AppSettings.shared.assistGoogleAuthMode
+        if googleAuthMode == "google_oauth" {
+            oauthToken = GoogleAccountAuthService.shared.getValidAccessToken()
+        }
+
         return GoogleCloudSDKConfiguration(
             model: selectedModel,
             apiKey: apiKey,
+            oauthToken: oauthToken,
             vertex: false,
             project: nil,
             location: nil,
@@ -260,7 +293,11 @@ public struct GoogleCloudSDKConfiguration: Codable, @unchecked Sendable {
             provider: provider,
             baseURL: baseURL,
             useSavedModels: isSavedModels,
-            toolkit: toolkit
+            toolkit: toolkit,
+            litertModelPath: (provider == "litert" || selectedModel.lowercased().contains(".litertlm")) ? selectedModel : nil,
+            litertBackend: (provider == "litert" || selectedModel.lowercased().contains(".litertlm")) ? "gpu" : nil,
+            downloadIfMissing: false,
+            enableSpeculativeDecoding: false
         )
     }
 
@@ -275,8 +312,14 @@ public struct GoogleCloudSDKConfiguration: Codable, @unchecked Sendable {
             "skillsPaths": skillsPaths,
             "workspaces": workspaces,
             "useSavedModels": useSavedModels,
-            "toolkit": toolkit
+            "toolkit": toolkit,
+            "downloadIfMissing": downloadIfMissing,
+            "enableSpeculativeDecoding": enableSpeculativeDecoding
         ]
+
+        if let oauthToken = oauthToken, !oauthToken.isEmpty {
+            dict["oauthToken"] = oauthToken
+        }
 
         if let provider = provider, !provider.isEmpty {
             dict["provider"] = provider
@@ -307,6 +350,13 @@ public struct GoogleCloudSDKConfiguration: Codable, @unchecked Sendable {
         }
         if let tools = tools {
             dict["tools"] = tools
+        }
+        if let litertModelPath = litertModelPath, !litertModelPath.isEmpty {
+            dict["litertModelPath"] = litertModelPath
+            dict["modelPath"] = litertModelPath
+        }
+        if let litertBackend = litertBackend, !litertBackend.isEmpty {
+            dict["litertBackend"] = litertBackend
         }
 
         return dict
