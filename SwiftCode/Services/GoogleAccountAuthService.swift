@@ -62,6 +62,7 @@ public final class GoogleAccountAuthService: NSObject, ObservableObject {
     private var pendingState: String?
     private var loopbackServer: OAuthLoopbackServer?
     private var activeRedirectURI: String = "http://127.0.0.1:8085"
+    private var hasProcessedCallback: Bool = false
 
     // MARK: - OAuth Configuration
     private let callbackScheme = "swiftcode"
@@ -129,6 +130,7 @@ public final class GoogleAccountAuthService: NSObject, ObservableObject {
 
         authError = nil
         isAuthenticating = true
+        hasProcessedCallback = false
         UserDefaults.standard.set(false, forKey: Self.explicitlySignedOutKey)
 
         let verifier = generateCodeVerifier()
@@ -157,11 +159,11 @@ public final class GoogleAccountAuthService: NSObject, ObservableObject {
         server.onCallback = { [weak self] callbackURL in
             Task { @MainActor in
                 guard let self = self else { return }
-                self.authSession?.cancel()
-                self.authSession = nil
                 await self.handleCallbackURL(callbackURL, verifier: verifier, state: state, redirectURI: redirectURI)
                 self.loopbackServer?.stop()
                 self.loopbackServer = nil
+                self.authSession?.cancel()
+                self.authSession = nil
             }
         }
 
@@ -288,8 +290,12 @@ public final class GoogleAccountAuthService: NSObject, ObservableObject {
     // MARK: - Callback & Exchange
 
     private func handleCallbackURL(_ url: URL, verifier: String, state: String, redirectURI: String) async {
+        guard !hasProcessedCallback else { return }
+        hasProcessedCallback = true
+
         guard let components = URLComponents(url: url, resolvingAgainstBaseURL: false) else {
             self.authError = "Invalid callback URL structure."
+            self.isAuthenticating = false
             return
         }
 
@@ -297,22 +303,24 @@ public final class GoogleAccountAuthService: NSObject, ObservableObject {
 
         if let errorParam = queryItems.first(where: { $0.name == "error" })?.value {
             self.authError = "Google authentication error: \(errorParam)"
+            self.isAuthenticating = false
             return
         }
 
         guard let returnedState = queryItems.first(where: { $0.name == "state" })?.value,
               returnedState == state else {
             self.authError = "Security verification failed: OAuth state mismatch."
+            self.isAuthenticating = false
             return
         }
 
         guard let code = queryItems.first(where: { $0.name == "code" })?.value else {
             self.authError = "No authorization code returned from Google."
+            self.isAuthenticating = false
             return
         }
 
         do {
-            self.isAuthenticating = true
             let tokens = try await exchangeCodeForTokens(code: code, verifier: verifier, redirectURI: redirectURI)
 
             // Store tokens in Keychain
@@ -337,6 +345,10 @@ public final class GoogleAccountAuthService: NSObject, ObservableObject {
             self.pendingState = nil
 
             logger.info("Successfully authenticated with Google account: \(self.userEmail ?? "unknown")")
+
+            Task {
+                try? await GoogleCloudSDKLifecycleManager.shared.restartEngine()
+            }
         } catch {
             self.isAuthenticating = false
             self.authError = error.localizedDescription
@@ -651,7 +663,18 @@ public final class GoogleAccountAuthService: NSObject, ObservableObject {
 #if canImport(AppKit)
 extension GoogleAccountAuthService: ASWebAuthenticationPresentationContextProviding {
     public func presentationAnchor(for session: ASWebAuthenticationSession) -> ASPresentationAnchor {
-        NSApplication.shared.mainWindow ?? NSApplication.shared.windows.first ?? ASPresentationAnchor()
+        if let window = NSApplication.shared.mainWindow ?? NSApplication.shared.keyWindow ?? NSApplication.shared.windows.first(where: { $0.isVisible }) {
+            return window
+        }
+        if let window = NSApplication.shared.windows.first {
+            return window
+        }
+        return NSWindow(
+            contentRect: NSRect(x: 100, y: 100, width: 800, height: 600),
+            styleMask: [.titled, .closable, .resizable],
+            backing: .buffered,
+            defer: false
+        )
     }
 }
 #endif

@@ -1109,15 +1109,19 @@ struct AssistSettingsView: View {
                                                 .font(.headline)
 
                                             VStack(alignment: .leading, spacing: 2) {
-                                                Text("Connected to Antigravity Account")
-                                                    .font(.caption.weight(.semibold))
-                                                    .foregroundColor(.primary)
-
                                                 if let email = googleAuth.userEmail, !email.isEmpty {
-                                                    Text(email)
-                                                        .font(.caption2)
-                                                        .foregroundColor(.secondary)
+                                                    Text("Signed in as \(email)")
+                                                        .font(.system(size: 13, weight: .semibold))
+                                                        .foregroundColor(.primary)
+                                                } else {
+                                                    Text("Signed in to Antigravity")
+                                                        .font(.system(size: 13, weight: .semibold))
+                                                        .foregroundColor(.primary)
                                                 }
+
+                                                Text("Antigravity OAuth Account Active")
+                                                    .font(.caption2)
+                                                    .foregroundColor(.secondary)
                                             }
 
                                             Spacer()
@@ -2054,11 +2058,24 @@ struct AssistSettingsView: View {
                 .background(Color.primary.opacity(0.04), in: RoundedRectangle(cornerRadius: 8))
 
                 if downloadCompleted || downloadErrorMessage != nil {
-                    Button("Done") {
-                        isDownloadingResources = false
+                    HStack(spacing: 12) {
+                        if let err = downloadErrorMessage {
+                            Button {
+                                NSPasteboard.general.clearContents()
+                                NSPasteboard.general.setString(err, forType: .string)
+                            } label: {
+                                Label("Copy Error", systemImage: "doc.on.doc")
+                            }
+                            .buttonStyle(.bordered)
+                            .controlSize(.regular)
+                        }
+
+                        Button("Done") {
+                            isDownloadingResources = false
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .controlSize(.regular)
                     }
-                    .buttonStyle(.borderedProminent)
-                    .controlSize(.regular)
                 }
             }
             .padding(28)
