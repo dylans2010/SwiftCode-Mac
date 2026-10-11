@@ -60,6 +60,7 @@ public struct ToolActivityItem: Codable, Identifiable, Sendable, Hashable {
     public var retryCount: Int
     public var semanticKey: String?
     public var operationId: String?
+    public var progressMessage: String?
 
     public init(
         id: UUID = UUID(),
@@ -75,7 +76,8 @@ public struct ToolActivityItem: Codable, Identifiable, Sendable, Hashable {
         attemptsCount: Int = 1,
         retryCount: Int = 0,
         semanticKey: String? = nil,
-        operationId: String? = nil
+        operationId: String? = nil,
+        progressMessage: String? = nil
     ) {
         self.id = id
         self.toolId = toolId
@@ -91,6 +93,7 @@ public struct ToolActivityItem: Codable, Identifiable, Sendable, Hashable {
         self.retryCount = retryCount
         self.semanticKey = semanticKey
         self.operationId = operationId
+        self.progressMessage = progressMessage
     }
 }
 

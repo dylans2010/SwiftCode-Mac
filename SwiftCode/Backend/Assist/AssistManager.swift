@@ -578,7 +578,7 @@ public final class AssistManager: ObservableObject {
         currentActivityStatus = "Cancelled"
         currentCodeReview = nil
         isCodeReviewRunning = false
-        if let last = messages.last, last.role == .assistant, last.content.isEmpty, last.activityGroup?.hasContent != true {
+        if let last = messages.last, last.role == .assistant, last.content.isEmpty, last.activityGroup?.hasContent != true, (last.thinkingContent?.isEmpty ?? true) {
             messages.removeLast()
         }
         if let idx = messages.indices.last {
@@ -857,6 +857,7 @@ public final class AssistManager: ObservableObject {
                 let watchdog = AssistSDKTurnWatchdog()
 
                 let streamTask = Task { @MainActor in
+                    var thinkingStartTime: Date? = nil
                     streamLoop: for await event in eventStream {
                         guard !Task.isCancelled else { break streamLoop }
                         watchdog.recordActivity()
@@ -867,9 +868,29 @@ public final class AssistManager: ObservableObject {
                             metrics?.mark(.modelStarted)
                             self.currentActivityStatus = "Waiting for model output…"
 
-                        case .agentProgress(_, let delta, _):
+                        case .agentProgress(_, let delta, let thoughtDelta):
                             metrics?.mark(.firstEventReceived)
+
+                            // Handle reasoning / thought stream
+                            if let thoughtDelta = thoughtDelta, !thoughtDelta.isEmpty {
+                                if thinkingStartTime == nil {
+                                    thinkingStartTime = Date()
+                                }
+                                var message = self.messages[idx]
+                                let currentThinking = message.thinkingContent ?? ""
+                                message.thinkingContent = currentThinking + thoughtDelta
+                                if let start = thinkingStartTime {
+                                    message.thinkingDuration = Date().timeIntervalSince(start)
+                                }
+                                self.messages[idx] = message
+                                self.currentActivityStatus = "Thinking…"
+                            }
+
+                            // Handle conversational response stream
                             if let delta = delta, !delta.isEmpty {
+                                if let start = thinkingStartTime, self.messages[idx].thinkingDuration == nil {
+                                    self.messages[idx].thinkingDuration = Date().timeIntervalSince(start)
+                                }
                                 let safeDelta = outputFilter.append(delta)
                                 var message = self.messages[idx]
                                 if outputFilter.didSuppressToolPayload {
@@ -886,6 +907,9 @@ public final class AssistManager: ObservableObject {
                             metrics?.mark(.firstToolCall)
                             let argsDict: [String: Any] = (try? JSONSerialization.jsonObject(with: tool.rawArgs.data(using: .utf8) ?? Data())) as? [String: Any] ?? [:]
                             self.reportToolStarted(callId: tool.id, toolName: tool.name, arguments: argsDict)
+
+                        case .toolProgress(let toolId, let msg):
+                            self.reportToolProgress(callId: toolId, message: msg)
 
                         case .toolCompleted(let res):
                             self.reportToolCompleted(callId: res.id, toolName: res.name, output: res.result, arguments: [:])
@@ -908,6 +932,10 @@ public final class AssistManager: ObservableObject {
                         case .agentCompleted(_, let response, _, _):
                             metrics?.mark(.responseCompleted)
                             metrics?.logSummary()
+
+                            if let start = thinkingStartTime, self.messages[idx].thinkingDuration == nil, self.messages[idx].thinkingContent != nil {
+                                self.messages[idx].thinkingDuration = Date().timeIntervalSince(start)
+                            }
 
                             let safeRemainder = outputFilter.finish(fallbackResponse: response)
                             if outputFilter.didSuppressToolPayload {
@@ -1226,6 +1254,22 @@ public final class AssistManager: ObservableObject {
             callId: callId,
             toolName: toolName,
             arguments: arguments,
+            in: &activity
+        )
+
+        self.messages[idx].activityGroup = activity
+    }
+
+    @MainActor
+    public func reportToolProgress(callId: String, message: String) {
+        self.currentActivityStatus = message
+
+        guard let idx = self.messages.indices.last else { return }
+        guard var activity = self.messages[idx].activityGroup else { return }
+
+        AssistEventNormalizer.shared.normalizeToolProgress(
+            callId: callId,
+            message: message,
             in: &activity
         )
 

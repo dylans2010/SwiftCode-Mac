@@ -3,23 +3,45 @@ import AppKit
 
 public struct AssistActivityView: View {
     public let activityGroup: AssistActivityGroup
+    public var thinkingContent: String?
+    public var thinkingDuration: TimeInterval?
+    public var isThinking: Bool
     @State private var isExpanded: Bool
     @State private var selectedFileDiffPath: String?
 
-    public init(activityGroup: AssistActivityGroup) {
+    public init(
+        activityGroup: AssistActivityGroup,
+        thinkingContent: String? = nil,
+        thinkingDuration: TimeInterval? = nil,
+        isThinking: Bool = false
+    ) {
         self.activityGroup = activityGroup
+        self.thinkingContent = thinkingContent
+        self.thinkingDuration = thinkingDuration
+        self.isThinking = isThinking
         self._isExpanded = State(initialValue: activityGroup.isExecuting)
     }
 
     public var body: some View {
-        if !activityGroup.hasContent {
+        let hasThinking = thinkingContent?.isEmpty == false
+        if !activityGroup.hasContent && !hasThinking {
             EmptyView()
         } else {
-            VStack(alignment: .leading, spacing: 4) {
-                headerButton
+            VStack(alignment: .leading, spacing: 6) {
+                if let thinking = thinkingContent, !thinking.isEmpty {
+                    AssistThoughtDisclosureView(
+                        thinkingContent: thinking,
+                        duration: thinkingDuration,
+                        isStreaming: isThinking
+                    )
+                }
 
-                if isExpanded {
-                    expandedContent
+                if activityGroup.hasContent {
+                    headerButton
+
+                    if isExpanded {
+                        expandedContent
+                    }
                 }
             }
         }
@@ -159,6 +181,9 @@ public struct AssistActivityView: View {
 
     private var currentStateText: String {
         if let lastTool = activityGroup.tools.last, lastTool.status == .running {
+            if let prog = lastTool.progressMessage, !prog.isEmpty {
+                return "\(lastTool.toolId): \(prog)"
+            }
             return "Running \(lastTool.toolId)…"
         }
         if let lastBuild = activityGroup.builds.last, lastBuild.status == .running {
@@ -188,7 +213,7 @@ public struct AssistActivityView: View {
                             .font(.system(size: 10, weight: .medium, design: .monospaced))
                             .foregroundStyle(.primary)
 
-                        Text(tool.purpose)
+                        Text(tool.status == .running ? (tool.progressMessage ?? tool.purpose) : tool.purpose)
                             .font(.system(size: 10))
                             .foregroundStyle(.secondary)
                             .lineLimit(1)
@@ -483,3 +508,102 @@ public struct AssistActivityView: View {
         }
     }
 }
+
+/// Inline collapsible thought inspector / disclosure showing live thinking duration and thought stream.
+public struct AssistThoughtDisclosureView: View {
+    public let thinkingContent: String
+    public let duration: TimeInterval?
+    public let isStreaming: Bool
+    @State private var isExpanded: Bool
+
+    public init(
+        thinkingContent: String,
+        duration: TimeInterval? = nil,
+        isStreaming: Bool = false,
+        initiallyExpanded: Bool = false
+    ) {
+        self.thinkingContent = thinkingContent
+        self.duration = duration
+        self.isStreaming = isStreaming
+        self._isExpanded = State(initialValue: initiallyExpanded)
+    }
+
+    private var summaryLabel: String {
+        if isStreaming {
+            if let duration = duration, duration > 0 {
+                return String(format: "Thinking (%.1fs)…", duration)
+            }
+            return "Thinking…"
+        } else {
+            if let duration = duration, duration > 0 {
+                return String(format: "Thought for %.1fs", duration)
+            }
+            return "Thought process"
+        }
+    }
+
+    public var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            Button {
+                withAnimation(.spring(response: 0.25, dampingFraction: 0.85)) {
+                    isExpanded.toggle()
+                }
+            } label: {
+                HStack(spacing: 5) {
+                    Image(systemName: isExpanded ? "chevron.down" : "chevron.right")
+                        .font(.system(size: 8, weight: .semibold))
+                        .foregroundStyle(.tertiary)
+
+                    Image(systemName: "brain.head.profile")
+                        .font(.system(size: 10))
+                        .foregroundStyle(isStreaming ? Color.accentColor : Color.secondary)
+
+                    Text(summaryLabel)
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundStyle(isStreaming ? Color.primary : Color.secondary)
+
+                    if isStreaming {
+                        ProgressView()
+                            .scaleEffect(0.35)
+                            .tint(.secondary)
+                            .padding(.leading, 2)
+                    }
+
+                    Spacer()
+                }
+                .padding(.horizontal, 8)
+                .padding(.vertical, 4)
+                .background(Color.secondary.opacity(0.04), in: RoundedRectangle(cornerRadius: 6))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 6)
+                        .stroke(Color.secondary.opacity(0.08), lineWidth: 0.5)
+                )
+            }
+            .buttonStyle(.plain)
+            .accessibilityLabel(isExpanded ? "Collapse thought process" : "Expand thought process")
+
+            if isExpanded {
+                VStack(alignment: .leading, spacing: 4) {
+                    ScrollView {
+                        Text(thinkingContent)
+                            .font(.system(size: 11, design: .monospaced))
+                            .foregroundStyle(.secondary)
+                            .lineSpacing(3)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .textSelection(.enabled)
+                            .padding(8)
+                    }
+                    .frame(maxHeight: 220)
+                    .background(Color.secondary.opacity(0.03), in: RoundedRectangle(cornerRadius: 6))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 6)
+                            .stroke(Color.secondary.opacity(0.08), lineWidth: 1)
+                    )
+                }
+                .transition(.opacity.combined(with: .move(edge: .top)))
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+}
+

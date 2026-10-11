@@ -145,6 +145,26 @@ public final class AssistEventNormalizer {
         integrateAuxiliaryStarted(toolName: toolName, arguments: arguments, activityGroup: &activityGroup)
     }
 
+    public func normalizeToolProgress(
+        callId: String,
+        message: String,
+        in activityGroup: inout AssistActivityGroup
+    ) {
+        let callUUID = callId.isEmpty ? nil : (activeCallToOperationId[callId] ?? UUID(uuidString: callId))
+
+        let isActiveAttempt: (ToolActivityItem) -> Bool = { $0.status == .running || $0.status == .retrying }
+        let targetIdx = activityGroup.tools.firstIndex(where: { callUUID != nil && $0.id == callUUID })
+            ?? activityGroup.tools.firstIndex(where: { !callId.isEmpty && $0.operationId == callId })
+            ?? activityGroup.tools.lastIndex(where: { isActiveAttempt($0) })
+
+        if let idx = targetIdx {
+            var item = activityGroup.tools[idx]
+            item.progressMessage = message
+            item.timestamp = Date()
+            activityGroup.tools[idx] = item
+        }
+    }
+
     public func normalizeToolCompleted(
         callId: String,
         toolName: String,

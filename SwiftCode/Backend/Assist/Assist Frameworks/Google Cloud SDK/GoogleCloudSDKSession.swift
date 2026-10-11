@@ -54,7 +54,9 @@ public final class GoogleCloudSDKSession: Identifiable, Sendable {
                     case .toolFailed(_, _, _):
                         // Forward tool failure
                         continuation.yield(event)
-                    case .runtimeReady, .runtimeStopped, .toolProgress, .error:
+                    case .toolProgress:
+                        continuation.yield(event)
+                    case .runtimeReady, .runtimeStopped, .error:
                         // Global events
                         continuation.yield(event)
                     }

@@ -638,7 +638,10 @@ public struct AssistMainView: View {
             } == true
             let isStreamingChatResponse = lastMessage?.role == .assistant &&
                 lastMessage?.content.isEmpty == false && manager.currentActivityStatus == "Receiving response…"
-            if !hasActiveToolActivity && !isStreamingChatResponse {
+            let isActivelyThinking = lastMessage?.role == .assistant &&
+                (lastMessage?.thinkingContent?.isEmpty == false) && manager.currentActivityStatus == "Thinking…"
+
+            if !hasActiveToolActivity && !isStreamingChatResponse && !isActivelyThinking {
                 activityStatusIndicator
             }
         }
@@ -1296,6 +1299,7 @@ public struct AssistMainView: View {
 
 private struct AssistChatBubble: View {
     let message: AssistMessage
+    @ObservedObject private var manager = AssistManager.shared
 
     private var alignment: HorizontalAlignment {
         message.role == .user ? .trailing : .leading
@@ -1309,17 +1313,41 @@ private struct AssistChatBubble: View {
         }
     }
 
+    private var isCurrentlyThinking: Bool {
+        message.role == .assistant &&
+        message.id == manager.messages.last?.id &&
+        manager.isProcessing &&
+        message.content.isEmpty
+    }
+
     @ViewBuilder
     var body: some View {
-        if message.role == .assistant && message.content.isEmpty && message.activityGroup?.hasContent != true {
+        let hasThinking = message.thinkingContent?.isEmpty == false
+        let hasActivity = message.activityGroup?.hasContent == true
+        let hasContent = !message.content.isEmpty
+        let hasAttachments = message.attachments?.isEmpty == false
+
+        if message.role == .assistant && !hasContent && !hasActivity && !hasThinking && !hasAttachments {
             EmptyView()
         } else {
-            VStack(alignment: alignment, spacing: 4) {
+            VStack(alignment: alignment, spacing: 6) {
                 HStack(spacing: 4) {
                     Text(message.role == .user ? "You" : (message.role == .system ? "System" : "Assist"))
                         .font(.caption2.weight(.medium))
                         .foregroundStyle(.tertiary)
                 }
+
+                // 1. Inline collapsible thought inspector/disclosure, outside the main response bubble
+                if let thinking = message.thinkingContent, !thinking.isEmpty {
+                    AssistThoughtDisclosureView(
+                        thinkingContent: thinking,
+                        duration: message.thinkingDuration,
+                        isStreaming: isCurrentlyThinking
+                    )
+                }
+
+                // 2. Main response bubble
+                if hasContent || hasActivity || hasAttachments {
 
                 VStack(alignment: .leading, spacing: 8) {
                     // 1. Native Live Activity Feed (Subtle, Compact, Streaming)
@@ -1372,6 +1400,7 @@ private struct AssistChatBubble: View {
                 }
                 .padding(12)
                 .background(bubbleColor, in: RoundedRectangle(cornerRadius: 12))
+                }
             }
             .padding(.horizontal, 12)
             .frame(maxWidth: .infinity, alignment: message.role == .user ? .trailing : .leading)

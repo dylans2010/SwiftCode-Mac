@@ -337,6 +337,11 @@ public actor GoogleCloudSDKTransport {
             let thoughtDelta = params["thoughtDelta"] as? String
             event = .agentProgress(sessionId: sessionId, delta: delta, thoughtDelta: thoughtDelta)
 
+        case "agent.thought", "thought":
+            let sessionId = params["sessionId"] as? String ?? ""
+            let thoughtDelta = (params["thoughtDelta"] as? String) ?? (params["delta"] as? String) ?? (params["thought"] as? String)
+            event = .agentProgress(sessionId: sessionId, delta: nil, thoughtDelta: thoughtDelta)
+
         case "agent.completed":
             let sessionId = params["sessionId"] as? String ?? ""
             let response = params["response"] as? String ?? ""
@@ -364,6 +369,12 @@ public actor GoogleCloudSDKTransport {
             let rawArgs = (try? JSONSerialization.data(withJSONObject: args)).flatMap { String(data: $0, encoding: .utf8) } ?? "{}"
             let tool = GoogleCloudSDKToolEvent(id: callId, sessionId: sessionId, name: toolName, rawArgs: rawArgs)
             event = .toolStarted(tool: tool)
+
+        case "tool.progress":
+            let callId = params["toolCallId"] as? String ?? params["toolId"] as? String ?? ""
+            let toolName = params["toolName"] as? String ?? ""
+            let msg = params["message"] as? String ?? ""
+            event = .toolProgress(toolId: callId, message: msg)
 
         case "tool.completed":
             let sessionId = params["sessionId"] as? String ?? ""
