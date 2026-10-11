@@ -55,6 +55,14 @@ logging.basicConfig(
 logger = logging.getLogger("AntigravityBridge")
 
 
+def get_antigravity_version() -> str:
+    try:
+        import google.antigravity
+        return getattr(google.antigravity, "__version__", "0.1.21")
+    except Exception:
+        return "0.1.21"
+
+
 class BridgeServer:
     def __init__(self, socket_path: Optional[str] = None):
         self.socket_path = socket_path
@@ -92,11 +100,13 @@ class BridgeServer:
         self.writer.write(req_msg.encode("utf-8"))
         await self._safe_drain()
 
+        # Build, test, and terminal tools can require extended execution time
+        timeout = 600.0 if tool_name in ("build_project", "run_tests", "test_runner", "use_terminal", "run_command") else 180.0
         try:
-            result = await asyncio.wait_for(future, timeout=120.0)
+            result = await asyncio.wait_for(future, timeout=timeout)
             return result
         except asyncio.TimeoutError:
-            logger.error("Timed out waiting for SwiftCode tool execution of '%s'", tool_name)
+            logger.error("Timed out waiting for SwiftCode tool execution of '%s' (timeout: %.1fs)", tool_name, timeout)
             return {"success": False, "error": f"Tool execution of '{tool_name}' timed out"}
         finally:
             self.pending_requests.pop(req_id, None)
@@ -140,7 +150,7 @@ class BridgeServer:
                 adapter_port = await self.adapter_server.start()
                 return ProtocolMessage.success(msg_id, {
                     "status": "ready",
-                    "sdkVersion": "0.1.20",
+                    "sdkVersion": get_antigravity_version(),
                     "engine": "google-antigravity",
                     "adapterPort": adapter_port,
                 })
@@ -156,7 +166,7 @@ class BridgeServer:
                 return ProtocolMessage.success(msg_id, {
                     "status": "running" if self.is_running else "stopped",
                     "activeSessions": active_count,
-                    "sdkVersion": "0.1.20",
+                    "sdkVersion": get_antigravity_version(),
                 })
 
             elif method == "session.create":
@@ -228,7 +238,7 @@ class BridgeServer:
         writer.write(ready_notif.encode("utf-8"))
         await writer.drain()
 
-        buffer = ""
+        raw_buffer = bytearray()
         while self.is_running:
             try:
                 chunk = await reader.read(4096)
@@ -236,10 +246,11 @@ class BridgeServer:
                     logger.info("Connection closed by peer")
                     break
 
-                buffer += chunk.decode("utf-8")
-                while "\n" in buffer:
-                    line, buffer = buffer.split("\n", 1)
-                    line = line.strip()
+                raw_buffer.extend(chunk)
+                while b"\n" in raw_buffer:
+                    line_bytes, _, remaining = raw_buffer.partition(b"\n")
+                    raw_buffer = bytearray(remaining)
+                    line = line_bytes.decode("utf-8", errors="replace").strip()
                     if not line:
                         continue
 
@@ -265,6 +276,8 @@ class BridgeServer:
         writer.close()
         await writer.wait_closed()
         logger.info("Client connection terminated")
+        if self.server and self.socket_path:
+            self.server.close()
 
     async def run_socket_server(self):
         if not self.socket_path:
@@ -305,7 +318,7 @@ def main():
     args = parser.parse_args()
 
     if args.version:
-        print("0.1.20")
+        print(get_antigravity_version())
         sys.exit(0)
 
     logging.getLogger().setLevel(getattr(logging, args.log_level.upper(), logging.INFO))

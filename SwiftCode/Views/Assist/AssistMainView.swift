@@ -161,7 +161,7 @@ public struct AssistMainView: View {
                 // Native macOS Conversation ScrollView
                 ScrollViewReader { proxy in
                     ScrollView {
-                        VStack(spacing: 16) {
+                        LazyVStack(spacing: 16) {
                             // Search bar
                             HStack {
                                 Image(systemName: "magnifyingglass")

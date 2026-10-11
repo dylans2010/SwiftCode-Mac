@@ -157,15 +157,30 @@ public final class GoogleAccountAuthService: NSObject, ObservableObject {
         }
 
         server.onCallback = { [weak self] callbackURL in
-            self?.processLoopbackCallback(url: callbackURL, verifier: verifier, state: state, redirectURI: redirectURI)
+            Task { @MainActor in
+                guard let self = self else { return }
+                await self.handleCallbackURL(callbackURL, verifier: verifier, state: state, redirectURI: redirectURI)
+                let session = self.authSession
+                self.cleanUpSession()
+                session?.cancel()
+            }
         }
 
-        let session = ASWebAuthenticationSession(url: authURL, callbackURLScheme: "http") { [weak self] callbackURL, error in
-            self?.processSessionCallback(callbackURL: callbackURL, error: error, verifier: verifier, state: state, redirectURI: redirectURI)
+        let session = Self.createWebAuthSession(
+            url: authURL,
+            callbackScheme: callbackScheme,
+            contextProvider: self
+        ) { @Sendable callbackURL, error in
+            DispatchQueue.main.async {
+                GoogleAccountAuthService.shared.handleAuthSessionResult(
+                    callbackURL: callbackURL,
+                    error: error,
+                    verifier: verifier,
+                    state: state,
+                    redirectURI: redirectURI
+                )
+            }
         }
-
-        session.presentationContextProvider = self
-        session.prefersEphemeralWebBrowserSession = false
         self.authSession = session
 
         if !session.start() {
@@ -174,40 +189,64 @@ public final class GoogleAccountAuthService: NSObject, ObservableObject {
         }
     }
 
-    private nonisolated func processSessionCallback(callbackURL: URL?, error: (any Error)?, verifier: String, state: String, redirectURI: String) {
-        Task { @MainActor [weak self] in
-            guard let self = self else { return }
+    // MARK: - Non-isolated Web Authentication Session Factory
 
-            if let callbackURL = callbackURL {
+    private nonisolated static func createWebAuthSession(
+        url: URL,
+        callbackScheme: String?,
+        contextProvider: ASWebAuthenticationPresentationContextProviding,
+        completion: @escaping @Sendable (URL?, (any Error)?) -> Void
+    ) -> ASWebAuthenticationSession {
+        let session = ASWebAuthenticationSession(
+            url: url,
+            callbackURLScheme: callbackScheme,
+            completionHandler: completion
+        )
+        session.presentationContextProvider = contextProvider
+        session.prefersEphemeralWebBrowserSession = false
+        return session
+    }
+
+    @MainActor
+    private func handleAuthSessionResult(
+        callbackURL: URL?,
+        error: (any Error)?,
+        verifier: String,
+        state: String,
+        redirectURI: String
+    ) {
+        if self.isAuthenticated {
+            self.cleanUpSession()
+            return
+        }
+
+        if let callbackURL = callbackURL {
+            Task { @MainActor in
                 await self.handleCallbackURL(callbackURL, verifier: verifier, state: state, redirectURI: redirectURI)
-                self.loopbackServer?.stop()
-                self.loopbackServer = nil
-                return
+                self.cleanUpSession()
             }
+            return
+        }
 
-            if let error = error as? ASWebAuthenticationSessionError, error.code == .canceledLogin {
-                logger.info("User cancelled Google sign in session.")
-                self.isAuthenticating = false
-                self.loopbackServer?.stop()
-                self.loopbackServer = nil
-                return
-            }
+        if let error = error as? ASWebAuthenticationSessionError, error.code == .canceledLogin {
+            logger.info("User cancelled Google sign in session.")
+            self.isAuthenticating = false
+            self.cleanUpSession()
+            return
+        }
 
-            if let error = error {
-                logger.warning("ASWebAuthenticationSession notification: \(error.localizedDescription)")
-            }
+        if let error = error {
+            logger.warning("ASWebAuthenticationSession notification: \(error.localizedDescription)")
+            self.isAuthenticating = false
+            self.cleanUpSession()
         }
     }
 
-    private nonisolated func processLoopbackCallback(url: URL, verifier: String, state: String, redirectURI: String) {
-        Task { @MainActor [weak self] in
-            guard let self = self else { return }
-            await self.handleCallbackURL(url, verifier: verifier, state: state, redirectURI: redirectURI)
-            self.loopbackServer?.stop()
-            self.loopbackServer = nil
-            self.authSession?.cancel()
-            self.authSession = nil
-        }
+    @MainActor
+    private func cleanUpSession() {
+        self.loopbackServer?.stop()
+        self.loopbackServer = nil
+        self.authSession = nil
     }
 
     // MARK: - Sign Out
@@ -220,8 +259,7 @@ public final class GoogleAccountAuthService: NSObject, ObservableObject {
 
         UserDefaults.standard.set(true, forKey: Self.explicitlySignedOutKey)
 
-        self.loopbackServer?.stop()
-        self.loopbackServer = nil
+        self.cleanUpSession()
 
         self.isAuthenticated = false
         self.userEmail = nil
@@ -652,12 +690,15 @@ public final class GoogleAccountAuthService: NSObject, ObservableObject {
 
     @discardableResult
     public func handleOpenURL(_ url: URL) -> Bool {
-        if url.scheme == callbackScheme || url.scheme == "http" || url.host == "127.0.0.1" || url.host == "localhost" {
+        let scheme = url.scheme?.lowercased()
+        if scheme == callbackScheme || scheme == "antigravity" || scheme == "http" || url.host == "127.0.0.1" || url.host == "localhost" {
+            if hasProcessedCallback && isAuthenticated {
+                return true
+            }
             Task { @MainActor in
                 if let verifier = self.pendingCodeVerifier, let state = self.pendingState {
                     await self.handleCallbackURL(url, verifier: verifier, state: state, redirectURI: self.activeRedirectURI)
-                    self.loopbackServer?.stop()
-                    self.loopbackServer = nil
+                    self.cleanUpSession()
                 }
             }
             return true
@@ -782,10 +823,17 @@ public final class OAuthLoopbackServer: @unchecked Sendable {
             <body>
                 <div class="card">
                     <h2>Authentication Successful</h2>
-                    <p>You have successfully authenticated with Google.</p>
-                    <p>You may close this tab and return to <strong>SwiftCode</strong>.</p>
+                    <p>You have successfully authenticated with Google Antigravity.</p>
+                    <p>Returning to <strong>SwiftCode</strong>...</p>
                 </div>
-                <script>setTimeout(function() { window.close(); }, 2500);</script>
+                <script>
+                    setTimeout(function() {
+                        window.location.href = "swiftcode://oauth-callback";
+                    }, 350);
+                    setTimeout(function() {
+                        window.close();
+                    }, 2000);
+                </script>
             </body>
             </html>
             """

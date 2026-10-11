@@ -72,6 +72,8 @@ public actor GoogleCloudSDKTransport {
                 }
 
                 if connectRes == 0 {
+                    var nosigpipe: Int32 = 1
+                    setsockopt(fd, SOL_SOCKET, SO_NOSIGPIPE, &nosigpipe, socklen_t(MemoryLayout<Int32>.size))
                     self.socketFD = fd
                     logger.info("Successfully connected to Antigravity socket: \(socketPath)")
                     startReading()
@@ -127,6 +129,13 @@ public actor GoogleCloudSDKTransport {
 
     private func removeContinuation(id: UUID) {
         eventContinuations.removeValue(forKey: id)
+    }
+
+    /// Explicitly broadcasts a runtime event to all active subscribers.
+    public func emitEvent(_ event: GoogleCloudSDKEvent) {
+        for (_, cont) in eventContinuations {
+            cont.yield(event)
+        }
     }
 
     /// Sends a JSON-RPC 2.0 request and awaits the matching response.
@@ -322,9 +331,12 @@ public actor GoogleCloudSDKTransport {
 
         switch method {
         case "runtime.ready":
-            let version = params["version"] as? String ?? "0.1.20"
+            let version = params["version"] as? String ?? params["sdkVersion"] as? String ?? "0.1.21"
             let pid = Int32(params["pid"] as? Int ?? 0)
             event = .runtimeReady(version: version, pid: pid)
+
+        case "runtime.stopped":
+            event = .runtimeStopped
 
         case "agent.started":
             let sessionId = params["sessionId"] as? String ?? ""

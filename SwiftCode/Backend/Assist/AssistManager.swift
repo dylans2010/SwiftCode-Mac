@@ -1215,7 +1215,7 @@ public final class AssistManager: ObservableObject {
 
                 // Terminal failure
                 await MainActor.run {
-                    let finalErrorMsg = (altKeysEnabled && isGemini) ? "All configured Gemini API keys are currently unavailable." : (turnError ?? "\(currentModelName) execution failed")
+                    let finalErrorMsg = turnError ?? ((altKeysEnabled && isGemini) ? "All configured Gemini API keys are currently unavailable." : "\(currentModelName) execution failed")
                     self.lastError = finalErrorMsg
                     if let idx = self.messages.indices.last {
                         self.messages[idx].activityGroup?.isExecuting = false
@@ -1242,12 +1242,19 @@ public final class AssistManager: ObservableObject {
 
     // MARK: - Live Tool & Activity Reporting
 
+    private func targetMessageIndexForActivity() -> Int? {
+        if let idx = self.messages.indices.reversed().first(where: { self.messages[$0].role == .assistant || self.messages[$0].activityGroup != nil }) {
+            return idx
+        }
+        return self.messages.indices.last
+    }
+
     @MainActor
     public func reportToolStarted(callId: String, toolName: String, arguments: [String: Any]) {
         let formatted = AssistToolActivityFormatter.format(toolId: toolName, arguments: arguments)
         self.currentActivityStatus = formatted.runningLabel
 
-        guard let idx = self.messages.indices.last else { return }
+        guard let idx = self.targetMessageIndexForActivity() else { return }
         var activity = self.messages[idx].activityGroup ?? AssistActivityGroup(isExecuting: true)
 
         AssistEventNormalizer.shared.normalizeToolStarted(
@@ -1264,7 +1271,7 @@ public final class AssistManager: ObservableObject {
     public func reportToolProgress(callId: String, message: String) {
         self.currentActivityStatus = message
 
-        guard let idx = self.messages.indices.last else { return }
+        guard let idx = self.targetMessageIndexForActivity() else { return }
         guard var activity = self.messages[idx].activityGroup else { return }
 
         AssistEventNormalizer.shared.normalizeToolProgress(
@@ -1281,7 +1288,7 @@ public final class AssistManager: ObservableObject {
         let formatted = AssistToolActivityFormatter.format(toolId: toolName, arguments: arguments)
         self.currentActivityStatus = formatted.completedLabel
 
-        guard let idx = self.messages.indices.last else { return }
+        guard let idx = self.targetMessageIndexForActivity() else { return }
         guard var activity = self.messages[idx].activityGroup else { return }
 
         AssistEventNormalizer.shared.normalizeToolCompleted(
@@ -1301,7 +1308,7 @@ public final class AssistManager: ObservableObject {
         let cleanError = AssistEventNormalizer.shared.sanitizeErrorMessage(rawError: error, toolName: toolName)
         self.currentActivityStatus = "\(formatted.failedLabel) — \(cleanError)"
 
-        guard let idx = self.messages.indices.last else { return }
+        guard let idx = self.targetMessageIndexForActivity() else { return }
         guard var activity = self.messages[idx].activityGroup else { return }
 
         AssistEventNormalizer.shared.normalizeToolFailed(

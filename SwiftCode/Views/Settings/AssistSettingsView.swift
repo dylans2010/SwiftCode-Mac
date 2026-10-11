@@ -847,39 +847,91 @@ struct AssistSettingsView: View {
                                 Divider()
                                     .padding(.vertical, 4)
 
-                                // Default Assist Model Configuration
-                                VStack(alignment: .leading, spacing: 8) {
-                                    VStack(alignment: .leading, spacing: 2) {
-                                        Text("Default Assist Model")
-                                            .font(.system(size: 13, weight: .semibold))
-                                        Text("Choose whether to use the default Antigravity SDK models or choose an App Model from all available endpoints.")
-                                            .font(.caption2)
-                                            .foregroundStyle(.secondary)
+                                // MARK: - Model Routing Strategy
+                                VStack(alignment: .leading, spacing: 10) {
+                                    HStack {
+                                        VStack(alignment: .leading, spacing: 2) {
+                                            Text("Model Routing Strategy")
+                                                .font(.system(size: 13, weight: .semibold))
+                                            Text("Configure which model catalog or key rotation system Assist utilizes for requests.")
+                                                .font(.caption2)
+                                                .foregroundStyle(.secondary)
+                                        }
+
+                                        Spacer()
                                     }
 
-                                    Picker("Model Mode", selection: Binding(
-                                        get: { settings.useSavedModels ? "App Model" : "Default" },
-                                        set: { newMode in
-                                            if newMode == "App Model" {
+                                    Picker("Model Strategy", selection: Binding(
+                                        get: {
+                                            if settings.alternativeKeysEnabled {
+                                                return "rotation"
+                                            } else if settings.useSavedModels {
+                                                return "app_models"
+                                            } else {
+                                                return "default"
+                                            }
+                                        },
+                                        set: { newStrategy in
+                                            switch newStrategy {
+                                            case "rotation":
+                                                settings.useSavedModels = false
+                                                settings.alternativeKeysEnabled = true
+                                            case "app_models":
                                                 settings.useSavedModels = true
                                                 settings.alternativeKeysEnabled = false
-                                            } else {
+                                            default:
                                                 settings.useSavedModels = false
+                                                settings.alternativeKeysEnabled = false
                                             }
                                         }
                                     )) {
-                                        Text("Default (Antigravity SDK Models)").tag("Default")
-                                        Text("App Model (Choose from Available List)").tag("App Model")
+                                        Text("Antigravity SDK Default").tag("default")
+                                        Text("App Model Catalog").tag("app_models")
+                                        Text("Gemini Key Rotation").tag("rotation")
                                     }
                                     .pickerStyle(.segmented)
 
-                                    if settings.useSavedModels {
-                                        VStack(alignment: .leading, spacing: 6) {
-                                            Text("Select App Model:")
-                                                .font(.caption2.bold())
+                                    if settings.alternativeKeysEnabled {
+                                        VStack(alignment: .leading, spacing: 8) {
+                                            Text("Automatically rotates between multiple Gemini API keys to circumvent rate limits or quota caps.")
+                                                .font(.caption2)
                                                 .foregroundStyle(.secondary)
 
-                                            Picker("App Model Selection", selection: $settings.selectedAssistModelID) {
+                                            HStack(spacing: 8) {
+                                                let keyCount = AlternativeKeyManager.shared.keys.count
+                                                let readyCount = AlternativeKeyManager.shared.keys.filter { $0.isAvailableForUse }.count
+                                                HStack(spacing: 5) {
+                                                    Circle()
+                                                        .fill(readyCount > 0 ? Color.green : Color.secondary)
+                                                        .frame(width: 6, height: 6)
+                                                    Text("\(keyCount) Gemini keys saved (\(readyCount) ready)")
+                                                        .font(.caption2.weight(.medium))
+                                                        .foregroundStyle(.primary)
+                                                }
+
+                                                Spacer()
+
+                                                Button {
+                                                    showAlternativeKeysSheet = true
+                                                } label: {
+                                                    Label("Manage Keys", systemImage: "key.fill")
+                                                        .font(.caption2.bold())
+                                                }
+                                                .buttonStyle(.bordered)
+                                                .controlSize(.small)
+                                            }
+                                            .padding(.horizontal, 10)
+                                            .padding(.vertical, 6)
+                                            .background(Color.primary.opacity(0.04), in: RoundedRectangle(cornerRadius: 6))
+                                        }
+                                        .padding(.top, 2)
+                                    } else if settings.useSavedModels {
+                                        VStack(alignment: .leading, spacing: 8) {
+                                            Text("Select an active model from your configured providers and custom endpoints:")
+                                                .font(.caption2)
+                                                .foregroundStyle(.secondary)
+
+                                            Picker("Active Model", selection: $settings.selectedAssistModelID) {
                                                 if discoveryService.discoveredModels.isEmpty {
                                                     Text("Default Model (\(settings.selectedAssistModelID))").tag(settings.selectedAssistModelID)
                                                 } else {
@@ -890,109 +942,40 @@ struct AssistSettingsView: View {
                                                 }
                                             }
                                             .pickerStyle(.menu)
-                                        }
-                                        .padding(.top, 4)
-                                    }
-                                }
 
-                                Divider()
-                                    .padding(.vertical, 4)
-
-                                Text("Note: 'Use Saved Models' and 'Alternative Keys' are mutually exclusive. Users can only enable one option at a time.")
-                                    .font(.caption2)
-                                    .foregroundStyle(.secondary)
-
-                                VStack(alignment: .leading, spacing: 8) {
-                                    Toggle(isOn: Binding(
-                                        get: { settings.useSavedModels },
-                                        set: { newValue in
-                                            settings.useSavedModels = newValue
-                                            if newValue {
-                                                settings.alternativeKeysEnabled = false
-                                            }
-                                        }
-                                    )) {
-                                        VStack(alignment: .leading, spacing: 2) {
-                                            Text("Use Saved Models")
-                                                .font(.system(size: 13, weight: .semibold))
-                                            Text("Allow Assist to use your saved SwiftCode models instead of relying on Antigravity's default Gemini models.")
-                                                .font(.caption2)
-                                                .foregroundStyle(.secondary)
-                                        }
-                                    }
-                                    .toggleStyle(.switch)
-
-                                    if settings.useSavedModels {
-                                        let stats = discoveryService.getDiscoveryStats()
-                                        HStack(spacing: 8) {
-                                            HStack(spacing: 4) {
-                                                Circle().fill(Color.green).frame(width: 6, height: 6)
-                                                Text("\(stats.total) models available")
+                                            let stats = discoveryService.getDiscoveryStats()
+                                            HStack(spacing: 8) {
+                                                HStack(spacing: 4) {
+                                                    Circle().fill(Color.green).frame(width: 6, height: 6)
+                                                    Text("\(stats.total) models available")
+                                                        .font(.caption2.bold())
+                                                        .foregroundStyle(.primary)
+                                                }
+                                                Text("·").font(.caption2).foregroundStyle(.secondary)
+                                                Text("\(stats.providers) providers")
+                                                    .font(.caption2)
+                                                    .foregroundStyle(.secondary)
+                                                Text("·").font(.caption2).foregroundStyle(.secondary)
+                                                Text("\(stats.agentCompatible) agent-compatible")
                                                     .font(.caption2.bold())
-                                                    .foregroundStyle(.primary)
+                                                    .foregroundStyle(.blue)
                                             }
-                                            Text("·").font(.caption2).foregroundStyle(.secondary)
-                                            Text("\(stats.providers) providers")
-                                                .font(.caption2)
-                                                .foregroundStyle(.secondary)
-                                            Text("·").font(.caption2).foregroundStyle(.secondary)
-                                            Text("\(stats.agentCompatible) agent-compatible")
-                                                .font(.caption2.bold())
+                                            .padding(.horizontal, 10)
+                                            .padding(.vertical, 5)
+                                            .background(Color.blue.opacity(0.08), in: RoundedRectangle(cornerRadius: 6))
+                                        }
+                                        .padding(.top, 2)
+                                    } else {
+                                        HStack(alignment: .top, spacing: 6) {
+                                            Image(systemName: "sparkles")
+                                                .font(.caption)
                                                 .foregroundStyle(.blue)
-                                        }
-                                        .padding(.horizontal, 10)
-                                        .padding(.vertical, 5)
-                                        .background(Color.blue.opacity(0.08), in: RoundedRectangle(cornerRadius: 6))
-                                    }
-                                }
-
-                                Divider()
-                                    .padding(.vertical, 4)
-
-                                VStack(alignment: .leading, spacing: 8) {
-                                    Toggle(isOn: Binding(
-                                        get: { settings.alternativeKeysEnabled },
-                                        set: { newValue in
-                                            settings.alternativeKeysEnabled = newValue
-                                            if newValue {
-                                                settings.useSavedModels = false
-                                            }
-                                        }
-                                    )) {
-                                        VStack(alignment: .leading, spacing: 2) {
-                                            Text("Alternative Keys")
-                                                .font(.system(size: 13, weight: .semibold))
-                                            Text("Automatically rotate between saved Gemini API keys when a key encounters rate limits or quota exhaustion.")
+                                            Text("Uses the Google Antigravity SDK's default Gemini reasoning models directly with built-in token streaming.")
                                                 .font(.caption2)
                                                 .foregroundStyle(.secondary)
                                         }
+                                        .padding(.top, 2)
                                     }
-                                    .toggleStyle(.switch)
-
-                                    HStack(spacing: 8) {
-                                        let keyCount = AlternativeKeyManager.shared.keys.count
-                                        let readyCount = AlternativeKeyManager.shared.keys.filter { $0.isAvailableForUse }.count
-                                        HStack(spacing: 4) {
-                                            Circle().fill(readyCount > 0 ? Color.green : Color.secondary).frame(width: 6, height: 6)
-                                            Text("\(keyCount) Gemini keys saved (\(readyCount) ready)")
-                                                .font(.caption2)
-                                                .foregroundStyle(.secondary)
-                                        }
-
-                                        Spacer()
-
-                                        Button {
-                                            showAlternativeKeysSheet = true
-                                        } label: {
-                                            Label("Manage Keys", systemImage: "key.fill")
-                                                .font(.caption2.bold())
-                                        }
-                                        .buttonStyle(.bordered)
-                                        .controlSize(.small)
-                                    }
-                                    .padding(.horizontal, 10)
-                                    .padding(.vertical, 5)
-                                    .background(Color.primary.opacity(0.04), in: RoundedRectangle(cornerRadius: 6))
                                 }
                             }
                             .padding(.top, 2)
@@ -1513,152 +1496,161 @@ struct AssistSettingsView: View {
                 }
                 .groupBoxStyle(ModernGroupBoxStyle())
 
-                // Models for Assist Selection Card
-                #if false
-                ModelsForAssist(settings: settings, cachedModels: cachedModels, customEndpoints: customEndpointsManager.endpoints)
-                #endif
-
-                // 3. Foundation Models Integration
+                // 3. Developer Integrations & Extensions
                 GroupBox {
-                    VStack(alignment: .leading, spacing: 14) {
+                    VStack(alignment: .leading, spacing: 16) {
                         HStack {
-                            Label("Apple System Foundation Models", systemImage: "apple.logo")
+                            Label("Integrations & Extensions", systemImage: "puzzlepiece.extension.fill")
                                 .font(.headline)
-                                .foregroundColor(.green)
+                                .foregroundColor(.indigo)
                             Spacer()
                         }
 
-                        VStack(alignment: .leading, spacing: 10) {
-                            Text("Bypass external remote cloud endpoints and process your requests using native Apple Silicon device models.")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
+                        Text("Extend Assist with on-device Apple intelligence, Model Context Protocol servers, external app tools, and domain-specific engineering playbooks.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
 
+                        Divider()
+                            .padding(.vertical, 2)
+
+                        // 1) Apple Foundation Models
+                        HStack(spacing: 12) {
+                            ZStack {
+                                RoundedRectangle(cornerRadius: 8)
+                                    .fill(Color.green.opacity(0.12))
+                                    .frame(width: 36, height: 36)
+                                Image(systemName: "apple.logo")
+                                    .foregroundColor(.green)
+                                    .font(.system(size: 16, weight: .bold))
+                            }
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("Apple Foundation Models")
+                                    .font(.system(size: 13, weight: .semibold))
+                                Text("On-device Apple Silicon intelligence without remote requests")
+                                    .font(.caption2)
+                                    .foregroundStyle(.secondary)
+                            }
+                            Spacer()
                             Button {
                                 showFoundationModelsSheet = true
                             } label: {
-                                Label("Setup Native Foundation Model", systemImage: "slider.horizontal.3")
-                                    .frame(maxWidth: .infinity)
+                                Label("Configure", systemImage: "slider.horizontal.3")
+                                    .font(.caption)
                             }
                             .buttonStyle(.bordered)
+                            .controlSize(.small)
                         }
-                    }
-                    .padding()
-                }
-                .groupBoxStyle(ModernGroupBoxStyle())
+                        .padding(10)
+                        .background(Color.primary.opacity(0.02), in: RoundedRectangle(cornerRadius: 10))
 
-                // MCP Server Management Section
-                GroupBox {
-                    VStack(alignment: .leading, spacing: 14) {
-                        HStack {
-                            Label("Model Context Protocol (MCP)", systemImage: "network")
-                                .font(.headline)
-                                .foregroundColor(.purple)
+                        // 2) Model Context Protocol (MCP)
+                        HStack(spacing: 12) {
+                            ZStack {
+                                RoundedRectangle(cornerRadius: 8)
+                                    .fill(Color.purple.opacity(0.12))
+                                    .frame(width: 36, height: 36)
+                                Image(systemName: "network")
+                                    .foregroundColor(.purple)
+                                    .font(.system(size: 16, weight: .bold))
+                            }
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("Model Context Protocol (MCP)")
+                                    .font(.system(size: 13, weight: .semibold))
+                                Text("Connect stdio or remote HTTP servers for dynamic tools & context")
+                                    .font(.caption2)
+                                    .foregroundStyle(.secondary)
+                            }
                             Spacer()
-                        }
-
-                        VStack(alignment: .leading, spacing: 10) {
-                            Text("Connect local stdio sub-processes or remote HTTP services to expand your AI capabilities with custom tools and context schemas.")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-
                             Button {
                                 showMCPServersSheet = true
                             } label: {
-                                Label("Manage MCP Servers", systemImage: "arrow.up.right.square")
-                                    .frame(maxWidth: .infinity)
+                                Label("Manage MCP", systemImage: "arrow.up.right.square")
+                                    .font(.caption)
                             }
                             .buttonStyle(.bordered)
+                            .controlSize(.small)
                         }
-                    }
-                    .padding()
-                }
-                .groupBoxStyle(ModernGroupBoxStyle())
+                        .padding(10)
+                        .background(Color.primary.opacity(0.02), in: RoundedRectangle(cornerRadius: 10))
 
-                // 3b. Composio External Integrations Section
-                GroupBox {
-                    VStack(alignment: .leading, spacing: 14) {
-                        HStack {
-                            Label("Composio Tool Integrations", systemImage: "link.badge.plus")
-                                .font(.headline)
-                                .foregroundColor(.indigo)
-
-                            Spacer()
-
-                            if composioService.isConnected {
-                                HStack(spacing: 4) {
-                                    Circle().fill(Color.green).frame(width: 8, height: 8)
-                                    Text("Connected")
-                                        .font(.caption2.bold())
-                                        .foregroundColor(.green)
-                                }
-                                .padding(.horizontal, 8)
-                                .padding(.vertical, 3)
-                                .background(Color.green.opacity(0.12), in: Capsule())
+                        // 3) Composio Integrations
+                        HStack(spacing: 12) {
+                            ZStack {
+                                RoundedRectangle(cornerRadius: 8)
+                                    .fill(Color.indigo.opacity(0.12))
+                                    .frame(width: 36, height: 36)
+                                Image(systemName: "link.badge.plus")
+                                    .foregroundColor(.indigo)
+                                    .font(.system(size: 16, weight: .bold))
                             }
-                        }
-
-                        VStack(alignment: .leading, spacing: 10) {
-                            Text("Connect external app toolkits (GitHub, Slack, Google Calendar, Jira, Linear) to your Assist agent beyond standard MCP servers.")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-
-                            if !composioService.connectedAccounts.isEmpty {
+                            VStack(alignment: .leading, spacing: 2) {
                                 HStack(spacing: 6) {
-                                    Image(systemName: "checkmark.circle.fill")
-                                        .foregroundColor(.green)
-                                        .font(.caption)
-                                    Text("\(composioService.connectedAccounts.count) Active: \(composioService.connectedAccounts.map { $0.toolkit.capitalized }.joined(separator: ", "))")
-                                        .font(.caption.bold())
-                                        .foregroundStyle(.primary)
+                                    Text("Composio Integrations")
+                                        .font(.system(size: 13, weight: .semibold))
+                                    if composioService.isConnected {
+                                        Text("Connected")
+                                            .font(.system(size: 9, weight: .bold))
+                                            .foregroundColor(.green)
+                                            .padding(.horizontal, 6)
+                                            .padding(.vertical, 2)
+                                            .background(Color.green.opacity(0.12), in: Capsule())
+                                    }
                                 }
-                                .padding(.vertical, 2)
+                                Text("External toolkits: GitHub, Slack, Calendar, Jira, Linear")
+                                    .font(.caption2)
+                                    .foregroundStyle(.secondary)
                             }
-
+                            Spacer()
                             Button {
                                 showComposioSheet = true
                             } label: {
-                                Label("Manage Composio & Integrations", systemImage: "arrow.up.right.square")
-                                    .frame(maxWidth: .infinity)
+                                Label("Manage Composio", systemImage: "arrow.up.right.square")
+                                    .font(.caption)
                             }
                             .buttonStyle(.bordered)
+                            .controlSize(.small)
                         }
-                    }
-                    .padding()
-                }
-                .groupBoxStyle(ModernGroupBoxStyle())
+                        .padding(10)
+                        .background(Color.primary.opacity(0.02), in: RoundedRectangle(cornerRadius: 10))
 
-                // 3c. Agent Skills Management Section
-                GroupBox {
-                    VStack(alignment: .leading, spacing: 14) {
-                        HStack {
-                            Label("Agent Skills", systemImage: "sparkles")
-                                .font(.headline)
-                                .foregroundColor(.orange)
-
+                        // 4) Agent Skills
+                        HStack(spacing: 12) {
+                            ZStack {
+                                RoundedRectangle(cornerRadius: 8)
+                                    .fill(Color.orange.opacity(0.12))
+                                    .frame(width: 36, height: 36)
+                                Image(systemName: "sparkles")
+                                    .foregroundColor(.orange)
+                                    .font(.system(size: 16, weight: .bold))
+                            }
+                            VStack(alignment: .leading, spacing: 2) {
+                                HStack(spacing: 6) {
+                                    Text("Agent Skills")
+                                        .font(.system(size: 13, weight: .semibold))
+                                    let activeCount = SkillIndex.shared.skills.filter { $0.isEnabled }.count
+                                    Text("\(activeCount) Active")
+                                        .font(.system(size: 9, weight: .bold))
+                                        .foregroundColor(.orange)
+                                        .padding(.horizontal, 6)
+                                        .padding(.vertical, 2)
+                                        .background(Color.orange.opacity(0.12), in: Capsule())
+                                }
+                                Text("Domain-specific engineering playbooks & autonomous workflows")
+                                    .font(.caption2)
+                                    .foregroundStyle(.secondary)
+                            }
                             Spacer()
-
-                            let activeCount = SkillIndex.shared.skills.filter { $0.isEnabled }.count
-                            Text("\(activeCount) Active")
-                                .font(.caption2.bold())
-                                .foregroundColor(.orange)
-                                .padding(.horizontal, 8)
-                                .padding(.vertical, 3)
-                                .background(Color.orange.opacity(0.12), in: Capsule())
-                        }
-
-                        VStack(alignment: .leading, spacing: 10) {
-                            Text("Modular domain-specific engineering playbooks discovered across Codex, Claude, VS Code, and Antigravity. Indexed locally in Application Support.")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-
                             Button {
                                 showSkillsSheet = true
                             } label: {
-                                Label("Manage Agent Skills", systemImage: "arrow.up.right.square")
-                                    .frame(maxWidth: .infinity)
+                                Label("Manage Skills", systemImage: "arrow.up.right.square")
+                                    .font(.caption)
                             }
                             .buttonStyle(.bordered)
+                            .controlSize(.small)
                         }
+                        .padding(10)
+                        .background(Color.primary.opacity(0.02), in: RoundedRectangle(cornerRadius: 10))
                     }
                     .padding()
                 }
@@ -2370,106 +2362,7 @@ struct AssistSettingsView: View {
     }
 }
 
-// MARK: - Models For Assist Selection Card
 
-struct ModelsForAssist: View {
-    @ObservedObject var settings: AppSettings
-    @State private var filter = AssistModelFilter.shared
-
-    var cachedModels: [CachedModel]
-    var customEndpoints: [SavedCustomEndpoint]
-
-    struct AvailableModelItem: Identifiable, Hashable {
-        var id: String { modelID }
-        let modelID: String
-        let name: String
-        let category: String
-    }
-
-    private var allModels: [AvailableModelItem] {
-        var list: [AvailableModelItem] = []
-
-        // 1. Apple Models
-        list.append(AvailableModelItem(modelID: AppleFoundationModel.afm3Core.rawValue, name: "Apple AFM 3 Core", category: "Apple Foundation Models"))
-        list.append(AvailableModelItem(modelID: AppleFoundationModel.afm3CoreAdvanced.rawValue, name: "Apple AFM 3 Core Advanced", category: "Apple Foundation Models"))
-
-        // 2. HF Local Models
-        let localModels = OfflineModelManager.shared.installedModels
-        for m in localModels {
-            list.append(AvailableModelItem(modelID: m.modelName, name: m.modelName, category: "HuggingFace Local Models"))
-        }
-
-        // 3. Custom Endpoint Models
-        for endpoint in customEndpoints {
-            for m in endpoint.models {
-                list.append(AvailableModelItem(modelID: m, name: "\(m) (\(endpoint.name))", category: "Custom Models"))
-            }
-        }
-
-        // 4. Cloud Models
-        for m in cachedModels {
-            list.append(AvailableModelItem(modelID: m.modelID, name: "\(m.modelID) (\(m.providerName))", category: "Cloud Models"))
-        }
-
-        return list
-    }
-
-    var body: some View {
-        GroupBox {
-            VStack(alignment: .leading, spacing: 14) {
-                HStack {
-                    Label("Models for Assist", systemImage: "checklist")
-                        .font(.headline)
-                        .foregroundColor(.indigo)
-                    Spacer()
-                }
-
-                Text("Select which models should be active and shown in the Assist Workspace or the Agent Model selection. Toggling a model OFF hides it entirely from active popups.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-
-                let grouped = Dictionary(grouping: allModels, by: { $0.category })
-
-                VStack(alignment: .leading, spacing: 12) {
-                    ForEach(grouped.keys.sorted(), id: \.self) { category in
-                        VStack(alignment: .leading, spacing: 8) {
-                            Text(category.uppercased())
-                                .font(.caption2.bold())
-                                .foregroundStyle(.secondary)
-                                .padding(.top, 4)
-
-                            ForEach(grouped[category] ?? [], id: \.self) { item in
-                                Toggle(isOn: Binding(
-                                    get: { filter.isEnabled(item.modelID) },
-                                    set: { enabled in
-                                        filter.toggleModel(item.modelID, enabled: enabled)
-                                    }
-                                )) {
-                                    VStack(alignment: .leading, spacing: 2) {
-                                        Text(item.name)
-                                            .font(.subheadline.bold())
-                                        Text(item.modelID)
-                                            .font(.caption2.monospaced())
-                                            .foregroundStyle(.secondary)
-                                    }
-                                }
-                                .toggleStyle(.switch)
-                                .padding(.vertical, 2)
-                            }
-                        }
-
-                        if category != grouped.keys.sorted().last {
-                            Divider()
-                                .padding(.vertical, 4)
-                        }
-                    }
-                }
-            }
-            .padding()
-        }
-        .groupBoxStyle(ModernGroupBoxStyle())
-    }
-}
 
 extension AssistSettingsView {
     private func fetchModels(for option: FetchProviderOption) async {

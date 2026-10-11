@@ -28,12 +28,33 @@ public final class GoogleCloudSDKRuntime: Sendable {
     private let bridge = GoogleCloudSDKBridge()
     private var activeSessions: [String: GoogleCloudSDKSession] = [:]
     private var eventSubscriptionTask: Task<Void, Never>?
+    private var workerIdToUUID: [String: UUID] = [:]
 
     private init() {
+        if let dir = GoogleCloudSDKProcess.resolveSDKDirectory() {
+            self.isAvailable = true
+            self.statusDescription = "Installed at \(dir.lastPathComponent)"
+        }
         Task { @MainActor in
             await self.auditEnvironment()
             await self.setupToolExecutionBridge()
         }
+    }
+
+    /// Prewarms the runtime environment in the background.
+    public func prewarm() {
+        Task { @MainActor in
+            _ = try? await self.ensureStarted()
+        }
+    }
+
+    private func resolvedWorkerUUID(for workerId: String) -> UUID {
+        if let existing = workerIdToUUID[workerId] {
+            return existing
+        }
+        let id = UUID(uuidString: workerId) ?? UUID()
+        workerIdToUUID[workerId] = id
+        return id
     }
 
     /// Configures the Swift tool execution bridge callback on the bridge.
@@ -116,8 +137,18 @@ public final class GoogleCloudSDKRuntime: Sendable {
             AssistEventNormalizer.shared.computeSemanticKey(toolName: toolName, arguments: args)
         }
 
+        // Tools that produce interactive, dynamic, or time-sensitive results must never be cached
+        let nonCacheableTools: Set<String> = [
+            "plan_ask_user", "plan-askuser", "execution_plan", "plan_task",
+            "breakdown_task", "project_diff", "diff", "env_capture_logs",
+            "log_capture", "code_review", "safe_validate_changes", "validate_changes",
+            "test_runner", "run_tests", "compiler_diagnostics_engine", "compiler_diagnostics",
+            "runtime_diagnostics_engine", "runtime_diagnostics", "use_terminal", "run_command"
+        ]
+        let isCacheEligible = meta.isReadOnly && !nonCacheableTools.contains(toolName.lowercased())
+
         // Runtime Result Reuse / Idempotency Check for Read-Only tools
-        if meta.isReadOnly {
+        if isCacheEligible {
             let cached: String? = await MainActor.run {
                 toolRegistry.getCachedResult(semanticKey: semKey)
             }
@@ -139,21 +170,40 @@ public final class GoogleCloudSDKRuntime: Sendable {
             let effectiveArgs = validation.correctedInput ?? args
             let result = try await tool.execute(input: effectiveArgs, context: context)
             if result.success {
+                // Ensure model and UI receive the actual payload contents (e.g. file content, directory trees, structured data)
+                let fullPayload: String
+                if let data = result.data, !data.isEmpty {
+                    if let content = data["content"], !content.isEmpty {
+                        fullPayload = content
+                    } else if let tree = data["tree"], !tree.isEmpty {
+                        fullPayload = tree
+                    } else if let jsonData = try? JSONSerialization.data(withJSONObject: data, options: [.prettyPrinted, .sortedKeys]),
+                              let jsonStr = String(data: jsonData, encoding: .utf8) {
+                        fullPayload = result.output.isEmpty ? jsonStr : "\(result.output)\n\n\(jsonStr)"
+                    } else {
+                        let formatted = data.map { "\($0.key): \($0.value)" }.joined(separator: "\n")
+                        fullPayload = result.output.isEmpty ? formatted : "\(result.output)\n\n\(formatted)"
+                    }
+                } else {
+                    fullPayload = result.output
+                }
+
                 await MainActor.run {
-                    if meta.isMutating {
+                    let isTerminalOrMutation = meta.isMutating || toolName.lowercased() == "use_terminal" || toolName.lowercased() == "run_command"
+                    if isTerminalOrMutation {
                         toolRegistry.invalidateReadOnlyCache()
-                    } else if meta.isReadOnly {
-                        toolRegistry.setCachedResult(result.output, for: semKey)
+                    } else if isCacheEligible {
+                        toolRegistry.setCachedResult(fullPayload, for: semKey)
                     }
 
                     AssistManager.shared.reportToolCompleted(
                         callId: callId,
                         toolName: toolName,
-                        output: result.output,
+                        output: fullPayload,
                         arguments: args
                     )
                 }
-                return (true, result.output, nil)
+                return (true, fullPayload, nil)
             } else {
                 let errStr = result.error ?? result.output
                 toolRegistry.markError(toolName, error: errStr)
@@ -323,7 +373,7 @@ public final class GoogleCloudSDKRuntime: Sendable {
 
         case .workerStarted(let sid, let workerId, let name, let args):
             appendLog("[\(sid)] Worker \(name) (\(workerId)) started with args: \(args)")
-            let wID = UUID(uuidString: workerId) ?? UUID()
+            let wID = resolvedWorkerUUID(for: workerId)
             let worker = Worker(
                 id: wID,
                 name: name,
@@ -345,7 +395,7 @@ public final class GoogleCloudSDKRuntime: Sendable {
 
         case .workerProgress(let sid, let workerId, let progress):
             appendLog("[\(sid)] Worker \(workerId) progress: \(progress)")
-            let wID = UUID(uuidString: workerId) ?? UUID()
+            let wID = resolvedWorkerUUID(for: workerId)
             WorkerRuntimeState.shared.updateProgress(id: wID, progress: WorkerProgress(narrative: progress, currentAction: progress))
 
             let wEvent = WorkerEvent(
@@ -359,7 +409,7 @@ public final class GoogleCloudSDKRuntime: Sendable {
 
         case .workerCompleted(let sid, let workerId, let result):
             appendLog("[\(sid)] Worker \(workerId) completed: \(result)")
-            let wID = UUID(uuidString: workerId) ?? UUID()
+            let wID = resolvedWorkerUUID(for: workerId)
             WorkerRuntimeState.shared.transitionWorker(id: wID, to: .completed, reason: "Completed")
 
             let wEvent = WorkerEvent(
@@ -373,7 +423,7 @@ public final class GoogleCloudSDKRuntime: Sendable {
 
         case .workerFailed(let sid, let workerId, let err):
             appendLog("[\(sid)] Worker \(workerId) failed: \(err)")
-            let wID = UUID(uuidString: workerId) ?? UUID()
+            let wID = resolvedWorkerUUID(for: workerId)
             WorkerRuntimeState.shared.transitionWorker(id: wID, to: .failed, reason: err)
 
             let wEvent = WorkerEvent(

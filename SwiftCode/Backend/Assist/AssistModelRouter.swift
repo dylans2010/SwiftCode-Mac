@@ -454,7 +454,12 @@ public final class AssistModelRouter: Sendable {
         baseConfig.enableSubagents = model.supportsSubagents
 
         let provider = model.providerID.lowercased()
-        let apiKey = resolveAPIKey(for: provider)
+        let apiKey: String?
+        if (provider == "gemini" || provider == "google") && AppSettings.shared.alternativeKeysEnabled && baseConfig.apiKey != nil {
+            apiKey = baseConfig.apiKey
+        } else {
+            apiKey = resolveAPIKey(for: provider) ?? baseConfig.apiKey
+        }
 
         return GoogleCloudSDKConfiguration(
             model: model.modelIdentifier,
@@ -474,9 +479,11 @@ public final class AssistModelRouter: Sendable {
             serviceTier: baseConfig.serviceTier,
             tools: baseConfig.tools,
             provider: provider,
-            baseURL: model.endpointURL,
+            baseURL: model.endpointURL ?? baseConfig.baseURL,
             useSavedModels: AppSettings.shared.useSavedModels,
-            toolkit: AppSettings.shared.assistToolkit
+            toolkit: AppSettings.shared.assistToolkit,
+            litertModelPath: baseConfig.litertModelPath,
+            litertBackend: baseConfig.litertBackend
         )
     }
 

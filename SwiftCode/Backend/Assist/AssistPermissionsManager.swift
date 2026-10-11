@@ -3,7 +3,8 @@ import Foundation
 public final class AssistPermissionsManager: @unchecked Sendable, AssistPermissionsManagerProtocol {
     private var allowedPaths: Set<String> = []
     private var blockedPaths: Set<String> = []
-    private var requiresApproval: Bool = false
+    public var requiresApproval: Bool = false
+    public var isApproved: Bool = true
     private let lock = NSLock()
 
     public init() {
@@ -33,9 +34,16 @@ public final class AssistPermissionsManager: @unchecked Sendable, AssistPermissi
     }
 
     public func authorizeOperation(_ operation: String) -> Bool {
-        let destructiveOperations = ["delete", "remove", "rm", "drop", "truncate", "destroy", "wipe"]
-        if destructiveOperations.contains(where: { operation.lowercased().contains($0) }) {
-            return requiresApproval
+        let op = operation.lowercased().trimmingCharacters(in: .whitespacesAndNewlines)
+        let destructiveToolIds: Set<String> = [
+            "file_delete", "dir_delete", "directory_delete", "delete_file", "delete_directory"
+        ]
+        let tokens = op.components(separatedBy: CharacterSet.alphanumerics.inverted).filter { !$0.isEmpty }
+        let destructiveKeywords: Set<String> = ["delete", "remove", "rm", "drop", "truncate", "destroy", "wipe"]
+
+        let isDestructive = destructiveToolIds.contains(op) || tokens.contains(where: { destructiveKeywords.contains($0) })
+        if isDestructive && requiresApproval {
+            return isApproved
         }
         return true
     }

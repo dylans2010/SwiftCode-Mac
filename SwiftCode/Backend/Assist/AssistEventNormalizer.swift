@@ -20,21 +20,14 @@ public final class AssistEventNormalizer {
 
     public func computeSemanticKey(toolName: String, arguments: [String: Any]) -> String {
         let normalizedTool = toolName.lowercased().trimmingCharacters(in: .whitespacesAndNewlines)
-
         var keyParts: [String] = [normalizedTool]
 
-        if let path = AssistToolActivityFormatter.extractFilePath(arguments: arguments) {
-            keyParts.append("path:\(path.lowercased())")
-        } else if let path = arguments["path"] as? String ?? arguments["directory"] as? String {
-            keyParts.append("path:\(path.lowercased())")
-        }
-
-        if let query = arguments["query"] as? String ?? arguments["pattern"] as? String ?? arguments["searchQuery"] as? String {
-            keyParts.append("query:\(query.trimmingCharacters(in: .whitespacesAndNewlines).lowercased())")
-        }
-
-        if let cmd = arguments["command"] as? String ?? arguments["cmd"] as? String ?? arguments["CommandLine"] as? String {
-            keyParts.append("cmd:\(cmd.trimmingCharacters(in: .whitespacesAndNewlines).lowercased())")
+        // Sort argument keys deterministically
+        for key in arguments.keys.sorted() {
+            if let val = arguments[key] {
+                let valStr = String(describing: val).trimmingCharacters(in: .whitespacesAndNewlines)
+                keyParts.append("\(key):\(valStr)")
+            }
         }
 
         return keyParts.joined(separator: "|")

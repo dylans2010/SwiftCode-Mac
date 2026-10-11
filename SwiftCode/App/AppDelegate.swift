@@ -10,6 +10,9 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
         // Install bundled custom alert sounds into ~/Library/Sounds/
         _ = SoundInstaller.shared.installSoundsIfNeeded()
+
+        // Start Google Cloud SDK / Antigravity background lifecycle monitoring
+        GoogleCloudSDKLifecycleManager.shared.startMonitoring()
     }
 
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
@@ -18,6 +21,9 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationWillTerminate(_ notification: Notification) {
         LoggingTool.info("SwiftCode terminating cleanly.")
+        Task { @MainActor in
+            await GoogleCloudSDKLifecycleManager.shared.stopEngine()
+        }
     }
 
     private func setupDefaultPreferences() {

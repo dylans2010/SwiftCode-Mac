@@ -83,6 +83,10 @@ public final class GoogleCloudSDKLifecycleManager: ObservableObject {
     /// Restarts the engine.
     public func restartEngine() async throws {
         isIntentionalStop = false
+        guard AppSettings.shared.isGoogleCloudAssist else {
+            logger.info("Assist system is native; skipping Google Cloud SDK engine restart.")
+            return
+        }
         try await GoogleCloudSDKRuntime.shared.restart()
         logger.info("Google Cloud SDK engine restarted by lifecycle manager.")
     }

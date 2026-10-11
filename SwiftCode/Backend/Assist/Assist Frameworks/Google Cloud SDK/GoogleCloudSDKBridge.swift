@@ -59,7 +59,18 @@ public actor GoogleCloudSDKBridge {
         }
 
         self.isStarted = true
+        _ = await process.onTermination { [weak self] exitCode in
+            guard let self = self else { return }
+            Task {
+                await self.handleProcessTerminated(exitCode: exitCode)
+            }
+        }
         logger.info("Google Cloud SDK bridge started successfully (version: \(self.sdkVersion))")
+    }
+
+    private func handleProcessTerminated(exitCode: Int32) async {
+        self.isStarted = false
+        await transport.emitEvent(.runtimeStopped)
     }
 
     /// Stops the bridge cleanly.

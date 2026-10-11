@@ -171,11 +171,12 @@ public actor GoogleCloudSDKProcess {
         self.stdoutPipe = outPipe
         self.stderrPipe = errPipe
 
+        let instanceSocket = tempSocket
         proc.terminationHandler = { [weak self] p in
             let exitCode = p.terminationStatus
             logger.info("Antigravity process terminated with exit code: \(exitCode)")
             Task { [weak self] in
-                await self?.handleTermination(exitCode: exitCode)
+                await self?.handleTermination(socketPathToDelete: instanceSocket, exitCode: exitCode)
             }
         }
 
@@ -254,14 +255,17 @@ public actor GoogleCloudSDKProcess {
         }
     }
 
-    private func handleTermination(exitCode: Int32) {
+    private func handleTermination(socketPathToDelete: String?, exitCode: Int32) {
         stdoutTask?.cancel()
         stderrTask?.cancel()
         stdoutTask = nil
         stderrTask = nil
 
-        if let sock = socketPath, FileManager.default.fileExists(atPath: sock) {
+        if let sock = socketPathToDelete, FileManager.default.fileExists(atPath: sock) {
             try? FileManager.default.removeItem(atPath: sock)
+        }
+        if self.socketPath == socketPathToDelete {
+            self.socketPath = nil
         }
 
         for (_, handler) in terminationHandlers {

@@ -65,7 +65,12 @@ struct SwiftCodeApp: App {
             .environmentObject(codeSuggestionsML)
             .environmentObject(gistService)
             .onOpenURL { url in
-                _ = GitHubOAuth.shared.handleOpenURL(url)
+                if GitHubOAuth.shared.handleOpenURL(url) {
+                    return
+                }
+                if GoogleAccountAuthService.shared.handleOpenURL(url) {
+                    return
+                }
             }
             .task {
                 // Ensure the persistent Projects and Models directories exist at launch

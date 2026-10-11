@@ -6,6 +6,7 @@ subagents, dynamic SwiftCode tools, and error recovery.
 
 from __future__ import annotations
 import asyncio
+import json
 import os
 import sys
 import logging
@@ -734,9 +735,6 @@ class AgentRunner:
             if workspaces:
                 session_policies.append(policy.workspace_only(workspaces))
             session_policies.append(policy.allow_all())
-            session_policies.append(policy.allow("run_command"))
-            session_policies.append(policy.allow("edit_file"))
-            session_policies.append(policy.allow("create_file"))
 
             cap_config = types.CapabilitiesConfig(
                 enabled_tools=builtin_tools,
@@ -1085,25 +1083,28 @@ class AgentRunner:
 
     async def close_session(self, session_id: str) -> Dict[str, Any]:
         async with self._lock:
-            session = self.sessions.pop(session_id, None)
-            if not session:
-                return {"sessionId": session_id, "status": "already_closed"}
+            return await self._close_session_locked(session_id)
 
-            session.is_closed = True
-            session.mark_all_tools_failed("Session closed")
+    async def _close_session_locked(self, session_id: str) -> Dict[str, Any]:
+        session = self.sessions.pop(session_id, None)
+        if not session:
+            return {"sessionId": session_id, "status": "already_closed"}
 
-            if session.active_task and not session.active_task.done():
-                session.active_task.cancel()
+        session.is_closed = True
+        session.mark_all_tools_failed("Session closed")
 
-            try:
-                await session.agent.__aexit__(None, None, None)
-            except Exception as e:
-                logger.warning("Error exiting agent context for session '%s': %s", session_id, e)
+        if session.active_task and not session.active_task.done():
+            session.active_task.cancel()
 
-            logger.info("Closed Antigravity session '%s'", session_id)
-            return {"sessionId": session_id, "status": "closed"}
+        try:
+            await session.agent.__aexit__(None, None, None)
+        except Exception as e:
+            logger.warning("Error exiting agent context for session '%s': %s", session_id, e)
+
+        logger.info("Closed Antigravity session '%s'", session_id)
+        return {"sessionId": session_id, "status": "closed"}
 
     async def stop_all(self):
         async with self._lock:
             for session_id in list(self.sessions.keys()):
-                await self.close_session(session_id)
+                await self._close_session_locked(session_id)
