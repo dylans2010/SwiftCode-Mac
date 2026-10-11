@@ -170,13 +170,13 @@ public final class GoogleAccountAuthService: NSObject, ObservableObject {
             return false
         }
 
-        guard let verifyURL = URL(string: "https://generativelanguage.googleapis.com/v1beta/models?pageSize=1") else {
+        // Verify token via standard Google OAuth tokeninfo endpoint which accepts Antigravity/Cloud-Platform scopes
+        guard let verifyURL = URL(string: "https://www.googleapis.com/oauth2/v3/tokeninfo?access_token=\(token.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? token)") else {
             return false
         }
 
         var request = URLRequest(url: verifyURL)
         request.httpMethod = "GET"
-        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
         request.timeoutInterval = 6.0
 
         do {
@@ -185,7 +185,7 @@ public final class GoogleAccountAuthService: NSObject, ObservableObject {
                 if httpResponse.statusCode == 200 {
                     logger.info("Antigravity runtime session verified successfully.")
                     return true
-                } else if httpResponse.statusCode == 401 || httpResponse.statusCode == 403 {
+                } else if httpResponse.statusCode == 400 || httpResponse.statusCode == 401 {
                     logger.warning("Antigravity runtime verification rejected token with status \(httpResponse.statusCode). Attempting refresh...")
                     if let refreshToken = KeychainService.shared.get(forKey: Self.refreshTokenKey),
                        let refreshedToken = try? await self.refreshAccessToken(refreshToken: refreshToken) {
@@ -210,37 +210,50 @@ public final class GoogleAccountAuthService: NSObject, ObservableObject {
 
     public func restoreSessionFromKeychain() {
         let isExplicitlySignedOut = UserDefaults.standard.bool(forKey: Self.explicitlySignedOutKey)
+        guard !isExplicitlySignedOut else { return }
 
+        // 1. If Antigravity credentials exist in the system Keychain (from `agy` CLI or Google Cloud tools), import and use them
+        if let creds = fetchAntigravityCredentialsFromKeychain() {
+            if let token = creds.accessToken, !token.isEmpty {
+                KeychainService.shared.set(token, forKey: Self.accessTokenKey)
+            }
+            if !creds.refreshToken.isEmpty {
+                KeychainService.shared.set(creds.refreshToken, forKey: Self.refreshTokenKey)
+            }
+            let scopeToStore = creds.scopes.isEmpty ? scopes : creds.scopes.joined(separator: " ")
+            KeychainService.shared.set(scopeToStore, forKey: Self.scopeKey)
+            self.isAuthenticated = true
+            if let email = KeychainService.shared.get(forKey: Self.userEmailKey), !email.isEmpty {
+                self.userEmail = email
+            }
+            Task {
+                await self.importExistingAntigravityCredentials()
+            }
+            return
+        }
+
+        // 2. Check stored session in app's KeychainService
         if let email = KeychainService.shared.get(forKey: Self.userEmailKey), !email.isEmpty,
            let token = KeychainService.shared.get(forKey: Self.accessTokenKey), !token.isEmpty {
             self.userEmail = email
+            self.isAuthenticated = true
             Task {
                 let verified = await self.verifyRuntimeSession(accessToken: token)
-                self.isAuthenticated = verified
-                if verified {
-                    logger.info("Restored verified session for \(email)")
+                if !verified {
+                    logger.warning("Stored session token could not be verified.")
                 }
             }
         } else if let token = KeychainService.shared.get(forKey: Self.accessTokenKey), !token.isEmpty {
+            self.isAuthenticated = true
             Task {
-                let verified = await self.verifyRuntimeSession(accessToken: token)
-                self.isAuthenticated = verified
-                if verified {
-                    if let email = try? await self.fetchUserEmail(accessToken: token) {
-                        KeychainService.shared.set(email, forKey: Self.userEmailKey)
-                        self.userEmail = email
-                    }
+                if let email = try? await self.fetchUserEmail(accessToken: token) {
+                    KeychainService.shared.set(email, forKey: Self.userEmailKey)
+                    self.userEmail = email
                 }
             }
-        } else if !isExplicitlySignedOut {
-            Task {
-                if await self.importExistingAntigravityCredentials() {
-                    logger.info("Automatically restored session from Antigravity Keychain.")
-                } else if let adcEmail = self.ambientADCEmail() {
-                    self.userEmail = adcEmail
-                    self.isAuthenticated = true
-                }
-            }
+        } else if let adcEmail = self.ambientADCEmail() {
+            self.userEmail = adcEmail
+            self.isAuthenticated = true
         }
     }
 
@@ -405,9 +418,15 @@ public final class GoogleAccountAuthService: NSObject, ObservableObject {
     public func hasRequiredAssistScopes() -> Bool {
         guard isAuthenticated else { return false }
         if let storedScope = KeychainService.shared.get(forKey: Self.scopeKey) {
-            return storedScope.contains("aicode") || storedScope.contains("cloud-platform")
+            if storedScope.contains("aicode") || storedScope.contains("cloud-platform") {
+                return true
+            }
         }
-        // If authenticated without recorded scope, treat as valid
+        // If Antigravity credentials exist in Keychain, they possess the required scopes
+        if fetchAntigravityCredentialsFromKeychain() != nil {
+            return true
+        }
+        // If authenticated without recorded scope, treat as valid to prevent false lockouts
         return true
     }
 
@@ -424,61 +443,130 @@ public final class GoogleAccountAuthService: NSObject, ObservableObject {
         public let clientID: String
         public let clientSecret: String
         public let refreshToken: String
+        public let accessToken: String?
         public let scopes: [String]
 
-        public init(clientID: String, clientSecret: String, refreshToken: String, scopes: [String]) {
+        public init(clientID: String, clientSecret: String, refreshToken: String, accessToken: String? = nil, scopes: [String] = []) {
             self.clientID = clientID
             self.clientSecret = clientSecret
             self.refreshToken = refreshToken
+            self.accessToken = accessToken
             self.scopes = scopes
         }
     }
 
-    public func fetchAntigravityCredentialsFromKeychain() -> AntigravityCredentials? {
-        // 1. Attempt direct SecItemCopyMatching
-        let query: [String: Any] = [
-            kSecClass as String: kSecClassGenericPassword,
-            kSecAttrService as String: "gemini",
-            kSecAttrAccount as String: "antigravity-acp",
-            kSecReturnData as String: true,
-            kSecMatchLimit as String: kSecMatchLimitOne
-        ]
-        var item: CFTypeRef?
-        let status = SecItemCopyMatching(query as CFDictionary, &item)
-        if status == errSecSuccess, let data = item as? Data,
-           let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-           let refreshToken = json["refresh_token"] as? String, !refreshToken.isEmpty {
+    private func parseAntigravityCredentials(from data: Data) -> AntigravityCredentials? {
+        // Direct JSON format
+        if let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
+            if let creds = parseAntigravityJSON(json) {
+                return creds
+            }
+        }
+
+        // String representation (may contain go-keyring-base64: prefix or raw string)
+        if let str = String(data: data, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines) {
+            return parseAntigravityString(str)
+        }
+        return nil
+    }
+
+    private func parseAntigravityString(_ output: String) -> AntigravityCredentials? {
+        var jsonStringToParse = output
+        if output.hasPrefix("go-keyring-base64:") {
+            let b64 = String(output.dropFirst("go-keyring-base64:".count))
+            if let decodedData = Data(base64Encoded: b64),
+               let decodedStr = String(data: decodedData, encoding: .utf8) {
+                jsonStringToParse = decodedStr
+            }
+        }
+
+        guard let jsonData = jsonStringToParse.data(using: .utf8),
+              let json = try? JSONSerialization.jsonObject(with: jsonData) as? [String: Any] else {
+            return nil
+        }
+
+        return parseAntigravityJSON(json)
+    }
+
+    private func parseAntigravityJSON(_ json: [String: Any]) -> AntigravityCredentials? {
+        // Structure 1: Nested { "token": { "refresh_token": "...", "access_token": "..." } } (Standard go-keyring / agy CLI)
+        if let tokenObj = json["token"] as? [String: Any] {
+            let refreshToken = (tokenObj["refresh_token"] as? String) ?? ""
+            let accessToken = tokenObj["access_token"] as? String
+            if !refreshToken.isEmpty || (accessToken != nil && !accessToken!.isEmpty) {
+                let clientID = (json["client_id"] as? String) ?? Self.antigravityClientID
+                let clientSecret = (json["client_secret"] as? String) ?? Self.antigravityClientSecret
+                let scopes = (json["scopes"] as? [String]) ?? Self.requiredScopes
+                return AntigravityCredentials(
+                    clientID: clientID,
+                    clientSecret: clientSecret,
+                    refreshToken: refreshToken,
+                    accessToken: accessToken,
+                    scopes: scopes
+                )
+            }
+        }
+
+        // Structure 2: Flat { "refresh_token": "...", "client_id": "..." }
+        if let refreshToken = json["refresh_token"] as? String, !refreshToken.isEmpty {
             let clientID = (json["client_id"] as? String) ?? Self.antigravityClientID
             let clientSecret = (json["client_secret"] as? String) ?? Self.antigravityClientSecret
-            let scopes = (json["scopes"] as? [String]) ?? []
-            return AntigravityCredentials(clientID: clientID, clientSecret: clientSecret, refreshToken: refreshToken, scopes: scopes)
+            let scopes = (json["scopes"] as? [String]) ?? Self.requiredScopes
+            let accessToken = json["access_token"] as? String
+            return AntigravityCredentials(
+                clientID: clientID,
+                clientSecret: clientSecret,
+                refreshToken: refreshToken,
+                accessToken: accessToken,
+                scopes: scopes
+            )
+        }
+
+        return nil
+    }
+
+    public func fetchAntigravityCredentialsFromKeychain() -> AntigravityCredentials? {
+        let accounts = ["antigravity", "antigravity-acp"]
+
+        // 1. Attempt direct SecItemCopyMatching for each account name
+        for account in accounts {
+            let query: [String: Any] = [
+                kSecClass as String: kSecClassGenericPassword,
+                kSecAttrService as String: "gemini",
+                kSecAttrAccount as String: account,
+                kSecReturnData as String: true,
+                kSecMatchLimit as String: kSecMatchLimitOne
+            ]
+            var item: CFTypeRef?
+            let status = SecItemCopyMatching(query as CFDictionary, &item)
+            if status == errSecSuccess, let data = item as? Data,
+               let creds = parseAntigravityCredentials(from: data) {
+                return creds
+            }
         }
 
         // 2. Fallback to /usr/bin/security CLI
-        let process = Process()
-        let pipe = Pipe()
-        process.executableURL = URL(fileURLWithPath: "/usr/bin/security")
-        process.arguments = ["find-generic-password", "-s", "gemini", "-a", "antigravity-acp", "-w"]
-        process.standardOutput = pipe
-        process.standardError = Pipe()
+        for account in accounts {
+            let process = Process()
+            let pipe = Pipe()
+            process.executableURL = URL(fileURLWithPath: "/usr/bin/security")
+            process.arguments = ["find-generic-password", "-s", "gemini", "-a", account, "-w"]
+            process.standardOutput = pipe
+            process.standardError = Pipe()
 
-        do {
-            try process.run()
-            process.waitUntilExit()
-            if process.terminationStatus == 0 {
-                let data = pipe.fileHandleForReading.readDataToEndOfFile()
-                if let output = String(data: data, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines),
-                   let jsonData = output.data(using: .utf8),
-                   let json = try? JSONSerialization.jsonObject(with: jsonData) as? [String: Any],
-                   let refreshToken = json["refresh_token"] as? String, !refreshToken.isEmpty {
-                    let clientID = (json["client_id"] as? String) ?? Self.antigravityClientID
-                    let clientSecret = (json["client_secret"] as? String) ?? Self.antigravityClientSecret
-                    let scopes = (json["scopes"] as? [String]) ?? []
-                    return AntigravityCredentials(clientID: clientID, clientSecret: clientSecret, refreshToken: refreshToken, scopes: scopes)
+            do {
+                try process.run()
+                process.waitUntilExit()
+                if process.terminationStatus == 0 {
+                    let data = pipe.fileHandleForReading.readDataToEndOfFile()
+                    if let output = String(data: data, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines),
+                       let creds = parseAntigravityString(output) {
+                        return creds
+                    }
                 }
+            } catch {
+                logger.debug("Security CLI lookup fallback for \(account) failed: \(error.localizedDescription)")
             }
-        } catch {
-            logger.debug("Security CLI lookup fallback failed: \(error.localizedDescription)")
         }
 
         return nil
@@ -491,28 +579,49 @@ public final class GoogleAccountAuthService: NSObject, ObservableObject {
             return false
         }
 
+        var resolvedTokens: GoogleOAuthTokens? = nil
         do {
-            let tokens = try await refreshAccessTokenWithDetails(
+            resolvedTokens = try await refreshAccessTokenWithDetails(
                 refreshToken: creds.refreshToken,
                 clientID: creds.clientID,
                 clientSecret: creds.clientSecret
             )
+        } catch {
+            logger.warning("Could not refresh Antigravity tokens: \(error.localizedDescription)")
+            if let existingToken = creds.accessToken, !existingToken.isEmpty {
+                logger.info("Using cached access token from Antigravity credentials.")
+                resolvedTokens = GoogleOAuthTokens(
+                    accessToken: existingToken,
+                    expiresIn: 3600,
+                    refreshToken: creds.refreshToken,
+                    scope: creds.scopes.joined(separator: " "),
+                    tokenType: "Bearer",
+                    idToken: nil
+                )
+            } else {
+                return false
+            }
+        }
 
-            KeychainService.shared.set(tokens.accessToken, forKey: Self.accessTokenKey)
+        guard let tokens = resolvedTokens else { return false }
+
+        KeychainService.shared.set(tokens.accessToken, forKey: Self.accessTokenKey)
+        if !creds.refreshToken.isEmpty {
             KeychainService.shared.set(creds.refreshToken, forKey: Self.refreshTokenKey)
-            let scopeToStore = tokens.scope ?? (creds.scopes.isEmpty ? scopes : creds.scopes.joined(separator: " "))
-            KeychainService.shared.set(scopeToStore, forKey: Self.scopeKey)
+        }
+        let scopeToStore = tokens.scope ?? (creds.scopes.isEmpty ? scopes : creds.scopes.joined(separator: " "))
+        KeychainService.shared.set(scopeToStore, forKey: Self.scopeKey)
 
-            let expiresAt = Date().addingTimeInterval(TimeInterval(tokens.expiresIn ?? 3600)).timeIntervalSince1970
-            KeychainService.shared.set(String(expiresAt), forKey: Self.expiresAtKey)
+        let expiresAt = Date().addingTimeInterval(TimeInterval(tokens.expiresIn ?? 3600)).timeIntervalSince1970
+        KeychainService.shared.set(String(expiresAt), forKey: Self.expiresAtKey)
 
-            var email: String? = nil
-            if let idToken = tokens.idToken {
-                email = extractEmailFromIDToken(idToken)
-            }
-            if email == nil {
-                email = try? await fetchUserEmail(accessToken: tokens.accessToken)
-            }
+        var email: String? = nil
+        if let idToken = tokens.idToken {
+            email = extractEmailFromIDToken(idToken)
+        }
+        if email == nil {
+            email = try? await fetchUserEmail(accessToken: tokens.accessToken)
+        }
 
             if let resolvedEmail = email, !resolvedEmail.isEmpty {
                 KeychainService.shared.set(resolvedEmail, forKey: Self.userEmailKey)
@@ -1076,9 +1185,14 @@ public final class GoogleAccountAuthService: NSObject, ObservableObject {
 
     public func checkAmbientADC() -> String? {
         // 1. Antigravity keychain credentials
-        if let creds = fetchAntigravityCredentialsFromKeychain(),
-           let token = refreshAccessTokenSync(refreshToken: creds.refreshToken, clientID: creds.clientID, clientSecret: creds.clientSecret) {
-            return token
+        if let creds = fetchAntigravityCredentialsFromKeychain() {
+            if let existingToken = creds.accessToken, !existingToken.isEmpty {
+                return existingToken
+            }
+            if !creds.refreshToken.isEmpty,
+               let token = refreshAccessTokenSync(refreshToken: creds.refreshToken, clientID: creds.clientID, clientSecret: creds.clientSecret) {
+                return token
+            }
         }
 
         // 2. GOOGLE_APPLICATION_CREDENTIALS environment variable

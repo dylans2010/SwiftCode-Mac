@@ -1126,9 +1126,12 @@ public final class AssistManager: ObservableObject {
                     // --- OAuth Scope Insufficient (403 ACCESS_TOKEN_SCOPE_INSUFFICIENT) ---
                     // Occurs when the user is OAuth-authenticated but their token lacks the Antigravity scope.
                     // Automatically prompt the user to approve the updated scopes without failing into API key rotation.
-                    let isScopeInsufficient = errText.contains("ACCESS_TOKEN_SCOPE_INSUFFICIENT") ||
+                    let isQuotaOrRateLimit = AssistModelRouter.shared.isQuotaOrRateLimit(errorText: errText)
+                    let isScopeInsufficient = !isQuotaOrRateLimit && (
+                        errText.contains("ACCESS_TOKEN_SCOPE_INSUFFICIENT") ||
                         (errText.contains("403") && (errText.contains("insufficient authentication scopes") || (errText.contains("PERMISSION_DENIED") && errText.contains("scope"))))
-                    if isScopeInsufficient && GoogleAccountAuthService.shared.isAuthenticated {
+                    )
+                    if isScopeInsufficient && GoogleAccountAuthService.shared.isAuthenticated && !GoogleAccountAuthService.shared.hasRequiredAssistScopes() {
                         await MainActor.run {
                             if let idx = self.messages.indices.last {
                                 self.messages[idx].activityGroup?.isExecuting = false
