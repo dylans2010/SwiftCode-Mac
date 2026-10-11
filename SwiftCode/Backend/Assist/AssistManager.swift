@@ -80,25 +80,21 @@ public final class AssistManager: ObservableObject {
         self.terminalExitCode = nil
         self.terminalCompleted = false
 
-        return await withTaskGroup(of: Bool.self) { group in
-            group.addTask { @MainActor in
-                await withCheckedContinuation { continuation in
-                    self.terminalContinuation = continuation
-                }
-            }
-            group.addTask {
-                try? await Task.sleep(nanoseconds: UInt64(timeoutSeconds * 1_000_000_000))
-                return false
-            }
-            let result = await group.next() ?? false
-            group.cancelAll()
+        let timeoutTask = Task {
+            try? await Task.sleep(nanoseconds: UInt64(timeoutSeconds * 1_000_000_000))
             await MainActor.run {
                 if self.pendingTerminalRequest?.id == request.id {
                     self.denyTerminalRequest()
                 }
             }
-            return result
         }
+
+        let result = await withCheckedContinuation { (continuation: CheckedContinuation<Bool, Never>) in
+            self.terminalContinuation = continuation
+        }
+
+        timeoutTask.cancel()
+        return result
     }
 
     @MainActor

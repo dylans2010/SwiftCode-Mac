@@ -956,62 +956,6 @@ struct AssistSettingsView: View {
                                             .padding(.vertical, 5)
                                             .background(Color.purple.opacity(0.08), in: RoundedRectangle(cornerRadius: 6))
                                         }
-                                        .padding(.top, 2)
-                                    } else {
-                                        VStack(alignment: .leading, spacing: 8) {
-                                            HStack(spacing: 6) {
-                                                Image(systemName: "sparkles")
-                                                    .font(.caption)
-                                                    .foregroundStyle(.blue)
-                                                Text("Official SDK Default (SDK Models Only)")
-                                                    .font(.caption.bold())
-                                                    .foregroundStyle(.blue)
-                                                Spacer()
-                                                Text("Strict")
-                                                    .font(.system(size: 10, weight: .bold))
-                                                    .padding(.horizontal, 6)
-                                                    .padding(.vertical, 2)
-                                                    .background(Color.blue.opacity(0.12), in: Capsule())
-                                                    .foregroundStyle(.blue)
-                                            }
-
-                                            Text("Strictly routes requests ONLY to the official models dynamically discovered from the SDK. No other catalog or third-party models are called.")
-                                                .font(.caption2)
-                                                .foregroundStyle(.secondary)
-
-                                            if sdkModelFetcher.models.isEmpty {
-                                                HStack(spacing: 6) {
-                                                    ProgressView()
-                                                        .controlSize(.small)
-                                                    Text("Loading official SDK reasoning models...")
-                                                        .font(.caption2)
-                                                        .foregroundStyle(.secondary)
-                                                }
-                                                .padding(.vertical, 4)
-                                            } else {
-                                                // Dynamic SDK Models Grid
-                                                LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 6) {
-                                                    ForEach(Array(sdkModelFetcher.models.prefix(6))) { item in
-                                                        HStack(spacing: 6) {
-                                                            Circle().fill(item.thinkingColor).frame(width: 5, height: 5)
-                                                            VStack(alignment: .leading, spacing: 1) {
-                                                                Text(item.name)
-                                                                    .font(.system(size: 11, weight: .semibold))
-                                                                    .lineLimit(1)
-                                                                Text("Thinking: \(item.thinkingLevel)")
-                                                                    .font(.system(size: 9))
-                                                                    .foregroundStyle(.secondary)
-                                                            }
-                                                            Spacer()
-                                                        }
-                                                        .padding(.horizontal, 8)
-                                                        .padding(.vertical, 5)
-                                                        .background(Color.primary.opacity(0.03), in: RoundedRectangle(cornerRadius: 6))
-                                                    }
-                                                }
-                                            }
-                                        }
-                                        .padding(.top, 2)
                                     }
                                 }
                             }

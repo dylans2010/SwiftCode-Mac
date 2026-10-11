@@ -2,11 +2,11 @@
 //  AntigravityLimitsModelsUI.swift
 //  SwiftCode
 //
-//  Modern, dedicated UI card displaying official SDK models and user account allowances.
-//  Models are fetched dynamically using Process from the SDK runtime.
-//  Never displays "Antigravity" in any user-facing UI labels.
-//  Features a dynamic gauge color system (100%-60% green, 59%-21% yellow, 20%-0% red)
-//  and a super modern colorful glowing orb slider for thinking depth (Low, Medium, High).
+//  Dedicated UI popover displaying official SDK models and real Google account allowances.
+//  Matches the compact styling of AssistCustomModelPickerPopover with a modern, clean thinking slider.
+//  No individual model icons, no selection chips, no section header, no bottom footers.
+//  Account allowance is presented as "Usage Details" showing live percentages pulled from the Google system.
+//  Dynamic gauge colors: 100%-60% green, 59%-21% yellow, 20%-0% red.
 //
 
 import SwiftUI
@@ -18,16 +18,12 @@ public struct AntigravityLimitsModelsUI: View {
     public let onDismiss: () -> Void
 
     @ObservedObject private var quotaService = AntigravityQuotaService.shared
-    @ObservedObject private var googleAuth = GoogleAccountAuthService.shared
     @ObservedObject private var modelFetcher = AntigravitySDKModelFetcher.shared
 
-    @State private var showingLimitsPopover: Bool = false
-    @State private var showingPlanSelector: Bool = false
-    @State private var selectedThinkingLevel: ThinkingLevel = .medium
-    @State private var activeFilterTab: ModelFilterTab = .all
-    @State private var orbDragOffset: CGFloat? = nil
-    @State private var isExecutingProcess: Bool = false
-    @State private var liveFetchedModels: [AntigravitySDKModel] = []
+    @State private var searchText: String = ""
+    @State private var showingUsageDetailsPopover: Bool = false
+    @State private var selectedThinkingLevel: ThinkingLevel = .high
+    @State private var hoveredModelID: String? = nil
 
     public enum ThinkingLevel: String, CaseIterable, Identifiable {
         case low = "Low"
@@ -36,49 +32,21 @@ public struct AntigravityLimitsModelsUI: View {
 
         public var id: String { rawValue }
 
-        public var index: Int {
-            switch self {
-            case .low: return 0
-            case .medium: return 1
-            case .high: return 2
-            }
-        }
-
         public var subtitle: String {
             switch self {
-            case .low: return "Fast generation & rapid code edits"
-            case .medium: return "Balanced multi-step reasoning"
-            case .high: return "Deep architecture & AST refactoring"
+            case .low: return "Low Thinking · Fast generation & rapid edits"
+            case .medium: return "Medium Thinking · Balanced multi-step reasoning"
+            case .high: return "High Thinking · Deep reasoning & architecture"
             }
         }
 
-        public var orbColors: [Color] {
+        public var accentColor: Color {
             switch self {
-            case .low:
-                return [Color(red: 0.05, green: 0.95, blue: 0.85), Color(red: 0.0, green: 0.6, blue: 0.95)]
-            case .medium:
-                return [Color(red: 0.55, green: 0.35, blue: 1.0), Color(red: 0.85, green: 0.25, blue: 0.95)]
-            case .high:
-                return [Color(red: 1.0, green: 0.2, blue: 0.55), Color(red: 1.0, green: 0.6, blue: 0.2)]
+            case .low: return Color(red: 0.0, green: 0.8, blue: 0.8) // Cyan / Teal
+            case .medium: return Color(red: 0.55, green: 0.35, blue: 1.0) // Indigo / Purple
+            case .high: return Color(red: 1.0, green: 0.2, blue: 0.5) // Coral / Pink
             }
         }
-
-        public var glowColor: Color {
-            switch self {
-            case .low: return Color(red: 0.0, green: 0.85, blue: 0.85)
-            case .medium: return Color(red: 0.65, green: 0.35, blue: 1.0)
-            case .high: return Color(red: 1.0, green: 0.25, blue: 0.5)
-            }
-        }
-    }
-
-    public enum ModelFilterTab: String, CaseIterable, Identifiable {
-        case all = "All"
-        case high = "High"
-        case medium = "Medium"
-        case low = "Low"
-
-        public var id: String { rawValue }
     }
 
     /// Dynamic accessor for code referencing `AntigravityLimitsModelsUI.sdkModels`
@@ -98,39 +66,25 @@ public struct AntigravityLimitsModelsUI: View {
 
     public var body: some View {
         VStack(spacing: 0) {
-            // MARK: - Header with User Profile, Plan Tier & Allowance
+            // MARK: - Header with Usage Details, Refresh & Dismiss
             headerView
 
-            Divider()
+            // MARK: - Modern, Clean Thinking Depth Slider
+            thinkingSliderSection
 
-            ScrollView {
-                VStack(spacing: 14) {
-                    // MARK: - Super Modern Custom Thinking Orbs Slider
-                    thinkingOrbsSliderSection
-
-                    // MARK: - Models Section Header & Filter Tabs
-                    modelsFilterHeader
-
-                    // MARK: - Dynamic SDK Models List (Showing off all fetched models)
-                    modelsListSection
-                }
-                .padding(.horizontal, 14)
-                .padding(.vertical, 12)
-            }
+            // MARK: - Search Bar
+            searchBar
 
             Divider()
 
-            // MARK: - Footer
-            footerView
+            // MARK: - Models List
+            modelsListView
         }
-        .frame(width: 420, height: 520)
+        .frame(width: 320, height: 420)
         .background(Color(NSColor.windowBackgroundColor))
         .onAppear {
-            if liveFetchedModels.isEmpty && !AntigravitySDKModelFetcher.shared.models.isEmpty {
-                liveFetchedModels = AntigravitySDKModelFetcher.shared.models
-            }
+            quotaService.refreshRealGoogleQuota()
             syncThinkingLevelWithSelection()
-            loadModelsViaProcess()
         }
         .onChange(of: selectedModelID) { _, _ in
             syncThinkingLevelWithSelection()
@@ -139,641 +93,275 @@ public struct AntigravityLimitsModelsUI: View {
 
     // MARK: - Header
     private var headerView: some View {
-        HStack(spacing: 10) {
-            // App / SDK Icon Orb
-            ZStack {
-                Circle()
-                    .fill(
-                        LinearGradient(
-                            colors: quotaService.planTier.gradientColors.map { $0.opacity(0.25) },
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing
-                        )
-                    )
-                    .frame(width: 32, height: 32)
-                Circle()
-                    .strokeBorder(
-                        LinearGradient(
-                            colors: quotaService.planTier.gradientColors,
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing
-                        ),
-                        lineWidth: 1.5
-                    )
-                    .frame(width: 32, height: 32)
-                Image(systemName: "cpu.fill")
-                    .font(.system(size: 13, weight: .bold))
-                    .foregroundStyle(
-                        LinearGradient(
-                            colors: quotaService.planTier.gradientColors,
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing
-                        )
-                    )
-            }
-
-            // User Profile & Status
-            VStack(alignment: .leading, spacing: 2) {
-                HStack(spacing: 6) {
-                    Text("Official SDK Models")
-                        .font(.system(size: 13, weight: .bold))
-
-                    // Subscriber Plan Tier Pill (Clickable to switch / inspect)
-                    Button {
-                        showingPlanSelector.toggle()
-                    } label: {
-                        HStack(spacing: 3) {
-                            Image(systemName: quotaService.planTier.iconName)
-                                .font(.system(size: 8, weight: .bold))
-                            Text(quotaService.planTier.rawValue.uppercased())
-                                .font(.system(size: 9, weight: .heavy, design: .rounded))
-                        }
-                        .padding(.horizontal, 6)
-                        .padding(.vertical, 2)
-                        .background(
-                            LinearGradient(
-                                colors: quotaService.planTier.gradientColors,
-                                startPoint: .leading,
-                                endPoint: .trailing
-                            ),
-                            in: Capsule()
-                        )
-                        .foregroundStyle(.white)
-                        .shadow(color: quotaService.planTier.gradientColors.first?.opacity(0.3) ?? .clear, radius: 3)
-                    }
-                    .buttonStyle(.plain)
-                    .popover(isPresented: $showingPlanSelector, arrowEdge: .top) {
-                        planTierPickerPopover
-                    }
-                    .help("Plan: \(quotaService.planTier.displayName)")
-                }
-
-                if let email = googleAuth.userEmail, !email.isEmpty {
-                    HStack(spacing: 4) {
-                        Circle()
-                            .fill(Color.green)
-                            .frame(width: 5, height: 5)
-                        Text(email)
-                            .font(.system(size: 10))
-                            .foregroundStyle(.secondary)
-                            .lineLimit(1)
-                    }
-                } else {
-                    HStack(spacing: 4) {
-                        Circle()
-                            .fill(Color.blue)
-                            .frame(width: 5, height: 5)
-                        Text("Google Account Active")
-                            .font(.system(size: 10))
-                            .foregroundStyle(.secondary)
-                    }
-                }
-            }
-
-            Spacer()
-
-            // "See Limits" & Percentage Allowance Button with Dynamic Gauge Color
+        HStack(spacing: 8) {
+            // Usage Details Pill / Button with Live Gauge Color & Percentage
             Button {
-                showingLimitsPopover.toggle()
+                showingUsageDetailsPopover.toggle()
             } label: {
                 HStack(spacing: 5) {
                     Image(systemName: "gauge.with.needle.fill")
-                        .font(.system(size: 10))
+                        .font(.system(size: 11))
                         .foregroundStyle(quotaService.fiveHourGaugeColor)
-                    Text("\(quotaService.fiveHourRemainingPercentString) left")
+                    Text("Usage Details")
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundStyle(.primary)
+                    Text(quotaService.fiveHourRemainingPercentString)
                         .font(.system(size: 10, weight: .bold, design: .rounded))
+                        .padding(.horizontal, 5)
+                        .padding(.vertical, 1.5)
+                        .background(quotaService.fiveHourGaugeColor.opacity(0.14), in: Capsule())
                         .foregroundStyle(quotaService.fiveHourGaugeColor)
                 }
-                .padding(.horizontal, 8)
+                .padding(.horizontal, 7)
                 .padding(.vertical, 4)
-                .background(quotaService.fiveHourGaugeColor.opacity(0.12), in: Capsule())
-                .overlay(Capsule().stroke(quotaService.fiveHourGaugeColor.opacity(0.35), lineWidth: 1))
+                .background(Color.primary.opacity(0.04), in: RoundedRectangle(cornerRadius: 6))
             }
             .buttonStyle(.plain)
-            .popover(isPresented: $showingLimitsPopover, arrowEdge: .top) {
-                limitsPopoverContent
+            .popover(isPresented: $showingUsageDetailsPopover, arrowEdge: .top) {
+                usageDetailsPopoverContent
             }
-            .help("View Account Allowance & Quotas")
+            .help("View Live Usage Details & Limits")
+
+            Spacer()
+
+            // Live Refresh button
+            Button {
+                Task {
+                    quotaService.refreshRealGoogleQuota()
+                    await modelFetcher.fetchModels()
+                }
+            } label: {
+                if quotaService.isRefreshingQuota || modelFetcher.isFetching {
+                    ProgressView()
+                        .scaleEffect(0.6)
+                        .frame(width: 14, height: 14)
+                } else {
+                    Image(systemName: "arrow.clockwise")
+                        .font(.system(size: 11))
+                        .foregroundStyle(.secondary)
+                }
+            }
+            .buttonStyle(.plain)
+            .help("Refresh Quota & Models")
+            .disabled(quotaService.isRefreshingQuota || modelFetcher.isFetching)
 
             // Dismiss Button
             Button {
                 onDismiss()
             } label: {
                 Image(systemName: "xmark.circle.fill")
-                    .font(.system(size: 14))
+                    .font(.system(size: 13))
                     .foregroundStyle(.secondary)
             }
             .buttonStyle(.plain)
         }
-        .padding(.horizontal, 14)
+        .padding(.horizontal, 12)
         .padding(.vertical, 10)
-        .background(Color.primary.opacity(0.025))
+        .background(Color.primary.opacity(0.04))
     }
 
-    // MARK: - Thinking Orbs Slider Section
-    private var thinkingOrbsSliderSection: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            // Slider Header
-            HStack {
-                HStack(spacing: 5) {
-                    Image(systemName: "sparkles")
-                        .font(.system(size: 11, weight: .bold))
-                        .foregroundStyle(selectedThinkingLevel.glowColor)
-                    Text("Thinking Process")
-                        .font(.system(size: 11, weight: .bold))
-                }
-
-                Spacer()
-
-                // Active Thinking Level Badge
-                Text(selectedThinkingLevel.rawValue)
-                    .font(.system(size: 10, weight: .bold, design: .rounded))
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 2.5)
-                    .background(
-                        LinearGradient(
-                            colors: selectedThinkingLevel.orbColors,
-                            startPoint: .leading,
-                            endPoint: .trailing
-                        ),
-                        in: Capsule()
-                    )
-                    .foregroundStyle(.white)
-                    .shadow(color: selectedThinkingLevel.glowColor.opacity(0.4), radius: 4)
-            }
-
-            // Custom Glowing Orbs Slider Control
-            GeometryReader { geometry in
-                let trackWidth = geometry.size.width
-                let orbRadius: CGFloat = 13
-                let usableWidth = max(10, trackWidth - orbRadius * 2)
-
-                ZStack(alignment: .leading) {
-                    // Track Background
-                    Capsule()
-                        .fill(Color.primary.opacity(0.08))
-                        .frame(height: 10)
-
-                    // Track Gradient Mesh Fill
-                    Capsule()
-                        .fill(
-                            LinearGradient(
-                                colors: [
-                                    ThinkingLevel.low.orbColors.first ?? .cyan,
-                                    ThinkingLevel.medium.orbColors.first ?? .purple,
-                                    ThinkingLevel.high.orbColors.first ?? .pink
-                                ],
-                                startPoint: .leading,
-                                endPoint: .trailing
-                            )
-                        )
-                        .frame(height: 4)
-                        .padding(.horizontal, orbRadius)
-
-                    // Milestone Orb Station Rings (Low, Medium, High)
-                    ForEach(ThinkingLevel.allCases) { level in
-                        let stationOffset = orbRadius + CGFloat(level.index) * (usableWidth / 2.0)
-                        let isCurrent = selectedThinkingLevel == level
-
-                        Button {
-                            withAnimation(.spring(response: 0.35, dampingFraction: 0.72)) {
-                                selectThinkingLevel(level)
-                            }
-                        } label: {
-                            ZStack {
-                                Circle()
-                                    .fill(level.glowColor.opacity(isCurrent ? 0.35 : 0.12))
-                                    .frame(width: 18, height: 18)
-                                Circle()
-                                    .fill(Color(NSColor.windowBackgroundColor))
-                                    .frame(width: 12, height: 12)
-                                Circle()
-                                    .fill(level.glowColor)
-                                    .frame(width: 6, height: 6)
-                            }
-                        }
-                        .buttonStyle(.plain)
-                        .position(x: stationOffset, y: geometry.size.height / 2)
-                    }
-
-                    // Interactive Draggable Glowing Orb Thumb
-                    let currentTargetX = orbRadius + CGFloat(selectedThinkingLevel.index) * (usableWidth / 2.0)
-                    let thumbX = orbDragOffset ?? currentTargetX
-
-                    ZStack {
-                        // Outer Radiant Glow
-                        Circle()
-                            .fill(selectedThinkingLevel.glowColor.opacity(0.45))
-                            .frame(width: 32, height: 32)
-                            .blur(radius: 6)
-
-                        // 3D Glass Orb Sphere
-                        Circle()
-                            .fill(
-                                RadialGradient(
-                                    gradient: Gradient(colors: [
-                                        Color.white.opacity(0.9),
-                                        selectedThinkingLevel.orbColors.first ?? .purple,
-                                        selectedThinkingLevel.orbColors.last ?? .indigo
-                                    ]),
-                                    center: .topLeading,
-                                    startRadius: 2,
-                                    endRadius: 18
-                                )
-                            )
-                            .frame(width: 24, height: 24)
-                            .overlay(
-                                Circle()
-                                    .strokeBorder(Color.white.opacity(0.6), lineWidth: 1)
-                            )
-                            .shadow(color: Color.black.opacity(0.25), radius: 3, x: 0, y: 2)
-
-                        // Specular Highlight
-                        Circle()
-                            .fill(Color.white.opacity(0.85))
-                            .frame(width: 4, height: 4)
-                            .offset(x: -4, y: -4)
-                    }
-                    .position(x: thumbX, y: geometry.size.height / 2)
-                    .gesture(
-                        DragGesture()
-                            .onChanged { value in
-                                let clampedX = min(max(orbRadius, value.location.x), trackWidth - orbRadius)
-                                orbDragOffset = clampedX
-                            }
-                            .onEnded { value in
-                                let clampedX = min(max(orbRadius, value.location.x), trackWidth - orbRadius)
-                                let progress = (clampedX - orbRadius) / usableWidth
-                                let targetLevel: ThinkingLevel
-                                if progress < 0.28 {
-                                    targetLevel = .low
-                                } else if progress > 0.72 {
-                                    targetLevel = .high
-                                } else {
-                                    targetLevel = .medium
-                                }
-
-                                withAnimation(.spring(response: 0.35, dampingFraction: 0.75)) {
-                                    orbDragOffset = nil
-                                    selectThinkingLevel(targetLevel)
-                                }
-                            }
-                    )
-                }
-            }
-            .frame(height: 36)
-
-            // Stations Labels
-            HStack {
-                stationLabel(level: .low, label: "Low")
-                Spacer()
-                stationLabel(level: .medium, label: "Medium")
-                Spacer()
-                stationLabel(level: .high, label: "High")
-            }
-            .padding(.horizontal, 4)
-
-            // Thinking Explanation Pill
-            HStack(spacing: 6) {
-                Image(systemName: "lightbulb.max.fill")
-                    .font(.system(size: 9))
-                    .foregroundStyle(selectedThinkingLevel.glowColor)
-                Text(selectedThinkingLevel.subtitle)
-                    .font(.system(size: 10))
-                    .foregroundStyle(.secondary)
-                Spacer()
-                let matchingCount = activeModelsList.filter { $0.thinkingLevel.lowercased() == selectedThinkingLevel.rawValue.lowercased() }.count
-                Text("\(matchingCount) SDK models")
-                    .font(.system(size: 9, weight: .semibold))
-                    .foregroundStyle(selectedThinkingLevel.glowColor)
-            }
-            .padding(.horizontal, 10)
-            .padding(.vertical, 6)
-            .background(selectedThinkingLevel.glowColor.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
-        }
-        .padding(10)
-        .background(
-            RoundedRectangle(cornerRadius: 12)
-                .fill(Color.primary.opacity(0.025))
-                .overlay(
-                    RoundedRectangle(cornerRadius: 12)
-                        .stroke(selectedThinkingLevel.glowColor.opacity(0.2), lineWidth: 1)
-                )
-        )
-    }
-
-    private func stationLabel(level: ThinkingLevel, label: String) -> some View {
-        Button {
-            withAnimation(.spring(response: 0.35, dampingFraction: 0.72)) {
-                selectThinkingLevel(level)
-            }
-        } label: {
-            HStack(spacing: 3) {
-                Circle()
-                    .fill(level.glowColor)
-                    .frame(width: 4, height: 4)
-                Text(label)
-                    .font(.system(size: 10, weight: selectedThinkingLevel == level ? .bold : .medium))
-                    .foregroundStyle(selectedThinkingLevel == level ? level.glowColor : .secondary)
-            }
-        }
-        .buttonStyle(.plain)
-    }
-
-    // MARK: - Models Filter Header
-    private var modelsFilterHeader: some View {
-        HStack {
-            Text("OFFICIAL SDK MODELS (\(activeModelsList.count))")
-                .font(.system(size: 10, weight: .bold))
-                .foregroundStyle(.secondary)
-
-            Spacer()
-
-            // Filter Tabs: All, High, Medium, Low
-            HStack(spacing: 3) {
-                ForEach(ModelFilterTab.allCases) { tab in
-                    let isSelected = activeFilterTab == tab
+    // MARK: - Modern, Clean Thinking Depth Slider
+    private var thinkingSliderSection: some View {
+        VStack(spacing: 4) {
+            HStack(spacing: 2) {
+                ForEach(ThinkingLevel.allCases) { level in
+                    let isSelected = selectedThinkingLevel == level
                     Button {
-                        withAnimation(.easeInOut(duration: 0.18)) {
-                            activeFilterTab = tab
-                            if tab == .high { selectedThinkingLevel = .high }
-                            else if tab == .medium { selectedThinkingLevel = .medium }
-                            else if tab == .low { selectedThinkingLevel = .low }
+                        withAnimation(.easeInOut(duration: 0.16)) {
+                            selectThinkingLevel(level)
                         }
                     } label: {
-                        Text(tab.rawValue)
-                            .font(.system(size: 9, weight: isSelected ? .bold : .medium))
-                            .padding(.horizontal, 6)
-                            .padding(.vertical, 2.5)
-                            .background(isSelected ? Color.blue.opacity(0.18) : Color.primary.opacity(0.03), in: Capsule())
-                            .foregroundStyle(isSelected ? Color.blue : .secondary)
-                    }
-                    .buttonStyle(.plain)
-                }
-            }
-        }
-    }
-
-    private var activeModelsList: [AntigravitySDKModel] {
-        if !liveFetchedModels.isEmpty {
-            return liveFetchedModels
-        }
-        return modelFetcher.models
-    }
-
-    private var filteredModels: [AntigravitySDKModel] {
-        let base = activeModelsList
-        switch activeFilterTab {
-        case .all:
-            return base
-        case .high:
-            return base.filter { $0.thinkingLevel.lowercased() == "high" }
-        case .medium:
-            return base.filter { $0.thinkingLevel.lowercased() == "medium" }
-        case .low:
-            return base.filter { $0.thinkingLevel.lowercased() == "low" || $0.thinkingLevel.lowercased() == "minimal" }
-        }
-    }
-
-    // MARK: - Dynamic SDK Models List
-    private var modelsListSection: some View {
-        VStack(spacing: 6) {
-            if isExecutingProcess && activeModelsList.isEmpty {
-                HStack(spacing: 8) {
-                    ProgressView().controlSize(.small)
-                    Text("Fetching available models from SDK...")
-                        .font(.system(size: 11))
-                        .foregroundStyle(.secondary)
-                }
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 24)
-            } else if filteredModels.isEmpty {
-                VStack(spacing: 6) {
-                    Image(systemName: "sparkles")
-                        .font(.title3)
-                        .foregroundStyle(.secondary)
-                    Text("No models discovered for \(activeFilterTab.rawValue) filter.")
-                        .font(.system(size: 11))
-                        .foregroundStyle(.secondary)
-                    Button("Show All Models") {
-                        activeFilterTab = .all
-                    }
-                    .controlSize(.small)
-                }
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 20)
-            } else {
-                ForEach(filteredModels) { model in
-                    let isSelected = selectedModelID == model.id || (selectedModelID.isEmpty && model.id == "gemini-3.8-flash-high")
-                    let isMatchingThinking = model.thinkingLevel.lowercased() == selectedThinkingLevel.rawValue.lowercased()
-
-                    Button {
-                        onSelect(model.id)
-                        AppSettings.shared.selectedAssistModelID = model.id
-                    } label: {
-                        HStack(spacing: 9) {
-                            // Model Orb Icon
-                            ZStack {
-                                RoundedRectangle(cornerRadius: 8)
-                                    .fill(model.thinkingColor.opacity(isSelected ? 0.22 : 0.08))
-                                    .frame(width: 32, height: 32)
-                                Image(systemName: model.iconName)
-                                    .font(.system(size: 13, weight: .semibold))
-                                    .foregroundStyle(model.thinkingColor)
-                            }
-
-                            // Model Information
-                            VStack(alignment: .leading, spacing: 2) {
-                                HStack(spacing: 5) {
-                                    Text(model.displayName)
-                                        .font(.system(size: 12, weight: .semibold))
-                                        .foregroundStyle(.primary)
-                                        .lineLimit(1)
-
-                                    if isMatchingThinking {
-                                        Circle()
-                                            .fill(selectedThinkingLevel.glowColor)
-                                            .frame(width: 4, height: 4)
-                                    }
-                                }
-
-                                HStack(spacing: 6) {
-                                    // Thinking badge
-                                    HStack(spacing: 2.5) {
-                                        Image(systemName: "sparkle")
-                                            .font(.system(size: 7))
-                                        Text(model.thinkingLevel)
-                                            .font(.system(size: 9, weight: .bold))
-                                    }
-                                    .padding(.horizontal, 5)
-                                    .padding(.vertical, 1.5)
-                                    .background(model.thinkingColor.opacity(0.12), in: Capsule())
-                                    .foregroundStyle(model.thinkingColor)
-
-                                    // Category / Provider
-                                    Text(model.category)
-                                        .font(.system(size: 9, weight: .medium))
-                                        .foregroundStyle(.secondary)
-
-                                    // Context Window
-                                    Text(formatContextWindow(model.contextWindow))
-                                        .font(.system(size: 9))
-                                        .foregroundStyle(.secondary)
-                                }
-                            }
-
-                            Spacer()
-
-                            // Selected Indicator
-                            if isSelected {
-                                Image(systemName: "checkmark.circle.fill")
-                                    .font(.system(size: 15))
-                                    .foregroundStyle(Color.green)
-                            }
+                        HStack(spacing: 4) {
+                            Circle()
+                                .fill(level.accentColor)
+                                .frame(width: 5, height: 5)
+                            Text(level.rawValue)
+                                .font(.system(size: 11, weight: isSelected ? .bold : .medium))
+                                .foregroundStyle(isSelected ? .primary : .secondary)
                         }
-                        .padding(.horizontal, 10)
-                        .padding(.vertical, 7)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 5)
                         .background(
-                            RoundedRectangle(cornerRadius: 10)
-                                .fill(isSelected ? model.thinkingColor.opacity(0.1) : Color.primary.opacity(0.02))
-                                .overlay(
-                                    RoundedRectangle(cornerRadius: 10)
-                                        .stroke(isSelected ? model.thinkingColor.opacity(0.4) : Color.clear, lineWidth: 1)
-                                )
+                            isSelected ? Color(NSColor.controlBackgroundColor) : Color.clear,
+                            in: RoundedRectangle(cornerRadius: 6)
                         )
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 6)
+                                .stroke(isSelected ? level.accentColor.opacity(0.3) : Color.clear, lineWidth: 1)
+                        )
+                        .shadow(color: isSelected ? Color.black.opacity(0.06) : Color.clear, radius: 2, y: 1)
                     }
                     .buttonStyle(.plain)
                 }
             }
+            .padding(2)
+            .background(Color.primary.opacity(0.05), in: RoundedRectangle(cornerRadius: 8))
+
+            Text(selectedThinkingLevel.subtitle)
+                .font(.system(size: 9))
+                .foregroundStyle(.secondary)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.horizontal, 2)
         }
+        .padding(.horizontal, 10)
+        .padding(.top, 8)
+        .padding(.bottom, 4)
     }
 
-    // MARK: - Footer
-    private var footerView: some View {
+    // MARK: - Search Bar
+    private var searchBar: some View {
         HStack(spacing: 6) {
-            Image(systemName: "shield.checkmark.fill")
-                .font(.system(size: 10))
-                .foregroundStyle(.green)
-            Text("Zero API Keys · Powered by Account Allowance")
-                .font(.system(size: 10))
+            Image(systemName: "magnifyingglass")
+                .font(.system(size: 11))
                 .foregroundStyle(.secondary)
-
-            Spacer()
-
-            // Live Refresh button using Process
-            Button {
-                loadModelsViaProcess()
-            } label: {
-                HStack(spacing: 3) {
-                    if isExecutingProcess {
-                        ProgressView().controlSize(.mini)
-                    } else {
-                        Image(systemName: "arrow.clockwise")
-                            .font(.system(size: 9))
-                    }
-                    Text("Refresh")
-                        .font(.system(size: 9, weight: .semibold))
-                }
-                .foregroundStyle(.secondary)
-            }
-            .buttonStyle(.plain)
-            .disabled(isExecutingProcess)
-            .help("Refetch models live via Process from SDK CLI")
-        }
-        .padding(.horizontal, 14)
-        .padding(.vertical, 8)
-        .background(Color.primary.opacity(0.02))
-    }
-
-    // MARK: - Plan Tier Picker Popover
-    private var planTierPickerPopover: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            HStack(spacing: 6) {
-                Image(systemName: "crown.fill")
-                    .foregroundStyle(.orange)
-                Text("Select Plan Tier")
-                    .font(.system(size: 12, weight: .bold))
-            }
-
-            Text("Matches your subscription allowance and sets rate limit headroom:")
-                .font(.caption2)
-                .foregroundStyle(.secondary)
-
-            ForEach(AntigravityPlanTier.allCases, id: \.rawValue) { tier in
-                let isCurrent = quotaService.planTier == tier
+            TextField("Search models...", text: $searchText)
+                .textFieldStyle(.plain)
+                .font(.system(size: 12))
+            if !searchText.isEmpty {
                 Button {
-                    quotaService.setPlanTier(tier)
-                    showingPlanSelector = false
+                    searchText = ""
                 } label: {
-                    HStack(spacing: 8) {
-                        Image(systemName: tier.iconName)
-                            .font(.system(size: 12, weight: .bold))
-                            .foregroundStyle(tier.gradientColors.first ?? .blue)
-                            .frame(width: 20)
-
-                        VStack(alignment: .leading, spacing: 1) {
-                            HStack(spacing: 5) {
-                                Text(tier.displayName)
-                                    .font(.system(size: 11, weight: .bold))
-                                if isCurrent {
-                                    Text("Active")
-                                        .font(.system(size: 8, weight: .bold))
-                                        .padding(.horizontal, 4)
-                                        .padding(.vertical, 1)
-                                        .background(Color.green.opacity(0.2), in: Capsule())
-                                        .foregroundStyle(.green)
-                                }
-                            }
-                            Text(tier.summary)
-                                .font(.system(size: 9))
-                                .foregroundStyle(.secondary)
-                        }
-
-                        Spacer()
-
-                        if isCurrent {
-                            Image(systemName: "checkmark")
-                                .font(.system(size: 11, weight: .bold))
-                                .foregroundStyle(.blue)
-                        }
-                    }
-                    .padding(8)
-                    .background(isCurrent ? Color.blue.opacity(0.08) : Color.primary.opacity(0.02), in: RoundedRectangle(cornerRadius: 8))
+                    Image(systemName: "xmark.circle.fill")
+                        .font(.system(size: 11))
+                        .foregroundStyle(.secondary)
                 }
                 .buttonStyle(.plain)
             }
         }
-        .padding(12)
-        .frame(width: 290)
+        .padding(.horizontal, 8)
+        .padding(.vertical, 6)
+        .background(Color.primary.opacity(0.03), in: RoundedRectangle(cornerRadius: 6))
+        .padding(.horizontal, 10)
+        .padding(.top, 4)
+        .padding(.bottom, 6)
     }
 
-    // MARK: - Limits Popover Content
-    private var limitsPopoverContent: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            // Header with Dynamic Gauge Color
+    // MARK: - Models List View
+    private var modelsListView: some View {
+        let models = displayedModels
+        return Group {
+            if models.isEmpty {
+                VStack(spacing: 8) {
+                    if modelFetcher.isFetching {
+                        ProgressView().scaleEffect(0.8)
+                        Text("Loading SDK models...")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    } else {
+                        Text("No matching models found.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .padding()
+            } else {
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 3) {
+                        ForEach(models) { model in
+                            modelRow(model)
+                        }
+                    }
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 6)
+                }
+            }
+        }
+    }
+
+    // MARK: - Model Row (Clean, matches AssistModelPickerRow)
+    private func modelRow(_ model: AntigravitySDKModel) -> some View {
+        let isSelected = selectedModelID == model.id || (selectedModelID.isEmpty && model.id == "gemini-3.8-flash-high")
+        let isHovered = hoveredModelID == model.id
+
+        return Button {
+            onSelect(model.id)
+            AppSettings.shared.selectedAssistModelID = model.id
+        } label: {
             HStack(spacing: 8) {
-                Image(systemName: "gauge.with.dots.needle.bottom.50percent")
+                // Colored dot by thinking level
+                Circle()
+                    .fill(model.thinkingColor)
+                    .frame(width: 6, height: 6)
+
+                // Info
+                VStack(alignment: .leading, spacing: 2) {
+                    HStack(spacing: 6) {
+                        Text(model.displayName)
+                            .font(.system(size: 12, weight: isSelected ? .bold : .medium))
+                            .foregroundStyle(.primary)
+
+                        // Thinking badge
+                        Text(model.thinkingLevel)
+                            .font(.system(size: 8, weight: .bold))
+                            .padding(.horizontal, 4)
+                            .padding(.vertical, 1)
+                            .background(model.thinkingColor.opacity(0.12), in: RoundedRectangle(cornerRadius: 3))
+                            .foregroundStyle(model.thinkingColor)
+
+                        // Context Window
+                        Text(formatContextWindow(model.contextWindow))
+                            .font(.system(size: 8))
+                            .foregroundStyle(.secondary)
+                    }
+
+                    Text(model.id)
+                        .font(.system(size: 10, design: .monospaced))
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                }
+
+                Spacer()
+
+                if isSelected {
+                    Image(systemName: "checkmark.circle.fill")
+                        .font(.system(size: 13))
+                        .foregroundStyle(.green)
+                }
+            }
+            .padding(.horizontal, 8)
+            .padding(.vertical, 6)
+            .background(
+                RoundedRectangle(cornerRadius: 6)
+                    .fill(isHovered ? Color.primary.opacity(0.05) : (isSelected ? Color.primary.opacity(0.03) : Color.clear))
+            )
+        }
+        .buttonStyle(.plain)
+        .onHover { hovering in
+            hoveredModelID = hovering ? model.id : nil
+        }
+    }
+
+    // MARK: - Displayed Models
+    private var displayedModels: [AntigravitySDKModel] {
+        let all = modelFetcher.models.isEmpty ? AntigravitySDKModelFetcher.seedModels : modelFetcher.models
+        if !searchText.isEmpty {
+            let query = searchText.lowercased()
+            return all.filter {
+                $0.displayName.lowercased().contains(query) ||
+                $0.id.lowercased().contains(query) ||
+                $0.thinkingLevel.lowercased().contains(query)
+            }
+        }
+
+        // Return models with matching thinking level first, then others
+        let matching = all.filter { $0.thinkingLevel.lowercased() == selectedThinkingLevel.rawValue.lowercased() }
+        let rest = all.filter { $0.thinkingLevel.lowercased() != selectedThinkingLevel.rawValue.lowercased() }
+        return matching + rest
+    }
+
+    // MARK: - Usage Details Popover Content (Live Google allowance, percentage only)
+    private var usageDetailsPopoverContent: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            // Header
+            HStack(spacing: 8) {
+                Image(systemName: "gauge.with.needle.fill")
                     .font(.headline)
                     .foregroundStyle(quotaService.fiveHourGaugeColor)
                 VStack(alignment: .leading, spacing: 1) {
-                    HStack(spacing: 4) {
-                        Text("Account Allowance")
-                            .font(.system(size: 13, weight: .bold))
-                        Text(quotaService.planTier.rawValue)
-                            .font(.system(size: 9, weight: .heavy))
-                            .padding(.horizontal, 5)
-                            .padding(.vertical, 1.5)
-                            .background(
-                                LinearGradient(
-                                    colors: quotaService.planTier.gradientColors,
-                                    startPoint: .leading,
-                                    endPoint: .trailing
-                                ),
-                                in: Capsule()
-                            )
-                            .foregroundStyle(.white)
-                    }
-                    Text("Strictly utilizing user profile allowance · Zero API keys")
+                    Text("Usage Details")
+                        .font(.system(size: 13, weight: .bold))
+                    Text("Google Account Allowance")
                         .font(.caption2)
                         .foregroundStyle(.secondary)
                 }
@@ -782,39 +370,28 @@ public struct AntigravityLimitsModelsUI: View {
 
             Divider()
 
-            // 5-Hour Rate Limit Ring Card with Dynamic Gauge Color
+            // 5-Hour Rate Limit Card
             HStack(spacing: 12) {
-                // Radial Meter with Dynamic Gauge Color (Green / Yellow / Red)
                 ZStack {
                     Circle()
-                        .stroke(Color.primary.opacity(0.08), lineWidth: 5)
-                        .frame(width: 48, height: 48)
+                        .stroke(Color.primary.opacity(0.08), lineWidth: 4.5)
+                        .frame(width: 44, height: 44)
                     Circle()
                         .trim(from: 0, to: CGFloat(quotaService.fiveHourRemainingPercentage / 100.0))
                         .stroke(
                             quotaService.fiveHourGaugeColor,
-                            style: StrokeStyle(lineWidth: 5, lineCap: .round)
+                            style: StrokeStyle(lineWidth: 4.5, lineCap: .round)
                         )
                         .rotationEffect(.degrees(-90))
-                        .frame(width: 48, height: 48)
+                        .frame(width: 44, height: 44)
                     Text(quotaService.fiveHourRemainingPercentString)
                         .font(.system(size: 11, weight: .bold, design: .rounded))
                         .foregroundStyle(quotaService.fiveHourGaugeColor)
                 }
 
-                VStack(alignment: .leading, spacing: 2) {
-                    HStack {
-                        Text("5-Hour Rate Limit")
-                            .font(.system(size: 11, weight: .bold))
-                        Spacer()
-                        Text("\(quotaService.fiveHourRemaining) left")
-                            .font(.system(size: 11, weight: .bold, design: .rounded))
-                            .foregroundStyle(quotaService.fiveHourGaugeColor)
-                    }
-
-                    Text("\(quotaService.fiveHourUsed) of \(quotaService.fiveHourLimit) used")
-                        .font(.caption2)
-                        .foregroundStyle(.secondary)
+                VStack(alignment: .leading, spacing: 3) {
+                    Text("5-Hour Rate Limit")
+                        .font(.system(size: 11, weight: .bold))
 
                     HStack(spacing: 3) {
                         Image(systemName: "arrow.clockwise")
@@ -824,43 +401,33 @@ public struct AntigravityLimitsModelsUI: View {
                     }
                     .foregroundStyle(quotaService.fiveHourGaugeColor)
                 }
+                Spacer()
             }
             .padding(10)
-            .background(quotaService.fiveHourGaugeColor.opacity(0.08), in: RoundedRectangle(cornerRadius: 10))
+            .background(quotaService.fiveHourGaugeColor.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
 
-            // Weekly Limit Ring Card with Dynamic Gauge Color
+            // Weekly Limit Card
             HStack(spacing: 12) {
-                // Radial Meter with Dynamic Gauge Color (Green / Yellow / Red)
                 ZStack {
                     Circle()
-                        .stroke(Color.primary.opacity(0.08), lineWidth: 5)
-                        .frame(width: 48, height: 48)
+                        .stroke(Color.primary.opacity(0.08), lineWidth: 4.5)
+                        .frame(width: 44, height: 44)
                     Circle()
                         .trim(from: 0, to: CGFloat(quotaService.weeklyRemainingPercentage / 100.0))
                         .stroke(
                             quotaService.weeklyGaugeColor,
-                            style: StrokeStyle(lineWidth: 5, lineCap: .round)
+                            style: StrokeStyle(lineWidth: 4.5, lineCap: .round)
                         )
                         .rotationEffect(.degrees(-90))
-                        .frame(width: 48, height: 48)
+                        .frame(width: 44, height: 44)
                     Text(quotaService.weeklyRemainingPercentString)
                         .font(.system(size: 11, weight: .bold, design: .rounded))
                         .foregroundStyle(quotaService.weeklyGaugeColor)
                 }
 
-                VStack(alignment: .leading, spacing: 2) {
-                    HStack {
-                        Text("Weekly Allowance")
-                            .font(.system(size: 11, weight: .bold))
-                        Spacer()
-                        Text("\(quotaService.weeklyRemaining) left")
-                            .font(.system(size: 11, weight: .bold, design: .rounded))
-                            .foregroundStyle(quotaService.weeklyGaugeColor)
-                    }
-
-                    Text("\(quotaService.weeklyUsed) of \(quotaService.weeklyLimit) used")
-                        .font(.caption2)
-                        .foregroundStyle(.secondary)
+                VStack(alignment: .leading, spacing: 3) {
+                    Text("Weekly Limit")
+                        .font(.system(size: 11, weight: .bold))
 
                     HStack(spacing: 3) {
                         Image(systemName: "calendar")
@@ -870,95 +437,55 @@ public struct AntigravityLimitsModelsUI: View {
                     }
                     .foregroundStyle(quotaService.weeklyGaugeColor)
                 }
+                Spacer()
             }
             .padding(10)
-            .background(quotaService.weeklyGaugeColor.opacity(0.08), in: RoundedRectangle(cornerRadius: 10))
+            .background(quotaService.weeklyGaugeColor.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
 
-            // Footer info
-            HStack(spacing: 5) {
-                Image(systemName: "info.circle")
-                    .font(.caption2)
-                    .foregroundStyle(.secondary)
-                Text("Allowances renew automatically according to your \(quotaService.planTier.displayName).")
-                    .font(.system(size: 9))
-                    .foregroundStyle(.secondary)
-            }
-        }
-        .padding(14)
-        .frame(width: 320)
-    }
-
-    // MARK: - Process Execution (Dynamic SDK Models Fetching)
-    private func loadModelsViaProcess() {
-        guard !isExecutingProcess else { return }
-        isExecutingProcess = true
-
-        DispatchQueue.global(qos: .userInitiated).async {
-            let agyBinaryCandidates = [
-                "/Users/dylan/.gemini/bin/agy",
-                "/usr/local/bin/agy",
-                "/opt/homebrew/bin/agy",
-                FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".gemini/bin/agy").path
-            ]
-
-            var foundOutput: String? = nil
-
-            for binaryPath in agyBinaryCandidates {
-                if FileManager.default.isExecutableFile(atPath: binaryPath) {
-                    let process = Process()
-                    let pipe = Pipe()
-
-                    process.executableURL = URL(fileURLWithPath: binaryPath)
-                    process.arguments = ["models"]
-                    process.standardOutput = pipe
-                    process.standardError = Pipe()
-
-                    var env = ProcessInfo.processInfo.environment
-                    env["PAGER"] = "cat"
-                    env["NO_COLOR"] = "1"
-                    env["TERM"] = "dumb"
-                    process.environment = env
-
-                    do {
-                        try process.run()
-                        process.waitUntilExit()
-
-                        let data = pipe.fileHandleForReading.readDataToEndOfFile()
-                        if let output = String(data: data, encoding: .utf8), !output.isEmpty {
-                            foundOutput = output
-                            break
-                        }
-                    } catch {
-                        continue
+            // Claude & GPT (3P) Models Allowance Card (if available from Google system)
+            if quotaService.isUsingRealQuota {
+                HStack(spacing: 12) {
+                    ZStack {
+                        Circle()
+                            .stroke(Color.primary.opacity(0.08), lineWidth: 4.5)
+                            .frame(width: 44, height: 44)
+                        Circle()
+                            .trim(from: 0, to: CGFloat(quotaService.realThreePWeeklyPercentage / 100.0))
+                            .stroke(
+                                AntigravityQuotaService.gaugeColor(forPercentage: quotaService.realThreePWeeklyPercentage),
+                                style: StrokeStyle(lineWidth: 4.5, lineCap: .round)
+                            )
+                            .rotationEffect(.degrees(-90))
+                            .frame(width: 44, height: 44)
+                        Text("\(Int(round(quotaService.realThreePWeeklyPercentage)))%")
+                            .font(.system(size: 11, weight: .bold, design: .rounded))
+                            .foregroundStyle(AntigravityQuotaService.gaugeColor(forPercentage: quotaService.realThreePWeeklyPercentage))
                     }
-                }
-            }
 
-            let parsed: [AntigravitySDKModel]
-            if let output = foundOutput {
-                parsed = AntigravitySDKModelFetcher.parseAgyModelsOutput(output)
-            } else {
-                parsed = []
-            }
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text("Claude & GPT Limit")
+                            .font(.system(size: 11, weight: .bold))
 
-            DispatchQueue.main.async {
-                self.isExecutingProcess = false
-                if !parsed.isEmpty {
-                    self.liveFetchedModels = parsed
-                    AntigravitySDKModelFetcher.shared.updateModels(parsed)
-                } else if !AntigravitySDKModelFetcher.shared.models.isEmpty {
-                    self.liveFetchedModels = AntigravitySDKModelFetcher.shared.models
+                        Text("Shared multi-model weekly allowance")
+                            .font(.system(size: 9))
+                            .foregroundStyle(.secondary)
+                    }
+                    Spacer()
                 }
+                .padding(10)
+                .background(AntigravityQuotaService.gaugeColor(forPercentage: quotaService.realThreePWeeklyPercentage).opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
             }
         }
+        .padding(12)
+        .frame(width: 280)
     }
 
     // MARK: - Helpers
     private func selectThinkingLevel(_ level: ThinkingLevel) {
         selectedThinkingLevel = level
 
-        // Auto-select premier model from the SDK matching this level
-        let matching = activeModelsList.filter { $0.thinkingLevel.lowercased() == level.rawValue.lowercased() }
+        // Select premier model matching this level
+        let matching = modelFetcher.models.filter { $0.thinkingLevel.lowercased() == level.rawValue.lowercased() }
         if let preferred = matching.first {
             onSelect(preferred.id)
             AppSettings.shared.selectedAssistModelID = preferred.id
@@ -966,11 +493,11 @@ public struct AntigravityLimitsModelsUI: View {
     }
 
     private func syncThinkingLevelWithSelection() {
-        if let currentModel = activeModelsList.first(where: { $0.id == selectedModelID }) {
+        if let currentModel = modelFetcher.models.first(where: { $0.id == selectedModelID }) {
             let lvl = currentModel.thinkingLevel.lowercased()
             if lvl == "high" {
                 selectedThinkingLevel = .high
-            } else if lvl == "low" {
+            } else if lvl == "low" || lvl == "minimal" {
                 selectedThinkingLevel = .low
             } else {
                 selectedThinkingLevel = .medium
@@ -980,9 +507,9 @@ public struct AntigravityLimitsModelsUI: View {
 
     private func formatContextWindow(_ tokens: Int) -> String {
         if tokens >= 1_000_000 {
-            return "\(tokens / 1_000_000)M ctx"
+            return "\(tokens / 1_000_000)M"
         } else {
-            return "\(tokens / 1_000)k ctx"
+            return "\(tokens / 1_000)k"
         }
     }
 }

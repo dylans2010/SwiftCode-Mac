@@ -1278,7 +1278,9 @@ public struct AssistMainView: View {
             FoundationModels.shared.isEnabled = false
             AppSettings.shared.selectedModel = option.modelID
             AppSettings.shared.selectedAssistModelID = option.modelID
-            AppSettings.shared.useSavedModels = true
+            if AppSettings.shared.assistModelRoutingStrategy == "app_models" {
+                AppSettings.shared.useSavedModels = true
+            }
             AssistModelManager.shared.customModelID = option.modelID
         }
 
@@ -1300,7 +1302,9 @@ public struct AssistMainView: View {
             FoundationModels.shared.isEnabled = false
             AppSettings.shared.selectedModel = model.modelIdentifier
             AppSettings.shared.selectedAssistModelID = model.modelIdentifier
-            AppSettings.shared.useSavedModels = true
+            if AppSettings.shared.assistModelRoutingStrategy == "app_models" {
+                AppSettings.shared.useSavedModels = true
+            }
             AssistModelManager.shared.customModelID = model.modelIdentifier
         }
 

@@ -81,6 +81,16 @@ public final class AntigravityQuotaService: NSObject, ObservableObject {
     private static let keyWeeklyUsed = "com.swiftcode.antigravity.quota.weekly_used"
     private static let keyWeeklyStart = "com.swiftcode.antigravity.quota.weekly_start"
 
+    // MARK: - Real Google Quota Properties
+    @Published public private(set) var isUsingRealQuota: Bool = false
+    @Published public private(set) var realFiveHourRemainingPercentage: Double = 100.0
+    @Published public private(set) var realWeeklyRemainingPercentage: Double = 100.0
+    @Published public private(set) var realThreeP5hPercentage: Double = 100.0
+    @Published public private(set) var realThreePWeeklyPercentage: Double = 100.0
+    @Published public private(set) var realFiveHourResetDate: Date? = nil
+    @Published public private(set) var realWeeklyResetDate: Date? = nil
+    @Published public private(set) var isRefreshingQuota: Bool = false
+
     // MARK: - Published Properties
     @Published public private(set) var planTier: AntigravityPlanTier = .pro
     @Published public private(set) var fiveHourLimit: Int = 100
@@ -99,34 +109,55 @@ public final class AntigravityQuotaService: NSObject, ObservableObject {
     }
 
     public var fiveHourRemaining: Int {
-        max(0, fiveHourLimit - fiveHourUsed)
+        if isUsingRealQuota {
+            return Int(round(Double(fiveHourLimit) * (realFiveHourRemainingPercentage / 100.0)))
+        }
+        return max(0, fiveHourLimit - fiveHourUsed)
     }
 
     public var weeklyRemaining: Int {
-        max(0, weeklyLimit - weeklyUsed)
+        if isUsingRealQuota {
+            return Int(round(Double(weeklyLimit) * (realWeeklyRemainingPercentage / 100.0)))
+        }
+        return max(0, weeklyLimit - weeklyUsed)
     }
 
     public var fiveHourFraction: Double {
+        if isUsingRealQuota {
+            return min(1.0, max(0.0, 1.0 - (realFiveHourRemainingPercentage / 100.0)))
+        }
         guard fiveHourLimit > 0 else { return 0.0 }
         return min(1.0, max(0.0, Double(fiveHourUsed) / Double(fiveHourLimit)))
     }
 
     public var weeklyFraction: Double {
+        if isUsingRealQuota {
+            return min(1.0, max(0.0, 1.0 - (realWeeklyRemainingPercentage / 100.0)))
+        }
         guard weeklyLimit > 0 else { return 0.0 }
         return min(1.0, max(0.0, Double(weeklyUsed) / Double(weeklyLimit)))
     }
 
     public var fiveHourPercentage: Double {
+        if isUsingRealQuota {
+            return min(100.0, max(0.0, 100.0 - realFiveHourRemainingPercentage))
+        }
         guard fiveHourLimit > 0 else { return 0.0 }
         return min(100.0, max(0.0, (Double(fiveHourUsed) / Double(fiveHourLimit)) * 100.0))
     }
 
     public var fiveHourRemainingPercentage: Double {
+        if isUsingRealQuota {
+            return realFiveHourRemainingPercentage
+        }
         guard fiveHourLimit > 0 else { return 0.0 }
         return min(100.0, max(0.0, (Double(fiveHourRemaining) / Double(fiveHourLimit)) * 100.0))
     }
 
     public var fiveHourRemainingFraction: Double {
+        if isUsingRealQuota {
+            return min(1.0, max(0.0, realFiveHourRemainingPercentage / 100.0))
+        }
         guard fiveHourLimit > 0 else { return 0.0 }
         return min(1.0, max(0.0, Double(fiveHourRemaining) / Double(fiveHourLimit)))
     }
@@ -136,16 +167,25 @@ public final class AntigravityQuotaService: NSObject, ObservableObject {
     }
 
     public var weeklyPercentage: Double {
+        if isUsingRealQuota {
+            return min(100.0, max(0.0, 100.0 - realWeeklyRemainingPercentage))
+        }
         guard weeklyLimit > 0 else { return 0.0 }
         return min(100.0, max(0.0, (Double(weeklyUsed) / Double(weeklyLimit)) * 100.0))
     }
 
     public var weeklyRemainingPercentage: Double {
+        if isUsingRealQuota {
+            return realWeeklyRemainingPercentage
+        }
         guard weeklyLimit > 0 else { return 0.0 }
         return min(100.0, max(0.0, (Double(weeklyRemaining) / Double(weeklyLimit)) * 100.0))
     }
 
     public var weeklyRemainingFraction: Double {
+        if isUsingRealQuota {
+            return min(1.0, max(0.0, realWeeklyRemainingPercentage / 100.0))
+        }
         guard weeklyLimit > 0 else { return 0.0 }
         return min(1.0, max(0.0, Double(weeklyRemaining) / Double(weeklyLimit)))
     }
@@ -175,7 +215,8 @@ public final class AntigravityQuotaService: NSObject, ObservableObject {
     }
 
     public var fiveHourResetCountdownString: String {
-        let remainingSeconds = fiveHourResetDate.timeIntervalSince(Date())
+        let target = (isUsingRealQuota && realFiveHourResetDate != nil) ? realFiveHourResetDate! : fiveHourResetDate
+        let remainingSeconds = target.timeIntervalSince(Date())
         guard remainingSeconds > 0 else { return "Resetting now" }
         let hours = Int(remainingSeconds) / 3600
         let minutes = (Int(remainingSeconds) % 3600) / 60
@@ -211,9 +252,10 @@ public final class AntigravityQuotaService: NSObject, ObservableObject {
     }
 
     public var weeklyResetString: String {
+        let target = (isUsingRealQuota && realWeeklyResetDate != nil) ? realWeeklyResetDate! : weeklyResetDate
         let formatter = DateFormatter()
         formatter.dateFormat = "EEE, MMM d 'at' h:mm a"
-        return formatter.string(from: weeklyResetDate)
+        return formatter.string(from: target)
     }
 
     // MARK: - Initialization
@@ -221,6 +263,7 @@ public final class AntigravityQuotaService: NSObject, ObservableObject {
         super.init()
         loadPersistedState()
         rollWindowsIfNeeded()
+        refreshRealGoogleQuota()
     }
 
     // MARK: - Plan Tier Management
@@ -393,5 +436,130 @@ public final class AntigravityQuotaService: NSObject, ObservableObject {
         defaults.set(now.timeIntervalSince1970, forKey: Self.key5hStart)
         defaults.set(0, forKey: Self.keyWeeklyUsed)
         defaults.set(now.timeIntervalSince1970, forKey: Self.keyWeeklyStart)
+    }
+
+    // MARK: - Real Google Quota RPC Query
+    public func refreshRealGoogleQuota() {
+        guard !isRefreshingQuota else { return }
+        isRefreshingQuota = true
+
+        Task {
+            let data = await Self.fetchQuotaDataInBackground()
+            if let data = data {
+                self.parseRealQuotaJSON(data)
+            }
+            self.isRefreshingQuota = false
+        }
+    }
+
+    private nonisolated static func fetchQuotaDataInBackground() async -> Data? {
+        await Task.detached(priority: .userInitiated) {
+            let script = """
+            PS_LINE=$(pgrep -fl "language_server_macos_arm" | grep -v "node" | head -n 1)
+            if [ -n "$PS_LINE" ]; then
+                PID=$(echo "$PS_LINE" | awk '{print $1}')
+                CSRF=$(echo "$PS_LINE" | sed -n 's/.*--csrf_token \\([a-f0-9-]*\\).*/\\1/p')
+                if [ -n "$PID" ] && [ -n "$CSRF" ]; then
+                    PORTS=$(lsof -Pan -p "$PID" -i -sTCP:LISTEN 2>/dev/null | grep -oE ":[0-9]+" | tr -d ":" | sort -u)
+                    for PORT in $PORTS; do
+                        RES=$(curl -k -s -m 2 -X POST "https://127.0.0.1:$PORT/exa.language_server_pb.LanguageServerService/RetrieveUserQuotaSummary" -H "Content-Type: application/json" -H "x-codeium-csrf-token: $CSRF" -d "{}" 2>/dev/null)
+                        if echo "$RES" | grep -q "remainingFraction"; then
+                            echo "$RES"
+                            exit 0
+                        fi
+                    done
+                fi
+            fi
+            """
+
+            let process = Process()
+            let pipe = Pipe()
+            process.executableURL = URL(fileURLWithPath: "/bin/bash")
+            process.arguments = ["-c", script]
+            process.standardOutput = pipe
+            process.standardError = Pipe()
+
+            do {
+                try process.run()
+                process.waitUntilExit()
+                let data = pipe.fileHandleForReading.readDataToEndOfFile()
+                return data.isEmpty ? nil : data
+            } catch {
+                return nil
+            }
+        }.value
+    }
+
+    private func parseRealQuotaJSON(_ data: Data) {
+        guard let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let response = obj["response"] as? [String: Any],
+              let groups = response["groups"] as? [[String: Any]] else {
+            return
+        }
+
+        let isoFormatter = ISO8601DateFormatter()
+        isoFormatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        let fallbackIso = ISO8601DateFormatter()
+
+        var gemini5hFraction: Double? = nil
+        var geminiWeeklyFraction: Double? = nil
+        var gemini5hReset: Date? = nil
+        var geminiWeeklyReset: Date? = nil
+
+        var threeP5hFraction: Double? = nil
+        var threePWeeklyFraction: Double? = nil
+
+        for group in groups {
+            let displayName = group["displayName"] as? String ?? ""
+            let isGemini = displayName.localizedCaseInsensitiveContains("gemini")
+            let is3P = displayName.localizedCaseInsensitiveContains("claude") || displayName.localizedCaseInsensitiveContains("gpt")
+            guard let buckets = group["buckets"] as? [[String: Any]] else { continue }
+
+            for bucket in buckets {
+                let window = bucket["window"] as? String ?? ""
+                let bucketId = bucket["bucketId"] as? String ?? ""
+                let remainingFraction = bucket["remainingFraction"] as? Double ?? 1.0
+                let resetTimeStr = bucket["resetTime"] as? String ?? ""
+                let resetDate = isoFormatter.date(from: resetTimeStr) ?? fallbackIso.date(from: resetTimeStr)
+
+                if isGemini || (!is3P && gemini5hFraction == nil) {
+                    if window == "5h" || bucketId.contains("5h") {
+                        gemini5hFraction = remainingFraction
+                        gemini5hReset = resetDate
+                    } else if window == "weekly" || bucketId.contains("weekly") {
+                        geminiWeeklyFraction = remainingFraction
+                        geminiWeeklyReset = resetDate
+                    }
+                } else if is3P {
+                    if window == "5h" || bucketId.contains("5h") {
+                        threeP5hFraction = remainingFraction
+                    } else if window == "weekly" || bucketId.contains("weekly") {
+                        threePWeeklyFraction = remainingFraction
+                    }
+                }
+            }
+        }
+
+        DispatchQueue.main.async { [weak self] in
+            guard let self = self else { return }
+            if let g5h = gemini5hFraction {
+                self.realFiveHourRemainingPercentage = min(100.0, max(0.0, g5h * 100.0))
+                self.realFiveHourResetDate = gemini5hReset
+                self.isUsingRealQuota = true
+            }
+            if let gw = geminiWeeklyFraction {
+                self.realWeeklyRemainingPercentage = min(100.0, max(0.0, gw * 100.0))
+                self.realWeeklyResetDate = geminiWeeklyReset
+                self.isUsingRealQuota = true
+            }
+            if let tp5h = threeP5hFraction {
+                self.realThreeP5hPercentage = min(100.0, max(0.0, tp5h * 100.0))
+            }
+            if let tpw = threePWeeklyFraction {
+                self.realThreePWeeklyPercentage = min(100.0, max(0.0, tpw * 100.0))
+            }
+            self.lastUpdated = Date()
+            logger.info("[AntigravityQuotaService] Real Google quota updated: 5h: \(Int(self.realFiveHourRemainingPercentage))%, Weekly: \(Int(self.realWeeklyRemainingPercentage))%")
+        }
     }
 }

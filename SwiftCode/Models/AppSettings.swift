@@ -87,27 +87,19 @@ class AppSettings: ObservableObject {
         }
     }
 
-    public var assistModelRoutingStrategy: String {
-        get {
-            if alternativeKeysEnabled {
-                return "rotation"
-            } else if useSavedModels {
-                return "app_models"
-            } else {
-                return "default"
-            }
-        }
-        set {
-            switch newValue {
-            case "rotation":
-                useSavedModels = false
+    @Published public var assistModelRoutingStrategy: String {
+        didSet {
+            debouncedSave("assistModelRoutingStrategy", assistModelRoutingStrategy)
+            UserDefaults.standard.set(assistModelRoutingStrategy, forKey: "assist.modelRoutingStrategy")
+            if assistModelRoutingStrategy == "rotation" {
                 alternativeKeysEnabled = true
-            case "app_models":
-                useSavedModels = true
-                alternativeKeysEnabled = false
-            default:
                 useSavedModels = false
+            } else if assistModelRoutingStrategy == "app_models" {
                 alternativeKeysEnabled = false
+                useSavedModels = true
+            } else {
+                alternativeKeysEnabled = false
+                useSavedModels = false
             }
         }
     }
@@ -347,12 +339,24 @@ class AppSettings: ObservableObject {
             ?? UserDefaults.standard.string(forKey: "assist.assistToolkit")
             ?? Self.defaultAssistToolkit
         swiftCloudModelsEnabled = UserDefaults.standard.object(forKey: "swiftCloudModelsEnabled") as? Bool ?? false
-        useSavedModels = UserDefaults.standard.object(forKey: "useSavedModels") as? Bool
+        let loadedUseSavedModels = UserDefaults.standard.object(forKey: "useSavedModels") as? Bool
             ?? UserDefaults.standard.object(forKey: "assist.useSavedModels") as? Bool
             ?? false
-        alternativeKeysEnabled = UserDefaults.standard.object(forKey: "alternativeKeysEnabled") as? Bool
+        let loadedAlternativeKeysEnabled = UserDefaults.standard.object(forKey: "alternativeKeysEnabled") as? Bool
             ?? UserDefaults.standard.object(forKey: "assist.alternativeKeysEnabled") as? Bool
             ?? false
+        self.useSavedModels = loadedUseSavedModels
+        self.alternativeKeysEnabled = loadedAlternativeKeysEnabled
+
+        if let savedStrategy = UserDefaults.standard.string(forKey: "assist.modelRoutingStrategy") {
+            assistModelRoutingStrategy = savedStrategy
+        } else if loadedAlternativeKeysEnabled {
+            assistModelRoutingStrategy = "rotation"
+        } else if loadedUseSavedModels {
+            assistModelRoutingStrategy = "app_models"
+        } else {
+            assistModelRoutingStrategy = "default"
+        }
         assistGoogleAuthMode = UserDefaults.standard.string(forKey: "assist_google_auth_mode") ?? "api_key"
         antigravityExecutionMode = UserDefaults.standard.string(forKey: "antigravity_execution_mode") ?? "bridge"
         selectedModel = UserDefaults.standard.string(forKey: "selectedModel") ?? "openai/gpt-4o"

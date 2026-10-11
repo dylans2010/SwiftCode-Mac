@@ -77,7 +77,11 @@ public final class AssistToolRouter: Sendable {
 
     private init() {}
 
-    public func metadata(for toolId: String) -> ToolMetadata {
+    public nonisolated func metadata(for toolId: String) -> ToolMetadata {
+        Self.metadata(for: toolId)
+    }
+
+    public nonisolated static func metadata(for toolId: String) -> ToolMetadata {
         switch toolId {
         case "file_read", "read_file":
             return ToolMetadata(id: toolId, name: "Read File", description: "Read file content with targeted lines.", capability: .fileReading, riskLevel: .safeRead, isReadOnly: true, isMutating: false, requiresVerificationAfterward: false)

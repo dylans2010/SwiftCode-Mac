@@ -36,7 +36,7 @@ public final class AssistPermissionsManager: @unchecked Sendable, AssistPermissi
     public func authorizeOperation(_ operation: String) -> Bool {
         let op = operation.lowercased().trimmingCharacters(in: .whitespacesAndNewlines)
 
-        let meta = AssistToolRouter.shared.metadata(for: op)
+        let meta = AssistToolRouter.metadata(for: op)
         let isHighRisk = meta.riskLevel >= .potentiallyDestructive || meta.riskLevel == .externalSideEffect
 
         let destructiveToolIds: Set<String> = [
