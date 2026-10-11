@@ -3,6 +3,7 @@
 //  SwiftCode
 //
 //  Authentication service for Google Accounts using ASWebAuthenticationSession,
+//  local loopback HTTP listener (RFC 8252 for Google OAuth Desktop Policy),
 //  PKCE (RFC 7636), and fallback to ambient Application Default Credentials (ADC).
 //
 
@@ -10,6 +11,7 @@ import Foundation
 import AuthenticationServices
 import CryptoKit
 import Security
+import Network
 import os
 #if canImport(AppKit)
 import AppKit
@@ -54,13 +56,14 @@ public final class GoogleAccountAuthService: NSObject, ObservableObject {
     @Published public private(set) var isAuthenticating: Bool = false
     @Published public var authError: String? = nil
 
-    // MARK: - OAuth Flow Session
+    // MARK: - OAuth Flow Session & Loopback
     private var authSession: ASWebAuthenticationSession?
     private var pendingCodeVerifier: String?
     private var pendingState: String?
+    private var loopbackServer: OAuthLoopbackServer?
+    private var activeRedirectURI: String = "http://127.0.0.1:8085"
 
     // MARK: - OAuth Configuration
-    private let redirectURI = "swiftcode://oauth/google"
     private let callbackScheme = "swiftcode"
     private let scopes = [
         "email",
@@ -119,7 +122,7 @@ public final class GoogleAccountAuthService: NSObject, ObservableObject {
         }
     }
 
-    // MARK: - Sign In (PKCE RFC 7636)
+    // MARK: - Sign In (PKCE RFC 7636 + Loopback RFC 8252)
 
     public func signIn() {
         guard !isAuthenticating else { return }
@@ -135,34 +138,55 @@ public final class GoogleAccountAuthService: NSObject, ObservableObject {
         self.pendingCodeVerifier = verifier
         self.pendingState = state
 
-        guard let authURL = buildAuthorizationURL(challenge: challenge, state: state) else {
+        // Start local loopback HTTP listener to comply with Google OAuth 2.0 policy for Desktop Apps
+        let server = OAuthLoopbackServer()
+        let port = server.start()
+        self.loopbackServer = server
+
+        let redirectURI = "http://127.0.0.1:\(port)"
+        self.activeRedirectURI = redirectURI
+
+        guard let authURL = buildAuthorizationURL(challenge: challenge, state: state, redirectURI: redirectURI) else {
             isAuthenticating = false
+            loopbackServer?.stop()
+            loopbackServer = nil
             authError = "Failed to construct Google OAuth authorization URL."
             return
         }
 
-        let session = ASWebAuthenticationSession(url: authURL, callbackURLScheme: callbackScheme) { [weak self] callbackURL, error in
+        server.onCallback = { [weak self] callbackURL in
             Task { @MainActor in
                 guard let self = self else { return }
-                self.isAuthenticating = false
+                self.authSession?.cancel()
+                self.authSession = nil
+                await self.handleCallbackURL(callbackURL, verifier: verifier, state: state, redirectURI: redirectURI)
+                self.loopbackServer?.stop()
+                self.loopbackServer = nil
+            }
+        }
+
+        let session = ASWebAuthenticationSession(url: authURL, callbackURLScheme: "http") { [weak self] callbackURL, error in
+            Task { @MainActor in
+                guard let self = self else { return }
+
+                if let callbackURL = callbackURL {
+                    await self.handleCallbackURL(callbackURL, verifier: verifier, state: state, redirectURI: redirectURI)
+                    self.loopbackServer?.stop()
+                    self.loopbackServer = nil
+                    return
+                }
 
                 if let error = error as? ASWebAuthenticationSessionError, error.code == .canceledLogin {
                     logger.info("User cancelled Google sign in session.")
+                    self.isAuthenticating = false
+                    self.loopbackServer?.stop()
+                    self.loopbackServer = nil
                     return
                 }
 
                 if let error = error {
-                    self.authError = error.localizedDescription
-                    logger.error("Google sign in session failed: \(error.localizedDescription)")
-                    return
+                    logger.warning("ASWebAuthenticationSession notification: \(error.localizedDescription)")
                 }
-
-                guard let callbackURL = callbackURL else {
-                    self.authError = "Missing callback URL from Google authentication."
-                    return
-                }
-
-                await self.handleCallbackURL(callbackURL, verifier: verifier, state: state)
             }
         }
 
@@ -171,8 +195,8 @@ public final class GoogleAccountAuthService: NSObject, ObservableObject {
         self.authSession = session
 
         if !session.start() {
-            isAuthenticating = false
-            authError = "Failed to start web authentication session."
+            // Fallback: Open auth URL directly in system default browser if session fails to start
+            NSWorkspace.shared.open(authURL)
         }
     }
 
@@ -185,6 +209,9 @@ public final class GoogleAccountAuthService: NSObject, ObservableObject {
         KeychainService.shared.delete(forKey: Self.expiresAtKey)
 
         UserDefaults.standard.set(true, forKey: Self.explicitlySignedOutKey)
+
+        self.loopbackServer?.stop()
+        self.loopbackServer = nil
 
         self.isAuthenticated = false
         self.userEmail = nil
@@ -260,7 +287,7 @@ public final class GoogleAccountAuthService: NSObject, ObservableObject {
 
     // MARK: - Callback & Exchange
 
-    private func handleCallbackURL(_ url: URL, verifier: String, state: String) async {
+    private func handleCallbackURL(_ url: URL, verifier: String, state: String, redirectURI: String) async {
         guard let components = URLComponents(url: url, resolvingAgainstBaseURL: false) else {
             self.authError = "Invalid callback URL structure."
             return
@@ -286,7 +313,7 @@ public final class GoogleAccountAuthService: NSObject, ObservableObject {
 
         do {
             self.isAuthenticating = true
-            let tokens = try await exchangeCodeForTokens(code: code, verifier: verifier)
+            let tokens = try await exchangeCodeForTokens(code: code, verifier: verifier, redirectURI: redirectURI)
 
             // Store tokens in Keychain
             KeychainService.shared.set(tokens.accessToken, forKey: Self.accessTokenKey)
@@ -317,7 +344,7 @@ public final class GoogleAccountAuthService: NSObject, ObservableObject {
         }
     }
 
-    private func exchangeCodeForTokens(code: String, verifier: String) async throws -> GoogleOAuthTokens {
+    private func exchangeCodeForTokens(code: String, verifier: String, redirectURI: String) async throws -> GoogleOAuthTokens {
         guard let tokenURL = URL(string: "https://oauth2.googleapis.com/token") else {
             throw NSError(domain: "GoogleAccountAuthService", code: -1, userInfo: [NSLocalizedDescriptionKey: "Invalid token endpoint URL."])
         }
@@ -479,7 +506,7 @@ public final class GoogleAccountAuthService: NSObject, ObservableObject {
             .trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
-    private func buildAuthorizationURL(challenge: String, state: String) -> URL? {
+    private func buildAuthorizationURL(challenge: String, state: String, redirectURI: String) -> URL? {
         var components = URLComponents(string: "https://accounts.google.com/o/oauth2/v2/auth")
         components?.queryItems = [
             URLQueryItem(name: "client_id", value: clientID),
@@ -605,18 +632,17 @@ public final class GoogleAccountAuthService: NSObject, ObservableObject {
 
     @discardableResult
     public func handleOpenURL(_ url: URL) -> Bool {
-        guard url.scheme == callbackScheme,
-              url.host == "oauth",
-              url.path == "/google" || url.path == "google" else {
-            return false
-        }
-
-        Task { @MainActor in
-            if let verifier = self.pendingCodeVerifier, let state = self.pendingState {
-                await self.handleCallbackURL(url, verifier: verifier, state: state)
+        if url.scheme == callbackScheme || url.scheme == "http" || url.host == "127.0.0.1" || url.host == "localhost" {
+            Task { @MainActor in
+                if let verifier = self.pendingCodeVerifier, let state = self.pendingState {
+                    await self.handleCallbackURL(url, verifier: verifier, state: state, redirectURI: self.activeRedirectURI)
+                    self.loopbackServer?.stop()
+                    self.loopbackServer = nil
+                }
             }
+            return true
         }
-        return true
+        return false
     }
 }
 
@@ -629,3 +655,119 @@ extension GoogleAccountAuthService: ASWebAuthenticationPresentationContextProvid
     }
 }
 #endif
+
+// MARK: - OAuth Loopback Server (RFC 8252 Compliance for Google OAuth Desktop Policy)
+
+@MainActor
+public final class OAuthLoopbackServer: @unchecked Sendable {
+    private var listener: NWListener?
+    public private(set) var port: UInt16 = 8085
+    public var onCallback: ((URL) -> Void)?
+
+    public init() {}
+
+    public func start() -> UInt16 {
+        for candidatePort in UInt16(8085)...UInt16(8099) {
+            do {
+                let params = NWParameters.tcp
+                guard let nwPort = NWEndpoint.Port(rawValue: candidatePort) else { continue }
+                let listener = try NWListener(using: params, on: nwPort)
+
+                self.port = candidatePort
+                self.listener = listener
+
+                listener.newConnectionHandler = { [weak self] connection in
+                    Task { @MainActor in
+                        self?.handleConnection(connection)
+                    }
+                }
+
+                listener.start(queue: .main)
+                return candidatePort
+            } catch {
+                continue
+            }
+        }
+
+        do {
+            let params = NWParameters.tcp
+            let listener = try NWListener(using: params, on: .any)
+            self.listener = listener
+            listener.newConnectionHandler = { [weak self] connection in
+                Task { @MainActor in
+                    self?.handleConnection(connection)
+                }
+            }
+            listener.start(queue: .main)
+            if let assignedPort = listener.port?.rawValue {
+                self.port = assignedPort
+                return assignedPort
+            }
+        } catch {
+            logger.error("Failed to start OAuth loopback listener: \(error.localizedDescription)")
+        }
+        return 8085
+    }
+
+    public func stop() {
+        listener?.cancel()
+        listener = nil
+    }
+
+    private func handleConnection(_ connection: NWConnection) {
+        connection.start(queue: .main)
+        connection.receive(minimumIncompleteLength: 1, maximumLength: 4096) { [weak self] data, _, _, _ in
+            guard let self = self, let data = data, let requestString = String(data: data, encoding: .utf8) else {
+                connection.cancel()
+                return
+            }
+
+            let lines = requestString.components(separatedBy: "\r\n")
+            if let firstLine = lines.first {
+                let parts = firstLine.components(separatedBy: " ")
+                if parts.count >= 2 {
+                    let pathAndQuery = parts[1]
+                    if let url = URL(string: "http://127.0.0.1:\(self.port)\(pathAndQuery)") {
+                        Task { @MainActor in
+                            self.onCallback?(url)
+                        }
+                    }
+                }
+            }
+
+            let html = """
+            <!DOCTYPE html>
+            <html>
+            <head>
+                <meta charset="utf-8">
+                <title>SwiftCode - Authentication Successful</title>
+                <style>
+                    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; display: flex; align-items: center; justify-content: center; height: 100vh; margin: 0; background-color: #0d1117; color: #c9d1d9; }
+                    .card { text-align: center; padding: 40px; border-radius: 16px; background: #161b22; border: 1px solid #30363d; box-shadow: 0 8px 24px rgba(0,0,0,0.5); max-width: 400px; }
+                    h2 { color: #58a6ff; margin-bottom: 12px; }
+                    p { color: #8b949e; line-height: 1.5; }
+                </style>
+            </head>
+            <body>
+                <div class="card">
+                    <h2>Authentication Successful</h2>
+                    <p>You have successfully authenticated with Google.</p>
+                    <p>You may close this tab and return to <strong>SwiftCode</strong>.</p>
+                </div>
+                <script>setTimeout(function() { window.close(); }, 2500);</script>
+            </body>
+            </html>
+            """
+
+            let httpResponse = "HTTP/1.1 200 OK\r\nContent-Type: text/html; charset=utf-8\r\nContent-Length: \(html.utf8.count)\r\nConnection: close\r\n\r\n\(html)"
+
+            if let responseData = httpResponse.data(using: .utf8) {
+                connection.send(content: responseData, completion: .contentProcessed({ _ in
+                    connection.cancel()
+                }))
+            } else {
+                connection.cancel()
+            }
+        }
+    }
+}
