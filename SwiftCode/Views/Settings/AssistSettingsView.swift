@@ -748,6 +748,58 @@ struct AssistSettingsView: View {
                                 Divider()
                                     .padding(.vertical, 4)
 
+                                // MARK: - Antigravity Execution Backend Selection
+                                VStack(alignment: .leading, spacing: 8) {
+                                    HStack {
+                                        VStack(alignment: .leading, spacing: 2) {
+                                            Text("Antigravity Execution Backend")
+                                                .font(.system(size: 13, weight: .semibold))
+                                            Text("Select whether to run Antigravity via the Python Bridge or directly via Downloaded Resources.")
+                                                .font(.caption2)
+                                                .foregroundStyle(.secondary)
+                                        }
+
+                                        Spacer()
+
+                                        HStack(spacing: 5) {
+                                            Circle()
+                                                .fill(settings.antigravityExecutionMode == "resources" ? Color.green : Color.orange)
+                                                .frame(width: 7, height: 7)
+                                            Text(settings.antigravityExecutionMode == "resources" ? "Downloaded Resources" : "Python Bridge")
+                                                .font(.system(size: 11, weight: .semibold, design: .rounded))
+                                                .foregroundStyle(settings.antigravityExecutionMode == "resources" ? Color.green : Color.orange)
+                                        }
+                                        .padding(.horizontal, 10)
+                                        .padding(.vertical, 4)
+                                        .background((settings.antigravityExecutionMode == "resources" ? Color.green : Color.orange).opacity(0.1), in: Capsule())
+                                    }
+
+                                    Picker("Execution Mode", selection: $settings.antigravityExecutionMode) {
+                                        Text("Downloaded Resources (Direct Binary)").tag("resources")
+                                        Text("Python Bridge Server").tag("bridge")
+                                    }
+                                    .pickerStyle(.segmented)
+                                    .onChange(of: settings.antigravityExecutionMode) { _, _ in
+                                        Task {
+                                            try? await GoogleCloudSDKLifecycleManager.shared.restartEngine()
+                                        }
+                                    }
+
+                                    HStack(alignment: .top, spacing: 6) {
+                                        Image(systemName: settings.antigravityExecutionMode == "resources" ? "terminal.fill" : "arrow.triangle.pull")
+                                            .font(.caption)
+                                            .foregroundStyle(settings.antigravityExecutionMode == "resources" ? Color.green : Color.orange)
+                                        Text(settings.antigravityExecutionMode == "resources"
+                                             ? "Downloaded Resources mode executes the installed google-antigravity binary directly, providing raw SDK performance while retaining token streaming, toolkits, and model selection."
+                                             : "Bridge mode runs the Python IPC bridge server to route requests and stream tokens to the UI.")
+                                            .font(.caption2)
+                                            .foregroundStyle(.secondary)
+                                    }
+                                }
+
+                                Divider()
+                                    .padding(.vertical, 4)
+
                                 // MARK: - Assist Toolkit Configuration
                                 VStack(alignment: .leading, spacing: 8) {
                                     HStack {
@@ -2650,6 +2702,10 @@ extension AssistSettingsView {
                         await MainActor.run {
                             self.downloadStatusMessage = "google-antigravity installed successfully!"
                             self.downloadCompleted = true
+                            self.settings.antigravityExecutionMode = "resources"
+                            Task {
+                                try? await GoogleCloudSDKLifecycleManager.shared.restartEngine()
+                            }
                         }
                         break
                     } else {

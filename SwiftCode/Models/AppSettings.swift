@@ -94,6 +94,13 @@ class AppSettings: ObservableObject {
         }
     }
 
+    @Published var antigravityExecutionMode: String {
+        didSet {
+            debouncedSave("antigravity_execution_mode", antigravityExecutionMode)
+            UserDefaults.standard.set(antigravityExecutionMode, forKey: "antigravity_execution_mode")
+        }
+    }
+
     @Published var selectedModel: String {
         didSet {
             debouncedSave("selectedModel", selectedModel)
@@ -322,6 +329,7 @@ class AppSettings: ObservableObject {
             ?? UserDefaults.standard.object(forKey: "assist.alternativeKeysEnabled") as? Bool
             ?? false
         assistGoogleAuthMode = UserDefaults.standard.string(forKey: "assist_google_auth_mode") ?? "api_key"
+        antigravityExecutionMode = UserDefaults.standard.string(forKey: "antigravity_execution_mode") ?? "bridge"
         selectedModel = UserDefaults.standard.string(forKey: "selectedModel") ?? "openai/gpt-4o"
         customModel   = UserDefaults.standard.string(forKey: "customModel") ?? ""
         selectedAssistModelID = UserDefaults.standard.string(forKey: "selectedAssistModelID") ?? AssistModelOption.swiftCodeBalanced.id

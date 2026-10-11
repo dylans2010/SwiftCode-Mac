@@ -108,18 +108,31 @@ public actor GoogleCloudSDKProcess {
         self.socketPath = tempSocket
 
         let proc = Process()
+        let mode = UserDefaults.standard.string(forKey: "antigravity_execution_mode") ?? "resources"
+        let directBinaryPath = findDownloadedAntigravityBinary(sdkDir: sdkDir)
 
-        // If bundled launcher executable exists, use it; otherwise locate host Python 3
-        if FileManager.default.isExecutableFile(atPath: launcherURL.path) {
-            proc.executableURL = launcherURL
-            proc.arguments = [mainScriptURL.path, "--socket-path", tempSocket]
-        } else {
-            let hostPython = findHostPython()
-            guard let hostPython = hostPython else {
-                throw GoogleCloudSDKError.pythonMissing("No Python 3 interpreter found on system.")
-            }
+        if mode == "resources", let binPath = directBinaryPath {
+            proc.executableURL = URL(fileURLWithPath: binPath)
+            proc.arguments = ["--socket-path", tempSocket]
+            logger.info("Launching direct downloaded Antigravity binary: \(binPath)")
+        } else if mode == "resources", let hostPython = findHostPython() {
             proc.executableURL = URL(fileURLWithPath: hostPython)
-            proc.arguments = [mainScriptURL.path, "--socket-path", tempSocket]
+            proc.arguments = ["-m", "google.antigravity", "--socket-path", tempSocket]
+            logger.info("Launching downloaded Antigravity python package directly via \(hostPython)")
+        } else {
+            // Bridge mode
+            if FileManager.default.isExecutableFile(atPath: launcherURL.path) {
+                proc.executableURL = launcherURL
+                proc.arguments = [mainScriptURL.path, "--socket-path", tempSocket]
+            } else {
+                let hostPython = findHostPython()
+                guard let hostPython = hostPython else {
+                    throw GoogleCloudSDKError.pythonMissing("No Python 3 interpreter found on system.")
+                }
+                proc.executableURL = URL(fileURLWithPath: hostPython)
+                proc.arguments = [mainScriptURL.path, "--socket-path", tempSocket]
+            }
+            logger.info("Launching Antigravity Python bridge")
         }
 
         // Configure environment
@@ -182,6 +195,24 @@ public actor GoogleCloudSDKProcess {
         for candidate in candidates {
             if FileManager.default.isExecutableFile(atPath: candidate) {
                 return candidate
+            }
+        }
+        return nil
+    }
+
+    private func findDownloadedAntigravityBinary(sdkDir: URL) -> String? {
+        let homeDir = FileManager.default.homeDirectoryForCurrentUser.path
+        let candidatePaths = [
+            "/opt/homebrew/bin/google-antigravity",
+            "/usr/local/bin/google-antigravity",
+            "\(homeDir)/.local/bin/google-antigravity",
+            sdkDir.appendingPathComponent("runtime/bin/google-antigravity").path,
+            sdkDir.appendingPathComponent("runtime/lib/python3.14/site-packages/google/antigravity/bin/localharness").path
+        ]
+
+        for path in candidatePaths {
+            if FileManager.default.isExecutableFile(atPath: path) || FileManager.default.fileExists(atPath: path) {
+                return path
             }
         }
         return nil
