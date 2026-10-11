@@ -375,6 +375,12 @@ public final class GoogleCloudSDKRuntime: Sendable {
 
         case .agentFailed(let sid, let err):
             appendLog("[\(sid)] Agent turn error: \(err)")
+            let lower = err.lowercased()
+            if lower.contains("401") || lower.contains("403") || lower.contains("unauthenticated") || lower.contains("permission_denied") || lower.contains("expired") || lower.contains("scope") {
+                Task { @MainActor in
+                    _ = await GoogleAccountAuthService.shared.verifyRuntimeSession()
+                }
+            }
 
         case .toolStarted(let tool):
             appendLog("[\(tool.sessionId)] Tool started: \(tool.name)")
@@ -452,6 +458,12 @@ public final class GoogleCloudSDKRuntime: Sendable {
         case .error(let msg):
             self.lastError = msg
             appendLog("[Error] \(msg)")
+            let lower = msg.lowercased()
+            if lower.contains("401") || lower.contains("403") || lower.contains("unauthenticated") || lower.contains("permission_denied") || lower.contains("expired") || lower.contains("scope") {
+                Task { @MainActor in
+                    _ = await GoogleAccountAuthService.shared.verifyRuntimeSession()
+                }
+            }
 
         default:
             break

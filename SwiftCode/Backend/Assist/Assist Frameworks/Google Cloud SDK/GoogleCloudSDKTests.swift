@@ -30,6 +30,8 @@ public final class GoogleCloudSDKTests: Sendable {
         results.append(await testLiveSessionLifecycle())
         results.append(await testEventStreamingSubscription())
         results.append(await testSecurityCredentialSafety())
+        results.append(await testAntigravityAccountAuthenticationStateAndOAuthResolution())
+        results.append(await testRuntimeSessionVerificationProbe())
 
         let routerTests = await AssistModelRouterTests.shared.runAllTests()
         results.append(contentsOf: routerTests)
@@ -325,6 +327,47 @@ public final class GoogleCloudSDKTests: Sendable {
             testName: "Security: Credential Sanitization in Telemetry",
             passed: passed,
             message: passed ? "Verified API keys are never surfaced into diagnostic logs or telemetry." : "Sensitive API key found in runtime logs.",
+            duration: Date().timeIntervalSince(start)
+        )
+    }
+
+    // 9. Antigravity Account Authentication State & OAuth Resolution
+    public func testAntigravityAccountAuthenticationStateAndOAuthResolution() async -> RuntimeTestCaseResult {
+        let start = Date()
+        let authService = GoogleAccountAuthService.shared
+        let initialIsAuth = authService.isAuthenticated
+
+        // Test configuration resolution with OAuth token
+        let config = GoogleCloudSDKConfiguration.resolveDefault()
+        let dict = config.toDictionary()
+
+        let hasOAuthToken = (dict["oauthToken"] as? String) != nil
+        let hasApiKey = (dict["apiKey"] as? String) != nil
+
+        // If authenticated via OAuth, apiKey must be nil to enforce zero API key reliance
+        let passed = (!initialIsAuth || (hasOAuthToken && !hasApiKey))
+
+        return RuntimeTestCaseResult(
+            testName: "Antigravity Account Authentication & OAuth Token Resolution",
+            passed: passed,
+            message: passed ? "OAuth token resolution correctly enforced zero API key requirement when authenticated." : "OAuth token resolution failed.",
+            duration: Date().timeIntervalSince(start)
+        )
+    }
+
+    // 10. Runtime Session Verification Probe
+    public func testRuntimeSessionVerificationProbe() async -> RuntimeTestCaseResult {
+        let start = Date()
+        let authService = GoogleAccountAuthService.shared
+
+        // Perform probe with invalid test token and verify it fails gracefully without throwing
+        let dummyVerified = await authService.verifyRuntimeSession(accessToken: "ya29.invalid_test_token_for_verification")
+        let passed = !dummyVerified // Should correctly reject invalid token
+
+        return RuntimeTestCaseResult(
+            testName: "Runtime Session Verification Probe",
+            passed: passed,
+            message: passed ? "Runtime session verification probe correctly rejected invalid OAuth token." : "Verification probe failed to reject invalid token.",
             duration: Date().timeIntervalSince(start)
         )
     }

@@ -1057,9 +1057,12 @@ class AgentRunner:
             except Exception as e:
                 logger.exception("Error executing turn in session '%s': %s", session_id, e)
                 session.mark_all_tools_failed(f"Turn execution error: {str(e)}")
+                err_msg = str(e)
+                if any(k in err_msg for k in ("401", "403", "UNAUTHENTICATED", "PERMISSION_DENIED", "invalid api key", "API_KEY_INVALID", "ACCESS_TOKEN_SCOPE_INSUFFICIENT")):
+                    err_msg = f"Authentication error ({err_msg}). Please re-authenticate your Google Account."
                 emit("agent.failed", {
                     "sessionId": session_id,
-                    "error": str(e),
+                    "error": err_msg,
                 })
             finally:
                 session.mark_all_tools_failed("Turn finished")
