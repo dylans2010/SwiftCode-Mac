@@ -1092,7 +1092,7 @@ struct AssistSettingsView: View {
                                                 .controlSize(.regular)
                                                 .disabled(googleAuth.isAuthenticating)
 
-                                                if googleAuth.findAgyCLI() != nil {
+                                                if googleAuth.findAgyCLI() != nil || googleAuth.fetchAntigravityCredentialsFromKeychain() != nil {
                                                     Button {
                                                         googleAuth.signInViaCLI()
                                                     } label: {
