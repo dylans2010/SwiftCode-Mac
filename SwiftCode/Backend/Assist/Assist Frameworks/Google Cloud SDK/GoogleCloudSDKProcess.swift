@@ -137,14 +137,20 @@ public actor GoogleCloudSDKProcess {
 
         // Configure environment
         var env = ProcessInfo.processInfo.environment
+        let homeDir = FileManager.default.homeDirectoryForCurrentUser.path
         let sitePackages = sdkDir.appendingPathComponent("runtime/lib/python3.14/site-packages").path
+        let userSite = "\(homeDir)/Library/Python/3.14/lib/python/site-packages"
+        let localSite = "\(homeDir)/.local/lib/python3.14/site-packages"
+        let brewSite = "/opt/homebrew/lib/python3.14/site-packages"
+        let allSearchPaths = [userSite, localSite, brewSite, sitePackages].filter { FileManager.default.fileExists(atPath: $0) }
+        let searchPathString = allSearchPaths.joined(separator: ":")
+
         if let existing = env["PYTHONPATH"] {
-            env["PYTHONPATH"] = "\(sitePackages):\(existing)"
+            env["PYTHONPATH"] = "\(searchPathString):\(existing)"
         } else {
-            env["PYTHONPATH"] = sitePackages
+            env["PYTHONPATH"] = searchPathString
         }
         env["PYTHONUNBUFFERED"] = "1"
-        env["PYTHONNOUSERSITE"] = "1"
 
         let harnessURL = sdkDir.appendingPathComponent("runtime/lib/python3.14/site-packages/google/antigravity/bin/localharness")
         if FileManager.default.fileExists(atPath: harnessURL.path) {
@@ -203,18 +209,15 @@ public actor GoogleCloudSDKProcess {
     private func findDownloadedAntigravityBinary(sdkDir: URL) -> String? {
         let homeDir = FileManager.default.homeDirectoryForCurrentUser.path
         let candidatePaths = [
-            "/opt/homebrew/bin/google-antigravity",
-            "/usr/local/bin/google-antigravity",
             "\(homeDir)/.local/bin/google-antigravity",
             "\(homeDir)/Library/Python/3.14/bin/google-antigravity",
-            "\(homeDir)/Library/Python/3.14/lib/python/site-packages/google/antigravity/bin/localharness",
-            "\(homeDir)/.local/lib/python3.14/site-packages/google/antigravity/bin/localharness",
-            sdkDir.appendingPathComponent("runtime/bin/google-antigravity").path,
-            sdkDir.appendingPathComponent("runtime/lib/python3.14/site-packages/google/antigravity/bin/localharness").path
+            "/opt/homebrew/bin/google-antigravity",
+            "/usr/local/bin/google-antigravity",
+            sdkDir.appendingPathComponent("runtime/bin/google-antigravity").path
         ]
 
         for path in candidatePaths {
-            if FileManager.default.isExecutableFile(atPath: path) || FileManager.default.fileExists(atPath: path) {
+            if FileManager.default.isExecutableFile(atPath: path) {
                 return path
             }
         }

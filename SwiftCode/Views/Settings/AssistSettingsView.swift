@@ -2767,20 +2767,32 @@ extension AssistSettingsView {
                                 try fm.copyItem(atPath: srcItem, toPath: dstItem)
                             }
 
-                            // Create google-antigravity binary in ~/.local/bin
-                            let binDir = "\(homeDir)/.local/bin"
-                            try fm.createDirectory(atPath: binDir, withIntermediateDirectories: true)
-                            let localHarnessSrc = "\(targetSitePackages)/google/antigravity/bin/localharness"
-                            let binaryDst = "\(binDir)/google-antigravity"
+                            // Write executable google-antigravity launcher script
+                            let launcherScript = """
+                            #!/usr/bin/env python3
+                            import sys
+                            import os
 
-                            if fm.fileExists(atPath: localHarnessSrc) {
-                                if fm.fileExists(atPath: binaryDst) {
-                                    try? fm.removeItem(atPath: binaryDst)
-                                }
-                                try? fm.linkItem(atPath: localHarnessSrc, toPath: binaryDst)
-                                if !fm.fileExists(atPath: binaryDst) {
-                                    try? fm.copyItem(atPath: localHarnessSrc, toPath: binaryDst)
-                                }
+                            for cand in [
+                                os.path.expanduser("~/Library/Python/3.14/lib/python/site-packages/google/antigravity/bin/localharness"),
+                                os.path.expanduser("~/.local/lib/python3.14/site-packages/google/antigravity/bin/localharness"),
+                                "/opt/homebrew/lib/python3.14/site-packages/google/antigravity/bin/localharness"
+                            ]:
+                                if os.path.exists(cand):
+                                    os.environ["ANTIGRAVITY_HARNESS_PATH"] = cand
+                                    break
+
+                            from google.antigravity.server.main import main
+
+                            if __name__ == "__main__":
+                                main()
+                            """
+
+                            for binDir in ["\(homeDir)/.local/bin", "\(homeDir)/Library/Python/3.14/bin"] {
+                                try? fm.createDirectory(atPath: binDir, withIntermediateDirectories: true)
+                                let binPath = "\(binDir)/google-antigravity"
+                                try? launcherScript.write(toFile: binPath, atomically: true, encoding: .utf8)
+                                chmod(binPath, 0o755)
                             }
 
                             deploySuccess = true
@@ -2805,7 +2817,36 @@ extension AssistSettingsView {
                 }
             }
 
-            if !success {
+            if success {
+                // Ensure google-antigravity executable is installed in ~/.local/bin
+                let homeDir = FileManager.default.homeDirectoryForCurrentUser.path
+                let launcherScript = """
+                #!/usr/bin/env python3
+                import sys
+                import os
+
+                for cand in [
+                    os.path.expanduser("~/Library/Python/3.14/lib/python/site-packages/google/antigravity/bin/localharness"),
+                    os.path.expanduser("~/.local/lib/python3.14/site-packages/google/antigravity/bin/localharness"),
+                    "/opt/homebrew/lib/python3.14/site-packages/google/antigravity/bin/localharness"
+                ]:
+                    if os.path.exists(cand):
+                        os.environ["ANTIGRAVITY_HARNESS_PATH"] = cand
+                        break
+
+                from google.antigravity.server.main import main
+
+                if __name__ == "__main__":
+                    main()
+                """
+
+                for binDir in ["\(homeDir)/.local/bin", "\(homeDir)/Library/Python/3.14/bin"] {
+                    try? FileManager.default.createDirectory(atPath: binDir, withIntermediateDirectories: true)
+                    let binPath = "\(binDir)/google-antigravity"
+                    try? launcherScript.write(toFile: binPath, atomically: true, encoding: .utf8)
+                    chmod(binPath, 0o755)
+                }
+            } else {
                 await MainActor.run {
                     self.downloadErrorMessage = lastErr.isEmpty ? "Failed to install google-antigravity." : lastErr
                     self.downloadStatusMessage = "Installation failed."
