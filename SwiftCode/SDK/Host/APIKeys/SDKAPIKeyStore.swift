@@ -25,11 +25,17 @@ import Security
 //   must display it once and must never persist it in plaintext.
 // - The secret `String` is toxic: it is never logged, never interpolated
 //   into an `SDKError`, and never written to disk by this type.
+// - Brute-force protection: `verify(secret:)` is in-memory rate limited
+//   (see "Brute-force protection" below) — guessing resistance lives here,
+//   at the only entry point that accepts a raw secret.
+// - Optional expiry: `SDKAPIKey.expiresAt` (nil = never expires) is
+//   honored by `verify` on every call, alongside the `revokedAt` check.
 //
 // All timestamps are real (`Date()`). Keychain failures surface as
-// `.serviceUnavailable`; unknown/malformed/forged secrets surface as
-// `.apiKeyInvalid` (one code for all three, so failure modes are not
-// distinguishable); revoked keys surface as `.apiKeyRevoked`.
+// `.serviceUnavailable`; unknown/malformed/forged/expired secrets surface
+// as `.apiKeyInvalid` (one code for all four, so failure modes are not
+// distinguishable); revoked keys surface as `.apiKeyRevoked`; a rate-limit
+// lockout surfaces as `.apiKeyRateLimited`.
 
 public actor SDKAPIKeyStore {
 
@@ -103,7 +109,8 @@ public actor SDKAPIKeyStore {
     public func createKey(
         label: String,
         scopes: Set<SDKAPIKeyScope>,
-        isLive: Bool
+        isLive: Bool,
+        expiresAt: Date? = nil
     ) throws -> (key: SDKAPIKey, secret: String) {
         let trimmedLabel = label.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmedLabel.isEmpty, trimmedLabel.count <= Self.maxLabelLength else {
@@ -118,12 +125,19 @@ public actor SDKAPIKeyStore {
                 message: "The API key must be granted at least one scope."
             )
         }
+        if let expiresAt, expiresAt <= Date() {
+            throw SDKError(
+                code: .invalidArgument,
+                message: "The API key expiry must be in the future."
+            )
+        }
 
         let key = SDKAPIKey(
             keyPrefix: isLive ? SDKAPIKeyCodec.livePrefix : SDKAPIKeyCodec.testPrefix,
             label: trimmedLabel,
             scopes: scopes,
-            createdAt: Date()
+            createdAt: Date(),
+            expiresAt: expiresAt
         )
         let deviceKey = try getOrCreateDeviceKey()
         let secret = try SDKAPIKeyCodec.generateSecret(for: key, deviceKey: deviceKey)
@@ -137,33 +151,161 @@ public actor SDKAPIKeyStore {
 
     /// Verifies a presented secret and returns its metadata.
     ///
-    /// Every call: parses and HMAC-verifies the secret, loads fresh metadata
-    /// from the Keychain, rejects revoked keys (`.apiKeyRevoked`), and
-    /// updates `lastUsedAt`. Unknown IDs, malformed secrets, and signature
-    /// mismatches all surface as `.apiKeyInvalid` — deliberately
-    /// indistinguishable.
+    /// Every call: enforces the brute-force rate limit, parses and
+    /// HMAC-verifies the secret, loads fresh metadata from the Keychain,
+    /// rejects revoked keys (`.apiKeyRevoked`) and expired keys
+    /// (`.apiKeyInvalid`), and updates `lastUsedAt`. Unknown IDs,
+    /// malformed secrets, and signature mismatches all surface as
+    /// `.apiKeyInvalid` — deliberately indistinguishable.
     ///
     /// Keychain failures fail closed (`.serviceUnavailable`): when the host
     /// cannot establish key validity, the action is denied.
     public func verify(secret: String) throws -> SDKAPIKey {
-        let deviceKey = try getOrCreateDeviceKey()
-        let (id, prefix) = try SDKAPIKeyCodec.parseAndVerify(secret, deviceKey: deviceKey)
-        var key = try loadMetadata(id: id)
-        // Defense in depth: the signature already binds the prefix, but the
-        // stored metadata must agree with what was presented.
-        guard key.keyPrefix == prefix else {
-            throw apiKeyInvalidError()
+        // Bucket label from the UNVERIFIED structural parse (never a trust
+        // decision — just a stable per-presented-key counter).
+        let bucketKey = SDKAPIKeyCodec.extractPresentedKeyID(from: secret)?.uuidString
+            ?? Self.unparseableBucketKey
+        try checkRateLimit(bucketKey: bucketKey)
+
+        do {
+            let deviceKey = try getOrCreateDeviceKey()
+            let (id, prefix) = try SDKAPIKeyCodec.parseAndVerify(secret, deviceKey: deviceKey)
+            var key = try loadMetadata(id: id)
+            // Defense in depth: the signature already binds the prefix, but the
+            // stored metadata must agree with what was presented.
+            guard key.keyPrefix == prefix else {
+                throw apiKeyInvalidError()
+            }
+            if key.isExpired {
+                throw apiKeyExpiredError()
+            }
+            if key.revokedAt != nil {
+                throw SDKError(
+                    code: .apiKeyRevoked,
+                    message: "This developer API key was revoked.",
+                    suggestion: "Generate a new key in Studio → Settings → Developer API Keys."
+                )
+            }
+            key.lastUsedAt = Date()
+            try persist(key)
+            recordVerifySuccess(bucketKey: bucketKey)
+            return key
+        } catch let sdkError as SDKError {
+            // Only guessing attempts feed the limiter: infrastructure
+            // failures (`.serviceUnavailable`) and known-bad keys
+            // (`.apiKeyRevoked`) are not brute-force signals.
+            if sdkError.code == .apiKeyInvalid {
+                recordVerifyFailure(bucketKey: bucketKey)
+            }
+            throw sdkError
         }
-        if key.revokedAt != nil {
-            throw SDKError(
-                code: .apiKeyRevoked,
-                message: "This developer API key was revoked.",
-                suggestion: "Generate a new key in Studio → Settings → Developer API Keys."
-            )
+    }
+
+    // MARK: - Brute-force protection
+    //
+    // In-memory rate limiting on `verify(secret:)` — the only entry point
+    // that accepts a raw secret, hence the only guessing surface.
+    //
+    // - Per presented key ID: at most `maxFailuresPerWindow` FAILED
+    //   verifications per `attemptWindow` seconds, then a `lockoutDuration`
+    //   lockout. The bucket key is the unverified structural ID
+    //   (`SDKAPIKeyCodec.extractPresentedKeyID`); secrets too malformed to
+    //   yield an ID share the `unparseableBucketKey` bucket.
+    // - A successful verification clears the bucket; the lockout is fixed
+    //   length (attempts made during a lockout do not extend it).
+    // - Lockout throws `.apiKeyRateLimited` — deliberately distinct from
+    //   `.apiKeyInvalid` so a legitimate developer knows to wait instead of
+    //   rotating a good key. The lockout reveals nothing about key
+    //   validity: the bucket key is derived from the presenter-supplied
+    //   secret, so no new oracle is created.
+    // - Actor-isolated state: no locks, race-free under Swift 6. Nothing
+    //   persists — a host restart clears all buckets (fail-open on restart
+    //   is safe: the HMAC check itself is unchanged).
+
+    /// Failed verifications allowed per key ID per `attemptWindow`.
+    private static let maxFailuresPerWindow = 10
+    /// Sliding window for counting failures.
+    private static let attemptWindow: TimeInterval = 60
+    /// How long a bucket stays locked after exhausting its window.
+    private static let lockoutDuration: TimeInterval = 5 * 60
+    /// Bucket label for secrets too malformed to yield a key ID.
+    private static let unparseableBucketKey = "unparseable"
+    /// Bound on tracked buckets; beyond this, idle buckets are pruned.
+    private static let maxTrackedBuckets = 1024
+
+    private struct AttemptBucket {
+        var windowStart: Date
+        var failures: Int
+        var lockedUntil: Date?
+    }
+
+    private var attemptBuckets: [String: AttemptBucket] = [:]
+
+    /// Throws `.apiKeyRateLimited` when `bucketKey` is currently locked out.
+    /// Rolls the window forward when it has elapsed.
+    private func checkRateLimit(bucketKey: String) throws {
+        pruneBucketsIfNeeded()
+        let now = Date()
+        guard var bucket = attemptBuckets[bucketKey] else { return }
+        if let lockedUntil = bucket.lockedUntil {
+            if now < lockedUntil {
+                throw rateLimitedError(lockedUntil: lockedUntil)
+            }
+            // Lockout expired: start a fresh window.
+            bucket = AttemptBucket(windowStart: now, failures: 0, lockedUntil: nil)
+            attemptBuckets[bucketKey] = bucket
+            return
         }
-        key.lastUsedAt = Date()
-        try persist(key)
-        return key
+        if now.timeIntervalSince(bucket.windowStart) >= Self.attemptWindow {
+            bucket.windowStart = now
+            bucket.failures = 0
+            attemptBuckets[bucketKey] = bucket
+        }
+    }
+
+    private func recordVerifyFailure(bucketKey: String) {
+        let now = Date()
+        var bucket = attemptBuckets[bucketKey]
+            ?? AttemptBucket(windowStart: now, failures: 0, lockedUntil: nil)
+        if now.timeIntervalSince(bucket.windowStart) >= Self.attemptWindow {
+            bucket.windowStart = now
+            bucket.failures = 0
+            bucket.lockedUntil = nil
+        }
+        bucket.failures += 1
+        if bucket.failures >= Self.maxFailuresPerWindow {
+            bucket.lockedUntil = now.addingTimeInterval(Self.lockoutDuration)
+        }
+        attemptBuckets[bucketKey] = bucket
+    }
+
+    private func recordVerifySuccess(bucketKey: String) {
+        attemptBuckets.removeValue(forKey: bucketKey)
+    }
+
+    /// Keeps the bucket map bounded: once past `maxTrackedBuckets`, idle
+    /// buckets (window elapsed, not locked) are dropped. Locked and
+    /// in-window buckets are always kept.
+    private func pruneBucketsIfNeeded() {
+        guard attemptBuckets.count > Self.maxTrackedBuckets else { return }
+        let now = Date()
+        // Note: Dictionary.filter returns an array of tuples, so rebuild
+        // the dictionary explicitly (keys are already unique).
+        attemptBuckets = Dictionary(
+            uniqueKeysWithValues: attemptBuckets.filter { _, bucket in
+                if let lockedUntil = bucket.lockedUntil, lockedUntil > now { return true }
+                return now.timeIntervalSince(bucket.windowStart) < Self.attemptWindow
+            }
+        )
+    }
+
+    private func rateLimitedError(lockedUntil: Date) -> SDKError {
+        let remaining = max(1, Int(lockedUntil.timeIntervalSince(Date()) / 60))
+        return SDKError(
+            code: .apiKeyRateLimited,
+            message: "Too many failed verification attempts for this developer API key. Verification is temporarily locked (about \(remaining) minute\(remaining == 1 ? "" : "s") remaining).",
+            suggestion: "Wait for the lockout to expire and try again. If you did not make these attempts, revoke the key in Studio → Settings → Developer API Keys and generate a new one."
+        )
     }
 
     // MARK: - Revocation
@@ -204,9 +346,10 @@ public actor SDKAPIKeyStore {
     // MARK: - Scope enforcement
 
     /// Requires `scope` on an already-verified `key`. Throws
-    /// `.apiKeyScopeInsufficient` naming the missing scope, or
-    /// `.apiKeyRevoked` if the key was revoked after verification
-    /// (belt-and-braces: `verify` is the primary revocation check).
+    /// `.apiKeyScopeInsufficient` naming the missing scope,
+    /// `.apiKeyRevoked` if the key was revoked after verification, or
+    /// `.apiKeyInvalid` if the key expired after verification
+    /// (belt-and-braces: `verify` is the primary revocation/expiry check).
     public func requireScope(_ scope: SDKAPIKeyScope, for key: SDKAPIKey) throws {
         if key.revokedAt != nil {
             throw SDKError(
@@ -214,6 +357,9 @@ public actor SDKAPIKeyStore {
                 message: "This developer API key was revoked.",
                 suggestion: "Generate a new key in Studio → Settings → Developer API Keys."
             )
+        }
+        if key.isExpired {
+            throw apiKeyExpiredError()
         }
         guard key.scopes.contains(scope) else {
             throw SDKError(
@@ -305,6 +451,16 @@ public actor SDKAPIKeyStore {
             code: .apiKeyInvalid,
             message: "The developer API key is invalid or could not be verified.",
             suggestion: "Check the key for typos, or generate a new key in Studio → Settings → Developer API Keys."
+        )
+    }
+
+    /// An expired key is an invalid key: same `.apiKeyInvalid` code (no new
+    /// oracle), with a message that tells the key holder the actual cause.
+    private func apiKeyExpiredError() -> SDKError {
+        SDKError(
+            code: .apiKeyInvalid,
+            message: "This developer API key has expired.",
+            suggestion: "Generate a new key in Studio → Settings → Developer API Keys."
         )
     }
 }

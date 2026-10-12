@@ -122,6 +122,11 @@ public struct SDKStudioAPIKeysView: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
+            if let expiresAt = key.expiresAt {
+                Text(key.isExpired ? "Expired \(expiresAt.formatted(date: .abbreviated, time: .shortened))" : "Expires \(expiresAt.formatted(date: .abbreviated, time: .shortened))")
+                    .font(.caption)
+                    .foregroundStyle(key.isExpired ? .red : .secondary)
+            }
             if let revokedAt = key.revokedAt {
                 Text("Revoked \(revokedAt.formatted(date: .abbreviated, time: .shortened))")
                     .font(.caption)
