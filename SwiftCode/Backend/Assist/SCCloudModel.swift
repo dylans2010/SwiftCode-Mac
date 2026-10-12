@@ -98,16 +98,53 @@ public enum SCCloudConfiguration {
         id == modelIDPrefix || id.hasPrefix(modelIDPrefix + ":")
     }
 
-    /// "swiftcode-cloud:llama3.1:8b" → "llama3.1:8b". Returns nil for the legacy
-    /// ID (caller resolves the default model) and for non-cloud IDs.
+    /// "swiftcode-cloud:llama3.1:8b" → "llama3.1:8b". The result is
+    /// canonicalized (see canonicalModelName), so selections stored before
+    /// canonicalization keep resolving to the same model.
     public static func endpointName(forInternalID id: String) -> String? {
         guard isCloudModelID(id), id != modelIDPrefix else { return nil }
-        return String(id.dropFirst(modelIDPrefix.count + 1))
+        return canonicalModelName(String(id.dropFirst(modelIDPrefix.count + 1)))
     }
 
     /// "llama3.1:8b" → "swiftcode-cloud:llama3.1:8b".
     public static func internalID(forEndpointName name: String) -> String {
         "\(modelIDPrefix):\(name)"
+    }
+
+    /// Canonical call name for a discovered model id. Strips Ollama's default
+    /// `:latest` tag so the name matches the server's documented call
+    /// convention (`gemini`, `gpt-oss`, `swiftcode-cloud` — bare aliases);
+    /// every other tag is kept verbatim. In Ollama, `name` and `name:latest`
+    /// address the same model, so this is purely a naming normalization.
+    public static func canonicalModelName(_ discoveredID: String) -> String {
+        let trimmed = discoveredID.trimmingCharacters(in: .whitespacesAndNewlines)
+        if trimmed.hasSuffix(":latest") {
+            return String(trimmed.dropLast(":latest".count))
+        }
+        return trimmed
+    }
+
+    /// One-line descriptions for the hosted models, shown in the picker and
+    /// settings so the models are tellable apart at a glance.
+    /// Keyed by canonical call name.
+    public static let modelBlurbs: [String: String] = [
+        "swiftcode-cloud": "Custom Swift assistant — Swift/SwiftUI code generation",
+        "qwen2.5-coder:1.5b": "Ultra-fast coding — instant inline completions",
+        "qwen2.5-coder:7b": "Flagship coding model — deep multi-file refactoring",
+        "qwen2.5:3b": "Fast general reasoning and logic",
+        "gemini": "Google-based assistant — general chat and code",
+        "gemma2:2b": "Google Gemma 2 foundation model",
+        "gpt-oss": "Open-weight reasoning and code engine",
+        "deepseek-coder:6.7b": "DeepSeek Coder — complex algorithms",
+        "phi3:mini": "Microsoft Phi-3 Mini — math and reasoning",
+        "starcoder2:3b": "StarCoder 2 — syntax, translation, lint fixes",
+        "llama3.2": "Meta Llama 3.2 3B — concise instructions",
+        "llama3.2:1b": "Meta Llama 3.2 1B — ultra-lightweight chat",
+    ]
+
+    /// Curated blurb for a canonical endpoint name, if one is known.
+    public static func blurb(forEndpointName name: String) -> String? {
+        modelBlurbs[name]
     }
 
     /// Full chat URL for the active wire format.
@@ -244,6 +281,11 @@ public struct SCCloudModelInfo: Codable, Sendable, Hashable {
     /// Human-readable name. The endpoint name is shown verbatim so the user
     /// always knows exactly which server-side model is selected.
     public var displayName: String { endpointName }
+
+    /// Curated one-line description for the picker/settings, if known.
+    public var blurb: String? {
+        SCCloudConfiguration.blurb(forEndpointName: endpointName)
+    }
 }
 
 // MARK: - Model discovery
@@ -361,28 +403,34 @@ public final class SCCloudModelDiscovery: @unchecked Sendable {
     }
 
     /// OpenAI-style: { "data": [ { "id": "…", "owned_by": "…" } ] }
+    /// Ids are canonicalized (`gemini:latest` → `gemini`) to match the
+    /// server's documented call names.
     private func parseOpenAIModels(_ data: Data) -> [SCCloudModelInfo] {
         guard let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
               let items = json["data"] as? [[String: Any]] else {
             return []
         }
         return items.compactMap { item in
-            guard let id = item["id"] as? String,
-                  !id.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return nil }
+            guard let rawID = item["id"] as? String else { return nil }
+            let id = SCCloudConfiguration.canonicalModelName(rawID)
+            guard !id.isEmpty else { return nil }
             let ownedBy = item["owned_by"] as? String
             return SCCloudModelInfo(endpointName: id, ownedBy: ownedBy)
         }
     }
 
     /// Ollama-style: { "models": [ { "name": "…", "details": { "context_length": … } } ] }
+    /// Names are canonicalized (`gemini:latest` → `gemini`) to match the
+    /// server's documented call names.
     private func parseOllamaTags(_ data: Data) -> [SCCloudModelInfo] {
         guard let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
               let items = json["models"] as? [[String: Any]] else {
             return []
         }
         return items.compactMap { item in
-            guard let name = (item["name"] as? String) ?? (item["model"] as? String),
-                  !name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return nil }
+            guard let rawName = (item["name"] as? String) ?? (item["model"] as? String) else { return nil }
+            let name = SCCloudConfiguration.canonicalModelName(rawName)
+            guard !name.isEmpty else { return nil }
             var contextWindow: Int? = nil
             if let details = item["details"] as? [String: Any],
                let ctx = details["context_length"] as? Int, ctx > 0 {

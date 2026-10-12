@@ -228,15 +228,24 @@ public struct AntigravityLimitsModelsUI: View {
     private func modelRow(_ model: AntigravitySDKModel) -> some View {
         let isSelected = selectedModelID == model.id || (selectedModelID.isEmpty && model.id == "gemini-3.8-flash-high")
         let isHovered = hoveredModelID == model.id
+        let blurb = cloudBlurb(for: model)
 
         return Button {
             onSelect(model.id)
             AppSettings.shared.selectedAssistModelID = model.id
         } label: {
             HStack(spacing: 8) {
-                Text(model.displayName)
-                    .font(.system(size: 12, weight: isSelected ? .bold : .medium))
-                    .foregroundStyle(.primary)
+                VStack(alignment: .leading, spacing: 1) {
+                    Text(model.displayName)
+                        .font(.system(size: 12, weight: isSelected ? .bold : .medium))
+                        .foregroundStyle(.primary)
+                    if let blurb {
+                        Text(blurb)
+                            .font(.system(size: 9))
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                    }
+                }
 
                 Spacer()
 
@@ -257,6 +266,15 @@ public struct AntigravityLimitsModelsUI: View {
         .onHover { hovering in
             hoveredModelID = hovering ? model.id : nil
         }
+    }
+
+    /// Curated blurb for a cloud model row, if the model is a discovered
+    /// SwiftCode Cloud model with a known description.
+    private func cloudBlurb(for model: AntigravitySDKModel) -> String? {
+        guard let endpointName = SCCloudConfiguration.endpointName(forInternalID: model.id) else {
+            return nil
+        }
+        return SCCloudConfiguration.blurb(forEndpointName: endpointName)
     }
 
     // MARK: - Displayed Models (Filtered by Thinking Level)

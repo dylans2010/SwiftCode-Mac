@@ -2109,10 +2109,11 @@ struct AssistSettingsView: View {
                             .font(.system(size: 11))
                             .foregroundStyle(.primary)
                         Spacer()
-                        if let ownedBy = model.ownedBy, !ownedBy.isEmpty {
-                            Text(ownedBy)
+                        if let blurb = model.blurb, !blurb.isEmpty {
+                            Text(blurb)
                                 .font(.system(size: 9))
                                 .foregroundStyle(.secondary)
+                                .lineLimit(1)
                         }
                     }
                     .padding(.vertical, 2)
