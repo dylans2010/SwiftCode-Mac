@@ -266,15 +266,17 @@ public struct AntigravityLimitsModelsUI: View {
         var base = matching.isEmpty ? all : matching
         // SwiftCode Cloud Models: pinned to the top whenever the toggle is on,
         // regardless of thinking-level filter or routing strategy. One entry per
-        // discovered model; falls back to a single placeholder entry until the
-        // first discovery completes.
+        // discovered model, each labeled with its real server-side name
+        // (gemma, gpt-oss, qwen, …) — never a single hardcoded model name.
+        // Until the first discovery completes, a single honest placeholder
+        // entry is shown; it resolves to the first discovered model.
         if settings.useSwiftCodeCloudModel {
             let cloudEntries: [AntigravitySDKModel]
             if cloudModels.isEmpty {
                 cloudEntries = [
                     AntigravitySDKModel(
                         id: SCCloudConfiguration.modelIDPrefix,
-                        displayName: SCCloudConfiguration.displayName,
+                        displayName: "SwiftCode Cloud (discovering models…)",
                         thinkingLevel: "Medium",
                         contextWindow: 128_000,
                         category: "SwiftCode"

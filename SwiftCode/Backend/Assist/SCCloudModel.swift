@@ -374,7 +374,7 @@ public final class SCCloudModelDiscovery: @unchecked Sendable {
         }
     }
 
-    /// Ollama-style: { "models": [ { "name": "…", "details": { … } } ] }
+    /// Ollama-style: { "models": [ { "name": "…", "details": { "context_length": … } } ] }
     private func parseOllamaTags(_ data: Data) -> [SCCloudModelInfo] {
         guard let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
               let items = json["models"] as? [[String: Any]] else {
@@ -383,7 +383,12 @@ public final class SCCloudModelDiscovery: @unchecked Sendable {
         return items.compactMap { item in
             guard let name = (item["name"] as? String) ?? (item["model"] as? String),
                   !name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return nil }
-            return SCCloudModelInfo(endpointName: name)
+            var contextWindow: Int? = nil
+            if let details = item["details"] as? [String: Any],
+               let ctx = details["context_length"] as? Int, ctx > 0 {
+                contextWindow = ctx
+            }
+            return SCCloudModelInfo(endpointName: name, contextWindow: contextWindow)
         }
     }
 
