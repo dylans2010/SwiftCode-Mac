@@ -125,6 +125,18 @@ class AppSettings: ObservableObject {
         }
     }
 
+    /// User-configured OAuth client ID override for Sign in with Google.
+    /// Empty means "use SwiftCode's built-in client". Read by
+    /// GoogleAccountAuthService alongside the GOOGLE_CLIENT_ID environment /
+    /// Info.plist overrides; this is the single user-editable storage for the
+    /// override so there is exactly one source of truth.
+    @Published var assistGoogleOAuthClientIDOverride: String {
+        didSet {
+            debouncedSave("assist_google_oauth_client_id_override", assistGoogleOAuthClientIDOverride)
+            UserDefaults.standard.set(assistGoogleOAuthClientIDOverride, forKey: "assist_google_oauth_client_id_override")
+        }
+    }
+
     @Published var antigravityExecutionMode: String {
         didSet {
             debouncedSave("antigravity_execution_mode", antigravityExecutionMode)
@@ -384,6 +396,7 @@ class AppSettings: ObservableObject {
         }
         assistGoogleAuthMode = UserDefaults.standard.string(forKey: "assist_google_auth_mode") ?? "google_oauth"
         assistGoogleCloudProject = UserDefaults.standard.string(forKey: "assist_google_cloud_project") ?? ""
+        assistGoogleOAuthClientIDOverride = UserDefaults.standard.string(forKey: "assist_google_oauth_client_id_override") ?? ""
         antigravityExecutionMode = UserDefaults.standard.string(forKey: "antigravity_execution_mode") ?? "bridge"
         selectedModel = UserDefaults.standard.string(forKey: "selectedModel") ?? "openai/gpt-4o"
         customModel   = UserDefaults.standard.string(forKey: "customModel") ?? ""

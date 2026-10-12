@@ -3,13 +3,17 @@ import os
 
 // MARK: - Assist Tool Knowledge Validator
 //
-// Runtime validation that the behavioral tool documentation in
-// `AgentSystemAsset.md` (section "TOOL SELECTION & USAGE") does not drift from
+// Runtime validation that the behavioral tool documentation in System Assets
+// (`AvailableTools.md` catalog + `CallTool.md` procedures) does not drift from
 // the actual registered tools in `AssistToolRegistry`:
-//   - every registered tool has a documented entry,
-//   - every required parameter is named in its entry,
-//   - no documented entry refers to a tool that is not registered,
-//   - the section-extraction helpers round-trip correctly.
+//   - every registered tool has a catalog entry,
+//   - no catalog entry refers to a tool that is not registered,
+//   - the mandatory Safeguards.md baseline is present,
+//   - the AgentSystemAsset.md index references the expected document set.
+//
+// The runtime tool registry remains authoritative for tool availability,
+// schemas, authorization, and execution; this validator only checks that the
+// Markdown documentation is consistent with it.
 //
 // Follows the same pattern as `AssistModelRouterTests`: `runAllTests()` returns
 // `[RuntimeTestCaseResult]` for aggregation by `AssistRuntimeTestSuite`.
@@ -25,59 +29,34 @@ public final class AssistToolKnowledgeValidator: Sendable {
     /// Executes all tool-knowledge validation checks.
     public func runAllTests() async -> [RuntimeTestCaseResult] {
         var results: [RuntimeTestCaseResult] = []
-        results.append(await testToolSelectionSectionPresent())
+        results.append(await testCatalogPresent())
         results.append(await testAllRegisteredToolsDocumented())
-        results.append(await testRequiredParametersDocumented())
         results.append(await testNoOrphanedToolDocumentation())
-        results.append(await testSectionExtractionRoundTrip())
+        results.append(await testSafeguardsBaselinePresent())
+        results.append(await testIndexReferencesExpectedDocuments())
         return results
     }
 
     // MARK: - Helpers
 
-    private func loadSystemPrompt() -> String? {
-        guard let url = Bundle.main.url(forResource: "AgentSystemAsset", withExtension: "md") else {
-            return nil
-        }
-        return try? String(contentsOf: url, encoding: .utf8)
+    private func loadAsset(_ relativePath: String) -> String? {
+        SystemIndexService.shared.bundledText(forRelativePath: relativePath)
     }
 
-    private func toolSelectionSection(in prompt: String) -> String? {
-        AssistSystemPromptSections.extractSection(named: "TOOL SELECTION & USAGE", from: prompt)
-    }
-
-    /// Splits the Tool Selection & Usage section into per-tool blocks keyed by
-    /// tool id. Blocks run from a `#### \`<id>\`` heading to the next `#### ` or
-    /// `## ` heading.
-    private func toolBlocks(in section: String) -> [String: String] {
-        var blocks: [String: String] = [:]
-        let lines = section.components(separatedBy: "\n")
-        var currentId: String?
-        var currentLines: [String] = []
-
-        func flush() {
-            if let id = currentId {
-                blocks[id] = currentLines.joined(separator: "\n")
-            }
-        }
-
-        for line in lines {
+    /// Parses catalog lines of the form `` - `tool_id` (riskPosture) — description ``
+    /// into tool ids in document order.
+    private func catalogToolIds(in catalog: String) -> [String] {
+        var ids: [String] = []
+        for line in catalog.components(separatedBy: "\n") {
             let trimmed = line.trimmingCharacters(in: .whitespaces)
-            if trimmed.hasPrefix("#### `") && trimmed.hasSuffix("`") {
-                flush()
-                let id = String(trimmed.dropFirst(6).dropLast(1))
-                currentId = id
-                currentLines = []
-            } else if trimmed.hasPrefix("## ") && currentId != nil {
-                flush()
-                currentId = nil
-                currentLines = []
-            } else if currentId != nil {
-                currentLines.append(line)
-            }
+            guard trimmed.hasPrefix("- `") else { continue }
+            let afterTick = trimmed.dropFirst(3)
+            guard let end = afterTick.firstIndex(of: "`") else { continue }
+            let id = String(afterTick[..<end]).trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !id.isEmpty, id.range(of: "^[a-z0-9_]+$", options: .regularExpression) != nil else { continue }
+            ids.append(id)
         }
-        flush()
-        return blocks
+        return ids
     }
 
     private func result(testName: String, passed: Bool, message: String, start: Date) -> RuntimeTestCaseResult {
@@ -91,104 +70,88 @@ public final class AssistToolKnowledgeValidator: Sendable {
 
     // MARK: - Tests
 
-    private func testToolSelectionSectionPresent() async -> RuntimeTestCaseResult {
+    private func testCatalogPresent() async -> RuntimeTestCaseResult {
         let start = Date()
-        guard let prompt = loadSystemPrompt() else {
-            return result(testName: "Tool Knowledge: Section Present", passed: false,
-                          message: "AgentSystemAsset.md not found in bundle.", start: start)
+        guard let catalog = loadAsset("AvailableTools.md"), !catalog.isEmpty else {
+            return result(testName: "Tool Knowledge: Catalog Present", passed: false,
+                          message: "AvailableTools.md not found in bundled System Assets.", start: start)
         }
-        guard let section = toolSelectionSection(in: prompt), !section.isEmpty else {
-            return result(testName: "Tool Knowledge: Section Present", passed: false,
-                          message: "TOOL SELECTION & USAGE section missing from AgentSystemAsset.md.", start: start)
+        guard let procedures = loadAsset("CallTool.md"), !procedures.isEmpty else {
+            return result(testName: "Tool Knowledge: Catalog Present", passed: false,
+                          message: "CallTool.md not found in bundled System Assets.", start: start)
         }
-        return result(testName: "Tool Knowledge: Section Present", passed: true,
-                      message: "Section present (\(section.count) chars).", start: start)
+        return result(testName: "Tool Knowledge: Catalog Present", passed: true,
+                      message: "Catalog (\(catalog.count) chars) and procedures (\(procedures.count) chars) present.", start: start)
     }
 
     private func testAllRegisteredToolsDocumented() async -> RuntimeTestCaseResult {
         let start = Date()
-        guard let prompt = loadSystemPrompt(),
-              let section = toolSelectionSection(in: prompt) else {
+        guard let catalog = loadAsset("AvailableTools.md") else {
             return result(testName: "Tool Knowledge: Tools Documented", passed: false,
-                          message: "System prompt or section unavailable.", start: start)
+                          message: "AvailableTools.md unavailable.", start: start)
         }
-        let blocks = toolBlocks(in: section)
+        let documented = Set(catalogToolIds(in: catalog))
         let registry = AssistToolRegistry()
-        let missing = registry.allTools.map(\.id).filter { blocks[$0] == nil }.sorted()
+        let missing = registry.allTools.map(\.id).filter { !documented.contains($0) }.sorted()
         if missing.isEmpty {
             return result(testName: "Tool Knowledge: Tools Documented", passed: true,
-                          message: "All \(registry.allTools.count) registered tools documented.", start: start)
+                          message: "All \(registry.allTools.count) registered tools documented in AvailableTools.md.", start: start)
         }
         return result(testName: "Tool Knowledge: Tools Documented", passed: false,
                       message: "Undocumented tools: \(missing.joined(separator: ", "))", start: start)
     }
 
-    private func testRequiredParametersDocumented() async -> RuntimeTestCaseResult {
-        let start = Date()
-        guard let prompt = loadSystemPrompt(),
-              let section = toolSelectionSection(in: prompt) else {
-            return result(testName: "Tool Knowledge: Params Documented", passed: false,
-                          message: "System prompt or section unavailable.", start: start)
-        }
-        let blocks = toolBlocks(in: section)
-        let registry = AssistToolRegistry()
-        var problems: [String] = []
-        for tool in registry.allTools {
-            guard let block = blocks[tool.id] else { continue }
-            let required = tool.parametersSchema.required ?? []
-            for param in required where !block.contains("`\(param)`") {
-                problems.append("\(tool.id): required param `\(param)` not named in docs")
-            }
-        }
-        if problems.isEmpty {
-            return result(testName: "Tool Knowledge: Params Documented", passed: true,
-                          message: "All required parameters named in tool docs.", start: start)
-        }
-        return result(testName: "Tool Knowledge: Params Documented", passed: false,
-                      message: problems.joined(separator: "; "), start: start)
-    }
-
     private func testNoOrphanedToolDocumentation() async -> RuntimeTestCaseResult {
         let start = Date()
-        guard let prompt = loadSystemPrompt(),
-              let section = toolSelectionSection(in: prompt) else {
+        guard let catalog = loadAsset("AvailableTools.md") else {
             return result(testName: "Tool Knowledge: No Orphan Docs", passed: false,
-                          message: "System prompt or section unavailable.", start: start)
+                          message: "AvailableTools.md unavailable.", start: start)
         }
-        let blocks = toolBlocks(in: section)
+        let documented = catalogToolIds(in: catalog)
         let registry = AssistToolRegistry()
         let registeredIds = Set(registry.allTools.map(\.id))
-        let orphans = blocks.keys.filter { !registeredIds.contains($0) }.sorted()
+        let orphans = documented.filter { !registeredIds.contains($0) }.sorted()
         if orphans.isEmpty {
             return result(testName: "Tool Knowledge: No Orphan Docs", passed: true,
-                          message: "No documented tool ids are unregistered.", start: start)
+                          message: "No catalog entry refers to an unregistered tool.", start: start)
         }
         return result(testName: "Tool Knowledge: No Orphan Docs", passed: false,
                       message: "Orphaned doc entries: \(orphans.joined(separator: ", "))", start: start)
     }
 
-    private func testSectionExtractionRoundTrip() async -> RuntimeTestCaseResult {
+    private func testSafeguardsBaselinePresent() async -> RuntimeTestCaseResult {
         let start = Date()
-        guard let prompt = loadSystemPrompt() else {
-            return result(testName: "Tool Knowledge: Section Extraction", passed: false,
-                          message: "AgentSystemAsset.md not found in bundle.", start: start)
+        guard let safeguards = loadAsset("Safeguards.md"), !safeguards.isEmpty else {
+            return result(testName: "Tool Knowledge: Safeguards Baseline", passed: false,
+                          message: "Safeguards.md not found in bundled System Assets.", start: start)
         }
-        let names = AssistSystemPromptSections.sectionNames(in: prompt)
-        guard names.contains("TOOL SELECTION & USAGE") else {
-            return result(testName: "Tool Knowledge: Section Extraction", passed: false,
-                          message: "sectionNames(in:) did not list TOOL SELECTION & USAGE.", start: start)
+        // Sanity: the mandatory baseline must address credentials and
+        // destructive operations; an empty/gutted file must not pass silently.
+        let lower = safeguards.lowercased()
+        let required = ["credential", "destructive"]
+        let missing = required.filter { !lower.contains($0) }
+        if missing.isEmpty {
+            return result(testName: "Tool Knowledge: Safeguards Baseline", passed: true,
+                          message: "Safeguards.md present (\(safeguards.count) chars).", start: start)
         }
-        guard let extracted = AssistSystemPromptSections.extractSection(named: "## 5. TOOL SELECTION & USAGE", from: prompt),
-              extracted.contains("#### `file_read`") else {
-            return result(testName: "Tool Knowledge: Section Extraction", passed: false,
-                          message: "extractSection(named:from:) failed to round-trip the tool section.", start: start)
+        return result(testName: "Tool Knowledge: Safeguards Baseline", passed: false,
+                      message: "Safeguards.md missing expected topics: \(missing.joined(separator: ", ")).", start: start)
+    }
+
+    private func testIndexReferencesExpectedDocuments() async -> RuntimeTestCaseResult {
+        let start = Date()
+        guard let index = loadAsset("AgentSystemAsset.md"), !index.isEmpty else {
+            return result(testName: "Tool Knowledge: Index Coherent", passed: false,
+                          message: "AgentSystemAsset.md not found in bundled System Assets.", start: start)
         }
-        let missing = AssistSystemPromptSections.extractSection(named: "NO SUCH SECTION", from: prompt)
-        guard missing == nil else {
-            return result(testName: "Tool Knowledge: Section Extraction", passed: false,
-                          message: "extractSection(named:from:) should return nil for unknown sections.", start: start)
+        let expected = ["Identity.md", "Safeguards.md", "CallTool.md", "AvailableTools.md",
+                        "Contexts.md", "ErrorHandling.md", "Authentication.md"]
+        let missing = expected.filter { !index.contains($0) }
+        if missing.isEmpty {
+            return result(testName: "Tool Knowledge: Index Coherent", passed: true,
+                          message: "AgentSystemAsset.md references all expected documents.", start: start)
         }
-        return result(testName: "Tool Knowledge: Section Extraction", passed: true,
-                      message: "\(names.count) sections indexed; extraction round-trips.", start: start)
+        return result(testName: "Tool Knowledge: Index Coherent", passed: false,
+                      message: "Index missing references: \(missing.joined(separator: ", ")).", start: start)
     }
 }
