@@ -256,6 +256,53 @@ export interface DisposableStore extends Disposable {
   disposeAll(): void;
 }
 
+/** One conversation turn preceding a cloud-model prompt. */
+export interface CloudModelHistoryEntry {
+  /** Message role, e.g. "user" or "assistant". */
+  readonly role: string;
+  /** Message content. */
+  readonly content: string;
+}
+
+/**
+ * Request for `cloudModel.complete()`. Carries only the content the host
+ * needs: the endpoint, credentials, and quota are host-side and never
+ * cross the IPC boundary.
+ */
+export interface CloudModelRequest {
+  /** The user prompt. Required and non-empty. */
+  readonly prompt: string;
+  /** Conversation history preceding the prompt. Defaults to empty. */
+  readonly history?: readonly CloudModelHistoryEntry[];
+  /** Optional system prompt prepended by the host. */
+  readonly systemPrompt?: string;
+  /**
+   * Optional model identifier (endpoint model name). Omit to let the
+   * host resolve its default.
+   */
+  readonly modelIdentifier?: string;
+}
+
+/**
+ * Host-mediated access to the SwiftCode Cloud Model.
+ *
+ * Requires the `use.SwiftCodeModel` capability grant. Every call is
+ * authorized by the host and counted against the user's daily quota; a
+ * quota denial surfaces as a typed error (`RESOURCE_LIMIT_EXCEEDED`) and
+ * never as a fabricated response. The extension never sees the endpoint
+ * URL, device fingerprint, or any credentials.
+ */
+export interface CloudModelAPI {
+  /**
+   * Runs one completion through the host's SwiftCode Cloud Model and
+   * resolves to the assistant's text. Rejects with a typed
+   * {@link SDKError} when the capability is not granted
+   * (`PERMISSION_DENIED`), the quota is exhausted
+   * (`RESOURCE_LIMIT_EXCEEDED`), or the service is unavailable.
+   */
+  complete(request: CloudModelRequest): Promise<string>;
+}
+
 /**
  * The context handed to an extension on activation.
  *
@@ -267,6 +314,11 @@ export interface SwiftCodeContext {
   readonly project: ProjectAPI;
   readonly sourceControl: SourceControlAPI;
   readonly build: BuildAPI;
+  /**
+   * SwiftCode Cloud Model access. Requires the `use.SwiftCodeModel`
+   * capability grant; calls are host-mediated and quota-enforced.
+   */
+  readonly cloudModel: CloudModelAPI;
   readonly commands: CommandAPI;
   readonly events: EventAPI;
   readonly log: Logger;

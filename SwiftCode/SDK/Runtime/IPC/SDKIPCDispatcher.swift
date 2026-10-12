@@ -262,6 +262,22 @@ public actor SDKIPCDispatcher {
             let result = try await handle.wait()
             return Self.successResponse(requestId: requestId, payload: result)
 
+        case "cloudModel.complete":
+            // SDKCloudModelAdapter.complete authorizes `.useSwiftCodeModel`
+            // at the broker on every call, enforces the host's quota gate,
+            // and maps host cloud errors onto the SDK taxonomy. The endpoint
+            // URL and device fingerprint never cross this boundary.
+            let request = try Self.decodePayload(
+                SDKCloudModelCompletionRequest.self,
+                from: payload,
+                method: method
+            )
+            let response = try await SDKCloudModelAdapter.shared.complete(request: request, caller: caller)
+            return Self.successResponse(
+                requestId: requestId,
+                payload: SDKJSONValue.object(["response": .string(response)])
+            )
+
         case "build.cancel":
             let handle = try buildHandle(for: payload, method: method)
             await handle.cancel()

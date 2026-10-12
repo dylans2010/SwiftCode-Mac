@@ -11,6 +11,8 @@
  *                             → {"handleId"}
  *   build.wait                payload {"handleId"} → BuildResult
  *   build.cancel              payload {"handleId"}
+ *   cloudModel.complete       payload {"prompt","history?","systemPrompt?","modelIdentifier?"}
+ *                             → {"response"}
  *   commands.register         payload {"id","title"}
  *   commands.unregister       payload {"commandID"}
  *   log.debug|info|warn|error payload {"message","correlationId?"}
@@ -29,6 +31,8 @@ import type {
   BuildOutputEvent,
   BuildRequest,
   BuildResult,
+  CloudModelAPI,
+  CloudModelRequest,
   CommandAPI,
   CommandDefinition,
   DiffOptions,
@@ -444,6 +448,39 @@ export function createContext(
     },
   };
 
+  const cloudModel: CloudModelAPI = {
+    async complete(request: CloudModelRequest): Promise<string> {
+      if (typeof request?.prompt !== "string" || request.prompt.length === 0) {
+        throw new SDKError("INVALID_ARGUMENT", "Cloud model prompt must be a non-empty string.");
+      }
+      const payload: Record<string, unknown> = { prompt: request.prompt };
+      if (request.history !== undefined) {
+        if (!Array.isArray(request.history)) {
+          throw new SDKError("INVALID_ARGUMENT", "Cloud model history must be an array of {role, content} entries.");
+        }
+        payload["history"] = request.history.map((entry) => ({
+          role: entry.role,
+          content: entry.content,
+        }));
+      }
+      if (request.systemPrompt !== undefined) payload["systemPrompt"] = request.systemPrompt;
+      if (request.modelIdentifier !== undefined) payload["modelIdentifier"] = request.modelIdentifier;
+      // Exact method string: matches the Swift dispatcher's "cloudModel.complete" route.
+      const response = await connection.request<{ response: string }>("cloudModel.complete", payload);
+      if (typeof response?.response !== "string") {
+        throw new SDKError(
+          "IPC_MALFORMED",
+          "The host returned an invalid cloud model response.",
+          undefined,
+        );
+      }
+      // Host denies (PERMISSION_DENIED / RESOURCE_LIMIT_EXCEEDED) arrive
+      // here as rejected SDKError promises from connection.request — never
+      // as fabricated text. They propagate untouched.
+      return response.response;
+    },
+  };
+
   const commands: CommandAPI = {
     register(definition: CommandDefinition): Disposable {
       validateCommandDefinition(definition);
@@ -518,6 +555,7 @@ export function createContext(
     project,
     sourceControl,
     build,
+    cloudModel,
     commands,
     events,
     log,
