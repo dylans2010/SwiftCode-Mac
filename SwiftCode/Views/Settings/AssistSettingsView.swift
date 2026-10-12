@@ -814,39 +814,7 @@ struct AssistSettingsView: View {
                                     Divider()
 
                                     // 4. SwiftCode Cloud Model
-                                    VStack(alignment: .leading, spacing: 6) {
-                                        Toggle(isOn: $settings.useSwiftCodeCloudModel) {
-                                            HStack {
-                                                Text("Use SwiftCode's Cloud Model")
-                                                    .font(.system(size: 12, weight: .medium))
-                                                Spacer()
-                                                Text("\(SCCloudModelClient.shared.remainingRequestsToday)/\(SCCloudConfiguration.dailyRequestLimit) left today")
-                                                    .font(.system(size: 10, weight: .semibold))
-                                                    .foregroundStyle(SCCloudModelClient.shared.remainingRequestsToday > 0 ? .secondary : .orange)
-                                            }
-                                        }
-                                        .toggleStyle(.switch)
-                                        .controlSize(.small)
-                                        .onChange(of: settings.useSwiftCodeCloudModel) { _, isOn in
-                                            if isOn {
-                                                // Provision the device fingerprint the moment the user opts in.
-                                                // The fingerprint itself is never exposed to the UI.
-                                                SCCloudDeviceFingerprint.ensureFingerprint()
-                                                // Discover the server's models right away so the user
-                                                // can pick one instead of waiting for the picker to load.
-                                                Task { await refreshCloudModels() }
-                                            }
-                                        }
-
-                                        Text("Adds SwiftCode's hosted cloud models to the model picker. Works with any routing strategy — no API key or sign-in required. Limited to \(SCCloudConfiguration.dailyRequestLimit) requests per device per day for fair use.")
-                                            .font(.system(size: 10))
-                                            .foregroundStyle(.secondary)
-
-                                        if settings.useSwiftCodeCloudModel {
-                                            Divider()
-                                            cloudModelListSection
-                                        }
-                                    }
+                                    swiftCodeCloudSection
                                 }
                                 .padding(10)
                                 .background(Color.primary.opacity(0.02), in: RoundedRectangle(cornerRadius: 8))
@@ -2073,6 +2041,51 @@ struct AssistSettingsView: View {
         .padding(.horizontal, 9)
         .padding(.vertical, 5)
         .background(Color.purple.opacity(0.08), in: RoundedRectangle(cornerRadius: 6))
+    }
+
+    @ViewBuilder
+    // MARK: - SwiftCode Cloud Model Section
+
+    /// The whole "Use SwiftCode's Cloud Model" settings block. Extracted from
+    /// the settings body: the quota text's interpolation plus the ternary in
+    /// foregroundStyle exceeded the type-checker's budget inline.
+    private var swiftCodeCloudSection: some View {
+        // Hoisted so the Toggle label stays a trivial expression.
+        let cloudRemaining = SCCloudModelClient.shared.remainingRequestsToday
+        let cloudLimit = SCCloudConfiguration.dailyRequestLimit
+        return VStack(alignment: .leading, spacing: 6) {
+            Toggle(isOn: $settings.useSwiftCodeCloudModel) {
+                HStack {
+                    Text("Use SwiftCode's Cloud Model")
+                        .font(.system(size: 12, weight: .medium))
+                    Spacer()
+                    Text("\(cloudRemaining)/\(cloudLimit) left today")
+                        .font(.system(size: 10, weight: .semibold))
+                        .foregroundStyle(cloudRemaining > 0 ? Color.secondary : Color.orange)
+                }
+            }
+            .toggleStyle(.switch)
+            .controlSize(.small)
+            .onChange(of: settings.useSwiftCodeCloudModel) { _, isOn in
+                if isOn {
+                    // Provision the device fingerprint the moment the user opts in.
+                    // The fingerprint itself is never exposed to the UI.
+                    SCCloudDeviceFingerprint.ensureFingerprint()
+                    // Discover the server's models right away so the user
+                    // can pick one instead of waiting for the picker to load.
+                    Task { await refreshCloudModels() }
+                }
+            }
+
+            Text("Adds SwiftCode's hosted cloud models to the model picker. Works with any routing strategy — no API key or sign-in required. Limited to \(cloudLimit) requests per device per day for fair use.")
+                .font(.system(size: 10))
+                .foregroundStyle(.secondary)
+
+            if settings.useSwiftCodeCloudModel {
+                Divider()
+                cloudModelListSection
+            }
+        }
     }
 
     @ViewBuilder
