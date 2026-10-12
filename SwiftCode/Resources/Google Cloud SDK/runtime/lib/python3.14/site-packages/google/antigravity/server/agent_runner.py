@@ -52,6 +52,101 @@ from google.antigravity.tools.tool_runner import ToolWithSchema
 logger = logging.getLogger("AntigravityAgentRunner")
 
 
+# Header the Gemini Developer API requires on OAuth-authenticated requests so
+# usage is attributed to a quota project. See
+# https://ai.google.dev/gemini-api/docs/oauth
+USER_PROJECT_HEADER = "x-goog-user-project"
+
+
+class GeminiAuthConfigError(ValueError):
+    """Raised when the Gemini auth mode/endpoint combination is misconfigured.
+
+    The message is user-actionable: it names the missing piece (API key, OAuth
+    token, quota project, Vertex project/location) instead of letting the
+    request fail later with a cryptic provider error.
+    """
+
+
+def resolve_gemini_auth(*, api_key, oauth_token, vertex, project, location,
+                        http_headers):
+    """Decide the Gemini auth mode and endpoint from the session parameters.
+
+    Account-first contract (mirrors SwiftCode's provider architecture):
+      - vertex=True                              -> "vertex": Vertex AI.
+        With an API key this is Express mode (project/location optional);
+        otherwise Standard mode, which requires an explicit project and
+        location; they are never fabricated.
+      - oauth_token present (vertex not set)     -> "oauth": Gemini Developer
+        API with an OAuth Bearer token. Requires the quota project
+        (x-goog-user-project) per Google's documented OAuth contract for the
+        Developer API. Usage bills to that Google Cloud project.
+      - api_key present (no oauth_token)         -> "api_key": Gemini
+        Developer API with an API key (explicit opt-in alternative).
+      - neither                                  -> raises GeminiAuthConfigError.
+
+    An OAuth token is never sent as an API key and an API key is never
+    attached to an account-authenticated request: the two credential kinds
+    select disjoint code paths.
+
+    Returns (mode, resolved_project, resolved_location).
+    """
+    headers = dict(http_headers or {})
+    header_project = (
+        headers.get(USER_PROJECT_HEADER)
+        or headers.get(USER_PROJECT_HEADER.lower())
+        or headers.get(USER_PROJECT_HEADER.upper())
+    )
+
+    def _clean(value):
+        if value is None:
+            return None
+        text = str(value).strip()
+        return text or None
+
+    api_key = _clean(api_key)
+    oauth_token = _clean(oauth_token)
+    project = _clean(project) or _clean(os.environ.get("GOOGLE_CLOUD_PROJECT"))
+    location = _clean(location) or _clean(os.environ.get("GOOGLE_CLOUD_LOCATION"))
+    user_project = _clean(header_project) or project
+
+    if vertex:
+        # Explicit Vertex AI selection. With an API key this is Vertex Express
+        # mode (project/location optional); otherwise (OAuth or ambient
+        # credentials) it is Standard mode and requires both.
+        if api_key and not oauth_token:
+            return ("vertex", project, location)
+        if not project or not location:
+            raise GeminiAuthConfigError(
+                "Vertex AI authentication requires an explicit Google Cloud "
+                "project and location, but one or both are missing. Set the "
+                "project and location in SwiftCode's Google settings; they "
+                "cannot be inferred from an OAuth token."
+            )
+        return ("vertex", project, location)
+    if oauth_token:
+        if not user_project:
+            raise GeminiAuthConfigError(
+                "Google account authentication needs a quota project: the Gemini "
+                "Developer API requires the 'x-goog-user-project' header on "
+                "OAuth requests so usage can be attributed to a Google Cloud "
+                "project. Set your Google Cloud project ID in SwiftCode Settings "
+                "> Assist > Google Account (or the GOOGLE_CLOUD_PROJECT "
+                "environment variable). API-key authentication remains available "
+                "as an explicit alternative in Settings."
+            )
+        return ("oauth", user_project, location)
+
+    if api_key:
+        return ("api_key", project, location)
+
+    raise GeminiAuthConfigError(
+        "No Gemini credentials were provided: neither an OAuth token (Google "
+        "account authentication) nor an API key. Sign in with Google or enter a "
+        "Gemini API key in SwiftCode Settings > Assist."
+    )
+
+
+
 def sanitize_schema(schema: Any) -> Any:
     """Sanitizes JSON schemas from clients to ensure full compliance with Gemini/OpenAPI."""
     if not isinstance(schema, dict):
@@ -854,42 +949,62 @@ class AgentRunner:
                 if http_headers:
                     config_kwargs["http_headers"] = http_headers
 
-                use_vertex = vertex or bool(oauth_token and not api_key)
-                if use_vertex:
-                    config_kwargs["vertex"] = True
-                    if project:
-                        config_kwargs["project"] = project
-                    if location:
-                        config_kwargs["location"] = location
+                # Resolve the account-first auth contract before building the
+                # endpoint. Raises GeminiAuthConfigError with an actionable
+                # message (missing quota project, missing Vertex project, no
+                # credentials) instead of failing later with a cryptic 403.
+                # An OAuth token is never sent as an API key, and an API key is
+                # never attached to an account-authenticated request: the two
+                # credential kinds select disjoint branches below.
+                auth_mode, auth_project, auth_location = resolve_gemini_auth(
+                    api_key=api_key,
+                    oauth_token=oauth_token,
+                    vertex=vertex,
+                    project=project,
+                    location=location,
+                    http_headers=http_headers,
+                )
 
-                # Configure VertexEndpoint / GeminiAPIEndpoint when http_headers or oauthToken is present
-                if http_headers:
-                    if use_vertex and VertexEndpoint is not None:
+                if auth_mode == "vertex":
+                    config_kwargs["vertex"] = True
+                    config_kwargs["project"] = auth_project
+                    config_kwargs["location"] = auth_location
+                elif auth_mode == "oauth":
+                    # The Developer API attributes OAuth usage to a quota
+                    # project; ensure the header is present even when the
+                    # project came from params/env rather than headers.
+                    http_headers[USER_PROJECT_HEADER] = auth_project
+                    config_kwargs["http_headers"] = http_headers
+
+                # Build the explicit model endpoint for the resolved auth mode.
+                endpoint = None
+                if auth_mode == "vertex" and VertexEndpoint is not None:
+                    if auth_project and auth_location:
                         endpoint = VertexEndpoint(
-                            project=project or os.environ.get("GOOGLE_CLOUD_PROJECT") or "-",
-                            location=location or os.environ.get("GOOGLE_CLOUD_LOCATION") or "us-central1",
+                            project=auth_project,
+                            location=auth_location,
+                            http_headers=http_headers,
+                        )
+                    else:
+                        # Vertex Express mode: API key authentication.
+                        endpoint = VertexEndpoint(
                             api_key=api_key,
                             http_headers=http_headers,
                         )
-                        config_kwargs["models"] = [
-                            types.ModelTarget(
-                                name=model,
-                                types=[types.ModelType.TEXT],
-                                endpoint=endpoint,
-                            )
-                        ]
-                    elif GeminiAPIEndpoint is not None:
-                        endpoint = GeminiAPIEndpoint(
-                            api_key=api_key,
-                            http_headers=http_headers,
+                elif GeminiAPIEndpoint is not None:
+                    endpoint_kwargs: Dict[str, Any] = {"http_headers": http_headers}
+                    if auth_mode == "api_key":
+                        endpoint_kwargs["api_key"] = api_key
+                    endpoint = GeminiAPIEndpoint(**endpoint_kwargs)
+
+                if endpoint is not None:
+                    config_kwargs["models"] = [
+                        types.ModelTarget(
+                            name=model,
+                            types=[types.ModelType.TEXT],
+                            endpoint=endpoint,
                         )
-                        config_kwargs["models"] = [
-                            types.ModelTarget(
-                                name=model,
-                                types=[types.ModelType.TEXT],
-                                endpoint=endpoint,
-                            )
-                        ]
+                    ]
 
                 if system_instructions:
                     config_kwargs["system_instructions"] = system_instructions

@@ -152,9 +152,19 @@ public actor GoogleCloudSDKProcess {
             env["ANTIGRAVITY_HARNESS_PATH"] = harnessURL.path
         }
 
+        // Credential-kind separation at the process boundary: in Google account
+        // mode the bridge must never see an API key, even when the OAuth token
+        // is currently unavailable. Falling back to GEMINI_API_KEY here would
+        // silently switch the session from account authentication to API-key
+        // authentication; instead the bridge raises an explicit "no
+        // credentials" error naming the missing sign-in.
+        // Note: UserDefaults is read directly (rather than AppSettings.shared,
+        // which is @MainActor) because this runs on the process actor.
+        let googleAuthMode = UserDefaults.standard.string(forKey: "assist_google_auth_mode") ?? "google_oauth"
+        let isOAuthMode = googleAuthMode == "google_oauth"
         if let oauthToken = try await GoogleAccountAuthService.shared.getValidAccessToken(), !oauthToken.isEmpty {
             env["GOOGLE_OAUTH_ACCESS_TOKEN"] = oauthToken
-        } else if let apiKey = KeychainService.shared.get(forKey: LLMProvider.google.keychainKey), !apiKey.isEmpty {
+        } else if !isOAuthMode, let apiKey = KeychainService.shared.get(forKey: LLMProvider.google.keychainKey), !apiKey.isEmpty {
             env["GEMINI_API_KEY"] = apiKey
         }
 

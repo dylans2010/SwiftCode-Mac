@@ -555,7 +555,9 @@ struct AssistSettingsView: View {
     @State private var composioService = ComposioService.shared
 
     // Google Account Auth Integration & Antigravity Quota
-    @AppStorage("assist_google_auth_mode") private var assistGoogleAuthMode: String = "api_key"
+    // Account authentication ("Sign in with Google") is the default mode;
+    // API-key mode is an explicit opt-in alternative.
+    @AppStorage("assist_google_auth_mode") private var assistGoogleAuthMode: String = "google_oauth"
     @ObservedObject private var googleAuth = GoogleAccountAuthService.shared
     @ObservedObject private var quotaService = AntigravityQuotaService.shared
     @ObservedObject private var sdkModelFetcher = AntigravitySDKModelFetcher.shared
@@ -985,9 +987,24 @@ struct AssistSettingsView: View {
                                                 }
                                             }
 
-                                            Text("Direct access to Gemini & Vertex AI models using your account allowance instead of personal API keys.")
+                                            Text("Sign in with your Google account to use Gemini models without an API key. OAuth usage is attributed to your Google Cloud project below (the Gemini API's documented account-authentication contract).")
                                                 .font(.caption2)
                                                 .foregroundColor(.secondary)
+
+                                            VStack(alignment: .leading, spacing: 4) {
+                                                Text("Google Cloud Project ID")
+                                                    .font(.caption2.bold())
+                                                TextField("my-project-id", text: Binding(
+                                                    get: { AppSettings.shared.assistGoogleCloudProject },
+                                                    set: { AppSettings.shared.assistGoogleCloudProject = $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+                                                ))
+                                                .textFieldStyle(.roundedBorder)
+                                                .font(.caption2)
+                                                Text("Required for Sign in with Google: the Gemini API bills OAuth usage to this project. Find it in the Google Cloud console.")
+                                                    .font(.caption2)
+                                                    .foregroundColor(.secondary)
+                                            }
+                                            .padding(.top, 2)
 
                                             if let error = googleAuth.authError {
                                                 HStack(alignment: .top, spacing: 4) {
