@@ -55,6 +55,10 @@ public final class AssistModelRouter: Sendable {
 
     public func resolveDefaultModel() async -> AssistAvailableModel {
         let preferredID = AppSettings.shared.selectedAssistModelID
+        // SwiftCode Cloud Model short-circuit: never subject to provider discovery.
+        if AppSettings.shared.useSwiftCodeCloudModel && preferredID == SCCloudConfiguration.modelID {
+            return createSyntheticCloudModel()
+        }
         // Model discovery is an optional metadata refresh, not a prerequisite
         // for dispatching a request. The selected model's provider and
         // capabilities are already known locally, so never hold a normal
@@ -166,6 +170,17 @@ public final class AssistModelRouter: Sendable {
     public func selectModelForSDK(objective: String = "") async -> (model: AssistAvailableModel, config: GoogleCloudSDKConfiguration)? {
         let strategy = AppSettings.shared.assistModelRoutingStrategy
         let selectedId = AppSettings.shared.selectedAssistModelID
+
+        // SwiftCode Cloud Model: usable under EVERY routing strategy (SDK Default,
+        // Gemini Key Rotation, App Model Catalog) whenever the toggle is on. It
+        // bypasses provider credentials entirely — SCCloudModelClient owns
+        // identity (device fingerprint) and fair-use metering.
+        if AppSettings.shared.useSwiftCodeCloudModel && selectedId == SCCloudConfiguration.modelID {
+            let cloudModel = createSyntheticCloudModel()
+            self.currentRuntimeModel = cloudModel
+            let config = buildSDKConfiguration(for: cloudModel, objective: objective)
+            return (cloudModel, config)
+        }
 
         let targetModel: AssistAvailableModel
 
@@ -313,7 +328,45 @@ public final class AssistModelRouter: Sendable {
             return true
         }
 
-        return rankModels(eligible)
+        var ranked = rankModels(eligible)
+        if AppSettings.shared.useSwiftCodeCloudModel {
+            // The cloud model is eligible under every strategy. It is a direct
+            // (non-agentic) chat model, so it joins after the agentic filter above
+            // rather than being forced through it.
+            ranked.removeAll { $0.id == SCCloudConfiguration.modelID }
+            ranked.append(createSyntheticCloudModel())
+        }
+        return ranked
+    }
+
+    /// Synthetic model record for the SwiftCode Cloud Model. Returned whenever the
+    /// "Use SwiftCode's Cloud Model" toggle is on and this model is selected —
+    /// under any routing strategy. Execution bypasses the Antigravity SDK session
+    /// (see AssistManager.sendSwiftCodeCloudMessage); the providerID here only
+    /// needs to avoid the Gemini/Google credential gate.
+    public func createSyntheticCloudModel() -> AssistAvailableModel {
+        let remaining = SCCloudRateLimiter.shared.remainingToday
+        return AssistAvailableModel(
+            id: SCCloudConfiguration.modelID,
+            displayName: SCCloudConfiguration.displayName,
+            providerID: SCCloudConfiguration.providerID,
+            providerName: SCCloudConfiguration.providerName,
+            modelIdentifier: SCCloudConfiguration.modelIdentifier,
+            capabilities: [.structuredOutput, .systemInstructions, .codeGeneration, .largeContext],
+            source: .custom,
+            isConfigured: SCCloudConfiguration.isConfigured,
+            isAvailable: AppSettings.shared.useSwiftCodeCloudModel,
+            supportsStreaming: false,
+            supportsToolCalling: false,
+            supportsVision: false,
+            supportsStructuredOutput: true,
+            supportsAgenticUse: false,
+            supportsSubagents: false,
+            priority: 1,
+            statusDescription: "SwiftCode Cloud · \(remaining)/\(SCCloudConfiguration.dailyRequestLimit) left today",
+            status: .available,
+            contextWindow: 128_000
+        )
     }
 
     public func createSyntheticSDKModel(modelID: String) -> AssistAvailableModel {
