@@ -105,6 +105,49 @@ public final class AssistManager: ObservableObject {
         saveHistory()
     }
 
+    /// Posts a warning/error as a first-class chat message — yellow for
+    /// warnings, red for errors, tappable to expand, with an optional
+    /// Server Error dialog carrying the raw API detail. The entry is also
+    /// recorded in the log feed. This replaces bare logger.warning/error
+    /// for user-facing events so nothing important only lives in the log.
+    /// When `replacingPlaceholder` is true and the trailing message is the
+    /// empty assistant "thinking" placeholder, it is replaced in place.
+    public func postNotice(
+        _ level: AssistNoticeLevel,
+        _ message: String,
+        serverError: ServerErrorDetail? = nil,
+        replacingPlaceholder: Bool = false
+    ) async {
+        switch level {
+        case .warning: await logger.warning(message)
+        case .error: await logger.error(message)
+        }
+        await MainActor.run {
+            var notice = AssistMessage(role: .system, content: message)
+            notice.noticeLevel = level
+            notice.serverError = serverError
+            if replacingPlaceholder,
+               let idx = self.messages.indices.last,
+               self.messages[idx].role == .assistant,
+               self.messages[idx].content.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                self.messages[idx] = notice
+            } else {
+                self.messages.append(notice)
+            }
+            self.saveHistory()
+        }
+    }
+
+    /// Shows the "Loading instructions…" phase only when the System Index
+    /// genuinely isn't ready yet. The index is warmed at app launch, so
+    /// retrieval is instant for any model once it's ready.
+    private func beginInstructionRetrievalPhaseIfNeeded() async {
+        if case .ready = await SystemIndexService.shared.status() {
+            return
+        }
+        setRequestPhase(.retrievingInstructions)
+    }
+
     private func nextGeneration() -> AssistRequestGeneration {
         requestGenerationValue += 1
         return AssistRequestGeneration(requestGenerationValue)
@@ -520,7 +563,7 @@ public final class AssistManager: ObservableObject {
         // Chat mode is conversational (no tools); it carries the short chat
         // system prompt plus selectively retrieved task sections — never the
         // whole instruction corpus.
-        setRequestPhase(.retrievingInstructions)
+        await beginInstructionRetrievalPhaseIfNeeded()
         metrics.mark(.systemIndexRetrievalStarted)
         let instructionQuery = InstructionQueryContext(
             userText: trimmed,
@@ -974,7 +1017,7 @@ public final class AssistManager: ObservableObject {
         metrics?.mark(.modelResolved)
 
         // SystemIndex instruction retrieval for SwiftCode Cloud Model
-        setRequestPhase(.retrievingInstructions)
+        await beginInstructionRetrievalPhaseIfNeeded()
         metrics?.mark(.systemIndexRetrievalStarted)
         let instructionQuery = InstructionQueryContext(
             userText: content,
@@ -993,7 +1036,8 @@ public final class AssistManager: ObservableObject {
 
         // Recent conversation as context (excluding the placeholder just appended).
         let history: [(role: String, content: String)] = await MainActor.run {
-            self.messages.dropLast().suffix(12).map { ($0.role.rawValue, $0.content) }
+            // Notices (warnings/errors) are UI-only — never model context.
+            self.messages.dropLast().filter { $0.noticeLevel == nil }.suffix(12).map { ($0.role.rawValue, $0.content) }
         }
 
         // Fold decodable text attachments and retrieved instructions into the prompt.
@@ -1037,17 +1081,17 @@ public final class AssistManager: ObservableObject {
                 self.processNextQueuedMessageIfAny()
             }
         } catch {
-            let friendly = (error as? SCCloudError)?.userFacingMessage ?? error.localizedDescription
+            let scError = error as? SCCloudError
+            let friendly = scError?.userFacingMessage ?? error.localizedDescription
+            // Raw API detail for the Server Error dialog — endpoint, status
+            // code, and response body straight from the HTTP exchange.
+            let detail = ServerErrorDetail(
+                endpoint: SCCloudConfiguration.chatURL?.absoluteString ?? SCCloudConfiguration.baseURLString,
+                statusCode: scError?.httpStatusCode,
+                rawBody: scError?.rawResponseBody ?? error.localizedDescription
+            )
+            await postNotice(.error, "SwiftCode Cloud Model: \(friendly)", serverError: detail, replacingPlaceholder: true)
             await MainActor.run {
-                let message = "SwiftCode Cloud Model: \(friendly)"
-                self.lastError = message
-                if let idx = self.messages.indices.last {
-                    var existing = self.messages[idx]
-                    existing.content = message
-                    self.messages[idx] = existing
-                } else {
-                    self.messages.append(AssistMessage(role: .assistant, content: message))
-                }
                 self.currentActivityStatus = "Idle"
                 self.isProcessing = false
                 self.saveHistory()
@@ -1184,7 +1228,7 @@ public final class AssistManager: ObservableObject {
         // sessions remain reusable); the task-specific sections retrieved here
         // travel with this request's prompt instead of the whole corpus.
         metrics?.mark(.credentialsResolved)
-        setRequestPhase(.retrievingInstructions)
+        await beginInstructionRetrievalPhaseIfNeeded()
         metrics?.mark(.systemIndexRetrievalStarted)
         let instructionQuery = InstructionQueryContext(
             userText: content,
@@ -1823,7 +1867,7 @@ public final class AssistManager: ObservableObject {
 
                     // 2. Multi-Provider Failover
                     let priorOutput = await MainActor.run { self.messages.last?.content ?? "" }
-                    await logger.warning("[AssistManager] Model '\(currentModelName)' failed: \(errText)")
+                    await postNotice(.warning, "Model '\(currentModelName)' failed: \(errText)")
                     if let failover = await AssistModelRouter.shared.handleTurnFailure(
                         failedModelIdentifier: currentModelId,
                         errorText: errText,
@@ -1832,7 +1876,7 @@ public final class AssistManager: ObservableObject {
                     ) {
                         let oldName = currentModelName
                         let newName = failover.nextModel.displayName
-                        await logger.warning("[AssistManager] Model '\(oldName)' failed. Failing over to '\(newName)'. Error: \(errText)")
+                        await postNotice(.warning, "Model '\(oldName)' failed. Failing over to '\(newName)'. Error: \(errText)")
                         metrics?.mark(.followUpRequestInitiated)
                         await MainActor.run {
                             self.currentActivityStatus = "\(oldName) error — switching to \(newName)"
@@ -1878,7 +1922,6 @@ public final class AssistManager: ObservableObject {
                 // Terminal failure
                 let rawErr = turnError ?? ((altKeysEnabled && isGemini) ? "All configured Gemini API keys are currently unavailable." : "\(currentModelName) execution failed")
                 let finalErrorMsg = "Error (\(currentModelName)): \(rawErr)"
-                await logger.error("[AssistManager] Terminal failure: \(finalErrorMsg)")
                 // C-3: a terminal authentication failure poisons the session
                 // (its bearer is dead). Close and drop it so the next request
                 // starts clean instead of reusing dead credentials.
@@ -1887,19 +1930,13 @@ public final class AssistManager: ObservableObject {
                     await runtime.closeSession(id: currentSession.id)
                     await MainActor.run { self.activeGoogleCloudSession = nil }
                 }
+                // Red, expandable notice message (also recorded in the log feed).
+                await postNotice(.error, finalErrorMsg, replacingPlaceholder: true)
                 await MainActor.run {
                     self.lastError = finalErrorMsg
                     if let idx = self.messages.indices.last {
                         self.messages[idx].activityGroup?.isExecuting = false
-                        if self.messages[idx].content.isEmpty {
-                            self.messages[idx] = AssistMessage(role: .assistant, content: finalErrorMsg)
-                        } else {
-                            self.messages.append(AssistMessage(role: .system, content: finalErrorMsg))
-                        }
-                    } else {
-                        self.messages.append(AssistMessage(role: .system, content: finalErrorMsg))
                     }
-                    self.saveHistory()
                     self.setRequestPhase(.failed)
                     self.isProcessing = false
                 }

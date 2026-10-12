@@ -520,6 +520,9 @@ struct AssistSettingsView: View {
     @State private var googleOAuthClientIDInput = ""
     // Disclosure expansion state.
     @State private var isAPIKeysExpanded = false
+    // Terminal Command Approvals opens as a sheet: AssistSettingsView isn't
+    // hosted in a NavigationStack, so a NavigationLink would never navigate.
+    @State private var showingTerminalCommands = false
     @State private var isAdvancedExpanded = false
     // SwiftCode Cloud discovered models.
     @State private var cloudModels: [SCCloudModelInfo] = []
@@ -1789,11 +1792,17 @@ struct AssistSettingsView: View {
                                 .font(.headline)
                                 .foregroundColor(.blue)
                             Spacer()
-                            NavigationLink(destination: AllowedTerminalCommandsView()) {
+                            Button {
+                                showingTerminalCommands = true
+                            } label: {
                                 Label("Manage", systemImage: "chevron.right")
                                     .font(.caption)
                             }
                             .buttonStyle(.plain)
+                        }
+                        .sheet(isPresented: $showingTerminalCommands) {
+                            AllowedTerminalCommandsView()
+                                .frame(minWidth: 560, minHeight: 520)
                         }
 
                         Text("Choose which terminal commands Assist may run without asking for approval, or enable Full Access to skip approval for every command.")

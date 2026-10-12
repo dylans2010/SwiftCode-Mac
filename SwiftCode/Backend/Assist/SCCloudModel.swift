@@ -92,6 +92,11 @@ public enum SCCloudConfiguration {
     public static let dailyRequestLimit = 10
     public static let rateLimitWindow: TimeInterval = 24 * 60 * 60
 
+    /// How long a chat request may take. Generous on purpose: on a small VPS
+    /// a cold model load plus slow generation can take minutes.
+    public static let requestTimeout: TimeInterval = 180
+    public static let resourceTimeout: TimeInterval = 300
+
     /// True for the legacy "swiftcode-cloud" ID and every per-model
     /// "swiftcode-cloud:<name>" ID.
     public static func isCloudModelID(_ id: String) -> Bool {
@@ -206,7 +211,7 @@ public enum SCCloudConfiguration {
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.setValue(fingerprint, forHTTPHeaderField: fingerprintHeaderName)
-        request.timeoutInterval = 120
+        request.timeoutInterval = SCCloudConfiguration.requestTimeout
 
         var messages: [[String: String]] = history.map { ["role": $0.role, "content": $0.content] }
         messages.append(["role": "user", "content": prompt])
@@ -710,9 +715,19 @@ public enum SCCloudError: LocalizedError, Sendable {
             }
             return "Daily limit reached — the SwiftCode Cloud Model allows \(SCCloudConfiguration.dailyRequestLimit) requests per day per device for fair use. Try again in 24 hours."
         case .network(let underlying):
+            // Timeouts get an honest, actionable message: on a small VPS a
+            // cold model load plus slow generation can genuinely exceed the
+            // timeout — it's usually not a dead endpoint.
+            let nsError = underlying as NSError
+            if nsError.domain == NSURLErrorDomain && nsError.code == NSURLErrorTimedOut {
+                return "The request timed out after \(Int(SCCloudConfiguration.requestTimeout))s without a response. The model may still be loading on the server (cold start takes a while on small machines) — try again, or pick a smaller model."
+            }
             return "Couldn't reach the SwiftCode Cloud endpoint: \(underlying.localizedDescription)"
         case .server(let statusCode, let message):
-            return "SwiftCode Cloud returned an error (HTTP \(statusCode)): \(message)"
+            // The chat line shows a preview; the full body lives in the
+            // Server Error dialog via rawResponseBody.
+            let preview = message.count > 300 ? String(message.prefix(300)) + "…" : message
+            return "SwiftCode Cloud returned an error (HTTP \(statusCode)): \(preview)"
         case .invalidResponse:
             return "The SwiftCode Cloud endpoint returned a response SwiftCode couldn't understand."
         case .noModelAvailable:
@@ -721,6 +736,22 @@ public enum SCCloudError: LocalizedError, Sendable {
     }
 
     public var errorDescription: String? { userFacingMessage }
+
+    /// HTTP status code when the server answered with an error, else nil.
+    public var httpStatusCode: Int? {
+        if case .server(let statusCode, _) = self { return statusCode }
+        return nil
+    }
+
+    /// The raw response body for server errors (up to the stored cap) — this
+    /// is what the Server Error dialog shows, straight from the API.
+    public var rawResponseBody: String? {
+        switch self {
+        case .server(_, let body): return body
+        case .network(let underlying): return underlying.localizedDescription
+        default: return nil
+        }
+    }
 }
 
 // MARK: - Client
@@ -736,8 +767,8 @@ public final class SCCloudModelClient: Sendable {
 
     private init() {
         let config = URLSessionConfiguration.ephemeral
-        config.timeoutIntervalForRequest = 120
-        config.timeoutIntervalForResource = 180
+        config.timeoutIntervalForRequest = SCCloudConfiguration.requestTimeout
+        config.timeoutIntervalForResource = SCCloudConfiguration.resourceTimeout
         self.session = URLSession(configuration: config)
     }
 
@@ -810,10 +841,12 @@ public final class SCCloudModelClient: Sendable {
             logger.warning("[SCCloud] Backend reported 429 — treating as rate limited.")
             throw SCCloudError.rateLimited(retryAfter: nil)
         default:
+            // Store the full body (capped) so the Server Error dialog can show
+            // exactly what the API returned; the chat line shows a preview.
             let message: String
             if let text = String(data: data, encoding: .utf8),
                !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                message = String(text.prefix(300))
+                message = String(text.prefix(8000))
             } else {
                 message = "No response body."
             }

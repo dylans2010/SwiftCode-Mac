@@ -541,6 +541,12 @@ public struct AssistMessage: Codable, Identifiable, Sendable {
     public var activityGroup: AssistActivityGroup?
     public var thinkingContent: String?
     public var thinkingDuration: TimeInterval?
+    /// When set, this message is a warning/error notice: rendered yellow/red,
+    /// tappable to expand, never sent to a model as conversation context.
+    public var noticeLevel: AssistNoticeLevel?
+    /// Raw server-side error backing a notice. Pulled straight from the model
+    /// API (endpoint, status code, response body) — never hardcoded text.
+    public var serverError: ServerErrorDetail?
 
     public init(
         role: AssistRole,
@@ -550,7 +556,9 @@ public struct AssistMessage: Codable, Identifiable, Sendable {
         composioExecution: ComposioExecutionMetadata? = nil,
         activityGroup: AssistActivityGroup? = nil,
         thinkingContent: String? = nil,
-        thinkingDuration: TimeInterval? = nil
+        thinkingDuration: TimeInterval? = nil,
+        noticeLevel: AssistNoticeLevel? = nil,
+        serverError: ServerErrorDetail? = nil
     ) {
         self.id = UUID()
         self.role = role
@@ -562,6 +570,31 @@ public struct AssistMessage: Codable, Identifiable, Sendable {
         self.activityGroup = activityGroup
         self.thinkingContent = thinkingContent
         self.thinkingDuration = thinkingDuration
+        self.noticeLevel = noticeLevel
+        self.serverError = serverError
+    }
+}
+
+/// Severity of a notice message. Warnings render yellow, errors red.
+public enum AssistNoticeLevel: String, Codable, Sendable {
+    case warning
+    case error
+}
+
+/// Raw error detail from a model API call. Every field comes straight from
+/// the actual HTTP exchange — endpoint, status code, response body — so the
+/// Server Error dialog shows what the server really said.
+public struct ServerErrorDetail: Codable, Sendable, Hashable {
+    public let endpoint: String
+    public let statusCode: Int?
+    public let rawBody: String
+    public let timestamp: Date
+
+    public init(endpoint: String, statusCode: Int?, rawBody: String, timestamp: Date = Date()) {
+        self.endpoint = endpoint
+        self.statusCode = statusCode
+        self.rawBody = rawBody
+        self.timestamp = timestamp
     }
 }
 

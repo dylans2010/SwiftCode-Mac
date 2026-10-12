@@ -22,6 +22,10 @@ struct SwiftCodeApp: App {
         AgentSystemInitializer.shared.initialize()
         StylingBootstrap.initialize()
         LicenseCatalog.prewarm()
+        // SwiftCode SDK host bootstrap (one-time, idempotent): registers the
+        // built-in view openers on the main actor before any extension can
+        // call `ui.openView`. Failures are logged, not thrown, by the bootstrap.
+        Task { await SDKBootstrap.bootstrapIfNeeded() }
     }
 
     @State private var sessionStore = ProjectSessionStore.shared
@@ -79,6 +83,14 @@ struct SwiftCodeApp: App {
                 NotificationManager.shared.requestAuthorizationIfNeeded()
                 await OfflineModelDownloader.shared.resumePendingDownloadIfNeeded()
                 await AssistModelDiscoveryService.shared.discoverAllModels(forceRefresh: true)
+
+                // Warm the System Index at launch (low priority, never blocks
+                // the UI): by the time the user sends a message the instruction
+                // corpus is already indexed, so "Loading instructions…" is
+                // instant for any model instead of blocking first use.
+                Task.detached(priority: .utility) {
+                    await SystemIndexService.shared.ensureReady()
+                }
 
                 if CommandLine.arguments.contains("--open-last-project"), let firstProject = sessionStore.projects.first {
                     await sessionStore.openProject(firstProject)
