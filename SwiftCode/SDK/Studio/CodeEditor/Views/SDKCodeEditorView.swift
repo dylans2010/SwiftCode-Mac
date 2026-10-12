@@ -542,7 +542,7 @@ final class SDKCodeEditorLineNumberRuler: NSRulerView {
 // ignored rather than trapping, per the protocol contract.
 
 @MainActor
-final class SDKCodeEditorFindAdapter: SDKCodeFindableEditor {
+final class SDKCodeEditorFindAdapter: SDKCodeFindableEditor, ObservableObject {
     weak var textView: NSTextView?
 
     var findableText: String {
