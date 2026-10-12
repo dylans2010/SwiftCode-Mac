@@ -150,13 +150,30 @@ public final class GoogleAccountAuthService: NSObject, ObservableObject {
         return Self.swiftCodeClientID
     }
 
-    /// Client secret override for a user-configured confidential OAuth client.
-    /// SwiftCode's own sign-in flow is a PKCE public client (RFC 7636) and does
-    /// not need a secret: no secret is embedded in the distributed app. A
-    /// secret is only sent when the user explicitly configures one via the
-    /// GOOGLE_CLIENT_SECRET environment variable or the GOOGLE_CLIENT_SECRET
-    /// Info.plist key (for a SwiftCode-owned confidential client).
+    /// Keychain key for the user-configured OAuth client secret.
+    private static let clientSecretKey = "google.oauth.clientSecret"
+
+    /// Client secret for the OAuth token exchange. Google's token endpoint
+    /// rejects the authorization-code exchange without it for this client
+    /// (400 invalid_request: "client_secret is missing."), even though the
+    /// browser authorization step succeeds and Google's installed-app docs
+    /// label the parameter "Optional". The secret is never embedded in the
+    /// distributed app: it comes from the user's own OAuth client, entered
+    /// in Settings and stored securely in Keychain, or from the
+    /// GOOGLE_CLIENT_SECRET environment variable / Info.plist key (for
+    /// testing and advanced setups).
+    ///
+    /// A desktop app cannot keep a secret truly confidential — anyone can
+    /// extract it from the installed app or its Keychain. That is accepted
+    /// here because Google requires the secret for the exchange; the secret
+    /// alone grants nothing without the user's own authorization grant, and
+    /// shipping it would let anyone impersonate SwiftCode's OAuth client.
+    /// The user enters their own client's secret, so the exposure is theirs
+    /// to manage, exactly as with an API key.
     private var clientSecret: String? {
+        if let stored = KeychainService.shared.get(forKey: Self.clientSecretKey), !stored.isEmpty {
+            return stored
+        }
         if let env = ProcessInfo.processInfo.environment["GOOGLE_CLIENT_SECRET"], !env.isEmpty {
             return env
         }
@@ -164,6 +181,34 @@ public final class GoogleAccountAuthService: NSObject, ObservableObject {
             return info
         }
         return nil
+    }
+
+    /// Whether a client secret is available from any configured source.
+    public var hasClientSecret: Bool { clientSecret != nil }
+
+    /// Whether the secret is stored in Keychain (user-entered via Settings),
+    /// as opposed to an environment / Info.plist override.
+    public var hasKeychainClientSecret: Bool {
+        if let stored = KeychainService.shared.get(forKey: Self.clientSecretKey), !stored.isEmpty {
+            return true
+        }
+        return false
+    }
+
+    /// Stores the OAuth client's secret securely in Keychain. The secret is
+    /// never logged and never embedded in the app bundle.
+    public func setClientSecret(_ secret: String) {
+        let trimmed = secret.trimmingCharacters(in: .whitespacesAndNewlines)
+        if trimmed.isEmpty {
+            KeychainService.shared.delete(forKey: Self.clientSecretKey)
+        } else {
+            KeychainService.shared.set(trimmed, forKey: Self.clientSecretKey)
+        }
+    }
+
+    /// Removes a Keychain-stored client secret.
+    public func clearClientSecret() {
+        KeychainService.shared.delete(forKey: Self.clientSecretKey)
     }
 
     // MARK: - Initialization
@@ -1021,9 +1066,28 @@ public final class GoogleAccountAuthService: NSObject, ObservableObject {
             }
         } catch {
             self.isAuthenticating = false
-            self.authError = error.localizedDescription
+            self.authError = Self.actionableSignInError(for: error)
             logger.error("Token exchange failed: \(error.localizedDescription)")
         }
+    }
+
+    /// Maps a sign-in failure to the message the user actually sees. A
+    /// missing client secret gets specific remediation instead of Google's
+    /// terse "client_secret is missing."; every other failure passes through
+    /// with its original details preserved.
+    public static func actionableSignInError(for error: Error) -> String {
+        let description = error.localizedDescription
+        let classification = GoogleAuthErrorClassification.classify(description, storedScopes: nil)
+        guard classification.kind == .missingClientSecret else { return description }
+        return """
+            Google sign-in needs your OAuth client's secret: the browser \
+            authorization succeeded, but Google refused the token exchange \
+            ("client_secret is missing."). Enter the client secret in \
+            Settings → Assist → Google Account — it is stored securely in \
+            Keychain and only ever sent to Google's token endpoint. Find it \
+            in Google Cloud Console → APIs & Services → Credentials → your \
+            OAuth client.
+            """
     }
 
     private func extractEmailFromIDToken(_ idToken: String) -> String? {
@@ -1441,6 +1505,12 @@ public struct GoogleAuthErrorClassification: Sendable {
         case invalidOrExpiredCredential
         case apiKeyInvalid
         case quotaOrRateLimit
+        /// Google's token endpoint refused the exchange because the OAuth
+        /// client's secret was not sent (400 invalid_request:
+        /// "client_secret is missing."). The browser authorization step
+        /// succeeds; the failure happens at the token exchange. Fixable by
+        /// configuring the client's secret.
+        case missingClientSecret
         case notAuthError
     }
 
@@ -1499,6 +1569,22 @@ public struct GoogleAuthErrorClassification: Sendable {
         if mentionsScopeProblem {
             return GoogleAuthErrorClassification(
                 kind: .scopeInsufficient(storedScopes: storedScopes),
+                httpStatus: httpStatus, reason: reason, service: service, method: method)
+        }
+
+        // The token endpoint explicitly reports a missing client secret.
+        // This is distinct from invalid/expired credentials: the user
+        // authorized successfully, but the code exchange needs the OAuth
+        // client's secret (Google: 400 invalid_request "client_secret is
+        // missing."). Check before the generic credential branch so the
+        // remediation ("configure the client secret") is specific.
+        let mentionsMissingSecret =
+            lower.contains("client_secret is missing") ||
+            lower.contains("client secret is missing") ||
+            lower.contains("client_secret\" is missing")
+        if mentionsMissingSecret {
+            return GoogleAuthErrorClassification(
+                kind: .missingClientSecret,
                 httpStatus: httpStatus, reason: reason, service: service, method: method)
         }
 
