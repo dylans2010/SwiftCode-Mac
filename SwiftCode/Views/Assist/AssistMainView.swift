@@ -68,6 +68,13 @@ public struct AssistMainView: View {
             // Header Bar
             HStack(spacing: 12) {
                 Button {
+                    searchConversationText = ""
+                    attachedFiles = []
+                    selectedExplicitSkills = []
+                    selectedExplicitMCPServers = []
+                    selectedExplicitFiles = []
+                    editingQueueId = nil
+                    editingQueueText = ""
                     manager.clearChat()
                 } label: {
                     Image(systemName: "trash")

@@ -276,13 +276,29 @@ public actor SystemIndexService {
 
     /// Absolute URL of the bundled System Assets directory, if present.
     public nonisolated func bundledAssetsURL() -> URL? {
-        guard let resourceURL = Bundle.main.resourceURL else { return nil }
-        let url = resourceURL.appendingPathComponent(Self.resourcesSubdirectory, isDirectory: true)
-        var isDir: ObjCBool = false
-        guard FileManager.default.fileExists(atPath: url.path, isDirectory: &isDir), isDir.boolValue else {
-            return nil
+        if let resourceURL = Bundle.main.resourceURL {
+            let url = resourceURL.appendingPathComponent(Self.resourcesSubdirectory, isDirectory: true)
+            var isDir: ObjCBool = false
+            if FileManager.default.fileExists(atPath: url.path, isDirectory: &isDir), isDir.boolValue {
+                return url
+            }
         }
-        return url
+
+        // Development, CLI, and test runner fallback paths:
+        let fm = FileManager.default
+        let currentDir = fm.currentDirectoryPath
+        let devPaths = [
+            currentDir + "/SwiftCode/Backend/Assist/Functions/System Assets",
+            currentDir + "/Backend/Assist/Functions/System Assets"
+        ]
+        for path in devPaths {
+            var isDir: ObjCBool = false
+            if fm.fileExists(atPath: path, isDirectory: &isDir), isDir.boolValue {
+                return URL(fileURLWithPath: path, isDirectory: true)
+            }
+        }
+
+        return nil
     }
 
     /// Synchronous bundle lookup for a single canonical asset. Used by
