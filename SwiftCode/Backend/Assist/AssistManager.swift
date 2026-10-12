@@ -751,7 +751,8 @@ public final class AssistManager: ObservableObject {
         // If the user is authenticated via Google account but their stored token lacks
         // the required Antigravity scopes (from legacy sign-in), prompt them to approve
         // the updated permissions rather than hitting an authentication scope error.
-        let isGoogleAuthActive = (UserDefaults.standard.string(forKey: "assist_google_auth_mode") ?? AppSettings.shared.assistGoogleAuthMode) == "google_oauth" || GoogleAccountAuthService.shared.isAuthenticated
+        let assistGoogleAuthMode = UserDefaults.standard.string(forKey: "assist_google_auth_mode") ?? AppSettings.shared.assistGoogleAuthMode
+        let isGoogleAuthActive = assistGoogleAuthMode == "google_oauth"
         let altKeysEnabled = await MainActor.run { AppSettings.shared.alternativeKeysEnabled }
         if isGoogleAuthActive && GoogleAccountAuthService.shared.isAuthenticated && !GoogleAccountAuthService.shared.hasRequiredAssistScopes() && !altKeysEnabled {
             await MainActor.run {
@@ -1053,6 +1054,18 @@ public final class AssistManager: ObservableObject {
                                 for tIdx in activity.tools.indices where activity.tools[tIdx].status == .running {
                                     activity.tools[tIdx].status = .failed
                                     activity.tools[tIdx].result = err
+                                }
+                                self.messages[idx].activityGroup = activity
+                            }
+                            break streamLoop
+
+                        case .error(let msg):
+                            turnError = msg
+
+                            if var activity = self.messages[idx].activityGroup {
+                                for tIdx in activity.tools.indices where activity.tools[tIdx].status == .running {
+                                    activity.tools[tIdx].status = .failed
+                                    activity.tools[tIdx].result = msg
                                 }
                                 self.messages[idx].activityGroup = activity
                             }

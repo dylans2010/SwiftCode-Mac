@@ -654,17 +654,18 @@ public final class AssistModelRouter: Sendable {
         baseConfig.enableSubagents = model.supportsSubagents
 
         let provider = model.providerID.lowercased()
+        let isGoogleProvider = (provider == "google" || provider == "gemini")
         let apiKey: String?
         let oauthToken: String?
 
         let googleAuthMode = UserDefaults.standard.string(forKey: "assist_google_auth_mode") ?? AppSettings.shared.assistGoogleAuthMode
-        let isOAuthAuthenticated = (googleAuthMode == "google_oauth") && GoogleAccountAuthService.shared.isAuthenticated && !AppSettings.shared.alternativeKeysEnabled
+        let isOAuthAuthenticated = isGoogleProvider && (googleAuthMode == "google_oauth") && GoogleAccountAuthService.shared.isAuthenticated && !AppSettings.shared.alternativeKeysEnabled
 
         if isOAuthAuthenticated {
             // Strictly rely ONLY on Antigravity allowance / OAuth session. NO API keys.
             apiKey = nil
             oauthToken = GoogleAccountAuthService.shared.getValidAccessToken()
-        } else if AppSettings.shared.alternativeKeysEnabled {
+        } else if isGoogleProvider && AppSettings.shared.alternativeKeysEnabled {
             // Gemini Key Rotation: rotate through keys strictly with no OAuth
             apiKey = AlternativeKeyManager.shared.getActiveOrNextKey()?.key
                 ?? KeychainService.shared.get(forKey: LLMProvider.google.keychainKey)
@@ -673,7 +674,7 @@ public final class AssistModelRouter: Sendable {
             oauthToken = nil
         } else {
             apiKey = resolveAPIKey(for: provider) ?? baseConfig.apiKey
-            oauthToken = baseConfig.oauthToken
+            oauthToken = isGoogleProvider ? baseConfig.oauthToken : nil
         }
 
         return GoogleCloudSDKConfiguration(
