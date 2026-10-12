@@ -57,7 +57,7 @@ public final class GoogleCloudSDKSession: Identifiable, Sendable {
                     case .toolProgress:
                         continuation.yield(event)
                     case .runtimeReady, .runtimeStopped, .error:
-                        // Global events
+                        // Global runtime events
                         continuation.yield(event)
                     }
                 }
