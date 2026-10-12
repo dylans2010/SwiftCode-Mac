@@ -21,8 +21,8 @@ public enum SDKManifestValidator {
     private static let supportedProtocolVersion = 1
     private static let requiredSDKName = "@swiftcode/sdk"
     /// Host SDK version this validator checks compatibility against
-    /// (ADR §10: SDK package 1.0.0).
-    private static let hostSDKVersion = (major: 1, minor: 0, patch: 0)
+    /// (additive release 1.1.0: 12 new platform capability IDs, new IPC routes).
+    private static let hostSDKVersion = (major: 1, minor: 1, patch: 0)
 
     private static let maxIDLength = 128
     private static let maxNameLength = 128
@@ -256,8 +256,8 @@ public enum SDKManifestValidator {
         guard isSDKRangeCompatible(sdk.versionRange) else {
             throw SDKError(
                 code: .incompatibleSDKVersion,
-                message: "The SDK version range \"\(sdk.versionRange)\" is not supported by this SwiftCode release (SDK 1.0.0).",
-                suggestion: "Use one of: \"1.0.0\", \"^1.0.0\", \"~1.0.0\", or \">=1.0.0 <2.0.0\"."
+                message: "The SDK version range \"\(sdk.versionRange)\" is not supported by this SwiftCode release (SDK 1.1.0).",
+                suggestion: "Use one of: \"1.1.0\", \"^1.1.0\", \"~1.1.0\", or \">=1.1.0 <2.0.0\"."
             )
         }
         guard sdk.protocolVersion == supportedProtocolVersion else {
@@ -335,9 +335,9 @@ public enum SDKManifestValidator {
 
     // MARK: - Semver range compatibility
 
-    /// A range is compatible when it admits the host SDK version (1.0.0).
-    /// Supported forms only: exact `1.0.0`, `^1.0.0`, `~1.0.0`,
-    /// `>=1.0.0 <2.0.0`. Anything else is rejected.
+    /// A range is compatible when it admits the host SDK version (1.1.0).
+    /// Supported forms only: exact `1.1.0`, `^1.1.0`, `~1.1.0`,
+    /// `>=1.1.0 <2.0.0`. Anything else is rejected.
     private static func isSDKRangeCompatible(_ range: String) -> Bool {
         let trimmed = range.trimmingCharacters(in: .whitespacesAndNewlines)
         let host = (major: hostSDKVersion.major, minor: hostSDKVersion.minor, patch: hostSDKVersion.patch)
