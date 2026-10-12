@@ -67,47 +67,24 @@ struct \( (path as NSString).lastPathComponent.replacingOccurrences(of: ".swift"
     }
 
     public func registerInXcode(path: String) async {
-        let pbxPath = "SwiftCode.xcodeproj/project.pbxproj"
         let fileName = (path as NSString).lastPathComponent
+        let fileDir = (path as NSString).deletingLastPathComponent
+
+        // Resolve the USER's project.pbxproj — never this app's own bundle.
+        guard let located = AssistXcodeProjectResolver.locate(in: context.workspaceRoot),
+              let pbxURL = located.pbxprojURL else {
+            await context.logger.error("No .xcodeproj found in workspace; skipping Xcode registration for \(fileName).", toolId: "CriticalExecution")
+            return
+        }
+        let pbxPath: String = {
+            let absolute = pbxURL.path
+            let root = context.workspaceRoot.path
+            if absolute.hasPrefix(root + "/") { return String(absolute.dropFirst(root.count + 1)) }
+            return absolute
+        }()
+
         let fileId = generateRandomHexID()
         let buildFileId = generateRandomHexID()
-
-        // 1. Map path to group UUID
-        let groupUUID: String
-        if path.contains("Core/AI/Agent") {
-            groupUUID = "9FAB492FE3914F789AA58201"
-        } else if path.contains("Core/AI") {
-            groupUUID = "DA941B6FA862048858B975DF"
-        } else if path.contains("Tools/Agentic") {
-            groupUUID = "D3C76C44A71C4A3EB65045B1"
-        } else if path.contains("ViewModels") {
-            groupUUID = "C38806164DD566333A92A410"
-        } else if path.contains("Views/Dashboard") {
-            groupUUID = "EA26B0E5D067B5922CF6F2C8"
-        } else if path.contains("Views/Dev Tools") || path.contains("Dev Tools") {
-            groupUUID = "2B4CEE860D734A23837F5302"
-        } else if path.contains("Views") {
-            groupUUID = "FE18E54E76741F54A82CD586"
-        } else if path.contains("Utilities") {
-            groupUUID = "576E45E47FC5098A3A96ECB8"
-        } else if path.contains("Backend/AI") {
-            groupUUID = "DF6B1A5F79682983F71C7E7E"
-        } else if path.contains("Backend/Git") {
-            groupUUID = "E063E218D13ACDDD0B728F8D"
-        } else if path.contains("Persistence/Templates") {
-            groupUUID = "265E9A432B28B39C005F9A10"
-        } else if path.contains("Models") {
-            groupUUID = "2B21AC80A9DC86CB7D9BD14F"
-        } else if path.contains("Services") {
-            groupUUID = "57AFC04E569B8BDE2658ECD4"
-        } else if path.contains("GitHub") {
-            groupUUID = "718173758FBD56C156A0D0F5"
-        } else if path.contains("UI/Styles/Styling") {
-            groupUUID = "B0020001B0020001B0020001"
-        } else {
-            // Fallback group: Core/AI
-            groupUUID = "DA941B6FA862048858B975DF"
-        }
 
         do {
             var content = try context.fileSystem.readFile(at: pbxPath)
@@ -118,6 +95,14 @@ struct \( (path as NSString).lastPathComponent.replacingOccurrences(of: ".swift"
                 return
             }
 
+            // Resolve the target group and Sources phase from the pbxproj itself.
+            guard let groupUUID = AssistXcodeProjectResolver.groupID(forFileDirectory: fileDir, inPbxproj: content) else {
+                throw NSError(domain: "CriticalExecution", code: 501, userInfo: [NSLocalizedDescriptionKey: "No matching group found in \(pbxPath) for directory '\(fileDir)'."])
+            }
+            guard let sourcesPhaseID = AssistXcodeProjectResolver.sourcesBuildPhaseID(inPbxproj: content) else {
+                throw NSError(domain: "CriticalExecution", code: 502, userInfo: [NSLocalizedDescriptionKey: "No PBXSourcesBuildPhase found in \(pbxPath)."])
+            }
+
             // 1. Add to PBXBuildFile section
             let buildFileEntry = "\t\t\(buildFileId) /* \(fileName) in Sources */ = {isa = PBXBuildFile; fileRef = \(fileId) /* \(fileName) */; };\n"
             if let buildFileRange = content.range(of: "/* Begin PBXBuildFile section */") {
@@ -126,8 +111,8 @@ struct \( (path as NSString).lastPathComponent.replacingOccurrences(of: ".swift"
                 throw NSError(domain: "CriticalExecution", code: 500, userInfo: [NSLocalizedDescriptionKey: "PBXBuildFile section not found"])
             }
 
-            // 2. Add to PBXFileReference section
-            let fileRefEntry = "\t\t\(fileId) /* \(fileName) */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = \"\(path)\"; sourceTree = SOURCE_ROOT; };\n"
+            // 2. Add to PBXFileReference section (group-relative path)
+            let fileRefEntry = "\t\t\(fileId) /* \(fileName) */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = \(fileName); sourceTree = \"<group>\"; };\n"
             if let fileRefRange = content.range(of: "/* Begin PBXFileReference section */") {
                 content.insert(contentsOf: fileRefEntry, at: fileRefRange.upperBound)
             } else {
@@ -149,7 +134,7 @@ struct \( (path as NSString).lastPathComponent.replacingOccurrences(of: ".swift"
             }
 
             // 4. Add to Sources Build Phase
-            let sourcesPhaseStr = "9BF8BFB9B87ED46BDA700029 /* Sources */ = {"
+            let sourcesPhaseStr = "\(sourcesPhaseID) /* Sources */ = {"
             if let phaseIndex = content.range(of: sourcesPhaseStr) {
                 let searchRange = phaseIndex.lowerBound..<content.endIndex
                 if let filesRange = content.range(of: "files = (\n", options: [], range: searchRange) {
@@ -159,12 +144,12 @@ struct \( (path as NSString).lastPathComponent.replacingOccurrences(of: ".swift"
                     throw NSError(domain: "CriticalExecution", code: 500, userInfo: [NSLocalizedDescriptionKey: "files block not found in Sources build phase"])
                 }
             } else {
-                throw NSError(domain: "CriticalExecution", code: 500, userInfo: [NSLocalizedDescriptionKey: "Sources build phase 9BF8BFB9B87ED46BDA700029 not found"])
+                throw NSError(domain: "CriticalExecution", code: 500, userInfo: [NSLocalizedDescriptionKey: "Sources build phase \(sourcesPhaseID) not found"])
             }
 
             // Save project file
             try context.fileSystem.writeFile(at: pbxPath, content: content)
-            await context.logger.info("Successfully registered \(fileName) inside Xcode project (Group: \(groupUUID), BuildPhase: 9BF8BFB9B87ED46BDA700029)", toolId: "CriticalExecution")
+            await context.logger.info("Successfully registered \(fileName) inside Xcode project (Group: \(groupUUID), BuildPhase: \(sourcesPhaseID))", toolId: "CriticalExecution")
 
         } catch {
             await context.logger.error("Failed to execute Xcode registration for \(fileName): \(error.localizedDescription)", toolId: "CriticalExecution")

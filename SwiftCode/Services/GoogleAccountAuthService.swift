@@ -147,6 +147,13 @@ public final class GoogleAccountAuthService: NSObject, ObservableObject {
         if let info = Bundle.main.infoDictionary?["GOOGLE_CLIENT_ID"] as? String, !info.isEmpty {
             return info
         }
+        // User-editable override from Settings → Assist → Advanced. This is
+        // the single user-facing storage for the override; it is read here so
+        // the field actually controls the sign-in flow.
+        let override = AppSettings.shared.assistGoogleOAuthClientIDOverride.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !override.isEmpty {
+            return override
+        }
         return Self.swiftCodeClientID
     }
 

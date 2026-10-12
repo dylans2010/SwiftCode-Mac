@@ -298,11 +298,12 @@ public final class CodeReviewSystemLoader {
             return cached
         }
 
-        guard let url = Bundle.main.url(forResource: "CodeReviewSystemAsset", withExtension: "md") else {
-            throw NSError(domain: "CodeReviewSystemLoader", code: 404, userInfo: [NSLocalizedDescriptionKey: "Failed to locate CodeReviewSystemAsset.md in application bundle."])
+        // Canonical location: bundled System Assets (see SystemIndexService).
+        guard let prompt = SystemIndexService.shared.bundledText(forRelativePath: "CodeReviewSystemAsset.md"),
+              !prompt.isEmpty else {
+            throw NSError(domain: "CodeReviewSystemLoader", code: 404, userInfo: [NSLocalizedDescriptionKey: "Failed to locate CodeReviewSystemAsset.md in the bundled System Assets."])
         }
 
-        let prompt = try String(contentsOf: url, encoding: .utf8)
         cachedPrompt = prompt
         return prompt
     }

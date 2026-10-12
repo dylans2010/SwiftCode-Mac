@@ -108,6 +108,19 @@ class AppSettings: ObservableObject {
         }
     }
 
+    /// SwiftCode Cloud Model toggle (Assist settings → "Use SwiftCode's Cloud Model").
+    /// When on, the cloud model appears in the model picker and is usable under
+    /// every routing strategy (SDK Default, Gemini Key Rotation, App Model Catalog)
+    /// with no API key or sign-in required. The per-device rate-limit identity
+    /// (device fingerprint) is generated at toggle-on time and lives in the
+    /// Keychain via SCCloudDeviceFingerprint — it is NEVER stored here or shown in UI.
+    @Published public var useSwiftCodeCloudModel: Bool {
+        didSet {
+            debouncedSave("useSwiftCodeCloudModel", useSwiftCodeCloudModel)
+            UserDefaults.standard.set(useSwiftCodeCloudModel, forKey: "assist.useSwiftCodeCloudModel")
+        }
+    }
+
     @Published var assistGoogleAuthMode: String {
         didSet {
             debouncedSave("assist_google_auth_mode", assistGoogleAuthMode)
@@ -122,6 +135,18 @@ class AppSettings: ObservableObject {
         didSet {
             debouncedSave("assist_google_cloud_project", assistGoogleCloudProject)
             UserDefaults.standard.set(assistGoogleCloudProject, forKey: "assist_google_cloud_project")
+        }
+    }
+
+    /// User-configured OAuth client ID override for Sign in with Google.
+    /// Empty means "use SwiftCode's built-in client". Read by
+    /// GoogleAccountAuthService alongside the GOOGLE_CLIENT_ID environment /
+    /// Info.plist overrides; this is the single user-editable storage for the
+    /// override so there is exactly one source of truth.
+    @Published var assistGoogleOAuthClientIDOverride: String {
+        didSet {
+            debouncedSave("assist_google_oauth_client_id_override", assistGoogleOAuthClientIDOverride)
+            UserDefaults.standard.set(assistGoogleOAuthClientIDOverride, forKey: "assist_google_oauth_client_id_override")
         }
     }
 
@@ -383,7 +408,9 @@ class AppSettings: ObservableObject {
             assistModelRoutingStrategy = "default"
         }
         assistGoogleAuthMode = UserDefaults.standard.string(forKey: "assist_google_auth_mode") ?? "google_oauth"
+        useSwiftCodeCloudModel = UserDefaults.standard.bool(forKey: "assist.useSwiftCodeCloudModel")
         assistGoogleCloudProject = UserDefaults.standard.string(forKey: "assist_google_cloud_project") ?? ""
+        assistGoogleOAuthClientIDOverride = UserDefaults.standard.string(forKey: "assist_google_oauth_client_id_override") ?? ""
         antigravityExecutionMode = UserDefaults.standard.string(forKey: "antigravity_execution_mode") ?? "bridge"
         selectedModel = UserDefaults.standard.string(forKey: "selectedModel") ?? "openai/gpt-4o"
         customModel   = UserDefaults.standard.string(forKey: "customModel") ?? ""

@@ -145,12 +145,13 @@ public final class AntigravitySDKModelFetcher: ObservableObject {
     // MARK: - SDK Execution
     private func fetchFromSDKRuntime() async -> [AntigravitySDKModel] {
         return await Task.detached(priority: .userInitiated) {
-            // 1. Try running /Users/dylan/.gemini/bin/agy models or any agy in PATH
+            // 1. Try the agy CLI: home-relative install location first, then
+            // common system paths, then anything on PATH. Never hardcode a
+            // specific user's home directory.
             let agyBinaryCandidates = [
-                "/Users/dylan/.gemini/bin/agy",
+                FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".gemini/bin/agy").path,
                 "/usr/local/bin/agy",
                 "/opt/homebrew/bin/agy",
-                FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".gemini/bin/agy").path
             ]
 
             for binaryPath in agyBinaryCandidates {

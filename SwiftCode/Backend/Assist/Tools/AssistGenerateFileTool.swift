@@ -17,7 +17,7 @@ public struct AssistGenerateFileTool: AssistTool {
             properties: [
                 "path": JSONSchema(type: "string", description: "Workspace-relative target path. Must not already exist."),
                 "template": JSONSchema(type: "string", description: "One of: swift_struct, swift_class, swiftui_view, test (case-insensitive)."),
-                "module": JSONSchema(type: "string", description: "Module name used only by the test template for @testable import. Default: \"SwiftCode\".")
+                "module": JSONSchema(type: "string", description: "Module name used only by the test template for @testable import. Defaults to the user's project name.")
             ],
             required: ["path", "template"]
         )
@@ -36,7 +36,12 @@ public struct AssistGenerateFileTool: AssistTool {
         }
 
         let fileName = URL(fileURLWithPath: path).deletingPathExtension().lastPathComponent
-        let rendered = renderTemplate(template: template, fileName: fileName, input: input)
+        let defaultModule = AssistXcodeProjectResolver.locate(in: context.workspaceRoot)?.name ?? "App"
+        var resolvedInput = input
+        if (resolvedInput["module"] as? String)?.isEmpty != false {
+            resolvedInput["module"] = defaultModule
+        }
+        let rendered = renderTemplate(template: template, fileName: fileName, input: resolvedInput)
 
         do {
             try context.fileSystem.writeFile(at: path, content: rendered)
@@ -47,7 +52,7 @@ public struct AssistGenerateFileTool: AssistTool {
     }
 
     private func renderTemplate(template: String, fileName: String, input: [String: Any]) -> String {
-        let moduleName = (input["module"] as? String) ?? "SwiftCode"
+        let moduleName = (input["module"] as? String) ?? "App"
         switch template.lowercased() {
         case "swift_struct":
             return "import Foundation\n\npublic struct \(fileName) {\n    public init() {}\n}\n"

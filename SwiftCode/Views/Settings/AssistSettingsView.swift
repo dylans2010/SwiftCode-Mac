@@ -516,6 +516,15 @@ struct AssistSettingsView: View {
     // Google OAuth client secret input (stored in Keychain on save; the
     // field itself never displays a saved secret).
     @State private var googleClientSecretInput = ""
+    // OAuth client ID override input (persisted via AppSettings).
+    @State private var googleOAuthClientIDInput = ""
+    // Disclosure expansion state.
+    @State private var isAPIKeysExpanded = false
+    @State private var isAdvancedExpanded = false
+    // SwiftCode Cloud discovered models.
+    @State private var cloudModels: [SCCloudModelInfo] = []
+    @State private var cloudModelsUpdatedAt: Date? = nil
+    @State private var isRefreshingCloudModels = false
 
     // OpenRouter models state
     @State private var openRouterModels: [OpenRouterModel] = []
@@ -838,6 +847,43 @@ struct AssistSettingsView: View {
                                             .background(Color.purple.opacity(0.08), in: RoundedRectangle(cornerRadius: 6))
                                         }
                                     }
+
+                                    Divider()
+
+                                    // 4. SwiftCode Cloud Model
+                                    VStack(alignment: .leading, spacing: 6) {
+                                        Toggle(isOn: $settings.useSwiftCodeCloudModel) {
+                                            HStack {
+                                                Text("Use SwiftCode's Cloud Model")
+                                                    .font(.system(size: 12, weight: .medium))
+                                                Spacer()
+                                                Text("\(SCCloudModelClient.shared.remainingRequestsToday)/\(SCCloudConfiguration.dailyRequestLimit) left today")
+                                                    .font(.system(size: 10, weight: .semibold))
+                                                    .foregroundStyle(SCCloudModelClient.shared.remainingRequestsToday > 0 ? .secondary : .orange)
+                                            }
+                                        }
+                                        .toggleStyle(.switch)
+                                        .controlSize(.small)
+                                        .onChange(of: settings.useSwiftCodeCloudModel) { _, isOn in
+                                            if isOn {
+                                                // Provision the device fingerprint the moment the user opts in.
+                                                // The fingerprint itself is never exposed to the UI.
+                                                SCCloudDeviceFingerprint.ensureFingerprint()
+                                                // Discover the server's models right away so the user
+                                                // can pick one instead of waiting for the picker to load.
+                                                Task { await refreshCloudModels() }
+                                            }
+                                        }
+
+                                        Text("Adds SwiftCode's hosted cloud models to the model picker. Works with any routing strategy — no API key or sign-in required. Limited to \(SCCloudConfiguration.dailyRequestLimit) requests per device per day for fair use.")
+                                            .font(.system(size: 10))
+                                            .foregroundStyle(.secondary)
+
+                                        if settings.useSwiftCodeCloudModel {
+                                            Divider()
+                                            cloudModelListSection
+                                        }
+                                    }
                                 }
                                 .padding(10)
                                 .background(Color.primary.opacity(0.02), in: RoundedRectangle(cornerRadius: 8))
@@ -859,16 +905,13 @@ struct AssistSettingsView: View {
                 }
                 .groupBoxStyle(ModernGroupBoxStyle())
 
-                // 1. API Keys Section
-                GroupBox {
-                    VStack(alignment: .leading, spacing: 14) {
-                        HStack {
-                            Label("AI Provider API Keys", systemImage: "key.fill")
-                                .font(.headline)
-                                .foregroundColor(.orange)
-                            Spacer()
-                        }
+                // 1. Google Account Authentication — independent card (OAuth
+                // sessions are a different credential kind from API keys).
+                googleAccountCard
 
+                // 2. AI Provider API Keys (disclosure)
+                GroupBox {
+                    DisclosureGroup(isExpanded: $isAPIKeysExpanded) {
                         VStack(alignment: .leading, spacing: 10) {
                             Text("Configure API Keys to power your smart developer assistance models.")
                                 .font(.caption)
@@ -922,169 +965,33 @@ struct AssistSettingsView: View {
                                     .textFieldStyle(.roundedBorder)
                             }
 
-                            VStack(alignment: .leading, spacing: 10) {
+                            VStack(alignment: .leading, spacing: 6) {
                                 HStack {
-                                    Text("Google Account Authentication")
+                                    Text("Gemini API Key")
                                         .font(.caption.bold())
                                     Spacer()
-                                    if !googleAuth.isAuthenticated && assistGoogleAuthMode == "api_key" {
-                                        Link(destination: URL(string: "https://aistudio.google.com/app/apikey")!) {
-                                            Label("Get Key", systemImage: "arrow.up.right")
-                                                .font(.caption)
-                                        }
-                                        .buttonStyle(.plain)
+                                    Link(destination: URL(string: "https://aistudio.google.com/app/apikey")!) {
+                                        Label("Get Key", systemImage: "arrow.up.right")
+                                            .font(.caption)
                                     }
+                                    .buttonStyle(.plain)
                                 }
+                                SecureField("AIza...", text: $geminiKey)
+                                    .textFieldStyle(.roundedBorder)
 
-                                if googleAuth.isAuthenticated {
-                                    authenticatedAccountView
-                                } else {
-                                    // MARK: - Unauthenticated State: Show Picker & Sign In / API Key controls
-                                    Picker("Google Auth Mode", selection: $assistGoogleAuthMode) {
-                                        Text("API Key").tag("api_key")
-                                        Text("Sign in with Google").tag("google_oauth")
+                                HStack {
+                                    Button {
+                                        showAlternativeKeysSheet = true
+                                    } label: {
+                                        Label("Alternative Keys (\(AlternativeKeyManager.shared.keys.count) configured)", systemImage: "arrow.triangle.2.circlepath")
+                                            .font(.caption2)
                                     }
-                                    .pickerStyle(.segmented)
+                                    .buttonStyle(.bordered)
                                     .controlSize(.small)
-                                    .labelsHidden()
-                                    .onChange(of: assistGoogleAuthMode) { _, newValue in
-                                        AppSettings.shared.assistGoogleAuthMode = newValue
-                                    }
 
-                                    if assistGoogleAuthMode == "google_oauth" {
-                                        VStack(alignment: .leading, spacing: 6) {
-                                            HStack(spacing: 8) {
-                                                Button {
-                                                    googleAuth.signIn()
-                                                } label: {
-                                                    HStack {
-                                                        if googleAuth.isAuthenticating {
-                                                            ProgressView()
-                                                                .controlSize(.small)
-                                                                .padding(.trailing, 4)
-                                                            Text("Signing In...")
-                                                        } else {
-                                                            Image(systemName: "person.badge.key.fill")
-                                                            Text("Sign in with Google")
-                                                        }
-                                                    }
-                                                    .frame(maxWidth: .infinity)
-                                                }
-                                                .buttonStyle(.borderedProminent)
-                                                .controlSize(.regular)
-                                                .disabled(googleAuth.isAuthenticating)
-
-                                                if googleAuth.findAgyCLI() != nil || googleAuth.fetchAntigravityCredentialsFromKeychain() != nil {
-                                                    Button {
-                                                        googleAuth.signInViaCLI()
-                                                    } label: {
-                                                        HStack(spacing: 4) {
-                                                            Image(systemName: "terminal.fill")
-                                                            Text("Via CLI")
-                                                        }
-                                                    }
-                                                    .buttonStyle(.bordered)
-                                                    .controlSize(.regular)
-                                                    .disabled(googleAuth.isAuthenticating)
-                                                    .help("Authenticate in the background using the agy CLI")
-                                                }
-                                            }
-
-                                            Text("Sign in with your Google account to use Gemini models without an API key. OAuth usage is attributed to your Google Cloud project below (the Gemini API's documented account-authentication contract).")
-                                                .font(.caption2)
-                                                .foregroundColor(.secondary)
-
-                                            VStack(alignment: .leading, spacing: 4) {
-                                                Text("Google Cloud Project ID")
-                                                    .font(.caption2.bold())
-                                                TextField("my-project-id", text: Binding(
-                                                    get: { AppSettings.shared.assistGoogleCloudProject },
-                                                    set: { AppSettings.shared.assistGoogleCloudProject = $0.trimmingCharacters(in: .whitespacesAndNewlines) }
-                                                ))
-                                                .textFieldStyle(.roundedBorder)
-                                                .font(.caption2)
-                                                Text("Required for Sign in with Google: the Gemini API bills OAuth usage to this project. Find it in the Google Cloud console.")
-                                                    .font(.caption2)
-                                                    .foregroundColor(.secondary)
-                                            }
-                                            .padding(.top, 2)
-
-                                            VStack(alignment: .leading, spacing: 4) {
-                                                HStack(spacing: 4) {
-                                                    Text("OAuth Client Secret")
-                                                        .font(.caption2.bold())
-                                                    if googleAuth.hasKeychainClientSecret {
-                                                        HStack(spacing: 4) {
-                                                            Image(systemName: "lock.shield.fill")
-                                                                .foregroundColor(.green)
-                                                                .font(.caption2)
-                                                            Text("Saved in Keychain")
-                                                                .font(.caption2)
-                                                                .foregroundColor(.green)
-                                                        }
-                                                    }
-                                                    Spacer()
-                                                    if googleAuth.hasKeychainClientSecret {
-                                                        Button("Clear") {
-                                                            googleAuth.clearClientSecret()
-                                                        }
-                                                        .font(.caption2)
-                                                        .buttonStyle(.plain)
-                                                        .foregroundColor(.red)
-                                                    }
-                                                }
-                                                HStack(spacing: 6) {
-                                                    SecureField("Paste client secret", text: $googleClientSecretInput)
-                                                        .textFieldStyle(.roundedBorder)
-                                                        .font(.caption2)
-                                                    Button("Save") {
-                                                        googleAuth.setClientSecret(googleClientSecretInput)
-                                                        googleClientSecretInput = ""
-                                                    }
-                                                    .font(.caption2)
-                                                    .buttonStyle(.bordered)
-                                                    .controlSize(.small)
-                                                    .disabled(googleClientSecretInput.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-                                                }
-                                                Text("Required for Sign in with Google: Google's token endpoint rejects the sign-in without it (\"client_secret is missing.\"). Stored only in Keychain, never in the app bundle. Find it in Google Cloud Console → APIs & Services → Credentials → your OAuth client.")
-                                                    .font(.caption2)
-                                                    .foregroundColor(.secondary)
-                                            }
-                                            .padding(.top, 2)
-
-                                            if let error = googleAuth.authError {
-                                                HStack(alignment: .top, spacing: 4) {
-                                                    Image(systemName: "exclamationmark.triangle.fill")
-                                                        .foregroundColor(.red)
-                                                        .font(.caption2)
-                                                    Text(error)
-                                                        .font(.caption2)
-                                                        .foregroundColor(.red)
-                                                }
-                                                .padding(.top, 2)
-                                            }
-                                        }
-                                        .padding(.vertical, 2)
-                                    } else {
-                                        // API Key Mode
-                                        SecureField("Enter Gemini API key", text: $geminiKey)
-                                            .textFieldStyle(.roundedBorder)
-
-                                        HStack {
-                                            Button {
-                                                showAlternativeKeysSheet = true
-                                            } label: {
-                                                Label("Alternative Keys (\(AlternativeKeyManager.shared.keys.count) configured)", systemImage: "arrow.triangle.2.circlepath")
-                                                    .font(.caption2)
-                                            }
-                                            .buttonStyle(.bordered)
-                                            .controlSize(.small)
-
-                                            Spacer()
-                                        }
-                                        .padding(.top, 2)
-                                    }
+                                    Spacer()
                                 }
+                                .padding(.top, 2)
                             }
 
                             VStack(alignment: .leading, spacing: 6) {
@@ -1131,12 +1038,19 @@ struct AssistSettingsView: View {
                                     .transition(.opacity)
                             }
                         }
+                        .padding(.top, 8)
+                    } label: {
+                        Label("AI Provider API Keys", systemImage: "key.fill")
+                            .font(.headline)
+                            .foregroundColor(.orange)
                     }
-                    .padding()
                 }
                 .groupBoxStyle(ModernGroupBoxStyle())
 
-                // 2. Modern Dynamic Available Models Section
+                // 3. Advanced OAuth configuration
+                advancedOAuthSection
+
+                // 4. Modern Dynamic Available Models Section
                 GroupBox {
                     VStack(alignment: .leading, spacing: 14) {
                         HStack {
@@ -1509,7 +1423,7 @@ struct AssistSettingsView: View {
                 }
                 .groupBoxStyle(ModernGroupBoxStyle())
 
-                // 3. Developer Integrations & Extensions
+                // 5. Developer Integrations & Extensions
                 GroupBox {
                     VStack(alignment: .leading, spacing: 16) {
                         HStack {
@@ -1669,7 +1583,7 @@ struct AssistSettingsView: View {
                 }
                 .groupBoxStyle(ModernGroupBoxStyle())
 
-                // 4. Custom Model Integration Section
+                // 6. Custom Model Integration Section
                 GroupBox {
                     VStack(alignment: .leading, spacing: 14) {
                         HStack {
@@ -1936,6 +1850,29 @@ struct AssistSettingsView: View {
                 }
                 .groupBoxStyle(ModernGroupBoxStyle())
 
+                // 7. Terminal Command Approvals
+                GroupBox {
+                    VStack(alignment: .leading, spacing: 14) {
+                        HStack {
+                            Label("Terminal Command Approvals", systemImage: "terminal.fill")
+                                .font(.headline)
+                                .foregroundColor(.blue)
+                            Spacer()
+                            NavigationLink(destination: AllowedTerminalCommandsView()) {
+                                Label("Manage", systemImage: "chevron.right")
+                                    .font(.caption)
+                            }
+                            .buttonStyle(.plain)
+                        }
+
+                        Text("Choose which terminal commands Assist may run without asking for approval, or enable Full Access to skip approval for every command.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                    .padding(14)
+                }
+                .groupBoxStyle(ModernGroupBoxStyle())
+
                 // 5. About Section
                 GroupBox {
                     VStack(alignment: .leading, spacing: 14) {
@@ -2124,6 +2061,318 @@ struct AssistSettingsView: View {
     }
 
     @ViewBuilder
+    // MARK: - SwiftCode Cloud Model List
+
+    /// Discovered cloud models with manual refresh. The server hosts many
+    /// models — this list (and the picker) is driven by live discovery,
+    /// never by a hardcoded single model.
+    private var cloudModelListSection: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack {
+                Text("Cloud Models")
+                    .font(.system(size: 12, weight: .medium))
+                Spacer()
+                if isRefreshingCloudModels {
+                    ProgressView()
+                        .scaleEffect(0.6)
+                        .frame(width: 14, height: 14)
+                } else {
+                    Button("Refresh") {
+                        Task { await refreshCloudModels() }
+                    }
+                    .font(.system(size: 10))
+                    .buttonStyle(.link)
+                }
+            }
+
+            if let updated = cloudModelsUpdatedAt, !cloudModels.isEmpty {
+                Text("\(cloudModels.count) models · updated \(updated, style: .relative) ago")
+                    .font(.system(size: 10))
+                    .foregroundStyle(.secondary)
+            } else if !isRefreshingCloudModels {
+                Text("No models discovered yet — tap Refresh to ask the server which models it serves.")
+                    .font(.system(size: 10))
+                    .foregroundStyle(.secondary)
+            }
+
+            ForEach(cloudModels, id: \.endpointName) { model in
+                Button {
+                    settings.selectedAssistModelID = model.internalID
+                } label: {
+                    HStack(spacing: 6) {
+                        Image(systemName: settings.selectedAssistModelID == model.internalID
+                              ? "checkmark.circle.fill" : "circle")
+                            .font(.system(size: 11))
+                            .foregroundStyle(settings.selectedAssistModelID == model.internalID
+                                             ? .accentColor : .secondary)
+                        Text(model.displayName)
+                            .font(.system(size: 11))
+                            .foregroundStyle(.primary)
+                        Spacer()
+                        if let ownedBy = model.ownedBy, !ownedBy.isEmpty {
+                            Text(ownedBy)
+                                .font(.system(size: 9))
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                    .padding(.vertical, 2)
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .onAppear {
+            // Seed from the persisted cache; the toggle's onChange kicks off
+            // a live refresh when the user opts in.
+            cloudModels = SCCloudModelDiscovery.shared.models
+            cloudModelsUpdatedAt = SCCloudModelDiscovery.shared.lastUpdated
+        }
+    }
+
+    /// Fetches the server's model list now and updates the section state.
+    private func refreshCloudModels() async {
+        await MainActor.run { isRefreshingCloudModels = true }
+        let fresh = await SCCloudModelDiscovery.shared.refresh()
+        let updated = SCCloudModelDiscovery.shared.lastUpdated
+        await MainActor.run {
+            cloudModels = fresh
+            cloudModelsUpdatedAt = updated
+            isRefreshingCloudModels = false
+        }
+    }
+
+    @ViewBuilder
+    // MARK: - Google Account Authentication Card
+
+    /// Independent Google account authentication card. OAuth sessions are a
+    /// different credential kind from provider API keys, so they live in
+    /// their own card — not nested inside AI Provider API Keys.
+    private var googleAccountCard: some View {
+        GroupBox {
+            VStack(alignment: .leading, spacing: 12) {
+                HStack {
+                    Label("Google Account Authentication", systemImage: "person.badge.key.fill")
+                        .font(.headline)
+                        .foregroundColor(.blue)
+                    Spacer()
+                    googleAuthStatusBadge
+                }
+
+                if googleAuth.isAuthenticated {
+                    authenticatedAccountView
+                } else {
+                    googleSignInControls
+                }
+            }
+            .padding()
+        }
+        .groupBoxStyle(ModernGroupBoxStyle())
+    }
+
+    /// Truthful sign-in state: not signed in, signing in, authenticated,
+    /// failed, or expired — never a vague or stale label.
+    private var googleAuthStatusBadge: some View {
+        Group {
+            if googleAuth.isAuthenticating {
+                Label("Signing in…", systemImage: "progress.indicator")
+                    .foregroundStyle(.secondary)
+            } else if googleAuth.isAuthenticated {
+                Label("Authenticated", systemImage: "checkmark.circle.fill")
+                    .foregroundStyle(.green)
+            } else if googleAuth.authError != nil {
+                Label("Sign-in failed", systemImage: "xmark.circle.fill")
+                    .foregroundStyle(.red)
+            } else if googleAuth.lastTokenRefreshError != nil {
+                Label("Session expired", systemImage: "clock.badge.exclamationmark.fill")
+                    .foregroundStyle(.orange)
+            } else {
+                Label("Not signed in", systemImage: "person.crop.circle")
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .font(.caption2)
+    }
+
+    /// Sign-in controls for the unauthenticated state. Ordinary sign-in stays
+    /// here; low-level OAuth configuration lives under Advanced.
+    private var googleSignInControls: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Picker("Google Auth Mode", selection: $assistGoogleAuthMode) {
+                Text("Sign in with Google").tag("google_oauth")
+                Text("API Key").tag("api_key")
+            }
+            .pickerStyle(.segmented)
+            .controlSize(.small)
+            .labelsHidden()
+            .onChange(of: assistGoogleAuthMode) { _, newValue in
+                AppSettings.shared.assistGoogleAuthMode = newValue
+            }
+
+            if assistGoogleAuthMode == "google_oauth" {
+                VStack(alignment: .leading, spacing: 6) {
+                    HStack(spacing: 8) {
+                        Button {
+                            googleAuth.signIn()
+                        } label: {
+                            HStack {
+                                if googleAuth.isAuthenticating {
+                                    ProgressView()
+                                        .controlSize(.small)
+                                        .padding(.trailing, 4)
+                                    Text("Signing In...")
+                                } else {
+                                    Image(systemName: "person.badge.key.fill")
+                                    Text("Sign in with Google")
+                                }
+                            }
+                            .frame(maxWidth: .infinity)
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .controlSize(.regular)
+                        .disabled(googleAuth.isAuthenticating)
+
+                        if googleAuth.findAgyCLI() != nil || googleAuth.fetchAntigravityCredentialsFromKeychain() != nil {
+                            Button {
+                                googleAuth.signInViaCLI()
+                            } label: {
+                                HStack(spacing: 4) {
+                                    Image(systemName: "terminal.fill")
+                                    Text("Via CLI")
+                                }
+                            }
+                            .buttonStyle(.bordered)
+                            .controlSize(.regular)
+                            .disabled(googleAuth.isAuthenticating)
+                            .help("Authenticate in the background using the agy CLI")
+                        }
+                    }
+
+                    Text("Sign in with your Google account to use Gemini models without an API key. OAuth usage is attributed to your Google Cloud project (see Advanced below).")
+                        .font(.caption2)
+                        .foregroundColor(.secondary)
+
+                    if let error = googleAuth.authError {
+                        HStack(alignment: .top, spacing: 4) {
+                            Image(systemName: "exclamationmark.triangle.fill")
+                                .foregroundColor(.red)
+                                .font(.caption2)
+                            Text(error)
+                                .font(.caption2)
+                                .foregroundColor(.red)
+                        }
+                        .padding(.top, 2)
+                    }
+
+                    if let refreshError = googleAuth.lastTokenRefreshError {
+                        HStack(alignment: .top, spacing: 4) {
+                            Image(systemName: "clock.badge.exclamationmark.fill")
+                                .foregroundColor(.orange)
+                                .font(.caption2)
+                            Text("Previous session expired: \(refreshError). Sign in again to continue.")
+                                .font(.caption2)
+                                .foregroundColor(.orange)
+                        }
+                        .padding(.top, 2)
+                    }
+                }
+                .padding(.vertical, 2)
+            } else {
+                Text("API Key mode: add your Gemini API key under AI Provider API Keys below.")
+                    .font(.caption2)
+                    .foregroundColor(.secondary)
+            }
+        }
+    }
+
+    // MARK: - Advanced OAuth Configuration
+
+    /// Low-level OAuth configuration. Ordinary sign-in stays in the Google
+    /// Account card above; these fields are for project/client overrides.
+    private var advancedOAuthSection: some View {
+        GroupBox {
+            DisclosureGroup(isExpanded: $isAdvancedExpanded) {
+                VStack(alignment: .leading, spacing: 10) {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("Google Cloud Project ID")
+                            .font(.caption2.bold())
+                        TextField("my-project-id", text: Binding(
+                            get: { AppSettings.shared.assistGoogleCloudProject },
+                            set: { AppSettings.shared.assistGoogleCloudProject = $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+                        ))
+                        .textFieldStyle(.roundedBorder)
+                        .font(.caption2)
+                        Text("Required for Sign in with Google: the Gemini API bills OAuth usage to this project. Find it in the Google Cloud console.")
+                            .font(.caption2)
+                            .foregroundColor(.secondary)
+                    }
+
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("OAuth Client ID Override")
+                            .font(.caption2.bold())
+                        TextField("Empty = SwiftCode's built-in client", text: $googleOAuthClientIDInput)
+                            .textFieldStyle(.roundedBorder)
+                            .font(.caption2)
+                            .onChange(of: googleOAuthClientIDInput) { _, newValue in
+                                AppSettings.shared.assistGoogleOAuthClientIDOverride = newValue.trimmingCharacters(in: .whitespacesAndNewlines)
+                            }
+                        Text("Only needed if you must use a different OAuth client than SwiftCode's built-in one. Applies to the next sign-in.")
+                            .font(.caption2)
+                            .foregroundColor(.secondary)
+                    }
+
+                    VStack(alignment: .leading, spacing: 4) {
+                        HStack(spacing: 4) {
+                            Text("OAuth Client Secret")
+                                .font(.caption2.bold())
+                            if googleAuth.hasKeychainClientSecret {
+                                HStack(spacing: 4) {
+                                    Image(systemName: "lock.shield.fill")
+                                        .foregroundColor(.green)
+                                        .font(.caption2)
+                                    Text("Saved in Keychain")
+                                        .font(.caption2)
+                                        .foregroundColor(.green)
+                                }
+                            }
+                            Spacer()
+                            if googleAuth.hasKeychainClientSecret {
+                                Button("Clear") {
+                                    googleAuth.clearClientSecret()
+                                }
+                                .font(.caption2)
+                                .buttonStyle(.plain)
+                                .foregroundColor(.red)
+                            }
+                        }
+                        HStack(spacing: 6) {
+                            SecureField("Paste client secret", text: $googleClientSecretInput)
+                                .textFieldStyle(.roundedBorder)
+                                .font(.caption2)
+                            Button("Save") {
+                                googleAuth.setClientSecret(googleClientSecretInput)
+                                googleClientSecretInput = ""
+                            }
+                            .font(.caption2)
+                            .buttonStyle(.bordered)
+                            .controlSize(.small)
+                            .disabled(googleClientSecretInput.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                        }
+                        Text("Required for Sign in with Google: Google's token endpoint rejects the sign-in without it (\"client_secret is missing.\"). Stored only in Keychain, never in the app bundle.")
+                            .font(.caption2)
+                            .foregroundColor(.secondary)
+                    }
+                }
+                .padding(.top, 8)
+            } label: {
+                Label("Advanced", systemImage: "gearshape.fill")
+                    .font(.headline)
+                    .foregroundColor(.secondary)
+            }
+            .padding()
+        }
+        .groupBoxStyle(ModernGroupBoxStyle())
+    }
+
     private var authenticatedAccountView: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack(spacing: 12) {
@@ -2327,6 +2576,7 @@ struct AssistSettingsView: View {
             ?? KeychainService.shared.get(forKey: "gemini_api_key")
             ?? ""
         composioKey = ""
+        googleOAuthClientIDInput = AppSettings.shared.assistGoogleOAuthClientIDOverride
     }
 
     private func saveAPIKeys() {

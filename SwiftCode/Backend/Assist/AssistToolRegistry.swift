@@ -99,6 +99,7 @@ public final class AssistToolRegistry {
 
         register(AssistTaskRunnerTool())
         register(AssistBuildProjectTool())
+        register(AssistGenerateXcodeprojTool())
         register(AssistTestRunnerTool())
         register(AssistLogCaptureTool())
         register(AssistEnvironmentInfoTool())

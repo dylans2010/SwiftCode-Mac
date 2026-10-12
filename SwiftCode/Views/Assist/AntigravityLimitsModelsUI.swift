@@ -17,10 +17,13 @@ public struct AntigravityLimitsModelsUI: View {
 
     @ObservedObject private var quotaService = AntigravityQuotaService.shared
     @ObservedObject private var modelFetcher = AntigravitySDKModelFetcher.shared
+    @ObservedObject private var settings = AppSettings.shared
 
     @State private var showingUsageDetailsPopover: Bool = false
     @State private var selectedThinkingLevel: ThinkingLevel = .high
     @State private var hoveredModelID: String? = nil
+    // Discovered SwiftCode Cloud models (server hosts many — never a hardcoded single model).
+    @State private var cloudModels: [SCCloudModelInfo] = []
 
     public enum ThinkingLevel: String, CaseIterable, Identifiable {
         case low = "Low"
@@ -69,8 +72,17 @@ public struct AntigravityLimitsModelsUI: View {
         .frame(width: 320, height: 380)
         .background(.ultraThinMaterial)
         .onAppear {
-            quotaService.refreshRealGoogleQuota()
+            quotaService.startPeriodicRefresh()
             syncThinkingLevelWithSelection()
+            // Seed from cache, then refresh in the background when stale.
+            cloudModels = SCCloudModelDiscovery.shared.models
+            Task {
+                let fresh = await SCCloudModelDiscovery.shared.refreshIfStale()
+                await MainActor.run { cloudModels = fresh }
+            }
+        }
+        .onDisappear {
+            quotaService.stopPeriodicRefresh()
         }
         .onChange(of: selectedModelID) { _, _ in
             syncThinkingLevelWithSelection()
@@ -251,10 +263,40 @@ public struct AntigravityLimitsModelsUI: View {
     private var displayedModels: [AntigravitySDKModel] {
         let all = modelFetcher.models.isEmpty ? AntigravitySDKModelFetcher.seedModels : modelFetcher.models
         let matching = all.filter { $0.thinkingLevel.lowercased() == selectedThinkingLevel.rawValue.lowercased() }
-        if !matching.isEmpty {
-            return matching
+        var base = matching.isEmpty ? all : matching
+        // SwiftCode Cloud Models: pinned to the top whenever the toggle is on,
+        // regardless of thinking-level filter or routing strategy. One entry per
+        // discovered model, each labeled with its real server-side name
+        // (gemma, gpt-oss, qwen, …) — never a single hardcoded model name.
+        // Until the first discovery completes, a single honest placeholder
+        // entry is shown; it resolves to the first discovered model.
+        if settings.useSwiftCodeCloudModel {
+            let cloudEntries: [AntigravitySDKModel]
+            if cloudModels.isEmpty {
+                cloudEntries = [
+                    AntigravitySDKModel(
+                        id: SCCloudConfiguration.modelIDPrefix,
+                        displayName: "SwiftCode Cloud (discovering models…)",
+                        thinkingLevel: "Medium",
+                        contextWindow: 128_000,
+                        category: "SwiftCode"
+                    )
+                ]
+            } else {
+                cloudEntries = cloudModels.map { info in
+                    AntigravitySDKModel(
+                        id: info.internalID,
+                        displayName: info.displayName,
+                        thinkingLevel: "Medium",
+                        contextWindow: info.contextWindow ?? 128_000,
+                        category: "SwiftCode"
+                    )
+                }
+            }
+            base.removeAll { SCCloudConfiguration.isCloudModelID($0.id) }
+            base.insert(contentsOf: cloudEntries, at: 0)
         }
-        return all
+        return base
     }
 
     // MARK: - Usage Details Popover Content (Live Google Allowance)
@@ -352,6 +394,40 @@ public struct AntigravityLimitsModelsUI: View {
                     gaugeColor: AntigravityQuotaService.gaugeColor(forPercentage: quotaService.realThreePWeeklyPercentage),
                     icon: "calendar.badge.clock"
                 )
+            }
+
+            Divider()
+
+            // MARK: - Data source & refresh provenance
+            VStack(alignment: .leading, spacing: 3) {
+                HStack(spacing: 4) {
+                    Image(systemName: "info.circle")
+                        .font(.system(size: 8))
+                        .foregroundStyle(.secondary)
+                    Text(quotaService.quotaDataSourceDescription)
+                        .font(.system(size: 8))
+                        .foregroundStyle(.secondary)
+                        .lineLimit(2)
+                }
+                if let last = quotaService.lastSuccessfulRefresh {
+                    Text("Last refreshed \(last, style: .relative) · auto-refresh every 10 min")
+                        .font(.system(size: 8))
+                        .foregroundStyle(.secondary)
+                } else {
+                    Text("No successful refresh yet · auto-refresh every 10 min")
+                        .font(.system(size: 8))
+                        .foregroundStyle(.secondary)
+                }
+                if let err = quotaService.lastRefreshError {
+                    Text(err)
+                        .font(.system(size: 8))
+                        .foregroundStyle(.orange)
+                        .lineLimit(2)
+                }
+                Text("Antigravity account usage: \(quotaService.antigravityAccountUsageStatus)")
+                    .font(.system(size: 8))
+                    .foregroundStyle(.tertiary)
+                    .lineLimit(3)
             }
         }
         .padding(10)

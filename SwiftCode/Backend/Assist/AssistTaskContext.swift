@@ -8,7 +8,7 @@
 import Foundation
 
 /// Structured execution state submitted from the Assist composer to the execution runtime.
-public struct AssistTaskEnvelope: Sendable {
+public struct AssistTaskEnvelope: Codable, Sendable {
     public let id: UUID
     public let userMessage: String
     public let explicitSkills: [SkillDescriptor]

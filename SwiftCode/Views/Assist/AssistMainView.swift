@@ -68,6 +68,13 @@ public struct AssistMainView: View {
             // Header Bar
             HStack(spacing: 12) {
                 Button {
+                    searchConversationText = ""
+                    attachedFiles = []
+                    selectedExplicitSkills = []
+                    selectedExplicitMCPServers = []
+                    selectedExplicitFiles = []
+                    editingQueueId = nil
+                    editingQueueText = ""
                     manager.clearChat()
                 } label: {
                     Image(systemName: "trash")
@@ -195,7 +202,21 @@ public struct AssistMainView: View {
                             }
 
                             if let error = manager.lastError {
-                                AssistInlineError(message: error)
+                                AssistInlineDiagnostic(
+                                    message: error,
+                                    severity: .error,
+                                    date: manager.lastErrorDate,
+                                    phase: manager.lastErrorPhase
+                                )
+                            }
+
+                            if let warning = manager.lastWarning {
+                                AssistInlineDiagnostic(
+                                    message: warning,
+                                    severity: .warning,
+                                    date: manager.lastWarningDate,
+                                    phase: manager.lastWarningPhase
+                                )
                             }
 
                             processingIndicator
@@ -636,10 +657,12 @@ public struct AssistMainView: View {
             let hasActiveToolActivity = lastMessage?.activityGroup?.tools.contains {
                 $0.status == .pending || $0.status == .running || $0.status == .retrying
             } == true
+            // Derive from the request phase (single source of truth), not
+            // from string-matching the activity label.
             let isStreamingChatResponse = lastMessage?.role == .assistant &&
-                lastMessage?.content.isEmpty == false && manager.currentActivityStatus == "Receiving response…"
+                lastMessage?.content.isEmpty == false && manager.requestPhase == .receivingResponse
             let isActivelyThinking = lastMessage?.role == .assistant &&
-                (lastMessage?.thinkingContent?.isEmpty == false) && manager.currentActivityStatus == "Thinking…"
+                (lastMessage?.thinkingContent?.isEmpty == false) && manager.requestPhase == .waitingForModel
 
             if !hasActiveToolActivity && !isStreamingChatResponse && !isActivelyThinking {
                 activityStatusIndicator
@@ -745,11 +768,43 @@ public struct AssistMainView: View {
                             saveEditedQueueItem(id: item.id)
                         }
                 } else {
-                    Text(item.content)
-                        .font(.system(size: 12))
-                        .foregroundColor(.primary)
-                        .lineLimit(3)
-                        .frame(maxWidth: .infinity, alignment: .leading)
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(item.content)
+                            .font(.system(size: 12))
+                            .foregroundColor(.primary)
+                            .lineLimit(3)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+
+                        if let envelope = item.envelope {
+                            let skillCount = envelope.explicitSkills.count
+                            let mcpCount = envelope.explicitMCPServers.count
+                            let fileCount = envelope.explicitFiles.count
+                            if skillCount + mcpCount + fileCount > 0 {
+                                HStack(spacing: 6) {
+                                    if skillCount > 0 {
+                                        Label("\(skillCount) skill\(skillCount == 1 ? "" : "s")", systemImage: "wand.and.stars")
+                                            .font(.system(size: 9))
+                                            .foregroundStyle(.secondary)
+                                    }
+                                    if mcpCount > 0 {
+                                        Label("\(mcpCount) MCP", systemImage: "server.rack")
+                                            .font(.system(size: 9))
+                                            .foregroundStyle(.secondary)
+                                    }
+                                    if fileCount > 0 {
+                                        Label("\(fileCount) file\(fileCount == 1 ? "" : "s")", systemImage: "doc")
+                                            .font(.system(size: 9))
+                                            .foregroundStyle(.secondary)
+                                    }
+                                }
+                            }
+                        } else if !item.attachments.isEmpty {
+                            Label("\(item.attachments.count) attachment\(item.attachments.count == 1 ? "" : "s")", systemImage: "paperclip")
+                                .font(.system(size: 9))
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
                 }
 
                 HStack(spacing: 6) {
@@ -1064,7 +1119,7 @@ public struct AssistMainView: View {
 
         if manager.isProcessing || bridgeManager.streamStatus == "Streaming" {
             withAnimation(.spring(response: 0.35, dampingFraction: 0.75)) {
-                manager.enqueueMessage(text, attachments: filesToSend)
+                manager.enqueueMessage(text, attachments: filesToSend, envelope: envelope)
             }
             return
         }
@@ -2027,24 +2082,95 @@ struct DiagnosticsSheet: View {
     }
 }
 
+/// Expandable inline diagnostic for errors and warnings. The collapsed row
+/// shows a one-line summary; expanding reveals the full message plus
+/// diagnostic context (when it was recorded, which request phase was
+/// active) and a copy button. Warnings render amber, errors red.
+private struct AssistInlineDiagnostic: View {
+    enum Severity {
+        case error
+        case warning
+    }
+
+    let message: String
+    let severity: Severity
+    let date: Date?
+    let phase: AssistRequestPhase?
+
+    @State private var isExpanded = false
+
+    private var tint: Color {
+        severity == .error ? .red : .orange
+    }
+
+    private var icon: String {
+        severity == .error ? "exclamationmark.circle.fill" : "exclamationmark.triangle.fill"
+    }
+
+    private var summary: String {
+        let firstLine = message.components(separatedBy: .newlines).first?
+            .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        return firstLine.isEmpty ? (severity == .error ? "An error occurred." : "Warning.") : firstLine
+    }
+
+    var body: some View {
+        DisclosureGroup(isExpanded: $isExpanded) {
+            VStack(alignment: .leading, spacing: 6) {
+                Text(message)
+                    .font(.caption)
+                    .foregroundStyle(.primary)
+                    .textSelection(.enabled)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+
+                HStack(spacing: 12) {
+                    if let date {
+                        Label(date.formatted(date: .omitted, time: .standard), systemImage: "clock")
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                    }
+                    if let phase {
+                        Label(phase.statusText, systemImage: "point.topleft.down.curvedto.point.bottomright.up")
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                    }
+                    Spacer()
+                    Button {
+                        #if os(macOS)
+                        NSPasteboard.general.clearContents()
+                        NSPasteboard.general.setString(message, forType: .string)
+                        #endif
+                    } label: {
+                        Label("Copy", systemImage: "doc.on.doc")
+                            .font(.caption2)
+                    }
+                    .buttonStyle(.plain)
+                    .foregroundStyle(.secondary)
+                }
+            }
+            .padding(.top, 4)
+        } label: {
+            HStack(alignment: .top, spacing: 6) {
+                Image(systemName: icon)
+                    .font(.system(size: 11))
+                    .foregroundStyle(tint)
+                Text(summary)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(2)
+                Spacer()
+            }
+        }
+        .tint(tint)
+        .padding(.horizontal, 12)
+        .padding(.vertical, 4)
+    }
+}
+
 private struct AssistInlineError: View {
     let message: String
 
     var body: some View {
-        HStack(alignment: .top, spacing: 6) {
-            Image(systemName: "exclamationmark.circle")
-                .font(.system(size: 11))
-                .foregroundStyle(.secondary)
-
-            Text(message)
-                .font(.caption)
-                .foregroundStyle(.secondary)
-                .textSelection(.enabled)
-
-            Spacer()
-        }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 4)
+        AssistInlineDiagnostic(message: message, severity: .error, date: nil, phase: nil)
     }
 }
 
