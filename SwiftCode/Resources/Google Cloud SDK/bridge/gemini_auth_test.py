@@ -298,6 +298,16 @@ class RequireCustomEndpointTests(unittest.TestCase):
         self.assertIn("my-model", message)
         self.assertIn("endpoint", message.lower())
 
+    def test_custom_error_text_names_real_remedy(self):
+        # N-2: the text must not reference a provider picker that does not
+        # exist — the real remedy is configuring an explicit endpoint.
+        with self.assertRaises(GeminiAuthConfigError) as ctx:
+            _require_custom_endpoint(provider="custom", model="my-model", base_url="")
+        message = str(ctx.exception)
+        self.assertNotIn("pick a provider", message.lower())
+        self.assertIn("Settings > Assist", message)
+        self.assertIn("Custom Model Setup", message)
+
     def test_custom_with_blank_endpoint_is_actionable_error(self):
         with self.assertRaises(GeminiAuthConfigError):
             _require_custom_endpoint(provider="custom", model="my-model", base_url="   ")
