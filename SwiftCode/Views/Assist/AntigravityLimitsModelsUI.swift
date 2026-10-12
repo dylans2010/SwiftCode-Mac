@@ -22,6 +22,8 @@ public struct AntigravityLimitsModelsUI: View {
     @State private var showingUsageDetailsPopover: Bool = false
     @State private var selectedThinkingLevel: ThinkingLevel = .high
     @State private var hoveredModelID: String? = nil
+    // Discovered SwiftCode Cloud models (server hosts many — never a hardcoded single model).
+    @State private var cloudModels: [SCCloudModelInfo] = []
 
     public enum ThinkingLevel: String, CaseIterable, Identifiable {
         case low = "Low"
@@ -72,6 +74,12 @@ public struct AntigravityLimitsModelsUI: View {
         .onAppear {
             quotaService.startPeriodicRefresh()
             syncThinkingLevelWithSelection()
+            // Seed from cache, then refresh in the background when stale.
+            cloudModels = SCCloudModelDiscovery.shared.models
+            Task {
+                let fresh = await SCCloudModelDiscovery.shared.refreshIfStale()
+                await MainActor.run { cloudModels = fresh }
+            }
         }
         .onDisappear {
             quotaService.stopPeriodicRefresh()
@@ -256,18 +264,35 @@ public struct AntigravityLimitsModelsUI: View {
         let all = modelFetcher.models.isEmpty ? AntigravitySDKModelFetcher.seedModels : modelFetcher.models
         let matching = all.filter { $0.thinkingLevel.lowercased() == selectedThinkingLevel.rawValue.lowercased() }
         var base = matching.isEmpty ? all : matching
-        // SwiftCode Cloud Model: pinned to the top whenever the toggle is on,
-        // regardless of thinking-level filter or routing strategy.
+        // SwiftCode Cloud Models: pinned to the top whenever the toggle is on,
+        // regardless of thinking-level filter or routing strategy. One entry per
+        // discovered model; falls back to a single placeholder entry until the
+        // first discovery completes.
         if settings.useSwiftCodeCloudModel {
-            let cloud = AntigravitySDKModel(
-                id: SCCloudConfiguration.modelID,
-                displayName: SCCloudConfiguration.displayName,
-                thinkingLevel: "Medium",
-                contextWindow: 128_000,
-                category: "SwiftCode"
-            )
-            base.removeAll { $0.id == cloud.id }
-            base.insert(cloud, at: 0)
+            let cloudEntries: [AntigravitySDKModel]
+            if cloudModels.isEmpty {
+                cloudEntries = [
+                    AntigravitySDKModel(
+                        id: SCCloudConfiguration.modelIDPrefix,
+                        displayName: SCCloudConfiguration.displayName,
+                        thinkingLevel: "Medium",
+                        contextWindow: 128_000,
+                        category: "SwiftCode"
+                    )
+                ]
+            } else {
+                cloudEntries = cloudModels.map { info in
+                    AntigravitySDKModel(
+                        id: info.internalID,
+                        displayName: info.displayName,
+                        thinkingLevel: "Medium",
+                        contextWindow: info.contextWindow ?? 128_000,
+                        category: "SwiftCode"
+                    )
+                }
+            }
+            base.removeAll { SCCloudConfiguration.isCloudModelID($0.id) }
+            base.insert(contentsOf: cloudEntries, at: 0)
         }
         return base
     }

@@ -322,8 +322,9 @@ public final class AssistManager: ObservableObject {
         // SwiftCode Cloud Model: direct hosted-model path. Works under every
         // routing strategy with no API key or sign-in — the settings toggle is
         // the only gate. Takes precedence over the Antigravity session below.
+        // Matches every cloud model ID ("swiftcode-cloud" and "swiftcode-cloud:<name>").
         if AppSettings.shared.useSwiftCodeCloudModel,
-           AppSettings.shared.selectedAssistModelID == SCCloudConfiguration.modelID {
+           SCCloudConfiguration.isCloudModelID(AppSettings.shared.selectedAssistModelID) {
             await sendSwiftCodeCloudMessage(trimmed, attachments: attachments, envelope: envelope, metrics: metrics)
             return
         }
@@ -979,7 +980,7 @@ public final class AssistManager: ObservableObject {
             userText: content,
             taskCategory: SystemIndexService.classifyCategory(for: content),
             stage: .preparation,
-            modelID: SCCloudConfiguration.modelID,
+            modelID: AppSettings.shared.selectedAssistModelID,
             maxTokens: 3000,
             excludingChunkIDs: activeRetrievalLedger?.retrievedChunkIDs ?? []
         )
@@ -1012,7 +1013,17 @@ public final class AssistManager: ObservableObject {
         }
 
         do {
-            let response = try await SCCloudModelClient.shared.complete(prompt: prompt, history: history)
+            // The exact server-side model name comes from the selected cloud
+            // model ID ("swiftcode-cloud:<name>"). Nil means the legacy
+            // single-model selection — the client resolves it to the first
+            // discovered model (or the configured fallback).
+            let selectedID = AppSettings.shared.selectedAssistModelID
+            let endpointModel = SCCloudConfiguration.endpointName(forInternalID: selectedID)
+            let response = try await SCCloudModelClient.shared.complete(
+                prompt: prompt,
+                history: history,
+                modelIdentifier: endpointModel
+            )
             metrics?.mark(.requestSent)
             await MainActor.run {
                 if let idx = self.messages.indices.last {
@@ -1112,7 +1123,8 @@ public final class AssistManager: ObservableObject {
 
         // SwiftCode Cloud Model: bypass the Antigravity session entirely, even if
         // this path was reached directly. (sendMessage normally routes here first.)
-        if let routed = initialRouted, routed.model.id == SCCloudConfiguration.modelID {
+        // Matches every cloud model ID, not just the legacy single-model one.
+        if let routed = initialRouted, SCCloudConfiguration.isCloudModelID(routed.model.id) {
             await sendSwiftCodeCloudMessage(content, attachments: allAttachments, envelope: envelope, metrics: metrics)
             return
         }

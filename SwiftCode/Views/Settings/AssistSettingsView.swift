@@ -521,6 +521,10 @@ struct AssistSettingsView: View {
     // Disclosure expansion state.
     @State private var isAPIKeysExpanded = false
     @State private var isAdvancedExpanded = false
+    // SwiftCode Cloud discovered models.
+    @State private var cloudModels: [SCCloudModelInfo] = []
+    @State private var cloudModelsUpdatedAt: Date? = nil
+    @State private var isRefreshingCloudModels = false
 
     // OpenRouter models state
     @State private var openRouterModels: [OpenRouterModel] = []
@@ -865,12 +869,20 @@ struct AssistSettingsView: View {
                                                 // Provision the device fingerprint the moment the user opts in.
                                                 // The fingerprint itself is never exposed to the UI.
                                                 SCCloudDeviceFingerprint.ensureFingerprint()
+                                                // Discover the server's models right away so the user
+                                                // can pick one instead of waiting for the picker to load.
+                                                Task { await refreshCloudModels() }
                                             }
                                         }
 
-                                        Text("Adds SwiftCode's hosted cloud model to the model picker. Works with any routing strategy — no API key or sign-in required. Limited to \(SCCloudConfiguration.dailyRequestLimit) requests per device per day for fair use.")
+                                        Text("Adds SwiftCode's hosted cloud models to the model picker. Works with any routing strategy — no API key or sign-in required. Limited to \(SCCloudConfiguration.dailyRequestLimit) requests per device per day for fair use.")
                                             .font(.system(size: 10))
                                             .foregroundStyle(.secondary)
+
+                                        if settings.useSwiftCodeCloudModel {
+                                            Divider()
+                                            cloudModelListSection
+                                        }
                                     }
                                 }
                                 .padding(10)
@@ -2045,6 +2057,87 @@ struct AssistSettingsView: View {
         }
         .onChange(of: isEndpointLocal) { _, _ in
             if isEditingEndpoint && isNewEndpoint { triggerAutoFetchCustomModels() }
+        }
+    }
+
+    @ViewBuilder
+    // MARK: - SwiftCode Cloud Model List
+
+    /// Discovered cloud models with manual refresh. The server hosts many
+    /// models — this list (and the picker) is driven by live discovery,
+    /// never by a hardcoded single model.
+    private var cloudModelListSection: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack {
+                Text("Cloud Models")
+                    .font(.system(size: 12, weight: .medium))
+                Spacer()
+                if isRefreshingCloudModels {
+                    ProgressView()
+                        .scaleEffect(0.6)
+                        .frame(width: 14, height: 14)
+                } else {
+                    Button("Refresh") {
+                        Task { await refreshCloudModels() }
+                    }
+                    .font(.system(size: 10))
+                    .buttonStyle(.link)
+                }
+            }
+
+            if let updated = cloudModelsUpdatedAt, !cloudModels.isEmpty {
+                Text("\(cloudModels.count) models · updated \(updated, style: .relative) ago")
+                    .font(.system(size: 10))
+                    .foregroundStyle(.secondary)
+            } else if !isRefreshingCloudModels {
+                Text("No models discovered yet — tap Refresh to ask the server which models it serves.")
+                    .font(.system(size: 10))
+                    .foregroundStyle(.secondary)
+            }
+
+            ForEach(cloudModels, id: \.endpointName) { model in
+                Button {
+                    settings.selectedAssistModelID = model.internalID
+                } label: {
+                    HStack(spacing: 6) {
+                        Image(systemName: settings.selectedAssistModelID == model.internalID
+                              ? "checkmark.circle.fill" : "circle")
+                            .font(.system(size: 11))
+                            .foregroundStyle(settings.selectedAssistModelID == model.internalID
+                                             ? .accentColor : .secondary)
+                        Text(model.displayName)
+                            .font(.system(size: 11))
+                            .foregroundStyle(.primary)
+                        Spacer()
+                        if let ownedBy = model.ownedBy, !ownedBy.isEmpty {
+                            Text(ownedBy)
+                                .font(.system(size: 9))
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                    .padding(.vertical, 2)
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .onAppear {
+            // Seed from the persisted cache; the toggle's onChange kicks off
+            // a live refresh when the user opts in.
+            cloudModels = SCCloudModelDiscovery.shared.models
+            cloudModelsUpdatedAt = SCCloudModelDiscovery.shared.lastUpdated
+        }
+    }
+
+    /// Fetches the server's model list now and updates the section state.
+    private func refreshCloudModels() async {
+        await MainActor.run { isRefreshingCloudModels = true }
+        let fresh = await SCCloudModelDiscovery.shared.refresh()
+        let updated = SCCloudModelDiscovery.shared.lastUpdated
+        await MainActor.run {
+            cloudModels = fresh
+            cloudModelsUpdatedAt = updated
+            isRefreshingCloudModels = false
         }
     }
 
