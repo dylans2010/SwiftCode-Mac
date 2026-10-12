@@ -2662,6 +2662,12 @@
 		4EDBEC42F1C0E6A5487ADF5E /* SDKSourceControlAdapter.swift in Sources */ = {isa = PBXBuildFile; fileRef = EFB7467FC11F54C3713CF885 /* SDKSourceControlAdapter.swift */; };
 		18095D71A6C964CCCB751722 /* SDKBuildService.swift in Sources */ = {isa = PBXBuildFile; fileRef = DDB91E5267550C18B40615A5 /* SDKBuildService.swift */; };
 		B9433FF279534085B038F994 /* SDKBuildOutputParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0BED5DCAF1D65121356CAD9E /* SDKBuildOutputParser.swift */; };
+		B768650CF95730B6C04758E7 /* SDKRuntimeSession.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7CF9B63FFCC9512CFEC241D /* SDKRuntimeSession.swift */; };
+		40D8E5B41E2D0C2DB83A66F6 /* SDKNodeLauncher.swift in Sources */ = {isa = PBXBuildFile; fileRef = 78499B10BFD6AEF224606587 /* SDKNodeLauncher.swift */; };
+		C41A12CC306A063220287CBD /* SDKIPCTransport.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3E69D974DE8E9F7B413E7A38 /* SDKIPCTransport.swift */; };
+		FA760F41FC93C79274D4F706 /* SDKIPCDispatcher.swift in Sources */ = {isa = PBXBuildFile; fileRef = 94E257AE4ECFEACC786D8FE8 /* SDKIPCDispatcher.swift */; };
+		DBC78209AE01473EE6B29EB7 /* SDKExtensionRegistry.swift in Sources */ = {isa = PBXBuildFile; fileRef = FA70D1E78E3BFCD08D6E7B0F /* SDKExtensionRegistry.swift */; };
+		FEB502AF674F6E993CCAF980 /* SDKCommandRegistry.swift in Sources */ = {isa = PBXBuildFile; fileRef = B48C7ECD8F33294647D7CF93 /* SDKCommandRegistry.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -5294,6 +5300,12 @@
 		EFB7467FC11F54C3713CF885 /* SDKSourceControlAdapter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SDKSourceControlAdapter.swift; sourceTree = "<group>"; };
 		DDB91E5267550C18B40615A5 /* SDKBuildService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SDKBuildService.swift; sourceTree = "<group>"; };
 		0BED5DCAF1D65121356CAD9E /* SDKBuildOutputParser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SDKBuildOutputParser.swift; sourceTree = "<group>"; };
+		C7CF9B63FFCC9512CFEC241D /* SDKRuntimeSession.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SDKRuntimeSession.swift; sourceTree = "<group>"; };
+		78499B10BFD6AEF224606587 /* SDKNodeLauncher.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SDKNodeLauncher.swift; sourceTree = "<group>"; };
+		3E69D974DE8E9F7B413E7A38 /* SDKIPCTransport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SDKIPCTransport.swift; sourceTree = "<group>"; };
+		94E257AE4ECFEACC786D8FE8 /* SDKIPCDispatcher.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SDKIPCDispatcher.swift; sourceTree = "<group>"; };
+		FA70D1E78E3BFCD08D6E7B0F /* SDKExtensionRegistry.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SDKExtensionRegistry.swift; sourceTree = "<group>"; };
+		B48C7ECD8F33294647D7CF93 /* SDKCommandRegistry.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SDKCommandRegistry.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -9599,12 +9611,23 @@
 				1AFEE2DD6AA3DA8C12B6B260 /* CapabilityBroker */,
 				75DE7BAC842A2BA0E06F3DD6 /* APIKeys */,
 				6867F8539DC139E59D8813F8 /* ServiceAdapters */,
+				88728D12E945F729F7D20D82 /* PublicAPI */,
 			);
 			name = Host;
 			path = Host;
 			sourceTree = "<group>";
 		};
 		5112bc67d5d1af6adeaa93fd /* ExtensionRegistry */ = {
+			isa = PBXGroup;
+			children = (
+				eb3094250784a0bd6a4aeb97 /* SDKManifestValidator.swift */,
+				d115ab1f0a46f9a9bbf91208 /* SDKPackageValidator.swift */,
+				FA70D1E78E3BFCD08D6E7B0F /* SDKExtensionRegistry.swift */,
+			);
+			name = ExtensionRegistry;
+			path = ExtensionRegistry;
+			sourceTree = "<group>";
+		};
 		6867F8539DC139E59D8813F8 /* ServiceAdapters */ = {
 			isa = PBXGroup;
 			children = (
@@ -9634,19 +9657,13 @@
 			path = Build;
 			sourceTree = "<group>";
 		};
-			isa = PBXGroup;
-			children = (
-				eb3094250784a0bd6a4aeb97 /* SDKManifestValidator.swift */,
-				d115ab1f0a46f9a9bbf91208 /* SDKPackageValidator.swift */,
-			);
-			name = ExtensionRegistry;
-			path = ExtensionRegistry;
-			sourceTree = "<group>";
-		};
 		5d8e0320750093895bba3565 /* Runtime */ = {
 			isa = PBXGroup;
 			children = (
 				897a8cf2d913d7b6c8f5efa7 /* Diagnostics */,
+				405213F87191266BD9E387AB /* Lifecycle */,
+				85D8D403D7A0E3326D743CE8 /* Isolation */,
+				7989DB5BDC69C2011E58B5A9 /* IPC */,
 			);
 			name = Runtime;
 			path = Runtime;
@@ -9785,6 +9802,43 @@
 			);
 			name = Authorization;
 			path = Authorization;
+			sourceTree = "<group>";
+		};
+		405213F87191266BD9E387AB /* Lifecycle */ = {
+			isa = PBXGroup;
+			children = (
+				C7CF9B63FFCC9512CFEC241D /* SDKRuntimeSession.swift */,
+			);
+			name = Lifecycle;
+			path = Lifecycle;
+			sourceTree = "<group>";
+		};
+		85D8D403D7A0E3326D743CE8 /* Isolation */ = {
+			isa = PBXGroup;
+			children = (
+				78499B10BFD6AEF224606587 /* SDKNodeLauncher.swift */,
+			);
+			name = Isolation;
+			path = Isolation;
+			sourceTree = "<group>";
+		};
+		7989DB5BDC69C2011E58B5A9 /* IPC */ = {
+			isa = PBXGroup;
+			children = (
+				3E69D974DE8E9F7B413E7A38 /* SDKIPCTransport.swift */,
+				94E257AE4ECFEACC786D8FE8 /* SDKIPCDispatcher.swift */,
+			);
+			name = IPC;
+			path = IPC;
+			sourceTree = "<group>";
+		};
+		88728D12E945F729F7D20D82 /* PublicAPI */ = {
+			isa = PBXGroup;
+			children = (
+				B48C7ECD8F33294647D7CF93 /* SDKCommandRegistry.swift */,
+			);
+			name = PublicAPI;
+			path = PublicAPI;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -12561,6 +12615,12 @@
 				4EDBEC42F1C0E6A5487ADF5E /* SDKSourceControlAdapter.swift in Sources */,
 				18095D71A6C964CCCB751722 /* SDKBuildService.swift in Sources */,
 				B9433FF279534085B038F994 /* SDKBuildOutputParser.swift in Sources */,
+				B768650CF95730B6C04758E7 /* SDKRuntimeSession.swift in Sources */,
+				40D8E5B41E2D0C2DB83A66F6 /* SDKNodeLauncher.swift in Sources */,
+				C41A12CC306A063220287CBD /* SDKIPCTransport.swift in Sources */,
+				FA760F41FC93C79274D4F706 /* SDKIPCDispatcher.swift in Sources */,
+				DBC78209AE01473EE6B29EB7 /* SDKExtensionRegistry.swift in Sources */,
+				FEB502AF674F6E993CCAF980 /* SDKCommandRegistry.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

@@ -1,0 +1,522 @@
+import Foundation
+
+// MARK: - SDKIPCDispatcher
+//
+// Host-side IPC request dispatcher for one extension runtime session
+// (Docs/Intro-to-SDK.md §10.4).
+//
+// Owns the full request pipeline for a single session: frame validation,
+// Assist deny-listing (§9), session-bound identity binding (§10.4), routing
+// with a per-request timeout, and response encoding. One dispatcher serves
+// exactly one `SDKRuntimeSessionInfo`; the transport layer creates a fresh
+// dispatcher per session, so no cross-extension state ever mixes here.
+//
+// ---------------------------------------------------------------------------
+// SECURITY MODEL — READ THIS BEFORE TOUCHING THIS FILE
+// ---------------------------------------------------------------------------
+// 1. Extension-supplied identity is NEVER trusted. No identity fields are
+//    read from the payload anywhere in this dispatcher. The
+//    `SDKCallerIdentity` handed to every service is built from the
+//    host-created `SDKRuntimeSessionInfo` (spec §10.4: "bind identity to
+//    the host-created runtime session and validate it at the IPC boundary").
+//
+// 2. Every privileged method re-authorizes at the capability broker THROUGH
+//    THE ADAPTERS — `SDKSourceControlAdapter` and `SDKBuildService` call
+//    `SDKCapabilityBroker.authorize(_:for:)` on every call, before touching
+//    the underlying service (spec §8.4: enforce at every host call). The
+//    adapters are the authorization choke point. The dispatcher deliberately
+//    does NOT pre-authorize: a second gate here would be a second place for
+//    the policy to drift out of sync. Defense in depth is achieved by the
+//    adapters authorizing on every call, not by duplicating the check here.
+//
+//    Documented exceptions to "the adapters authorize":
+//    - `commands.register`: `SDKCommandRegistry` is a plain store with no
+//      broker check of its own, so the dispatcher authorizes `.uiContribute`
+//      at the broker before touching it.
+//    - `build.wait` / `build.cancel`: these act on handles minted by an
+//      authorized `build.run` in this same session. The handle map is never
+//      exposed to the extension and handle IDs are unguessable UUIDs, so
+//      possession of a live handle IS the authorization for that handle.
+//    - `commands.unregister`: ownership is enforced by the registry itself
+//      (a foreign extension ID is a silent no-op).
+//    - `log.*`: the extension's own diagnostics channel (spec §16.1); not a
+//      privileged host operation, so no capability is involved.
+//
+// 3. Assist is deny-by-default (§9). `SDKAssistGate.check` runs FIRST —
+//    before any routing or payload decoding — so no method name, however
+//    spelled, can reach Assist through this dispatcher.
+
+public actor SDKIPCDispatcher {
+
+    // MARK: - Configuration
+
+    /// Per-request wall-clock budget (spec §10.4: bounded requests).
+    /// Expiry surfaces as `.ipcTimeout`; see `withPerRequestTimeout`.
+    private static let requestTimeoutNanoseconds: UInt64 = 60 * 1_000_000_000
+
+    // MARK: - State
+
+    /// The host-created session this dispatcher serves. All caller identity
+    /// is derived from here — never from the payload.
+    private let session: SDKRuntimeSessionInfo
+    /// Host → extension frame sink. Frames are newline-free single lines;
+    /// the transport adds the NDJSON newline.
+    private let send: @Sendable (Data) async -> Void
+    /// Live build handles minted by `build.run` for this session, keyed by
+    /// handle ID. Entries are removed when the build reaches a terminal
+    /// state (see `forwardBuildEvents`).
+    private var buildHandles: [String: SDKBuildHandle] = [:]
+
+    public init(session: SDKRuntimeSessionInfo, send: @Sendable @escaping (Data) async -> Void) {
+        self.session = session
+        self.send = send
+    }
+
+    // MARK: - Dispatch
+
+    /// Dispatches one inbound IPC frame and returns the response frame.
+    ///
+    /// NEVER throws outward: every failure — malformed frame, protocol
+    /// mismatch, Assist denial, authorization denial, unknown method,
+    /// malformed payload, service error, request timeout — is projected onto
+    /// the wire as an `ok: false` response envelope carrying a typed
+    /// `SDKErrorPayload`.
+    ///
+    /// Pipeline:
+    ///   1. Frame validation: peek `protocolVersion` (≠ 1 → `.ipcProtocolMismatch`),
+    ///      then `SDKIPCCodec.decodeEnvelopeType` (must be `.request`, else
+    ///      `.ipcMalformed`; also enforces the 1 MiB frame bound).
+    ///   2. Decode `SDKRequestEnvelope<SDKJSONValue>`; extract method + requestId.
+    ///      FIRST — before any routing or payload decoding — run the Assist
+    ///      deny-list (`SDKAssistGate.check`, §9).
+    ///   3. Build the caller identity from the SESSION (never the payload).
+    ///   4. Route with a 60 s per-request timeout (→ `.ipcTimeout`).
+    ///   5. Encode the `SDKResponseEnvelope` (`ok`/payload or `ok: false` +
+    ///      `SDKErrorPayload(from:)`).
+    public func dispatch(_ data: Data) async -> Data {
+        // Best-effort requestId for pre-decode failures: the frame may not
+        // even be JSON, so fall back to a fresh ID for the error envelope.
+        var requestId = UUID().uuidString
+        do {
+            // --- 1. Version, then type — before any payload work.
+            let header = try Self.peekHeader(from: data)
+            if let peeked = header.requestId, !peeked.isEmpty {
+                requestId = peeked
+            }
+            guard header.protocolVersion == SDKIPCCodec.sdkProtocolVersion else {
+                throw SDKError(
+                    code: .ipcProtocolMismatch,
+                    message: "Unsupported IPC protocol version \(header.protocolVersion); this host speaks version \(SDKIPCCodec.sdkProtocolVersion).",
+                    suggestion: "Update the extension's SDK to match the host protocol version."
+                )
+            }
+            let messageType = try SDKIPCCodec.decodeEnvelopeType(from: data)
+            guard messageType == .request else {
+                throw SDKError(
+                    code: .ipcMalformed,
+                    message: "Expected a request envelope but received '\(messageType.rawValue)'.",
+                    suggestion: "Send requests with \"type\": \"request\"."
+                )
+            }
+
+            // --- 2. Decode the request envelope to learn the method.
+            let envelope = try Self.decodeRequest(from: data)
+            requestId = envelope.requestId
+            let method = envelope.method
+
+            // --- 3. Assist deny-list FIRST: before routing or payload
+            // --- decoding (§9). No method name, however spelled, reaches
+            // --- Assist through this dispatcher.
+            try await SDKAssistGate.check(ipcMethod: method, callerExtensionID: session.extensionID)
+
+            // --- 4. Session-bound caller identity. Extension-supplied
+            // --- identity is never trusted: no identity fields are read
+            // --- from the payload anywhere in this dispatcher (§10.4).
+            let caller = SDKCallerIdentity(
+                extensionID: session.extensionID,
+                packageDigest: session.packageDigest,
+                projectRootPath: session.projectRootPath
+            )
+
+            // --- 5. Route with a 60 s per-request timeout.
+            return try await withPerRequestTimeout {
+                try await self.route(
+                    method: method,
+                    requestId: requestId,
+                    payload: envelope.payload,
+                    caller: caller
+                )
+            }
+        } catch let sdkError as SDKError {
+            return Self.errorResponse(requestId: requestId, error: sdkError)
+        } catch {
+            // Non-SDKError: the adapters are contractually SDKError-only, so
+            // this is pure defense in depth. Never leak internals, never throw.
+            return Self.errorResponse(requestId: requestId, error: SDKError(
+                code: .serviceUnavailable,
+                message: "The host could not complete the request.",
+                suggestion: "Retry the request; quote the correlation ID if it persists.",
+                diagnostics: ["underlyingError": error.localizedDescription]
+            ))
+        }
+    }
+
+    /// Sends an unsolicited event frame to the extension (e.g. build output).
+    public func event(_ name: String, payload: SDKJSONValue, requestId: String) async {
+        let envelope = SDKEventEnvelope<SDKJSONValue>(requestId: requestId, event: name, payload: payload)
+        await send(SDKIPCCodec.encodeEvent(envelope))
+    }
+
+    // MARK: - Frame validation
+
+    /// Minimal frame header: protocol version plus a best-effort request ID
+    /// for error correlation before the full envelope is decoded.
+    private struct HeaderPeek: Decodable {
+        let protocolVersion: Int
+        let requestId: String?
+    }
+
+    private static func peekHeader(from data: Data) throws -> HeaderPeek {
+        do {
+            return try JSONDecoder().decode(HeaderPeek.self, from: data)
+        } catch {
+            throw SDKError(
+                code: .ipcMalformed,
+                message: "Message is not a valid SDK IPC envelope.",
+                suggestion: "Send a JSON object with protocolVersion, type, and requestId fields.",
+                diagnostics: ["underlyingError": error.localizedDescription]
+            )
+        }
+    }
+
+    private static func decodeRequest(from data: Data) throws -> SDKRequestEnvelope<SDKJSONValue> {
+        do {
+            return try JSONDecoder().decode(SDKRequestEnvelope<SDKJSONValue>.self, from: data)
+        } catch {
+            throw SDKError(
+                code: .ipcMalformed,
+                message: "The request envelope is malformed.",
+                suggestion: "Send a JSON object with protocolVersion, type, requestId, method, and payload fields.",
+                diagnostics: ["underlyingError": error.localizedDescription]
+            )
+        }
+    }
+
+    private static func errorResponse(requestId: String, error: SDKError) -> Data {
+        SDKIPCCodec.encodeResponse(
+            SDKResponseEnvelope<SDKJSONValue>(requestId: requestId, error: SDKErrorPayload(from: error))
+        )
+    }
+
+    private static func successResponse<Payload: Codable & Sendable>(
+        requestId: String,
+        payload: Payload
+    ) -> Data {
+        SDKIPCCodec.encodeResponse(SDKResponseEnvelope(requestId: requestId, payload: payload))
+    }
+
+    // MARK: - Routing
+    //
+    // Every privileged method re-authorizes at the broker THROUGH THE
+    // ADAPTERS (see the file header): the dispatcher does not pre-authorize,
+    // except on `commands.register` where the registry has no broker check
+    // of its own. A malformed payload for a KNOWN method is `.invalidArgument`;
+    // an unknown method is `.ipcMalformed`.
+
+    private func route(
+        method: String,
+        requestId: String,
+        payload: SDKJSONValue,
+        caller: SDKCallerIdentity
+    ) async throws -> Data {
+        switch method {
+        case "sourceControl.getStatus":
+            // The adapter authorizes `.sourceControlRead` at the broker.
+            let status = try await SDKSourceControlAdapter.shared.getStatus(caller: caller)
+            return Self.successResponse(requestId: requestId, payload: status)
+
+        case "sourceControl.getDiff":
+            // The adapter authorizes `.sourceControlRead` at the broker.
+            let options = try Self.diffOptions(from: payload, method: method)
+            let diff = try await SDKSourceControlAdapter.shared.getDiff(caller: caller, options: options)
+            return Self.successResponse(requestId: requestId, payload: diff)
+
+        case "build.run":
+            // SDKBuildService.run authorizes `.buildExecute` at the broker.
+            let request = try Self.decodePayload(SDKBuildRequest.self, from: payload, method: method)
+            let handle = try await SDKBuildService.shared.run(request: request, caller: caller)
+            buildHandles[handle.id] = handle
+            // Detached: event forwarding must survive the request task (a
+            // timed-out `build.wait` must not kill delivery) and must not
+            // park this actor's executor on the output stream.
+            Task.detached { [self] in
+                await self.forwardBuildEvents(handle: handle, requestId: requestId)
+            }
+            return Self.successResponse(
+                requestId: requestId,
+                payload: SDKJSONValue.object(["handleId": .string(handle.id)])
+            )
+
+        case "build.wait":
+            let handle = try buildHandle(for: payload, method: method)
+            let result = try await handle.wait()
+            return Self.successResponse(requestId: requestId, payload: result)
+
+        case "build.cancel":
+            let handle = try buildHandle(for: payload, method: method)
+            await handle.cancel()
+            return Self.successResponse(requestId: requestId, payload: SDKJSONValue.null)
+
+        case "commands.register":
+            // The registry is a plain store with no broker check of its own:
+            // authorize here, at the dispatcher, before touching it.
+            try await SDKCapabilityBroker.authorize(.uiContribute, for: caller)
+            let definition = try Self.decodePayload(SDKCommandDefinition.self, from: payload, method: method)
+            try await SDKCommandRegistry.shared.register(definition, extensionID: caller.extensionID)
+            return Self.successResponse(requestId: requestId, payload: SDKJSONValue.null)
+
+        case "commands.unregister":
+            // Ownership is enforced by the registry itself (a foreign
+            // extension ID is a silent no-op); the session binding is the
+            // only identity that matters here.
+            let commandID = try Self.stringField("commandID", from: payload, method: method)
+            await SDKCommandRegistry.shared.unregister(commandID: commandID, extensionID: caller.extensionID)
+            return Self.successResponse(requestId: requestId, payload: SDKJSONValue.null)
+
+        case "log.debug", "log.info":
+            // The user log has no debug level; debug is recorded as info.
+            let fields = try Self.logFields(from: payload, method: method)
+            SDKUserLogger.shared.logInfo(fields.message, correlationId: fields.correlationId)
+            return Self.successResponse(requestId: requestId, payload: SDKJSONValue.null)
+
+        case "log.warn":
+            let fields = try Self.logFields(from: payload, method: method)
+            SDKUserLogger.shared.logWarning(fields.message, correlationId: fields.correlationId)
+            return Self.successResponse(requestId: requestId, payload: SDKJSONValue.null)
+
+        case "log.error":
+            let fields = try Self.logFields(from: payload, method: method)
+            SDKUserLogger.shared.log(
+                error: ExtensionLogMessage(fields.message),
+                title: "Extension error",
+                correlationId: fields.correlationId
+            )
+            return Self.successResponse(requestId: requestId, payload: SDKJSONValue.null)
+
+        default:
+            throw SDKError(
+                code: .ipcMalformed,
+                message: "Unknown method \"\(method)\".",
+                suggestion: "Use one of the documented SDK methods (e.g. \"sourceControl.getStatus\")."
+            )
+        }
+    }
+
+    // MARK: - Payload decoding
+
+    /// Decodes a typed contract from an `SDKJSONValue` via a JSON
+    /// round-trip. Any mismatch is `.invalidArgument`: the method is known,
+    /// the payload is not.
+    private static func decodePayload<T: Decodable>(
+        _ type: T.Type,
+        from value: SDKJSONValue,
+        method: String
+    ) throws -> T {
+        do {
+            let data = try JSONEncoder().encode(value)
+            return try JSONDecoder().decode(T.self, from: data)
+        } catch {
+            throw SDKError(
+                code: .invalidArgument,
+                message: "The payload for \"\(method)\" is malformed.",
+                suggestion: "Check the method's payload schema and retry.",
+                diagnostics: ["underlyingError": error.localizedDescription]
+            )
+        }
+    }
+
+    /// Tolerant `getDiff` options: the payload must be an object, but
+    /// `options` itself is optional — absent means defaults (leveraging
+    /// `SDKDiffOptions`' own tolerant decoding). Malformed `options` is
+    /// `.invalidArgument`.
+    private static func diffOptions(from payload: SDKJSONValue, method: String) throws -> SDKDiffOptions {
+        guard case .object(let fields) = payload else {
+            throw SDKError(
+                code: .invalidArgument,
+                message: "The payload for \"\(method)\" must be a JSON object.",
+                suggestion: "Send an object, optionally with an \"options\" field."
+            )
+        }
+        guard let optionsValue = fields["options"] else {
+            return SDKDiffOptions()
+        }
+        return try decodePayload(SDKDiffOptions.self, from: optionsValue, method: method)
+    }
+
+    /// Required non-empty string field of an object payload.
+    private static func stringField(
+        _ name: String,
+        from payload: SDKJSONValue,
+        method: String
+    ) throws -> String {
+        guard case .object(let fields) = payload,
+              let raw = fields[name],
+              case .string(let value) = raw,
+              !value.isEmpty else {
+            throw SDKError(
+                code: .invalidArgument,
+                message: "The payload for \"\(method)\" must be an object with a non-empty string \"\(name)\" field.",
+                suggestion: "Send an object like {\"\(name)\": \"...\"}."
+            )
+        }
+        return value
+    }
+
+    /// `{"message": String, "correlationId"?: String}` for the `log.*` routes.
+    private static func logFields(
+        from payload: SDKJSONValue,
+        method: String
+    ) throws -> (message: String, correlationId: String?) {
+        guard case .object(let fields) = payload,
+              let rawMessage = fields["message"],
+              case .string(let message) = rawMessage,
+              !message.isEmpty else {
+            throw SDKError(
+                code: .invalidArgument,
+                message: "The payload for \"\(method)\" must be an object with a non-empty string \"message\" field.",
+                suggestion: "Send {\"message\": \"...\", \"correlationId\": \"...\"}."
+            )
+        }
+        let correlationId: String?
+        if let raw = fields["correlationId"], case .string(let value) = raw, !value.isEmpty {
+            correlationId = value
+        } else {
+            correlationId = nil
+        }
+        return (message, correlationId)
+    }
+
+    /// Looks up a live build handle minted by `build.run` in this session.
+    /// Unknown IDs are `.invalidArgument` — the handle map is never exposed,
+    /// so there is nothing else an extension could guess.
+    private func buildHandle(for payload: SDKJSONValue, method: String) throws -> SDKBuildHandle {
+        let handleID = try Self.stringField("handleId", from: payload, method: method)
+        guard let handle = buildHandles[handleID] else {
+            throw SDKError(
+                code: .invalidArgument,
+                message: "Unknown build handle.",
+                suggestion: "Start a build with \"build.run\" and use the \"handleId\" from its response."
+            )
+        }
+        return handle
+    }
+
+    // MARK: - Build event forwarding
+
+    /// Streams a build's output to the extension as `build.output` events,
+    /// then sends a terminal `build.finished` event carrying the `wait()`
+    /// result. Runs detached from the request task (see `build.run`) and
+    /// removes the handle from the registry once the build reaches a
+    /// terminal state, so finished builds can be neither waited on nor
+    /// cancelled again.
+    private func forwardBuildEvents(handle: SDKBuildHandle, requestId: String) async {
+        for await output in await handle.events() {
+            await event("build.output", payload: SDKJSONValue.object([
+                "kind": .string(output.kind.rawValue),
+                "text": .string(output.text),
+                "timestamp": .double(output.timestamp.timeIntervalSince1970),
+            ]), requestId: requestId)
+        }
+        // The stream only ends after the handle reached a terminal state,
+        // so `wait()` returns the cached result immediately here.
+        do {
+            let result = try await handle.wait()
+            let payload = (try? Self.jsonValue(from: result)) ?? .null
+            await event("build.finished", payload: payload, requestId: requestId)
+        } catch let sdkError as SDKError {
+            await event("build.finished", payload: SDKJSONValue.object([
+                "status": .string(SDKBuildStatus.failed.rawValue),
+                "code": .string(sdkError.code.rawValue),
+                "message": .string(sdkError.message),
+                "correlationId": .string(sdkError.correlationId),
+            ]), requestId: requestId)
+        } catch {
+            await event("build.finished", payload: SDKJSONValue.object([
+                "status": .string(SDKBuildStatus.failed.rawValue),
+                "message": .string("The build result could not be retrieved."),
+            ]), requestId: requestId)
+        }
+        buildHandles.removeValue(forKey: handle.id)
+    }
+
+    /// Projects any Encodable contract onto `SDKJSONValue` via a JSON round-trip.
+    private static func jsonValue(from encodable: some Encodable) throws -> SDKJSONValue {
+        let data = try JSONEncoder().encode(encodable)
+        return try JSONDecoder().decode(SDKJSONValue.self, from: data)
+    }
+
+    // MARK: - Per-request timeout
+
+    /// Runs `operation` with a 60 s wall-clock budget. On expiry the
+    /// operation is cancelled and `.ipcTimeout` is thrown — promptly, without
+    /// waiting for a non-cooperative operation (e.g. `build.wait` on a long
+    /// build) to observe cancellation. The operation itself keeps running
+    /// detached: a timed-out build keeps building, its handle stays
+    /// registered, and the extension can poll `build.wait` again.
+    ///
+    /// This is intentionally NOT the task-group race used by
+    /// `SDKSourceControlAdapter.withTimeout`: a group scope joins its
+    /// children on exit, so a non-cooperative loser would delay the timeout
+    /// error past the budget. The detached watchdog + exactly-once latch
+    /// delivers the error at 60 s in all cases.
+    private func withPerRequestTimeout<T: Sendable>(
+        operation: @Sendable @escaping () async throws -> T
+    ) async throws -> T {
+        let timedOut = TimeoutFlag()
+        let operationTask: Task<T, Error> = Task.detached(operation: operation)
+        let watchdog = Task.detached {
+            do {
+                try await Task.sleep(nanoseconds: Self.requestTimeoutNanoseconds)
+            } catch {
+                return // Cancelled: the operation finished first.
+            }
+            await timedOut.mark()
+            operationTask.cancel()
+        }
+        defer { watchdog.cancel() }
+        do {
+            return try await operationTask.value
+        } catch {
+            if await timedOut.didTimeOut {
+                throw SDKError(
+                    code: .ipcTimeout,
+                    message: "The request timed out after 60 seconds.",
+                    suggestion: "Retry the request. A running build keeps going — poll \"build.wait\" again for its result."
+                )
+            }
+            throw error
+        }
+    }
+}
+
+// MARK: - TimeoutFlag
+
+/// Exactly-once latch distinguishing "the watchdog fired" from any other
+/// cancellation, so only a genuine timeout maps to `.ipcTimeout`.
+private actor TimeoutFlag {
+    private var flag = false
+    func mark() { flag = true }
+    var didTimeOut: Bool { flag }
+}
+
+// MARK: - ExtensionLogMessage
+
+/// Wraps an extension-supplied log string as an `Error` so it can travel
+/// through `SDKUserLogger.log(error:title:)` — which sanitizes before
+/// buffering or emitting. The title marks it as extension-originated; never
+/// confuse it with a host error.
+private struct ExtensionLogMessage: LocalizedError {
+    let message: String
+    init(_ message: String) { self.message = message }
+    var errorDescription: String? { message }
+}
