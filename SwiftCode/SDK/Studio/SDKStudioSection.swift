@@ -2,16 +2,22 @@ import Foundation
 
 // MARK: - SDKStudioSection
 //
-// The four Studio sections (spec §13.3). Raw values are the exact display
+// The Studio sections (spec §13.3). Raw values are the exact display
 // names; the `Identifiable` conformance (id = rawValue) lets
 // `SDKStudioView` drive a `NavigationSplitView` sidebar selection directly
 // without an adapter layer.
+//
+// The `codeEditor` case is the documented migration from
+// `SDKStudioCodeEditorSection`: now that `SDKCodeEditorShellView` exists,
+// the Code Editor is a first-class section. The descriptor struct is kept
+// for string-id compatibility (see its file).
 
 public enum SDKStudioSection: String, CaseIterable, Identifiable {
     case projects = "Projects"
     case extensions = "Extensions"
     case apiKeys = "API Keys"
     case logs = "Logs"
+    case codeEditor = "Code Editor"
 
     public var id: String { rawValue }
 
@@ -26,6 +32,8 @@ public enum SDKStudioSection: String, CaseIterable, Identifiable {
             return "key"
         case .logs:
             return "doc.text"
+        case .codeEditor:
+            return "chevron.left.forwardslash.chevron.right"
         }
     }
 }

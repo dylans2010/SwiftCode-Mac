@@ -20,15 +20,23 @@ import SwiftUI
 // `SDKStudioWindowManager` is a separate task and is NOT part of this
 // file. Tracked in `SwiftCode/SDK/Studio/agent_notes.md`.
 //
-// Shell only: the four detail panes are built in parallel and referenced
+// Shell only: the five detail panes are built in parallel and referenced
 // here, never redefined:
 //   - `SDKStudioProjectsView`   (project & extension generation wizards)
 //   - `SDKStudioExtensionsView` (lifecycle console + manifest inspector)
 //   - `SDKStudioAPIKeysView`    (developer API key management)
 //   - `SDKStudioLogsView`       (dual logging inspector: user + developer)
+//   - `SDKCodeEditorShellView`  (Studio code editor: navigator, tabs,
+//                                console, find bar, snippet browser)
 //
 // Native macOS SwiftUI (`NavigationSplitView`), macOS 15, Swift 6.
+//
+// `SDKStudioView` is explicitly `@MainActor`: Swift 6 removed the old
+// implicit `@MainActor` inference from `@StateObject`, so views that own
+// `@MainActor`-isolated state (like `SDKCodeEditorShellView`) must be
+// `@MainActor` themselves, and this view constructs them.
 
+@MainActor
 public struct SDKStudioView: View {
     @State private var selection: SDKStudioSection
 
@@ -60,6 +68,8 @@ public struct SDKStudioView: View {
             SDKStudioAPIKeysView()
         case .logs:
             SDKStudioLogsView()
+        case .codeEditor:
+            SDKCodeEditorShellView()
         }
     }
 }

@@ -4,21 +4,13 @@ import Foundation
 //
 // Studio shell descriptor for the Code Editor section.
 //
-// DESIGN DECISION (2026-10-12, contracts task): `SDKStudioSection` is
-// technically extensible, but adding a `codeEditor` case right now would
-// break the build — `SDKStudioView.studioDetailView(for:)` switches
-// exhaustively over the enum, and the corresponding
-// `SDKCodeEditorView` is a sibling task (this task is contracts-only).
-// So the shell integration ships as this descriptor instead: same shape
-// as a section (`id`, display title, SF Symbol) so the Studio shell can
-// list and switch to it without touching the enum.
-//
-// MIGRATION PATH: when `SDKCodeEditorView` lands, add
-// `case codeEditor = "Code Editor"` to `SDKStudioSection` (with the
-// `"chevron.left.forwardslash.chevron.right"` system image), add the
-// switch arm in `SDKStudioView`, and delete this descriptor. Until then,
-// `SDKStudioWindowManager.shared.openStudio(section:)` keeps working
-// unchanged for the four existing sections.
+// MIGRATION STATUS (2026-10-12, shell task): the migration documented here
+// is now COMPLETE — `SDKStudioSection` has a `case codeEditor = "Code
+// Editor"` (system image `"chevron.left.forwardslash.chevron.right"`,
+// reused verbatim from this descriptor) and `SDKStudioView` switches to
+// `SDKCodeEditorShellView` for it. This struct is KEPT for compatibility:
+// anything addressing the section by its stable string id ("codeEditor")
+// keeps working unchanged.
 
 public struct SDKStudioCodeEditorSection: Identifiable, Sendable, Hashable {
     /// Stable section identifier. Chosen to match the raw-value style of
