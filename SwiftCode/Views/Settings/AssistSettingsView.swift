@@ -513,6 +513,9 @@ struct AssistSettingsView: View {
     @State private var geminiKey = ""
     @State private var composioKey = ""
     @State private var hasSavedKeys = false
+    // Google OAuth client secret input (stored in Keychain on save; the
+    // field itself never displays a saved secret).
+    @State private var googleClientSecretInput = ""
 
     // OpenRouter models state
     @State private var openRouterModels: [OpenRouterModel] = []
@@ -1001,6 +1004,49 @@ struct AssistSettingsView: View {
                                                 .textFieldStyle(.roundedBorder)
                                                 .font(.caption2)
                                                 Text("Required for Sign in with Google: the Gemini API bills OAuth usage to this project. Find it in the Google Cloud console.")
+                                                    .font(.caption2)
+                                                    .foregroundColor(.secondary)
+                                            }
+                                            .padding(.top, 2)
+
+                                            VStack(alignment: .leading, spacing: 4) {
+                                                HStack(spacing: 4) {
+                                                    Text("OAuth Client Secret")
+                                                        .font(.caption2.bold())
+                                                    if googleAuth.hasKeychainClientSecret {
+                                                        HStack(spacing: 4) {
+                                                            Image(systemName: "lock.shield.fill")
+                                                                .foregroundColor(.green)
+                                                                .font(.caption2)
+                                                            Text("Saved in Keychain")
+                                                                .font(.caption2)
+                                                                .foregroundColor(.green)
+                                                        }
+                                                    }
+                                                    Spacer()
+                                                    if googleAuth.hasKeychainClientSecret {
+                                                        Button("Clear") {
+                                                            googleAuth.clearClientSecret()
+                                                        }
+                                                        .font(.caption2)
+                                                        .buttonStyle(.plain)
+                                                        .foregroundColor(.red)
+                                                    }
+                                                }
+                                                HStack(spacing: 6) {
+                                                    SecureField("Paste client secret", text: $googleClientSecretInput)
+                                                        .textFieldStyle(.roundedBorder)
+                                                        .font(.caption2)
+                                                    Button("Save") {
+                                                        googleAuth.setClientSecret(googleClientSecretInput)
+                                                        googleClientSecretInput = ""
+                                                    }
+                                                    .font(.caption2)
+                                                    .buttonStyle(.bordered)
+                                                    .controlSize(.small)
+                                                    .disabled(googleClientSecretInput.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                                                }
+                                                Text("Required for Sign in with Google: Google's token endpoint rejects the sign-in without it (\"client_secret is missing.\"). Stored only in Keychain, never in the app bundle. Find it in Google Cloud Console → APIs & Services → Credentials → your OAuth client.")
                                                     .font(.caption2)
                                                     .foregroundColor(.secondary)
                                             }

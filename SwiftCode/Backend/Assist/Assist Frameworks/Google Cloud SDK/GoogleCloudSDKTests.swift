@@ -40,6 +40,9 @@ public final class GoogleCloudSDKTests: Sendable {
         results.append(await testChatModeGoogleOAuthSatisfiesCheck())
         results.append(await testDeveloperAPIScopesAreClientCompatible())
         results.append(await testDefaultOAuthClientIDIsConfigured())
+        results.append(await testMissingClientSecretClassification())
+        results.append(await testActionableSignInErrorForMissingSecret())
+        results.append(await testClientSecretKeychainStorage())
 
         let routerTests = await AssistModelRouterTests.shared.runAllTests()
         results.append(contentsOf: routerTests)
@@ -698,6 +701,102 @@ public final class GoogleCloudSDKTests: Sendable {
             testName: "Default OAuth Client ID Is Configured",
             passed: passed,
             message: passed ? "Sign-in defaults to SwiftCode's own OAuth client ID." : "Failures: \(failures.joined(separator: "; "))",
+            duration: Date().timeIntervalSince(start)
+        )
+    }
+
+    // 15. Missing Client Secret Classification
+    // Production failure (2026-10-11): browser authorization succeeded but
+    // Google's token endpoint rejected the code exchange with 400
+    // invalid_request "client_secret is missing." — the app surfaced the raw
+    // provider text. It must classify as missingClientSecret (not a generic
+    // invalid credential), so the caller can give the specific remediation.
+    public func testMissingClientSecretClassification() async -> RuntimeTestCaseResult {
+        let start = Date()
+        var failures: [String] = []
+
+        let reported = "client_secret is missing."
+        let classified = GoogleAuthErrorClassification.classify(reported, storedScopes: nil)
+        if classified.kind != .missingClientSecret {
+            failures.append("Google's missing-secret error did not classify as missingClientSecret (got \(classified.kind))")
+        }
+
+        // A nearby but different credential failure must NOT take this branch.
+        let invalidGrant = GoogleAuthErrorClassification.classify("invalid_grant: bad code", storedScopes: nil)
+        if invalidGrant.kind == .missingClientSecret {
+            failures.append("invalid_grant misclassified as missingClientSecret")
+        }
+
+        let passed = failures.isEmpty
+        return RuntimeTestCaseResult(
+            testName: "Missing Client Secret Classification",
+            passed: passed,
+            message: passed ? "\"client_secret is missing\" classifies specifically." : "Failures: \(failures.joined(separator: "; "))",
+            duration: Date().timeIntervalSince(start)
+        )
+    }
+
+    // 16. Actionable Sign-In Error for Missing Secret
+    // The user-facing message for the missing-secret failure must name the
+    // actual failing component (Google's token exchange) and the specific
+    // remediation (enter the client secret in Settings; Keychain-stored).
+    // Unrelated failures must pass through with details preserved.
+    public func testActionableSignInErrorForMissingSecret() async -> RuntimeTestCaseResult {
+        let start = Date()
+        var failures: [String] = []
+
+        let secretError = NSError(
+            domain: "GoogleAccountAuthService", code: 400,
+            userInfo: [NSLocalizedDescriptionKey: "invalid_request: client_secret is missing."])
+        let actionable = GoogleAccountAuthService.actionableSignInError(for: secretError)
+        for required in ["client secret", "Settings", "Keychain", "token exchange"] {
+            if !actionable.localizedCaseInsensitiveContains(required) {
+                failures.append("actionable message missing '\(required)'")
+            }
+        }
+
+        let otherError = NSError(
+            domain: "GoogleAccountAuthService", code: -1,
+            userInfo: [NSLocalizedDescriptionKey: "No authorization code returned from Google."])
+        let passthrough = GoogleAccountAuthService.actionableSignInError(for: otherError)
+        if passthrough != "No authorization code returned from Google." {
+            failures.append("unrelated error was not passed through verbatim")
+        }
+
+        let passed = failures.isEmpty
+        return RuntimeTestCaseResult(
+            testName: "Actionable Sign-In Error For Missing Secret",
+            passed: passed,
+            message: passed ? "Missing-secret failure maps to specific remediation." : "Failures: \(failures.joined(separator: "; "))",
+            duration: Date().timeIntervalSince(start)
+        )
+    }
+
+    // 17. Client Secret Keychain Storage
+    // The secret must persist via Keychain (never UserDefaults, never the
+    // bundle). The test never destroys a user-configured secret: it only
+    // writes when none is present, and always cleans up afterwards.
+    public func testClientSecretKeychainStorage() async -> RuntimeTestCaseResult {
+        let start = Date()
+        var failures: [String] = []
+        let service = GoogleAccountAuthService.shared
+
+        if service.hasKeychainClientSecret {
+            // A real secret is configured; do not touch it. Presence alone
+            // proves the Keychain path is live.
+        } else {
+            service.setClientSecret("test-secret-roundtrip")
+            if !service.hasClientSecret { failures.append("secret not visible after set") }
+            if !service.hasKeychainClientSecret { failures.append("secret not reported as Keychain-stored") }
+            service.clearClientSecret()
+            if service.hasKeychainClientSecret { failures.append("secret still present after clear") }
+        }
+
+        let passed = failures.isEmpty
+        return RuntimeTestCaseResult(
+            testName: "Client Secret Keychain Storage",
+            passed: passed,
+            message: passed ? "Client secret round-trips through Keychain." : "Failures: \(failures.joined(separator: "; "))",
             duration: Date().timeIntervalSince(start)
         )
     }
