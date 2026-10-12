@@ -38,6 +38,10 @@ export type {
   Logger,
   DisposableStore,
   SwiftCodeContext,
+  TerminalSandboxRequest,
+  TerminalSandboxResult,
+  TerminalSandboxAPI,
+  UIAPI,
   SDKErrorShape,
 } from "./types.js";
 
@@ -55,3 +59,9 @@ export type {
 
 export { createContext } from "./context.js";
 export type { CreatedContext } from "./context.js";
+
+export { SNIPPETS, searchSnippets, getSnippet } from "./snippets.js";
+export type { Snippet } from "./snippets.js";
+
+export { SCOPES_ID_LIST, SCOPES_BY_ID } from "./ScopesIDLists.js";
+export type { ScopeIDEntry, ScopeKind } from "./ScopesIDLists.js";

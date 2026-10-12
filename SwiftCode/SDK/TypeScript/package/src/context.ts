@@ -13,8 +13,12 @@
  *   build.cancel              payload {"handleId"}
  *   cloudModel.complete       payload {"prompt","history?","systemPrompt?","modelIdentifier?"}
  *                             → {"response"}
+ *   terminalSandbox.run       payload {"command","args","workingDirectory?","timeout?"}
+ *                             → TerminalSandboxResult
  *   commands.register         payload {"id","title"}
  *   commands.unregister       payload {"commandID"}
+ *   ui.openView                 payload {"viewId"} — viewId is the view's
+ *                               own capability ID (e.g. "sandbox.view")
  *   log.debug|info|warn|error payload {"message","correlationId?"}
  *
  * `project.getCurrent` is NOT in the dispatcher routing table. It is sent
@@ -48,6 +52,10 @@ import type {
   RepositoryStatus,
   SourceControlAPI,
   SwiftCodeContext,
+  TerminalSandboxAPI,
+  TerminalSandboxRequest,
+  TerminalSandboxResult,
+  UIAPI,
 } from "./types.js";
 import { SDKError, type HostConnection, type HostEvent } from "./ipc.js";
 
@@ -55,6 +63,34 @@ import { SDKError, type HostConnection, type HostEvent } from "./ipc.js";
 const COMMAND_ID_PATTERN = /^[a-z][a-z0-9-]{0,63}$/;
 /** Client-side mirror of the host's command-title cap. */
 const MAX_COMMAND_TITLE_LENGTH = 128;
+/**
+ * Client-side mirror of the host's sandboxed-command rule
+ * (`SDKSandboxedTerminal`): a bare allow-listed name, or an absolute path.
+ * Anything else — shell snippets, relative paths — is rejected here with
+ * `INVALID_ARGUMENT` before it ever reaches the host. The host re-validates
+ * everything; this is an early, friendly failure, not a security boundary.
+ */
+const SANDBOX_BARE_COMMAND_PATTERN = /^[A-Za-z0-9._-]{1,64}$/;
+/** Client-side mirror of the host's argv caps (`SDKSandboxedTerminal`). */
+const SANDBOX_MAX_ARGS = 256;
+const SANDBOX_MAX_ARG_BYTES = 8 * 1024;
+
+/** Validates one argv element client-side (host re-validates). */
+function validateSandboxArg(arg: unknown, index: number): string {
+  if (typeof arg !== "string") {
+    throw new SDKError("INVALID_ARGUMENT", `Sandboxed command argument #${index} must be a string.`);
+  }
+  if (arg.includes("\0")) {
+    throw new SDKError("INVALID_ARGUMENT", `Sandboxed command argument #${index} must not contain NUL bytes.`);
+  }
+  if (Buffer.byteLength(arg, "utf8") > SANDBOX_MAX_ARG_BYTES) {
+    throw new SDKError(
+      "INVALID_ARGUMENT",
+      `Sandboxed command argument #${index} exceeds the ${SANDBOX_MAX_ARG_BYTES}-byte limit.`,
+    );
+  }
+  return arg;
+}
 
 /** Real {@link DisposableStore} implementation. */
 class RealDisposableStore implements DisposableStore {
@@ -481,6 +517,61 @@ export function createContext(
     },
   };
 
+  const terminalSandbox: TerminalSandboxAPI = {
+    async run(request: TerminalSandboxRequest): Promise<TerminalSandboxResult> {
+      const command = request?.command;
+      if (typeof command !== "string" || command.length === 0) {
+        throw new SDKError("INVALID_ARGUMENT", "Sandboxed command must be a non-empty string.");
+      }
+      const isBareName = SANDBOX_BARE_COMMAND_PATTERN.test(command);
+      const isAbsolutePath = command.startsWith("/");
+      if (!isBareName && !isAbsolutePath) {
+        throw new SDKError(
+          "INVALID_ARGUMENT",
+          `Sandboxed command "${command}" is invalid: use a bare executable name (e.g. "git") or an absolute path (e.g. "/usr/bin/git"). Shell syntax is not supported.`,
+        );
+      }
+      const rawArgs = request.args ?? [];
+      if (!Array.isArray(rawArgs)) {
+        throw new SDKError("INVALID_ARGUMENT", "Sandboxed command args must be an array of strings.");
+      }
+      if (rawArgs.length > SANDBOX_MAX_ARGS) {
+        throw new SDKError(
+          "INVALID_ARGUMENT",
+          `Sandboxed command accepts at most ${SANDBOX_MAX_ARGS} arguments.`,
+        );
+      }
+      const args = rawArgs.map((arg, index) => validateSandboxArg(arg, index));
+      const payload: Record<string, unknown> = { command, args };
+      if (request.workingDirectory !== undefined) {
+        if (typeof request.workingDirectory !== "string" || request.workingDirectory.length === 0) {
+          throw new SDKError("INVALID_ARGUMENT", "Sandboxed workingDirectory must be a non-empty string.");
+        }
+        payload["workingDirectory"] = request.workingDirectory;
+      }
+      if (request.timeout !== undefined) {
+        if (typeof request.timeout !== "number" || !Number.isFinite(request.timeout) || request.timeout <= 0) {
+          throw new SDKError("INVALID_ARGUMENT", "Sandboxed timeout must be a positive finite number of seconds.");
+        }
+        payload["timeout"] = request.timeout;
+      }
+      // Exact method string: matches the Swift dispatcher's "terminalSandbox.run" route.
+      const result = await connection.request<TerminalSandboxResult>("terminalSandbox.run", payload);
+      if (
+        typeof result?.stdout !== "string" ||
+        typeof result?.stderr !== "string" ||
+        typeof result?.exitCode !== "number"
+      ) {
+        throw new SDKError(
+          "IPC_MALFORMED",
+          "The host returned an invalid sandboxed command result.",
+          undefined,
+        );
+      }
+      return result;
+    },
+  };
+
   const commands: CommandAPI = {
     register(definition: CommandDefinition): Disposable {
       validateCommandDefinition(definition);
@@ -538,6 +629,20 @@ export function createContext(
     },
   };
 
+  const ui: UIAPI = {
+    async openView(viewId: string): Promise<void> {
+      if (typeof viewId !== "string" || viewId.length === 0) {
+        throw new SDKError("INVALID_ARGUMENT", "View ID must be a non-empty capability ID string (e.g. \"sandbox.view\").");
+      }
+      // Exact method string: matches the Swift dispatcher's "ui.openView"
+      // route. The host authorizes the view's own capability ID at the
+      // broker before the opener runs; unknown viewIds and ungranted
+      // capabilities surface as typed SDKError rejections, never silent
+      // no-ops. The host answers with a null payload on success.
+      await connection.request<unknown>("ui.openView", { viewId });
+    },
+  };
+
   function sendLog(method: string, message: string, fields?: Record<string, unknown>): void {
     if (connection.closed) return;
     const payload: Record<string, unknown> = { message };
@@ -556,9 +661,11 @@ export function createContext(
     sourceControl,
     build,
     cloudModel,
+    terminalSandbox,
     commands,
     events,
     log,
+    ui,
     subscriptions,
   };
 

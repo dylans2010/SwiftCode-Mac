@@ -207,6 +207,61 @@ export interface BuildAPI {
   run(request: BuildRequest): Promise<BuildHandle>;
 }
 
+/**
+ * Intent to run one sandboxed command through the host
+ * (`terminalSandbox.run`). This is NOT a terminal UI: the host spawns a
+ * single process with no shell, an allow-listed executable, a working
+ * directory confined to the extension's project scope, a sanitized
+ * environment, a hard timeout, and byte-capped output.
+ */
+export interface TerminalSandboxRequest {
+  /**
+   * Executable to run: a bare allow-listed name (e.g. "git") or an
+   * absolute path inside a host-approved location (e.g. "/usr/bin/git").
+   * Never a shell snippet — pipes, redirects, and `;` are rejected.
+   */
+  readonly command: string;
+  /** Verbatim argv elements. Undefined = no arguments. */
+  readonly args?: readonly string[];
+  /**
+   * Working directory as a path string. Relative paths anchor at the
+   * project root. Must resolve inside the project scope; undefined =
+   * the project root.
+   */
+  readonly workingDirectory?: string;
+  /** Wall-clock budget in seconds. Undefined = host default (30). */
+  readonly timeout?: number;
+}
+
+/**
+ * Terminal result of one sandboxed run. Output is always byte-bounded:
+ * `stdoutTruncated`/`stderrTruncated` plus the total/limit fields describe
+ * exactly how much was withheld.
+ */
+export interface TerminalSandboxResult {
+  readonly stdout: string;
+  readonly stderr: string;
+  /** Real process exit code. Timeouts surface as errors, never as codes. */
+  readonly exitCode: number;
+  readonly stdoutTruncated: boolean;
+  readonly stderrTruncated: boolean;
+  /** Full, untruncated stdout byte size (may exceed `byteLimit`). */
+  readonly stdoutTotalBytes: number;
+  /** Full, untruncated stderr byte size (may exceed `byteLimit`). */
+  readonly stderrTotalBytes: number;
+  /** The per-stream byte limit the host applied. */
+  readonly byteLimit: number;
+}
+
+export interface TerminalSandboxAPI {
+  /**
+   * Runs one sandboxed command through the host. Requires the
+   * `terminal.sandbox` capability grant; without it the host rejects the
+   * call with a typed error. Never fabricates a result.
+   */
+  run(request: TerminalSandboxRequest): Promise<TerminalSandboxResult>;
+}
+
 /** A command contributed by the extension. */
 export interface CommandDefinition {
   /** Lowercase kebab-case ID, unique within this extension. */
@@ -304,6 +359,28 @@ export interface CloudModelAPI {
 }
 
 /**
+ * Host-mediated view opening, backed by the real `ui.openView` IPC route
+ * (Swift `SDKIPCDispatcher` → `SDKViewOpener`).
+ *
+ * A "view" is a host-owned UI surface (Database Explorer, Virtualization
+ * console, CI workflow dashboard, …) opened in an SDK-owned window. The
+ * `viewId` is the view's own capability ID (e.g. `"sandbox.view"`), and the
+ * dispatcher authorizes that exact grant at the capability broker before
+ * the opener runs — so every view is gated by exactly the grant the
+ * extension's manifest declared. An unknown viewId is rejected with a
+ * typed `unknownCapability` error, never a silent no-op.
+ */
+export interface UIAPI {
+  /**
+   * Opens the host view identified by `viewId`. Resolves once the host
+   * has opened the view; rejects with a typed {@link SDKError} when the
+   * view is unknown (`UNKNOWN_CAPABILITY`), the capability is not granted
+   * (`PERMISSION_DENIED`), or the opener itself fails.
+   */
+  openView(viewId: string): Promise<void>;
+}
+
+/**
  * The context handed to an extension on activation.
  *
  * Assist is deliberately NOT present here (spec §9): it is a separately
@@ -315,6 +392,13 @@ export interface SwiftCodeContext {
   readonly sourceControl: SourceControlAPI;
   readonly build: BuildAPI;
   /**
+   * Host-mediated sandboxed command execution. NOT a terminal UI: one
+   * process per call, no shell, allow-listed executables, working
+   * directory confined to the project scope, sanitized environment, hard
+   * timeout, byte-capped output. Requires the `terminal.sandbox` grant.
+   */
+  readonly terminalSandbox: TerminalSandboxAPI;
+  /**
    * SwiftCode Cloud Model access. Requires the `use.SwiftCodeModel`
    * capability grant; calls are host-mediated and quota-enforced.
    */
@@ -322,6 +406,11 @@ export interface SwiftCodeContext {
   readonly commands: CommandAPI;
   readonly events: EventAPI;
   readonly log: Logger;
+  /**
+   * Host-owned view surfaces (Database Explorer, Virtualization console,
+   * CI dashboards, …). Each view is gated by its own capability grant.
+   */
+  readonly ui: UIAPI;
   /**
    * Collects every registration/subscription. The runtime calls
    * `disposeAll()` on deactivation so nothing leaks.
