@@ -1450,6 +1450,7 @@
 		D1A0000128C0000100000011 /* AssistAvailableModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = D1A0000128C0000100000010 /* AssistAvailableModel.swift */; };
 		D1A0000128C0000100000013 /* AssistModelDiscoveryService.swift in Sources */ = {isa = PBXBuildFile; fileRef = D1A0000128C0000100000012 /* AssistModelDiscoveryService.swift */; };
 		D1A0000128C0000100000015 /* AssistModelRouter.swift in Sources */ = {isa = PBXBuildFile; fileRef = D1A0000128C0000100000014 /* AssistModelRouter.swift */; };
+		D1A0000128C0000100000051 /* SCCloudModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = D1A0000128C0000100000050 /* SCCloudModel.swift */; };
 		D1A0000128C0000100000021 /* AssistModelRouterTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D1A0000128C0000100000020 /* AssistModelRouterTests.swift */; };
 		D1A0000128C0000100000031 /* AlternativeKeyManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = D1A0000128C0000100000030 /* AlternativeKeyManager.swift */; };
 		D1A0000128C0000100000033 /* AlternativeKeysView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D1A0000128C0000100000032 /* AlternativeKeysView.swift */; };
@@ -4048,6 +4049,7 @@
 		D1A0000128C0000100000010 /* AssistAvailableModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssistAvailableModel.swift; sourceTree = "<group>"; };
 		D1A0000128C0000100000012 /* AssistModelDiscoveryService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssistModelDiscoveryService.swift; sourceTree = "<group>"; };
 		D1A0000128C0000100000014 /* AssistModelRouter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssistModelRouter.swift; sourceTree = "<group>"; };
+		D1A0000128C0000100000050 /* SCCloudModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SCCloudModel.swift; sourceTree = "<group>"; };
 		D1A0000128C0000100000020 /* AssistModelRouterTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssistModelRouterTests.swift; sourceTree = "<group>"; };
 		D1A0000128C0000100000030 /* AlternativeKeyManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AlternativeKeyManager.swift; sourceTree = "<group>"; };
 		D1A0000128C0000100000032 /* AlternativeKeysView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AlternativeKeysView.swift; sourceTree = "<group>"; };
@@ -7128,6 +7130,7 @@
 				4B39860ACF7ECD4BE93CE026 /* AssistModelManager.swift */,
 				D1A0000128C0000100000012 /* AssistModelDiscoveryService.swift */,
 				D1A0000128C0000100000014 /* AssistModelRouter.swift */,
+				D1A0000128C0000100000050 /* SCCloudModel.swift */,
 				D1A0000128C0000100000020 /* AssistModelRouterTests.swift */,
 				D1A0000128C0000100000030 /* AlternativeKeyManager.swift */,
 				D1A0000128C0000100000040 /* AssistEventNormalizer.swift */,
@@ -10938,6 +10941,7 @@
 				D1A0000128C0000100000011 /* AssistAvailableModel.swift in Sources */,
 				D1A0000128C0000100000013 /* AssistModelDiscoveryService.swift in Sources */,
 				D1A0000128C0000100000015 /* AssistModelRouter.swift in Sources */,
+				D1A0000128C0000100000051 /* SCCloudModel.swift in Sources */,
 				D1A0000128C0000100000021 /* AssistModelRouterTests.swift in Sources */,
 				D1A0000128C0000100000031 /* AlternativeKeyManager.swift in Sources */,
 				D1A0000128C0000100000033 /* AlternativeKeysView.swift in Sources */,

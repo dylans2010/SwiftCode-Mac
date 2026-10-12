@@ -843,6 +843,35 @@ struct AssistSettingsView: View {
                                             .background(Color.purple.opacity(0.08), in: RoundedRectangle(cornerRadius: 6))
                                         }
                                     }
+
+                                    Divider()
+
+                                    // 4. SwiftCode Cloud Model
+                                    VStack(alignment: .leading, spacing: 6) {
+                                        Toggle(isOn: $settings.useSwiftCodeCloudModel) {
+                                            HStack {
+                                                Text("Use SwiftCode's Cloud Model")
+                                                    .font(.system(size: 12, weight: .medium))
+                                                Spacer()
+                                                Text("\(SCCloudModelClient.shared.remainingRequestsToday)/\(SCCloudConfiguration.dailyRequestLimit) left today")
+                                                    .font(.system(size: 10, weight: .semibold))
+                                                    .foregroundStyle(SCCloudModelClient.shared.remainingRequestsToday > 0 ? .secondary : .orange)
+                                            }
+                                        }
+                                        .toggleStyle(.switch)
+                                        .controlSize(.small)
+                                        .onChange(of: settings.useSwiftCodeCloudModel) { _, isOn in
+                                            if isOn {
+                                                // Provision the device fingerprint the moment the user opts in.
+                                                // The fingerprint itself is never exposed to the UI.
+                                                SCCloudDeviceFingerprint.ensureFingerprint()
+                                            }
+                                        }
+
+                                        Text("Adds SwiftCode's hosted cloud model to the model picker. Works with any routing strategy — no API key or sign-in required. Limited to \(SCCloudConfiguration.dailyRequestLimit) requests per device per day for fair use.")
+                                            .font(.system(size: 10))
+                                            .foregroundStyle(.secondary)
+                                    }
                                 }
                                 .padding(10)
                                 .background(Color.primary.opacity(0.02), in: RoundedRectangle(cornerRadius: 8))

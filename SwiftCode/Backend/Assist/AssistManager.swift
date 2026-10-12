@@ -319,6 +319,15 @@ public final class AssistManager: ObservableObject {
 
         metrics.mark(.sessionResolved)
 
+        // SwiftCode Cloud Model: direct hosted-model path. Works under every
+        // routing strategy with no API key or sign-in — the settings toggle is
+        // the only gate. Takes precedence over the Antigravity session below.
+        if AppSettings.shared.useSwiftCodeCloudModel,
+           AppSettings.shared.selectedAssistModelID == SCCloudConfiguration.modelID {
+            await sendSwiftCodeCloudMessage(trimmed, attachments: attachments, envelope: envelope, metrics: metrics)
+            return
+        }
+
         let isAgentMode = UserDefaults.standard.bool(forKey: "com.swiftcode.assist.mode")
         let isLightweightConversation = attachments.isEmpty && envelope == nil && Self.isLightweightConversation(trimmed)
         let isAntigravityAvailable = GoogleCloudSDKRuntime.shared.isAvailable
@@ -946,6 +955,75 @@ public final class AssistManager: ObservableObject {
 
     // MARK: - Google Cloud SDK / Antigravity Execution Pipeline
 
+    /// Direct (non-agentic) execution path for the SwiftCode Cloud Model.
+    /// Bypasses the Antigravity SDK session entirely: no API key, OAuth token,
+    /// or routing strategy is required — just the settings toggle and daily quota.
+    /// The user message was already appended by sendMessage before this runs.
+    private func sendSwiftCodeCloudMessage(
+        _ content: String,
+        attachments: [AgentFileContext] = [],
+        envelope: AssistTaskEnvelope? = nil,
+        metrics: AssistRequestMetrics? = nil
+    ) async {
+        await MainActor.run {
+            self.currentActivityStatus = "Contacting SwiftCode Cloud…"
+            self.messages.append(AssistMessage(role: .assistant, content: ""))
+            self.saveHistory()
+        }
+        metrics?.mark(.modelResolved)
+
+        // Recent conversation as context (excluding the placeholder just appended).
+        let history: [(role: String, content: String)] = await MainActor.run {
+            self.messages.dropLast().suffix(12).map { ($0.role.rawValue, $0.content) }
+        }
+
+        // Fold decodable text attachments into the prompt.
+        var prompt = content
+        let attachmentTexts = attachments.compactMap { file -> String? in
+            guard let data = Data(base64Encoded: file.base64Content),
+                  data.count < 200_000,
+                  let text = String(data: data, encoding: .utf8),
+                  !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return nil }
+            return "[Attachment: \(file.filename)]\n\(text)"
+        }
+        if !attachmentTexts.isEmpty {
+            prompt += "\n\n" + attachmentTexts.joined(separator: "\n\n")
+        }
+
+        do {
+            let response = try await SCCloudModelClient.shared.complete(prompt: prompt, history: history)
+            metrics?.mark(.requestSent)
+            await MainActor.run {
+                if let idx = self.messages.indices.last {
+                    var message = self.messages[idx]
+                    message.content = response
+                    self.messages[idx] = message
+                }
+                self.currentActivityStatus = "Idle"
+                self.isProcessing = false
+                self.saveHistory()
+                self.processNextQueuedMessageIfAny()
+            }
+        } catch {
+            let friendly = (error as? SCCloudError)?.userFacingMessage ?? error.localizedDescription
+            await MainActor.run {
+                let message = "SwiftCode Cloud Model: \(friendly)"
+                self.lastError = message
+                if let idx = self.messages.indices.last {
+                    var existing = self.messages[idx]
+                    existing.content = message
+                    self.messages[idx] = existing
+                } else {
+                    self.messages.append(AssistMessage(role: .assistant, content: message))
+                }
+                self.currentActivityStatus = "Idle"
+                self.isProcessing = false
+                self.saveHistory()
+                self.processNextQueuedMessageIfAny()
+            }
+        }
+    }
+
     private func sendGoogleCloudSDKMessage(
         _ content: String,
         attachments: [AgentFileContext] = [],
@@ -1010,6 +1088,13 @@ public final class AssistManager: ObservableObject {
         }
 
         let initialRouted = await AssistModelRouter.shared.selectModelForSDK(objective: content)
+
+        // SwiftCode Cloud Model: bypass the Antigravity session entirely, even if
+        // this path was reached directly. (sendMessage normally routes here first.)
+        if let routed = initialRouted, routed.model.id == SCCloudConfiguration.modelID {
+            await sendSwiftCodeCloudMessage(content, attachments: allAttachments, envelope: envelope, metrics: metrics)
+            return
+        }
         var initialConfig = initialRouted?.config ?? GoogleCloudSDKConfiguration.resolveDefault(objective: content)
         let initialModelId = initialRouted?.model.modelIdentifier ?? initialConfig.model
         let initialModelName = initialRouted?.model.displayName ?? (initialConfig.model)

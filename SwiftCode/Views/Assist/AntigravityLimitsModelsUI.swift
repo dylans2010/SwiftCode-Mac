@@ -17,6 +17,7 @@ public struct AntigravityLimitsModelsUI: View {
 
     @ObservedObject private var quotaService = AntigravityQuotaService.shared
     @ObservedObject private var modelFetcher = AntigravitySDKModelFetcher.shared
+    @ObservedObject private var settings = AppSettings.shared
 
     @State private var showingUsageDetailsPopover: Bool = false
     @State private var selectedThinkingLevel: ThinkingLevel = .high
@@ -254,10 +255,21 @@ public struct AntigravityLimitsModelsUI: View {
     private var displayedModels: [AntigravitySDKModel] {
         let all = modelFetcher.models.isEmpty ? AntigravitySDKModelFetcher.seedModels : modelFetcher.models
         let matching = all.filter { $0.thinkingLevel.lowercased() == selectedThinkingLevel.rawValue.lowercased() }
-        if !matching.isEmpty {
-            return matching
+        var base = matching.isEmpty ? all : matching
+        // SwiftCode Cloud Model: pinned to the top whenever the toggle is on,
+        // regardless of thinking-level filter or routing strategy.
+        if settings.useSwiftCodeCloudModel {
+            let cloud = AntigravitySDKModel(
+                id: SCCloudConfiguration.modelID,
+                displayName: SCCloudConfiguration.displayName,
+                thinkingLevel: "Medium",
+                contextWindow: 128_000,
+                category: "SwiftCode"
+            )
+            base.removeAll { $0.id == cloud.id }
+            base.insert(cloud, at: 0)
         }
-        return all
+        return base
     }
 
     // MARK: - Usage Details Popover Content (Live Google Allowance)
