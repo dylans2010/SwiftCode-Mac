@@ -19,6 +19,13 @@ Covers (spec section 14):
   5. Explicit vertex=True requires an explicit project and location.
   6. No credentials at all is an actionable error.
 
+Covers (no-auth-errors hardening):
+  7. Turn-error guidance is narrowed to scope-specific failures only (C-5):
+     quota/billing 403s, PERMISSION_DENIED, 401s and API-key errors pass
+     through verbatim for Swift's classifier.
+  8. Custom-provider models without an explicit endpoint fail closed with an
+     actionable error instead of silently routing to localhost (H-5).
+
 Run: python3 "SwiftCode/Resources/Google Cloud SDK/bridge/gemini_auth_test.py"
 """
 
@@ -32,7 +39,13 @@ import unittest
 BRIDGE_DIR = os.path.dirname(os.path.abspath(__file__))
 AGENT_RUNNER = os.path.join(BRIDGE_DIR, "agent_runner.py")
 
-_WANTED = {"USER_PROJECT_HEADER", "GeminiAuthConfigError", "resolve_gemini_auth"}
+_WANTED = {
+    "USER_PROJECT_HEADER",
+    "GeminiAuthConfigError",
+    "resolve_gemini_auth",
+    "_wrap_turn_error",
+    "_require_custom_endpoint",
+}
 
 
 def _load_auth_logic():
@@ -70,6 +83,8 @@ _AUTH = _load_auth_logic()
 USER_PROJECT_HEADER = _AUTH["USER_PROJECT_HEADER"]
 GeminiAuthConfigError = _AUTH["GeminiAuthConfigError"]
 resolve_gemini_auth = _AUTH["resolve_gemini_auth"]
+_wrap_turn_error = _AUTH["_wrap_turn_error"]
+_require_custom_endpoint = _AUTH["_require_custom_endpoint"]
 
 
 class ResolveGeminiAuthTests(unittest.TestCase):
@@ -228,6 +243,83 @@ class ResolveGeminiAuthTests(unittest.TestCase):
             http_headers={},
         )
         self.assertEqual(mode, "oauth")
+
+
+class WrapTurnErrorTests(unittest.TestCase):
+    """C-5: only scope-specific failures get re-auth guidance."""
+
+    def test_scope_insufficient_is_relabeled(self):
+        err = (
+            "agent executor error: Error 403, Message: Request had insufficient "
+            "authentication scopes., Status: PERMISSION_DENIED, Details: "
+            "[reason:ACCESS_TOKEN_SCOPE_INSUFFICIENT]"
+        )
+        wrapped = _wrap_turn_error(err)
+        self.assertIn("Authentication error", wrapped)
+        self.assertIn(err, wrapped)  # original preserved for Swift's classifier
+        self.assertIn("re-authenticate", wrapped)
+
+    def test_quota_403_passes_through_verbatim(self):
+        # A valid token can 403 on quota/billing: re-authenticating cannot fix
+        # it, so the bridge must not suggest it.
+        err = "Error 403: Quota exceeded for quota metric 'GenerateContent Requests'"
+        self.assertEqual(_wrap_turn_error(err), err)
+
+    def test_billing_permission_denied_passes_through(self):
+        err = "Error 403 PERMISSION_DENIED: The caller does not have permission (billing disabled)"
+        self.assertEqual(_wrap_turn_error(err), err)
+
+    def test_401_passes_through_verbatim(self):
+        err = "Error 401 UNAUTHENTICATED: Request had invalid authentication credentials"
+        self.assertEqual(_wrap_turn_error(err), err)
+
+    def test_invalid_api_key_passes_through(self):
+        err = "API_KEY_INVALID: API key not valid. Please pass a valid API key."
+        self.assertEqual(_wrap_turn_error(err), err)
+
+    def test_incidental_403_mention_not_relabeled(self):
+        # Tool output merely mentioning "403" must not be relabeled as an
+        # auth failure (old false-positive).
+        err = "tool fetch_url returned HTTP 403 from https://example.com/data"
+        self.assertEqual(_wrap_turn_error(err), err)
+
+    def test_non_auth_error_passes_through(self):
+        err = "model returned an empty response"
+        self.assertEqual(_wrap_turn_error(err), err)
+
+
+class RequireCustomEndpointTests(unittest.TestCase):
+    """H-5: custom-provider models without an explicit endpoint fail closed."""
+
+    def test_custom_without_endpoint_is_actionable_error(self):
+        with self.assertRaises(GeminiAuthConfigError) as ctx:
+            _require_custom_endpoint(provider="custom", model="my-model", base_url="")
+        message = str(ctx.exception)
+        self.assertIn("my-model", message)
+        self.assertIn("endpoint", message.lower())
+
+    def test_custom_with_blank_endpoint_is_actionable_error(self):
+        with self.assertRaises(GeminiAuthConfigError):
+            _require_custom_endpoint(provider="custom", model="my-model", base_url="   ")
+
+    def test_custom_provider_case_insensitive(self):
+        with self.assertRaises(GeminiAuthConfigError):
+            _require_custom_endpoint(provider="Custom", model="my-model", base_url="")
+
+    def test_custom_with_explicit_endpoint_is_allowed(self):
+        # Saved custom endpoints carry an explicit base_url: unaffected.
+        _require_custom_endpoint(
+            provider="custom", model="my-model", base_url="https://api.example.com/v1"
+        )
+
+    def test_local_providers_keep_their_defaults(self):
+        # ollama/lmstudio localhost defaults are intentional, not guessing.
+        _require_custom_endpoint(provider="ollama", model="llama3", base_url="")
+        _require_custom_endpoint(provider="lmstudio", model="qwen", base_url="")
+
+    def test_gemini_without_base_url_is_allowed(self):
+        _require_custom_endpoint(provider="gemini", model="gemini-2.5-flash", base_url="")
+        _require_custom_endpoint(provider="google", model="gemini-2.5-flash", base_url="")
 
 
 if __name__ == "__main__":

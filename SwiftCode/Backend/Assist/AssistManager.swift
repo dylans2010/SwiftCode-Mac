@@ -776,37 +776,68 @@ public final class AssistManager: ObservableObject {
         }
 
         let initialRouted = await AssistModelRouter.shared.selectModelForSDK(objective: content)
-        let initialConfig = initialRouted?.config ?? GoogleCloudSDKConfiguration.resolveDefault(objective: content)
+        var initialConfig = initialRouted?.config ?? GoogleCloudSDKConfiguration.resolveDefault(objective: content)
         let initialModelId = initialRouted?.model.modelIdentifier ?? initialConfig.model
         let initialModelName = initialRouted?.model.displayName ?? (initialConfig.model)
         metrics?.mark(.modelResolved)
 
-        // Validate that credentials exist before initiating execution for Gemini/Google models
-        let isInitialGemini = initialModelId.lowercased().contains("gemini") || initialModelName.lowercased().contains("gemini") || (initialConfig.provider == "gemini" || initialConfig.provider == "google")
-        if isInitialGemini {
+        // Validate that credentials exist before initiating execution for Gemini/Google models.
+        // The provider comes from the explicit configuration record — never
+        // inferred from the model name. (C-2)
+        let isGoogleRouted = (initialConfig.provider == "gemini" || initialConfig.provider == "google")
+        if isGoogleRouted {
             let hasApiKey = !(initialConfig.apiKey ?? "").trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
             let hasOAuth = !(initialConfig.oauthToken ?? "").trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
             if !hasApiKey && !hasOAuth {
-                await MainActor.run {
-                    let missingAuthMsg = "Authentication Error (\(initialModelName)): No valid Gemini API Key or Google OAuth account configured. Please enter your Gemini API key or sign in with Google in Assist Settings."
-                    self.lastError = missingAuthMsg
-                    self.messages.append(AssistMessage(role: .assistant, content: missingAuthMsg))
-                    self.isProcessing = false
-                    self.saveHistory()
+                // C-1: reconcile with auth-service state before reporting. The
+                // resolved config can be credential-less while the user is
+                // authenticated (expired token + failed refresh, incomplete
+                // CLI import) — that is a session problem, never a
+                // "provide an API key" problem.
+                let authMode = UserDefaults.standard.string(forKey: "assist_google_auth_mode") ?? AppSettings.shared.assistGoogleAuthMode
+                let authService = GoogleAccountAuthService.shared
+                if authMode == "google_oauth" && authService.isAuthenticated {
+                    // One recovery attempt through the async accessor (retries
+                    // refresh, consults ambient ADC). A recovered token lets
+                    // the request continue instead of failing.
+                    if let recovered = try? await authService.getValidAccessToken(), !recovered.isEmpty {
+                        initialConfig.oauthToken = recovered
+                    } else {
+                        let refreshNote = authService.lastTokenRefreshError.map { " (\($0))" } ?? ""
+                        await MainActor.run {
+                            let sessionExpiredMsg = """
+                            **Google session expired**
+
+                            Your Google account is still signed in, but SwiftCode couldn't obtain a working access token\(refreshNote). Please sign in again in Settings → Assist → Google Account.
+
+                            Your conversation is preserved.
+                            """
+                            self.lastError = sessionExpiredMsg
+                            self.messages.append(AssistMessage(role: .assistant, content: sessionExpiredMsg))
+                            self.isProcessing = false
+                            self.saveHistory()
+                        }
+                        return
+                    }
+                } else {
+                    await MainActor.run {
+                        let missingAuthMsg = "Authentication Error (\(initialModelName)): No valid Gemini API Key or Google OAuth account configured. Please enter your Gemini API key or sign in with Google in Assist Settings."
+                        self.lastError = missingAuthMsg
+                        self.messages.append(AssistMessage(role: .assistant, content: missingAuthMsg))
+                        self.isProcessing = false
+                        self.saveHistory()
+                    }
+                    return
                 }
-                return
             }
         }
 
         let session: GoogleCloudSDKSession
+        // C-3: reuse only when the full credential-bearing contract matches
+        // (see canReuseSession) — a rotated token or changed quota project
+        // must force a new session instead of 401ing on a dead bearer.
         if let existing = activeGoogleCloudSession,
-           existing.config.model == initialConfig.model &&
-            existing.config.provider == initialConfig.provider &&
-            existing.config.baseURL == initialConfig.baseURL &&
-            existing.config.apiKey == initialConfig.apiKey &&
-            existing.config.systemInstructions == initialConfig.systemInstructions &&
-            existing.config.workspaces == initialConfig.workspaces &&
-            existing.config.toolkit == initialConfig.toolkit {
+           existing.config.canReuseSession(for: initialConfig) {
             session = existing
         } else {
             if let old = activeGoogleCloudSession {
@@ -1334,6 +1365,74 @@ public final class AssistManager: ObservableObject {
                         }
                     }
 
+                    // H-1: stale-token recovery. A 401/403 on a Google OAuth
+                    // session is often a bearer that expired mid-conversation
+                    // while the Keychain copy was refreshed — try one token
+                    // refresh and retry the same model before quarantining the
+                    // provider and failing over to an unrelated model.
+                    let turnFailureClass = AssistModelRouter.shared.classify(error: NSError(domain: "AssistManager", code: -1, userInfo: [NSLocalizedDescriptionKey: errText]))
+                    let isGoogleOAuthTurn = (currentConfig.provider == "gemini" || currentConfig.provider == "google")
+                        && (UserDefaults.standard.string(forKey: "assist_google_auth_mode") ?? AppSettings.shared.assistGoogleAuthMode) == "google_oauth"
+                        && GoogleAccountAuthService.shared.isAuthenticated
+                        && !altKeysEnabled
+                    if turnFailureClass == .authenticationFailed && isGoogleOAuthTurn {
+                        // Config-shaped failure: without a quota project,
+                        // OAuth calls to the Developer API deterministically
+                        // fail. Surface the one-line fix instead of
+                        // quarantining the provider and failing over.
+                        let quotaProject = AppSettings.shared.assistGoogleCloudProject.trimmingCharacters(in: .whitespacesAndNewlines)
+                        if quotaProject.isEmpty {
+                            await MainActor.run {
+                                let quotaMsg = """
+                                **Google account authentication failed**
+
+                                The request was rejected and no Google Cloud quota project is configured. OAuth requests to the Gemini API must carry a quota project — set your project ID in Settings → Assist → Google Account. Your sign-in is intact; set the project and retry.
+
+                                Your conversation is preserved.
+                                """
+                                self.lastError = quotaMsg
+                                if let idx = self.messages.indices.last {
+                                    self.messages[idx].activityGroup?.isExecuting = false
+                                    self.messages[idx] = AssistMessage(role: .assistant, content: quotaMsg)
+                                } else {
+                                    self.messages.append(AssistMessage(role: .assistant, content: quotaMsg))
+                                }
+                                self.saveHistory()
+                                self.currentActivityStatus = "Idle"
+                                self.isProcessing = false
+                            }
+                            break executionLoop
+                        }
+                        if let refreshed = try? await GoogleAccountAuthService.shared.getValidAccessToken(),
+                           !refreshed.isEmpty, refreshed != (currentConfig.oauthToken ?? "") {
+                            // The bearer rotated since this session was
+                            // created: close the stale session and retry the
+                            // same model with the fresh token.
+                            await logger.warning("[AssistManager] OAuth token rotated mid-conversation; retrying '\(currentModelName)' with the refreshed token.")
+                            await runtime.closeSession(id: currentSession.id)
+                            currentConfig.oauthToken = refreshed
+                            do {
+                                let newSession = try await runtime.createSession(config: currentConfig)
+                                await MainActor.run {
+                                    self.activeGoogleCloudSession = newSession
+                                    self.currentActivityStatus = "Refreshing Google session — retrying"
+                                    if let idx = self.messages.indices.last {
+                                        self.messages[idx].content = ""
+                                        self.messages[idx].thinkingContent = ""
+                                        self.messages[idx].activityGroup?.isExecuting = true
+                                    }
+                                }
+                                currentSession = newSession
+                                continue executionLoop
+                            } catch {
+                                turnError = error.localizedDescription
+                                continue executionLoop
+                            }
+                        }
+                        // Refresh yielded no new token: fall through to
+                        // quarantine + failover for a true auth failure.
+                    }
+
                     // 2. Multi-Provider Failover
                     let priorOutput = await MainActor.run { self.messages.last?.content ?? "" }
                     await logger.warning("[AssistManager] Model '\(currentModelName)' failed: \(errText)")
@@ -1386,6 +1485,14 @@ public final class AssistManager: ObservableObject {
                 let rawErr = turnError ?? ((altKeysEnabled && isGemini) ? "All configured Gemini API keys are currently unavailable." : "\(currentModelName) execution failed")
                 let finalErrorMsg = "Error (\(currentModelName)): \(rawErr)"
                 await logger.error("[AssistManager] Terminal failure: \(finalErrorMsg)")
+                // C-3: a terminal authentication failure poisons the session
+                // (its bearer is dead). Close and drop it so the next request
+                // starts clean instead of reusing dead credentials.
+                let terminalClass = AssistModelRouter.shared.classify(error: NSError(domain: "AssistManager", code: -1, userInfo: [NSLocalizedDescriptionKey: rawErr]))
+                if terminalClass == .authenticationFailed {
+                    await runtime.closeSession(id: currentSession.id)
+                    await MainActor.run { self.activeGoogleCloudSession = nil }
+                }
                 await MainActor.run {
                     self.lastError = finalErrorMsg
                     if let idx = self.messages.indices.last {

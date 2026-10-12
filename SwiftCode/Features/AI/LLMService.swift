@@ -1185,6 +1185,13 @@ public final class LLMService: Sendable {
         case .google:
             if key.hasPrefix("ya29.") || (key.contains(".") && !key.starts(with: "AIza")) {
                 request.setValue("Bearer \(key)", forHTTPHeaderField: "Authorization")
+                // H-4: the Developer API's OAuth contract requires the quota
+                // project on every request. Without it, Settings > Assist >
+                // Available Models deterministically 403s on a valid session.
+                let quotaProject = AppSettings.shared.assistGoogleCloudProject.trimmingCharacters(in: .whitespacesAndNewlines)
+                if !quotaProject.isEmpty {
+                    request.setValue(quotaProject, forHTTPHeaderField: "x-goog-user-project")
+                }
             } else {
                 request.url = request.url?.appending(queryItems: [URLQueryItem(name: "key", value: key)])
             }

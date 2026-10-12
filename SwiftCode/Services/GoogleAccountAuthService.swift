@@ -85,6 +85,17 @@ public final class GoogleAccountAuthService: NSObject, ObservableObject {
     @Published public private(set) var isAuthenticating: Bool = false
     @Published public var authError: String? = nil
 
+    /// The most recent token-refresh failure reason, for user-facing
+    /// diagnostics ("session expired" messages name the refresh failure
+    /// instead of blaming a missing API key). Set on refresh failure,
+    /// cleared on success. (C-1)
+    public private(set) var lastTokenRefreshError: String? = nil
+
+    /// True while a scope-upgrade re-authentication is in flight. The existing
+    /// session is kept until the new sign-in succeeds, so a cancelled or
+    /// failed upgrade leaves the previous session intact. (M-2)
+    private var isScopeUpgradeReauth: Bool = false
+
     // MARK: - OAuth Flow Session & Loopback
     private var authSession: ASWebAuthenticationSession?
     private var pendingCodeVerifier: String?
@@ -163,7 +174,7 @@ public final class GoogleAccountAuthService: NSObject, ObservableObject {
 
     /// Verifies that an OAuth access token is valid and accepted by the Antigravity runtime.
     @discardableResult
-    public func verifyRuntimeSession(accessToken overrideToken: String? = nil) async -> Bool {
+    public func verifyRuntimeSession(accessToken overrideToken: String? = nil, depth: Int = 0) async -> Bool {
         let tokenToVerify: String?
         if let token = overrideToken, !token.isEmpty {
             tokenToVerify = token
@@ -193,10 +204,19 @@ public final class GoogleAccountAuthService: NSObject, ObservableObject {
                     return true
                 } else if httpResponse.statusCode == 400 || httpResponse.statusCode == 401 {
                     logger.warning("Antigravity runtime verification rejected token with status \(httpResponse.statusCode). Attempting refresh...")
-                    if let refreshToken = KeychainService.shared.get(forKey: Self.refreshTokenKey),
+                    if depth < 1,
+                       let refreshToken = KeychainService.shared.get(forKey: Self.refreshTokenKey),
                        let refreshedToken = try? await self.refreshAccessToken(refreshToken: refreshToken) {
-                        return await verifyRuntimeSession(accessToken: refreshedToken)
+                        return await verifyRuntimeSession(accessToken: refreshedToken, depth: depth + 1)
                     }
+                    // The token was rejected and refresh did not recover it:
+                    // drop the dead access token so the rejection sticks. The
+                    // refresh token is kept for a later retry, and the next
+                    // launch will not resurrect this token via restore.
+                    // (M-1; the recursion above is bounded by depth.)
+                    KeychainService.shared.delete(forKey: Self.accessTokenKey)
+                    KeychainService.shared.delete(forKey: Self.expiresAtKey)
+                    self.lastTokenRefreshError = "the saved sign-in was rejected by Google and the token refresh failed"
                     self.authError = "Antigravity runtime session expired or unauthorized. Please re-authenticate."
                     self.isAuthenticated = false
                     return false
@@ -222,6 +242,13 @@ public final class GoogleAccountAuthService: NSObject, ObservableObject {
         if let creds = fetchAntigravityCredentialsFromKeychain() {
             if let token = creds.accessToken, !token.isEmpty {
                 KeychainService.shared.set(token, forKey: Self.accessTokenKey)
+                // Record an expiry for the CLI-imported token. The CLI does
+                // not tell us the token's real lifetime; assume the standard
+                // one hour (matching importExistingAntigravityCredentials) so
+                // the accessors refresh it when due instead of serving it
+                // unchecked forever. (C-4)
+                let assumedExpiry = Date().addingTimeInterval(3600).timeIntervalSince1970
+                KeychainService.shared.set(String(assumedExpiry), forKey: Self.expiresAtKey)
             }
             if !creds.refreshToken.isEmpty {
                 KeychainService.shared.set(creds.refreshToken, forKey: Self.refreshTokenKey)
@@ -290,6 +317,7 @@ public final class GoogleAccountAuthService: NSObject, ObservableObject {
 
         guard let authURL = buildAuthorizationURL(challenge: challenge, state: state, redirectURI: redirectURI) else {
             isAuthenticating = false
+            isScopeUpgradeReauth = false
             loopbackServer?.stop()
             loopbackServer = nil
             authError = "Failed to construct Google OAuth authorization URL."
@@ -355,7 +383,7 @@ public final class GoogleAccountAuthService: NSObject, ObservableObject {
         state: String,
         redirectURI: String
     ) {
-        if self.isAuthenticated {
+        if self.isAuthenticated && !self.isScopeUpgradeReauth {
             self.cleanUpSession()
             return
         }
@@ -371,6 +399,7 @@ public final class GoogleAccountAuthService: NSObject, ObservableObject {
         if let error = error as? ASWebAuthenticationSessionError, error.code == .canceledLogin {
             logger.info("User cancelled Google sign in session.")
             self.isAuthenticating = false
+            self.isScopeUpgradeReauth = false
             self.cleanUpSession()
             return
         }
@@ -378,6 +407,7 @@ public final class GoogleAccountAuthService: NSObject, ObservableObject {
         if let error = error {
             logger.warning("ASWebAuthenticationSession notification: \(error.localizedDescription)")
             self.isAuthenticating = false
+            self.isScopeUpgradeReauth = false
             self.cleanUpSession()
         }
     }
@@ -438,9 +468,14 @@ public final class GoogleAccountAuthService: NSObject, ObservableObject {
     }
 
     /// Re-authenticates the user with the complete set of Assist scopes without requiring API keys.
+    /// Non-destructive: the existing session is kept until the new sign-in
+    /// succeeds. If the user cancels or the flow fails, the previous
+    /// (legacy-scope) session remains intact instead of the user being signed
+    /// out. (M-2)
     public func reAuthenticateForAssistScopes() {
+        guard !isAuthenticating else { return }
         logger.info("Re-authenticating user to request Google Antigravity Assist scopes...")
-        signOut()
+        isScopeUpgradeReauth = true
         signIn()
     }
 
@@ -803,6 +838,10 @@ public final class GoogleAccountAuthService: NSObject, ObservableObject {
     // MARK: - Access Token Accessors
 
     /// Returns a valid access token asynchronously, refreshing if necessary or falling back to ambient ADC.
+    /// Never returns a known-expired token: if the stored token is past its
+    /// expiry and refresh fails, this tries ambient ADC and then returns nil
+    /// so callers surface a clear re-authentication prompt instead of sending
+    /// a dead token to the API. (C-4)
     public func getValidAccessToken() async throws -> String? {
         // 1. Check stored OAuth access token in Keychain
         if let token = KeychainService.shared.get(forKey: Self.accessTokenKey) {
@@ -819,13 +858,22 @@ public final class GoogleAccountAuthService: NSObject, ObservableObject {
             if let refreshToken = KeychainService.shared.get(forKey: Self.refreshTokenKey) {
                 do {
                     let refreshedToken = try await refreshAccessToken(refreshToken: refreshToken)
+                    self.lastTokenRefreshError = nil
                     return refreshedToken
                 } catch {
-                    logger.warning("OAuth token refresh failed: \(error.localizedDescription). Trying ADC...")
+                    self.lastTokenRefreshError = error.localizedDescription
+                    logger.warning("OAuth token refresh failed: \(error.localizedDescription). Falling back to ambient ADC...")
                 }
             }
 
-            // Return cached token as fallback if available
+            // Refresh failed (or no refresh token): actually attempt ambient
+            // ADC before giving up — the old code logged "Trying ADC..." here
+            // but never did it.
+            if let adcToken = checkAmbientADC() {
+                return adcToken
+            }
+            // Do not hand out a known-stale credential.
+            if expiresAt > 0 { return nil }
             return token
         }
 
@@ -851,14 +899,23 @@ public final class GoogleAccountAuthService: NSObject, ObservableObject {
                 return token
             }
 
-            if expiresAt > 0,
-               let refreshToken = KeychainService.shared.get(forKey: Self.refreshTokenKey),
-               let refreshed = refreshAccessTokenSync(refreshToken: refreshToken, clientID: clientID, clientSecret: clientSecret) {
-                return refreshed
+            if expiresAt > 0 {
+                if let refreshToken = KeychainService.shared.get(forKey: Self.refreshTokenKey),
+                   let refreshed = refreshAccessTokenSync(refreshToken: refreshToken, clientID: clientID, clientSecret: clientSecret) {
+                    self.lastTokenRefreshError = nil
+                    return refreshed
+                }
+                // Token is expired and refresh failed (or no refresh token is
+                // stored): record why, and do not hand out a stale credential.
+                // Callers surface this reason instead of blaming a missing API
+                // key. (C-1)
+                if KeychainService.shared.get(forKey: Self.refreshTokenKey) != nil {
+                    self.lastTokenRefreshError = "the saved sign-in expired and the token refresh failed (network unreachable or refresh token revoked)"
+                } else {
+                    self.lastTokenRefreshError = "the saved sign-in expired and no refresh token is stored"
+                }
+                return nil
             }
-            // Token is expired (or has no recorded expiry and a refresh token
-            // exists but refresh failed): do not hand out a stale credential.
-            if expiresAt > 0 { return nil }
             return token
         }
 
@@ -874,6 +931,9 @@ public final class GoogleAccountAuthService: NSObject, ObservableObject {
     private func handleCallbackURL(_ url: URL, verifier: String, state: String, redirectURI: String) async {
         guard !hasProcessedCallback else { return }
         hasProcessedCallback = true
+        // The scope-upgrade flow ends here regardless of outcome; the flag
+        // must not leak into a later unrelated sign-in. (M-2)
+        defer { self.isScopeUpgradeReauth = false }
 
         guard let components = URLComponents(url: url, resolvingAgainstBaseURL: false) else {
             self.authError = "Invalid callback URL structure."
@@ -1195,6 +1255,12 @@ public final class GoogleAccountAuthService: NSObject, ObservableObject {
     // MARK: - Ambient Application Default Credentials (ADC)
 
     public func checkAmbientADC() -> String? {
+        // H-3: an explicit sign-out must stick. Ambient credentials (CLI
+        // keychain entries, ADC files, gcloud) must not resurrect the session
+        // after the user signed out; otherwise "signed out" is a lie.
+        if UserDefaults.standard.bool(forKey: Self.explicitlySignedOutKey) {
+            return nil
+        }
         // 1. Antigravity keychain credentials
         if let creds = fetchAntigravityCredentialsFromKeychain() {
             if let existingToken = creds.accessToken, !existingToken.isEmpty {

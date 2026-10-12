@@ -34,6 +34,9 @@ final class CustomEndpointManager {
     var endpoints: [SavedCustomEndpoint] = [] {
         didSet {
             save()
+            // M-4: endpoint edits change the model catalog — refresh discovery
+            // so added/removed endpoints are reflected immediately.
+            Task { await AssistModelDiscoveryService.shared.discoverAllModels(forceRefresh: true) }
         }
     }
 
