@@ -681,6 +681,7 @@ public final class AssistModelRouter: Sendable {
             model: model.modelIdentifier,
             apiKey: apiKey,
             oauthToken: oauthToken,
+            userProject: baseConfig.userProject,
             vertex: false,
             project: nil,
             location: nil,
@@ -703,14 +704,18 @@ public final class AssistModelRouter: Sendable {
         )
     }
 
+    /// Resolves an API key for the given provider. This returns *only* API keys.
+    /// In Google account ("google_oauth") mode it returns nil: the OAuth
+    /// access token travels in the configuration's dedicated oauthToken slot,
+    /// never in the apiKey slot. Returning a Bearer token as an "API key"
+    /// sends the wrong credential kind to the endpoint and produces
+    /// 403 ACCESS_TOKEN_SCOPE_INSUFFICIENT-style failures.
     public func resolveAPIKey(for provider: String) -> String? {
         let p = provider.lowercased()
         if p == "gemini" || p == "google" {
             let authMode = UserDefaults.standard.string(forKey: "assist_google_auth_mode") ?? AppSettings.shared.assistGoogleAuthMode
             if authMode == "google_oauth" {
-                if let oauthToken = GoogleAccountAuthService.shared.getValidAccessToken() {
-                    return oauthToken
-                }
+                return nil
             }
             return KeychainService.shared.get(forKey: LLMProvider.google.keychainKey)
                 ?? APIKeyManager.shared.retrieveKey(service: .google)

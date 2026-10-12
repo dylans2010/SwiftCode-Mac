@@ -16,6 +16,10 @@ public struct GoogleCloudSDKConfiguration: Codable, @unchecked Sendable {
     public var model: String
     public var apiKey: String?
     public var oauthToken: String?
+    /// Google Cloud project ID used as the quota project (x-goog-user-project)
+    /// for OAuth account authentication. Never fabricated: nil means "not
+    /// configured", and the bridge raises an actionable error instead.
+    public var userProject: String?
     public var vertex: Bool
     public var project: String?
     public var location: String?
@@ -42,6 +46,7 @@ public struct GoogleCloudSDKConfiguration: Codable, @unchecked Sendable {
         model: String = "gemini-3.8-flash",
         apiKey: String? = nil,
         oauthToken: String? = nil,
+        userProject: String? = nil,
         vertex: Bool = false,
         project: String? = nil,
         location: String? = nil,
@@ -67,6 +72,7 @@ public struct GoogleCloudSDKConfiguration: Codable, @unchecked Sendable {
         self.model = model
         self.apiKey = apiKey
         self.oauthToken = oauthToken
+        self.userProject = userProject
         self.vertex = vertex
         self.project = project
         self.location = location
@@ -91,7 +97,7 @@ public struct GoogleCloudSDKConfiguration: Codable, @unchecked Sendable {
     }
 
     public enum CodingKeys: String, CodingKey {
-        case model, apiKey, oauthToken, vertex, project, location, systemInstructions, skillsPaths, workspaces, appDataDir, saveDir, enableSubagents, maxSubagentDepth, allowedSubagents, serviceTier, provider, baseURL, useSavedModels, toolkit
+        case model, apiKey, oauthToken, userProject, vertex, project, location, systemInstructions, skillsPaths, workspaces, appDataDir, saveDir, enableSubagents, maxSubagentDepth, allowedSubagents, serviceTier, provider, baseURL, useSavedModels, toolkit
         case litertModelPath, litertBackend, downloadIfMissing, enableSpeculativeDecoding
     }
 
@@ -100,6 +106,7 @@ public struct GoogleCloudSDKConfiguration: Codable, @unchecked Sendable {
         self.model = try container.decode(String.self, forKey: .model)
         self.apiKey = try container.decodeIfPresent(String.self, forKey: .apiKey)
         self.oauthToken = try container.decodeIfPresent(String.self, forKey: .oauthToken)
+        self.userProject = try container.decodeIfPresent(String.self, forKey: .userProject)
         self.vertex = try container.decode(Bool.self, forKey: .vertex)
         self.project = try container.decodeIfPresent(String.self, forKey: .project)
         self.location = try container.decodeIfPresent(String.self, forKey: .location)
@@ -128,6 +135,7 @@ public struct GoogleCloudSDKConfiguration: Codable, @unchecked Sendable {
         try container.encode(model, forKey: .model)
         try container.encodeIfPresent(apiKey, forKey: .apiKey)
         try container.encodeIfPresent(oauthToken, forKey: .oauthToken)
+        try container.encodeIfPresent(userProject, forKey: .userProject)
         try container.encode(vertex, forKey: .vertex)
         try container.encodeIfPresent(project, forKey: .project)
         try container.encodeIfPresent(location, forKey: .location)
@@ -272,13 +280,33 @@ public struct GoogleCloudSDKConfiguration: Codable, @unchecked Sendable {
         let isOAuthMode = googleAuthMode == "google_oauth"
         if isOAuthMode && GoogleAccountAuthService.shared.isAuthenticated && !AppSettings.shared.alternativeKeysEnabled {
             oauthToken = GoogleAccountAuthService.shared.getValidAccessToken()
-            apiKey = nil // Strictly zero API key reliance; rely purely on Antigravity allowance
+            apiKey = nil // Strictly zero API key reliance in account mode: the
+                         // OAuth Bearer token is the only credential.
+        }
+
+        // Quota project for OAuth account authentication (x-goog-user-project).
+        // Never fabricated here: nil means "not configured" and the bridge
+        // raises an actionable error naming the missing setting.
+        let userProject: String? = {
+            let configured = AppSettings.shared.assistGoogleCloudProject.trimmingCharacters(in: .whitespacesAndNewlines)
+            if !configured.isEmpty { return configured }
+            if let env = ProcessInfo.processInfo.environment["GOOGLE_CLOUD_PROJECT"]?.trimmingCharacters(in: .whitespacesAndNewlines), !env.isEmpty { return env }
+            return nil
+        }()
+
+        // Credential-kind invariant: an OAuth token must never travel in the
+        // apiKey slot (it would be sent to the Developer API as an API key and
+        // fail). If both are somehow set, the account credential wins and the
+        // key is dropped rather than silently mixing modes.
+        if oauthToken != nil {
+            apiKey = nil
         }
 
         return GoogleCloudSDKConfiguration(
             model: selectedModel,
             apiKey: apiKey,
             oauthToken: oauthToken,
+            userProject: userProject,
             vertex: false,
             project: nil,
             location: nil,
@@ -321,6 +349,10 @@ public struct GoogleCloudSDKConfiguration: Codable, @unchecked Sendable {
 
         if let oauthToken = oauthToken, !oauthToken.isEmpty {
             dict["oauthToken"] = oauthToken
+        }
+
+        if let userProject = userProject?.trimmingCharacters(in: .whitespacesAndNewlines), !userProject.isEmpty {
+            dict["headers"] = ["x-goog-user-project": userProject]
         }
 
         if let provider = provider, !provider.isEmpty {

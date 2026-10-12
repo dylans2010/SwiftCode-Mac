@@ -111,6 +111,16 @@ class AppSettings: ObservableObject {
         }
     }
 
+    /// Google Cloud project ID used as the quota project (x-goog-user-project)
+    /// for Google account (OAuth) authentication against the Gemini Developer
+    /// API. OAuth usage is attributed to — and billed to — this project.
+    @Published var assistGoogleCloudProject: String {
+        didSet {
+            debouncedSave("assist_google_cloud_project", assistGoogleCloudProject)
+            UserDefaults.standard.set(assistGoogleCloudProject, forKey: "assist_google_cloud_project")
+        }
+    }
+
     @Published var antigravityExecutionMode: String {
         didSet {
             debouncedSave("antigravity_execution_mode", antigravityExecutionMode)
@@ -357,7 +367,8 @@ class AppSettings: ObservableObject {
         } else {
             assistModelRoutingStrategy = "default"
         }
-        assistGoogleAuthMode = UserDefaults.standard.string(forKey: "assist_google_auth_mode") ?? "api_key"
+        assistGoogleAuthMode = UserDefaults.standard.string(forKey: "assist_google_auth_mode") ?? "google_oauth"
+        assistGoogleCloudProject = UserDefaults.standard.string(forKey: "assist_google_cloud_project") ?? ""
         antigravityExecutionMode = UserDefaults.standard.string(forKey: "antigravity_execution_mode") ?? "bridge"
         selectedModel = UserDefaults.standard.string(forKey: "selectedModel") ?? "openai/gpt-4o"
         customModel   = UserDefaults.standard.string(forKey: "customModel") ?? ""
