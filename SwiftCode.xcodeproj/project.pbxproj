@@ -2672,14 +2672,19 @@
 		8ABA27CF5F591FCB9C28070F /* SDKStudioWindowManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 72D7E1544DAB48FC0DDDD353 /* SDKStudioWindowManager.swift */; };
 		1453F323EBD11910FF0FE3A6 /* SDKStudioView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 69AE14E8B3C5EB654226CFB4 /* SDKStudioView.swift */; };
 		295AF524503C9506F8DCFFCC /* SDKStudioProjectsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7261E59682DCF7B1D22C4197 /* SDKStudioProjectsView.swift */; };
+		AEE33FB94E639286094319E9 /* SDKFirstLaunchInstallerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 470F9A1DE54FBCCB121DB439 /* SDKFirstLaunchInstallerView.swift */; };
 		AB2798D29AEE3C1468AD4AB9 /* SDKStudioExtensionsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3B93C640CF6B39CE3F3E30E6 /* SDKStudioExtensionsView.swift */; };
+		5bEt92CutAF1W3yFhnZL0QA7 /* AvailableExtensionsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = bbm2W4vJXnuF2pBX2wBDq0In /* AvailableExtensionsView.swift */; };
 		5662FD594A477660993757B3 /* SDKManifestInspectorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7BCF10B52B99A2D7CBA5AE03 /* SDKManifestInspectorView.swift */; };
+		ti6u6Uwn286uHf4W6x3ZeROg /* SDKShipExportView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F0CYK0cfUdxDY6NoOrnaJ1Yk /* SDKShipExportView.swift */; };
 		1E75ADF255A4577156705CD6 /* SDKGrantManagerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E141B1A831DDB54AB63D9F3F /* SDKGrantManagerView.swift */; };
 		EBCAD42C10A0B098A26B6996 /* SDKStudioAPIKeysView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7E8FC4F1948C842D38040C50 /* SDKStudioAPIKeysView.swift */; };
 		D3BA49AD94F1FC76FB82002F /* SDKStudioLogsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8C3EC07651184159D310C93A /* SDKStudioLogsView.swift */; };
 		e40fcdbc3943856786332af3 /* SDKCloudModelContracts.swift in Sources */ = {isa = PBXBuildFile; fileRef = f99145b760dcfb4c84af6556 /* SDKCloudModelContracts.swift */; };
 		8379a649e45ebd740951f905 /* SDKTerminalContracts.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8a44d0a2350784d93d0eb3d1 /* SDKTerminalContracts.swift */; };
 		c3a047062aa1178c9dce97ee /* SDKBootstrap.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0ebba1e5066b731541466116 /* SDKBootstrap.swift */; };
+		GYfkwndQ0MrMBdLo311wr1Kd /* SDKExtensionManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = x8YuGALvCUjh1T3rP6BpwaEI /* SDKExtensionManager.swift */; };
+		9F63694661CBD2A40AFF853F /* SDKInstaller.swift in Sources */ = {isa = PBXBuildFile; fileRef = CAFD256754026CB079CB7545 /* SDKInstaller.swift */; };
 		bf77b2d768e6fed7ea88a014 /* ScopesIDLists.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0f9b83c174e5267124aa8348 /* ScopesIDLists.swift */; };
 		8b47952ee99c84b184f454a9 /* SDKAPIKeySessionAuth.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5908b02675a551a18dc9f2bc /* SDKAPIKeySessionAuth.swift */; };
 		980e0e68fd8f1c151876b93e /* SDKCloudModelAdapter.swift in Sources */ = {isa = PBXBuildFile; fileRef = fe2ae3d7389d2f4c56b81c13 /* SDKCloudModelAdapter.swift */; };
@@ -5359,14 +5364,20 @@
 		72D7E1544DAB48FC0DDDD353 /* SDKStudioWindowManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SDKStudioWindowManager.swift; sourceTree = "<group>"; };
 		69AE14E8B3C5EB654226CFB4 /* SDKStudioView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SDKStudioView.swift; sourceTree = "<group>"; };
 		7261E59682DCF7B1D22C4197 /* SDKStudioProjectsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SDKStudioProjectsView.swift; sourceTree = "<group>"; };
+		470F9A1DE54FBCCB121DB439 /* SDKFirstLaunchInstallerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SDKFirstLaunchInstallerView.swift; sourceTree = "<group>"; };
 		3B93C640CF6B39CE3F3E30E6 /* SDKStudioExtensionsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SDKStudioExtensionsView.swift; sourceTree = "<group>"; };
+		bbm2W4vJXnuF2pBX2wBDq0In /* AvailableExtensionsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AvailableExtensionsView.swift; sourceTree = "<group>"; };
 		7BCF10B52B99A2D7CBA5AE03 /* SDKManifestInspectorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SDKManifestInspectorView.swift; sourceTree = "<group>"; };
+		F0CYK0cfUdxDY6NoOrnaJ1Yk /* SDKShipExportView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SDKShipExportView.swift; sourceTree = "<group>"; };
 		E141B1A831DDB54AB63D9F3F /* SDKGrantManagerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SDKGrantManagerView.swift; sourceTree = "<group>"; };
 		7E8FC4F1948C842D38040C50 /* SDKStudioAPIKeysView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SDKStudioAPIKeysView.swift; sourceTree = "<group>"; };
 		8C3EC07651184159D310C93A /* SDKStudioLogsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SDKStudioLogsView.swift; sourceTree = "<group>"; };
 		f99145b760dcfb4c84af6556 /* SDKCloudModelContracts.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SDKCloudModelContracts.swift; sourceTree = "<group>"; };
 		8a44d0a2350784d93d0eb3d1 /* SDKTerminalContracts.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SDKTerminalContracts.swift; sourceTree = "<group>"; };
 		0ebba1e5066b731541466116 /* SDKBootstrap.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SDKBootstrap.swift; sourceTree = "<group>"; };
+		x8YuGALvCUjh1T3rP6BpwaEI /* SDKExtensionManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SDKExtensionManager.swift; sourceTree = "<group>"; };
+		CAFD256754026CB079CB7545 /* SDKInstaller.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SDKInstaller.swift; sourceTree = "<group>"; };
+		74B986817779FAF0804FAE13 /* SDKInstallerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SDKInstallerTests.swift; sourceTree = "<group>"; };
 		0f9b83c174e5267124aa8348 /* ScopesIDLists.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScopesIDLists.swift; sourceTree = "<group>"; };
 		5908b02675a551a18dc9f2bc /* SDKAPIKeySessionAuth.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SDKAPIKeySessionAuth.swift; sourceTree = "<group>"; };
 		fe2ae3d7389d2f4c56b81c13 /* SDKCloudModelAdapter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SDKCloudModelAdapter.swift; sourceTree = "<group>"; };
@@ -9713,6 +9724,9 @@
 			children = (
 				8fa42a2f8e1754cbd954e7ee /* ViewOpener */,
 				0ebba1e5066b731541466116 /* SDKBootstrap.swift */,
+				x8YuGALvCUjh1T3rP6BpwaEI /* SDKExtensionManager.swift */,
+				CAFD256754026CB079CB7545 /* SDKInstaller.swift */,
+				74B986817779FAF0804FAE13 /* SDKInstallerTests.swift */,
 				0f9b83c174e5267124aa8348 /* ScopesIDLists.swift */,
 				5112bc67d5d1af6adeaa93fd /* ExtensionRegistry */,
 				1AFEE2DD6AA3DA8C12B6B260 /* CapabilityBroker */,
@@ -9983,12 +9997,15 @@
 				69AE14E8B3C5EB654226CFB4 /* SDKStudioView.swift */,
 				7261E59682DCF7B1D22C4197 /* SDKStudioProjectsView.swift */,
 				3B93C640CF6B39CE3F3E30E6 /* SDKStudioExtensionsView.swift */,
+				bbm2W4vJXnuF2pBX2wBDq0In /* AvailableExtensionsView.swift */,
 				7BCF10B52B99A2D7CBA5AE03 /* SDKManifestInspectorView.swift */,
 				E141B1A831DDB54AB63D9F3F /* SDKGrantManagerView.swift */,
 				7E8FC4F1948C842D38040C50 /* SDKStudioAPIKeysView.swift */,
 				8C3EC07651184159D310C93A /* SDKStudioLogsView.swift */,
 				kWdk7XWkAe8TVMpiQDyLjOzx /* EnterSecuritySDKView.swift */,
 				sbwizh8HgT46lk1WQ3AeqfKV /* SDKSecurityManagerView.swift */,
+				F0CYK0cfUdxDY6NoOrnaJ1Yk /* SDKShipExportView.swift */,
+				470F9A1DE54FBCCB121DB439 /* SDKFirstLaunchInstallerView.swift */,
 			);
 			name = Views;
 			path = Views;
@@ -12046,8 +12063,10 @@
 				8ABA27CF5F591FCB9C28070F /* SDKStudioWindowManager.swift in Sources */,
 				1453F323EBD11910FF0FE3A6 /* SDKStudioView.swift in Sources */,
 				295AF524503C9506F8DCFFCC /* SDKStudioProjectsView.swift in Sources */,
+				AEE33FB94E639286094319E9 /* SDKFirstLaunchInstallerView.swift in Sources */,
 				AB2798D29AEE3C1468AD4AB9 /* SDKStudioExtensionsView.swift in Sources */,
 				5662FD594A477660993757B3 /* SDKManifestInspectorView.swift in Sources */,
+				ti6u6Uwn286uHf4W6x3ZeROg /* SDKShipExportView.swift in Sources */,
 				1E75ADF255A4577156705CD6 /* SDKGrantManagerView.swift in Sources */,
 				EBCAD42C10A0B098A26B6996 /* SDKStudioAPIKeysView.swift in Sources */,
 				D3BA49AD94F1FC76FB82002F /* SDKStudioLogsView.swift in Sources */,
@@ -12873,6 +12892,9 @@
 				e40fcdbc3943856786332af3 /* SDKCloudModelContracts.swift in Sources */,
 				8379a649e45ebd740951f905 /* SDKTerminalContracts.swift in Sources */,
 				c3a047062aa1178c9dce97ee /* SDKBootstrap.swift in Sources */,
+				GYfkwndQ0MrMBdLo311wr1Kd /* SDKExtensionManager.swift in Sources */,
+				5bEt92CutAF1W3yFhnZL0QA7 /* AvailableExtensionsView.swift in Sources */,
+				9F63694661CBD2A40AFF853F /* SDKInstaller.swift in Sources */,
 				bf77b2d768e6fed7ea88a014 /* ScopesIDLists.swift in Sources */,
 				8b47952ee99c84b184f454a9 /* SDKAPIKeySessionAuth.swift in Sources */,
 				980e0e68fd8f1c151876b93e /* SDKCloudModelAdapter.swift in Sources */,

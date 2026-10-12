@@ -202,14 +202,14 @@ function byteCompare(a, b) {
 }
 
 /** Collect relative paths ("/"-joined) of every entry under root, unsorted. */
-async function collectRelativePaths(root) {
+async function collectRelativePaths(root, excludeBasenames = EXCLUDED_BASENAMES) {
   const out = [];
   async function walk(currentRel) {
     const abs = path.join(root, currentRel);
     const entries = await readdir(abs, { withFileTypes: true });
     for (const entry of entries) {
       const rel = currentRel === "" ? entry.name : `${currentRel}/${entry.name}`;
-      if (EXCLUDED_BASENAMES.has(entry.name)) continue; // host metadata, not content
+      if (excludeBasenames.has(entry.name)) continue; // host metadata, not content
       out.push(rel);
       // Do not descend into symlinked directories (mirrors FileManager enumerator).
       if (entry.isDirectory() && !entry.isSymbolicLink()) {
@@ -226,8 +226,12 @@ async function collectRelativePaths(root) {
  * Byte layout per entry (sorted relative-path order):
  *   relativePath (UTF-8) + NUL + kindByte ('d'|'f'|'l') + NUL + content
  * where content = streamed file bytes | symlink destination string | nothing.
+ *
+ * options.excludeBasenames: extra basenames to skip (in addition to the
+ * host-metadata set). Used by the packager/verifier to exclude the embedded
+ * digest record (swiftcode-digest.json) from the content digest it records.
  */
-export async function computeDigestOf(dir) {
+export async function computeDigestOf(dir, options = {}) {
   let stat;
   try {
     stat = await fsPromises.stat(dir);
@@ -236,8 +240,12 @@ export async function computeDigestOf(dir) {
   }
   if (!stat.isDirectory()) throw new Error(`cannot compute digest: not a directory: ${dir}`);
 
+  const extra = options.excludeBasenames ?? [];
+  const exclude =
+    extra.length === 0 ? EXCLUDED_BASENAMES : new Set([...EXCLUDED_BASENAMES, ...extra]);
+
   const root = path.resolve(dir);
-  const relatives = (await collectRelativePaths(root)).sort(byteCompare);
+  const relatives = (await collectRelativePaths(root, exclude)).sort(byteCompare);
   const hash = createHash("sha256");
 
   for (const rel of relatives) {

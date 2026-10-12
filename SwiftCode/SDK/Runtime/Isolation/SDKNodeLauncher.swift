@@ -139,8 +139,11 @@ public enum SDKNodeLauncher {
     ///
     /// The child is spawned with:
     /// - `executableURL` = the resolved Node.js binary, `arguments` =
-    ///   `[entrypoint.path]` — a single argv element, no shell, so there is
-    ///   no shell-quoting or shell-injection surface at this layer.
+    ///   `[entrypoint.path] + arguments` — plain argv elements, no shell,
+    ///   so there is no shell-quoting or shell-injection surface at this
+    ///   layer. Callers pass only fixed option flags and validated
+    ///   filesystem paths / extension IDs as extra arguments — never
+    ///   extension-controlled strings.
     /// - `currentDirectoryURL` = `workingDirectory`.
     /// - `environment` = the host process environment with secret-bearing
     ///   variables stripped (`sanitizedEnvironment()`). The runtime-adapter
@@ -160,7 +163,11 @@ public enum SDKNodeLauncher {
     ///   the process fails to spawn. The user-facing message is sanitized —
     ///   it carries no raw paths and no system error text; full detail
     ///   travels in `diagnostics` for the developer log.
-    public static func launch(entrypoint: URL, workingDirectory: URL) throws -> SDKLaunchedRuntime {
+    public static func launch(
+        entrypoint: URL,
+        workingDirectory: URL,
+        arguments: [String] = []
+    ) throws -> SDKLaunchedRuntime {
         guard entrypoint.isFileURL else {
             throw SDKError(
                 code: .runtimeLaunchFailed,
@@ -186,7 +193,7 @@ public enum SDKNodeLauncher {
 
         let process = Process()
         process.executableURL = nodeURL
-        process.arguments = [entrypoint.path]
+        process.arguments = [entrypoint.path] + arguments
         process.currentDirectoryURL = workingDirectory
         process.environment = sanitizedEnvironment()
         process.standardInput = stdinPipe

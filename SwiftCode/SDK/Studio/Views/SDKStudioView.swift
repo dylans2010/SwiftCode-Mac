@@ -29,6 +29,9 @@ import SwiftUI
 //   - `SDKStudioLogsView`       (dual logging inspector: user + developer)
 //   - `SDKCodeEditorShellView`  (Studio code editor: navigator, tabs,
 //                                console, find bar, snippet browser)
+//   - `AvailableExtensionsView`  (installed extensions/apps browser: run
+//                                contributed commands, enable/disable,
+//                                uninstall — spec §7)
 //
 // Native macOS SwiftUI (`NavigationSplitView`), macOS 15, Swift 6.
 //
@@ -40,6 +43,7 @@ import SwiftUI
 @MainActor
 public struct SDKStudioView: View {
     @State private var selection: SDKStudioSection
+    @State private var showSDKFirstLaunchInstaller = false
 
     public init(initialSection: SDKStudioSection = .projects) {
         _selection = State(initialValue: initialSection)
@@ -56,6 +60,17 @@ public struct SDKStudioView: View {
             studioDetailView(for: selection)
         }
         .navigationTitle("SwiftCode Studio")
+        // First-launch SDK installer (spec §5): prompts once per the
+        // persisted choice in `SDKStudioFirstLaunchChoice`. Declining
+        // leaves Studio fully usable — nothing here is gated on install.
+        .sheet(isPresented: $showSDKFirstLaunchInstaller) {
+            SDKFirstLaunchInstallerView()
+        }
+        .task {
+            if SDKStudioFirstLaunchChoice.shouldPrompt() {
+                showSDKFirstLaunchInstaller = true
+            }
+        }
     }
 
     @ViewBuilder
@@ -73,6 +88,8 @@ public struct SDKStudioView: View {
             SDKStudioLogsView()
         case .codeEditor:
             SDKCodeEditorShellView()
+        case .installedExtensions:
+            AvailableExtensionsView()
         }
     }
 }
