@@ -525,6 +525,16 @@ class ModelAdapterServer:
         else:
             # Non-streaming
             resp = await client.post(url, headers=headers, json=req_body, timeout=120.0)
+            if resp.status_code >= 400:
+                err_content = resp.content
+                writer.write(
+                    f"HTTP/1.1 {resp.status_code} {resp.reason_phrase}\r\nContent-Type: application/json\r\nContent-Length: {len(err_content)}\r\n\r\n".encode("utf-8")
+                    + err_content
+                )
+                await writer.drain()
+                writer.close()
+                return
+
             c_json = resp.json()
 
             tool_calls = []
@@ -569,7 +579,7 @@ class ModelAdapterServer:
             }
             body_bytes = json.dumps(openai_resp).encode("utf-8")
             writer.write(
-                f"HTTP/1.1 {resp.status_code} OK\r\nContent-Type: application/json\r\nContent-Length: {len(body_bytes)}\r\n\r\n".encode("utf-8")
+                f"HTTP/1.1 {resp.status_code} {resp.reason_phrase}\r\nContent-Type: application/json\r\nContent-Length: {len(body_bytes)}\r\n\r\n".encode("utf-8")
                 + body_bytes
             )
             await writer.drain()

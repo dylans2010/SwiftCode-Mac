@@ -854,7 +854,8 @@ class AgentRunner:
                 if http_headers:
                     config_kwargs["http_headers"] = http_headers
 
-                if vertex:
+                use_vertex = vertex or bool(oauth_token and not api_key)
+                if use_vertex:
                     config_kwargs["vertex"] = True
                     if project:
                         config_kwargs["project"] = project
@@ -863,10 +864,10 @@ class AgentRunner:
 
                 # Configure VertexEndpoint / GeminiAPIEndpoint when http_headers or oauthToken is present
                 if http_headers:
-                    if vertex and VertexEndpoint is not None:
+                    if use_vertex and VertexEndpoint is not None:
                         endpoint = VertexEndpoint(
-                            project=project,
-                            location=location,
+                            project=project or os.environ.get("GOOGLE_CLOUD_PROJECT") or "-",
+                            location=location or os.environ.get("GOOGLE_CLOUD_LOCATION") or "us-central1",
                             api_key=api_key,
                             http_headers=http_headers,
                         )
