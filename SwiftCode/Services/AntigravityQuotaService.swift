@@ -90,6 +90,18 @@ public final class AntigravityQuotaService: NSObject, ObservableObject {
     @Published public private(set) var realFiveHourResetDate: Date? = nil
     @Published public private(set) var realWeeklyResetDate: Date? = nil
     @Published public private(set) var isRefreshingQuota: Bool = false
+    @Published public private(set) var lastSuccessfulRefresh: Date? = nil
+    @Published public private(set) var lastRefreshError: String? = nil
+    /// Honest data-source label. The live quota probe queries the local IDE
+    /// sidecar's quota endpoint — it is NOT the Antigravity SDK and NOT the
+    /// signed-in Google account. Displayed in the UI so measured, estimated,
+    /// and unavailable data are never confused.
+    @Published public private(set) var quotaDataSourceDescription: String =
+        "Local IDE sidecar probe — not the Antigravity SDK"
+    /// The Antigravity SDK does not expose account usage or entitlements to
+    /// clients; represent that as unavailable instead of inventing values.
+    @Published public private(set) var antigravityAccountUsageStatus: String =
+        "Unavailable — the Antigravity SDK does not expose account usage or entitlements to this client."
 
     // MARK: - Published Properties
     @Published public private(set) var planTier: AntigravityPlanTier = .pro
@@ -264,6 +276,31 @@ public final class AntigravityQuotaService: NSObject, ObservableObject {
         loadPersistedState()
         rollWindowsIfNeeded()
         refreshRealGoogleQuota()
+    }
+
+    // MARK: - Periodic Refresh Lifecycle
+
+    private var periodicRefreshTask: Task<Void, Never>?
+
+    /// Starts the automatic 10-minute refresh lifecycle. Safe to call from
+    /// onAppear or any redraw path: any previous task is cancelled first, so
+    /// overlapping refresh tasks can never accumulate.
+    public func startPeriodicRefresh() {
+        stopPeriodicRefresh()
+        refreshRealGoogleQuota()
+        periodicRefreshTask = Task { [weak self] in
+            while !Task.isCancelled {
+                try? await Task.sleep(nanoseconds: 600_000_000_000) // 10 minutes
+                guard !Task.isCancelled else { return }
+                self?.refreshRealGoogleQuota()
+            }
+        }
+    }
+
+    /// Stops the automatic refresh lifecycle (call from onDisappear).
+    public func stopPeriodicRefresh() {
+        periodicRefreshTask?.cancel()
+        periodicRefreshTask = nil
     }
 
     // MARK: - Plan Tier Management
@@ -442,11 +479,20 @@ public final class AntigravityQuotaService: NSObject, ObservableObject {
     public func refreshRealGoogleQuota() {
         guard !isRefreshingQuota else { return }
         isRefreshingQuota = true
+        lastRefreshError = nil
 
         Task {
             let data = await Self.fetchQuotaDataInBackground()
             if let data = data {
-                self.parseRealQuotaJSON(data)
+                if parseRealQuotaJSON(data) {
+                    // Preserve the last successful snapshot: parse failures
+                    // leave previously retrieved values untouched.
+                    self.lastSuccessfulRefresh = Date()
+                } else {
+                    self.lastRefreshError = "The quota probe responded, but the payload could not be parsed."
+                }
+            } else {
+                self.lastRefreshError = "No local sidecar responded to the quota probe."
             }
             self.isRefreshingQuota = false
         }
@@ -488,11 +534,14 @@ public final class AntigravityQuotaService: NSObject, ObservableObject {
         }.value
     }
 
-    private func parseRealQuotaJSON(_ data: Data) {
+    /// Parses the sidecar quota payload. Returns true when at least one quota
+    /// group was recognized; on false the caller keeps the last successful
+    /// snapshot and records a retrieval error.
+    private func parseRealQuotaJSON(_ data: Data) -> Bool {
         guard let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
               let response = obj["response"] as? [String: Any],
               let groups = response["groups"] as? [[String: Any]] else {
-            return
+            return false
         }
 
         let isoFormatter = ISO8601DateFormatter()
@@ -559,5 +608,8 @@ public final class AntigravityQuotaService: NSObject, ObservableObject {
             self.lastUpdated = Date()
             logger.info("[AntigravityQuotaService] Real Google quota updated: 5h: \(Int(self.realFiveHourRemainingPercentage))%, Weekly: \(Int(self.realWeeklyRemainingPercentage))%")
         }
+
+        return gemini5hFraction != nil || geminiWeeklyFraction != nil
+            || threeP5hFraction != nil || threePWeeklyFraction != nil
     }
 }

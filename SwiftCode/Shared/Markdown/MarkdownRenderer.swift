@@ -2,14 +2,42 @@ import Foundation
 import SwiftUI
 import Markdown
 
+/// A single list item. `text` is inline-markdown source (bold/italic/code/
+/// links preserved); `children` holds nested list items recursively so nested
+/// lists render with indentation instead of being flattened.
+public struct MarkdownListItem: Sendable, Hashable, Identifiable {
+    public var id: String { text + "|" + children.map(\.id).joined(separator: "|") }
+    public var text: String
+    public var children: [MarkdownListItem]
+
+    public init(text: String, children: [MarkdownListItem] = []) {
+        self.text = text
+        self.children = children
+    }
+}
+
+public struct MarkdownTaskItem: Sendable, Hashable, Identifiable {
+    public var id: String { "\(checked)-\(text)" }
+    public var checked: Bool
+    public var text: String
+    public var children: [MarkdownListItem]
+
+    public init(checked: Bool, text: String, children: [MarkdownListItem] = []) {
+        self.checked = checked
+        self.text = text
+        self.children = children
+    }
+}
+
 public enum MarkdownBlock: Sendable, Identifiable {
+    /// `text` is inline-markdown source, not plain text.
     case heading(level: Int, text: String)
     case paragraph(text: String)
     case codeBlock(language: String?, code: String)
     case blockQuote(text: String)
-    case bulletList(items: [String])
-    case orderedList(items: [String])
-    case taskList(items: [(checked: Bool, text: String)])
+    case bulletList(items: [MarkdownListItem])
+    case orderedList(items: [MarkdownListItem])
+    case taskList(items: [MarkdownTaskItem])
     case horizontalRule
     case table(headers: [String], rows: [[String]])
 
@@ -18,14 +46,26 @@ public enum MarkdownBlock: Sendable, Identifiable {
         case .heading(let level, let text): return "h-\(level)-\(text)"
         case .paragraph(let text): return "p-\(text)"
         case .codeBlock(let lang, let code): return "code-\(lang ?? "")-\(code.hashValue)"
-        case .blockQuote(let text): return "quote-\(text)"
-        case .bulletList(let items): return "bullet-\(items.joined().hashValue)"
-        case .orderedList(let items): return "ordered-\(items.joined().hashValue)"
-        case .taskList(let items): return "task-\(items.map { "\($0.checked)-\($0.text)" }.joined().hashValue)"
+        case .blockQuote(let text): return "quote-\(text.hashValue)"
+        case .bulletList(let items): return "bullet-\(items.map(\.id).joined().hashValue)"
+        case .orderedList(let items): return "ordered-\(items.map(\.id).joined().hashValue)"
+        case .taskList(let items): return "task-\(items.map(\.id).joined().hashValue)"
         case .horizontalRule: return "rule"
         case .table(let headers, let rows): return "table-\(headers.joined().hashValue)-\(rows.flatMap { $0 }.joined().hashValue)"
         }
     }
+}
+
+/// Renders inline-markdown source (bold/italic/strikethrough/inline-code/
+/// links) as styled text. Falls back to plain text when parsing fails.
+fileprivate func inlineText(_ source: String, font: Font = .body) -> Text {
+    if let attributed = try? AttributedString(
+        markdown: source,
+        options: AttributedString.MarkdownParsingOptions(interpretedSyntax: .inlineOnlyPreservingWhitespace)
+    ) {
+        return Text(attributed).font(font)
+    }
+    return Text(source).font(font)
 }
 
 @MainActor
@@ -35,7 +75,16 @@ public struct MarkdownParser {
     private init() {}
 
     public func parse(_ markdown: String) -> [MarkdownBlock] {
-        MarkdownRenderer.shared.parse(markdown)
+        MarkdownRenderer.shared.parse(sanitizedForStreaming(markdown))
+    }
+
+    /// Balances unclosed fenced code blocks so partially streamed responses
+    /// still parse into blocks instead of degrading the tail into a paragraph.
+    /// Idempotent for complete documents.
+    private func sanitizedForStreaming(_ markdown: String) -> String {
+        let fenceCount = markdown.components(separatedBy: "```").count - 1
+        guard fenceCount % 2 == 1 else { return markdown }
+        return markdown + "\n```"
     }
 
     public func render(_ markdown: String) -> AttributedString {
@@ -43,20 +92,66 @@ public struct MarkdownParser {
     }
 }
 
-private func getPlainText(of markup: any Markdown.Markup) -> String {
-    if let paragraph = markup as? Markdown.Paragraph {
-        return paragraph.plainText
+/// Reconstructs inline Markdown source from a markup subtree, preserving
+/// bold/italic/strikethrough/inline-code/link formatting. The previous
+/// implementation used `plainText`, which silently stripped all inline
+/// formatting from rendered model output.
+private func inlineMarkdownSource(of markup: any Markdown.Markup) -> String {
+    switch markup {
+    case let text as Markdown.Text:
+        return text.string
+    case let strong as Markdown.Strong:
+        return "**\(strong.children.map(inlineMarkdownSource(of:)).joined())**"
+    case let emphasis as Markdown.Emphasis:
+        return "*\(emphasis.children.map(inlineMarkdownSource(of:)).joined())*"
+    case let code as Markdown.InlineCode:
+        return "`\(code.code)`"
+    case let link as Markdown.Link:
+        let label = link.children.map(inlineMarkdownSource(of:)).joined()
+        if let dest = link.destination, !dest.isEmpty {
+            return "[\(label)](\(dest))"
+        }
+        return label
+    case let strike as Markdown.Strikethrough:
+        return "~~\(strike.children.map(inlineMarkdownSource(of:)).joined())~~"
+    case let image as Markdown.Image:
+        // Remote images are not fetched inline; keep the alt text.
+        return image.children.map(inlineMarkdownSource(of:)).joined()
+    case is Markdown.SoftBreak:
+        return "\n"
+    case is Markdown.LineBreak:
+        return "\n"
+    default:
+        return markup.children.map(inlineMarkdownSource(of:)).joined()
     }
-    if let heading = markup as? Markdown.Heading {
-        return heading.plainText
+}
+
+/// Inline text of a list item, excluding nested lists (which become children).
+private func listItemInlineText(_ item: Markdown.ListItem) -> String {
+    item.children
+        .filter { !($0 is Markdown.UnorderedList) && !($0 is Markdown.OrderedList) }
+        .map { inlineMarkdownSource(of: $0) }
+        .joined(separator: "\n")
+        .trimmingCharacters(in: .whitespacesAndNewlines)
+}
+
+/// Recursively collects nested list items.
+private func listItemChildren(_ item: Markdown.ListItem) -> [MarkdownListItem] {
+    var children: [MarkdownListItem] = []
+    for child in item.children {
+        let nestedItems: [Markdown.ListItem]
+        if let nested = child as? Markdown.UnorderedList {
+            nestedItems = nested.children.compactMap { $0 as? Markdown.ListItem }
+        } else if let nested = child as? Markdown.OrderedList {
+            nestedItems = nested.children.compactMap { $0 as? Markdown.ListItem }
+        } else {
+            continue
+        }
+        children.append(contentsOf: nestedItems.map {
+            MarkdownListItem(text: listItemInlineText($0), children: listItemChildren($0))
+        })
     }
-    if let textNode = markup as? Markdown.Text {
-        return textNode.string
-    }
-    if let inlineCode = markup as? Markdown.InlineCode {
-        return inlineCode.code
-    }
-    return markup.children.map { getPlainText(of: $0) }.joined()
+    return children
 }
 
 public actor MarkdownRenderer {
@@ -132,13 +227,13 @@ private struct MarkdownASTVisitor: MarkupVisitor {
     }
 
     mutating func visitHeading(_ heading: Markdown.Heading) -> Any? {
-        let text = heading.plainText
-        blocks.append(.heading(level: heading.level, text: text))
+        blocks.append(.heading(level: heading.level, text: inlineMarkdownSource(of: heading)))
         return nil
     }
 
     mutating func visitParagraph(_ paragraph: Markdown.Paragraph) -> Any? {
-        let text = paragraph.plainText
+        let text = inlineMarkdownSource(of: paragraph)
+        guard !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return nil }
         blocks.append(.paragraph(text: text))
         return nil
     }
@@ -149,42 +244,41 @@ private struct MarkdownASTVisitor: MarkupVisitor {
     }
 
     mutating func visitBlockQuote(_ blockQuote: Markdown.BlockQuote) -> Any? {
-        let text = getPlainText(of: blockQuote)
+        let text = blockQuote.children.map { inlineMarkdownSource(of: $0) }.joined(separator: "\n")
         blocks.append(.blockQuote(text: text))
         return nil
     }
 
     mutating func visitUnorderedList(_ unorderedList: Markdown.UnorderedList) -> Any? {
-        var bulletItems: [String] = []
-        var taskItems: [(checked: Bool, text: String)] = []
-        var isTaskList = false
-
-        for child in unorderedList.children {
-            if let listItem = child as? Markdown.ListItem {
-                if let checkbox = listItem.checkbox {
-                    isTaskList = true
-                    let checked = checkbox == .checked
-                    taskItems.append((checked: checked, text: getPlainText(of: listItem)))
-                } else {
-                    bulletItems.append(getPlainText(of: listItem))
-                }
+        let listItems = unorderedList.children.compactMap { $0 as? Markdown.ListItem }
+        var taskItems: [MarkdownTaskItem] = []
+        var bulletItems: [MarkdownListItem] = []
+        for item in listItems {
+            let text = listItemInlineText(item)
+            let children = listItemChildren(item)
+            if let checkbox = item.checkbox {
+                taskItems.append(MarkdownTaskItem(checked: checkbox == .checked, text: text, children: children))
+            } else {
+                bulletItems.append(MarkdownListItem(text: text, children: children))
             }
         }
 
-        if isTaskList {
+        if !taskItems.isEmpty && bulletItems.isEmpty {
             blocks.append(.taskList(items: taskItems))
         } else {
-            blocks.append(.bulletList(items: bulletItems))
+            // Mixed or plain bullets: fold checkbox items in with a textual marker.
+            var all = bulletItems
+            all.append(contentsOf: taskItems.map {
+                MarkdownListItem(text: ($0.checked ? "[x] " : "[ ] ") + $0.text, children: $0.children)
+            })
+            blocks.append(.bulletList(items: all))
         }
         return nil
     }
 
     mutating func visitOrderedList(_ orderedList: Markdown.OrderedList) -> Any? {
-        var items: [String] = []
-        for child in orderedList.children {
-            if let listItem = child as? Markdown.ListItem {
-                items.append(getPlainText(of: listItem))
-            }
+        let items = orderedList.children.compactMap { $0 as? Markdown.ListItem }.map {
+            MarkdownListItem(text: listItemInlineText($0), children: listItemChildren($0))
         }
         blocks.append(.orderedList(items: items))
         return nil
@@ -201,7 +295,7 @@ private struct MarkdownASTVisitor: MarkupVisitor {
 
         for child in table.head.children {
             if let cell = child as? Markdown.Table.Cell {
-                headers.append(cell.plainText)
+                headers.append(inlineMarkdownSource(of: cell))
             }
         }
 
@@ -210,7 +304,7 @@ private struct MarkdownASTVisitor: MarkupVisitor {
                 var rowCells: [String] = []
                 for cellChild in row.children {
                     if let cell = cellChild as? Markdown.Table.Cell {
-                        rowCells.append(cell.plainText)
+                        rowCells.append(inlineMarkdownSource(of: cell))
                     }
                 }
                 rows.append(rowCells)
@@ -244,15 +338,13 @@ public struct MarkdownBlockView: View {
     public var body: some View {
         switch block {
         case .heading(let level, let text):
-            Text(text)
-                .font(headingFont(level))
+            inlineText(text, font: headingFont(level))
                 .fontWeight(.bold)
                 .padding(.top, level == 1 ? 12 : 6)
                 .padding(.bottom, 4)
 
         case .paragraph(let text):
-            Text(text)
-                .font(.body)
+            inlineText(text)
                 .lineSpacing(4)
 
         case .codeBlock(let language, let code):
@@ -302,46 +394,33 @@ public struct MarkdownBlockView: View {
                 Rectangle()
                     .fill(Color.blue.opacity(0.6))
                     .frame(width: 4)
-                Text(text)
-                    .font(.body.italic())
+                inlineText(text)
+                    .italic()
                     .foregroundStyle(.secondary)
             }
             .padding(.vertical, 4)
 
         case .bulletList(let items):
-            VStack(alignment: .leading, spacing: 4) {
-                ForEach(items, id: \.self) { item in
-                    HStack(alignment: .top, spacing: 6) {
-                        Text("•")
-                            .font(.body)
-                        Text(item)
-                            .font(.body)
-                    }
-                }
-            }
-            .padding(.leading, 12)
+            MarkdownNestedListView(items: items, ordered: false)
+                .padding(.leading, 12)
 
         case .orderedList(let items):
-            VStack(alignment: .leading, spacing: 4) {
-                ForEach(Array(items.enumerated()), id: \.element) { index, item in
-                    HStack(alignment: .top, spacing: 6) {
-                        Text("\(index + 1).")
-                            .font(.body)
-                        Text(item)
-                            .font(.body)
-                    }
-                }
-            }
-            .padding(.leading, 12)
+            MarkdownNestedListView(items: items, ordered: true)
+                .padding(.leading, 12)
 
         case .taskList(let items):
             VStack(alignment: .leading, spacing: 6) {
-                ForEach(items, id: \.text) { item in
-                    HStack(alignment: .top, spacing: 8) {
-                        Image(systemName: item.checked ? "checkmark.square.fill" : "square")
-                            .foregroundStyle(item.checked ? .blue : .secondary)
-                        Text(item.text)
-                            .font(.body)
+                ForEach(items) { item in
+                    VStack(alignment: .leading, spacing: 4) {
+                        HStack(alignment: .top, spacing: 8) {
+                            Image(systemName: item.checked ? "checkmark.square.fill" : "square")
+                                .foregroundStyle(item.checked ? .blue : .secondary)
+                            inlineText(item.text)
+                        }
+                        if !item.children.isEmpty {
+                            MarkdownNestedListView(items: item.children, ordered: false)
+                                .padding(.leading, 24)
+                        }
                     }
                 }
             }
@@ -356,8 +435,8 @@ public struct MarkdownBlockView: View {
                 Grid(alignment: .leading, horizontalSpacing: 12, verticalSpacing: 8) {
                     GridRow {
                         ForEach(headers, id: \.self) { header in
-                            Text(header)
-                                .font(.body.bold())
+                            inlineText(header)
+                                .fontWeight(.bold)
                                 .padding(8)
                                 .background(Color.blue.opacity(0.12))
                         }
@@ -366,8 +445,7 @@ public struct MarkdownBlockView: View {
                     ForEach(rows, id: \.self) { row in
                         GridRow {
                             ForEach(row, id: \.self) { cell in
-                                Text(cell)
-                                    .font(.body)
+                                inlineText(cell)
                                     .padding(8)
                             }
                         }
@@ -388,6 +466,36 @@ public struct MarkdownBlockView: View {
         case 4: return .headline
         case 5: return .subheadline
         default: return .callout
+        }
+    }
+}
+
+/// Recursive list view: nested items render indented under their parent
+/// instead of being flattened into a single level.
+public struct MarkdownNestedListView: View {
+    let items: [MarkdownListItem]
+    let ordered: Bool
+
+    public init(items: [MarkdownListItem], ordered: Bool) {
+        self.items = items
+        self.ordered = ordered
+    }
+
+    public var body: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            ForEach(Array(items.enumerated()), id: \.offset) { index, item in
+                VStack(alignment: .leading, spacing: 4) {
+                    HStack(alignment: .top, spacing: 6) {
+                        Text(ordered ? "\(index + 1)." : "•")
+                            .font(.body)
+                        inlineText(item.text)
+                    }
+                    if !item.children.isEmpty {
+                        MarkdownNestedListView(items: item.children, ordered: false)
+                            .padding(.leading, 16)
+                    }
+                }
+            }
         }
     }
 }

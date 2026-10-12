@@ -170,8 +170,20 @@ public final class AssistModelRouter: Sendable {
         let targetModel: AssistAvailableModel
 
         switch strategy {
-        case "default":
-            // Antigravity SDK Default: ONLY use models listed in the SDK, NOTHING ELSE.
+        case "default", "rotation":
+            // Antigravity SDK Default / Gemini Key Rotation: ONLY use models
+            // listed in the SDK, NOTHING ELSE. ("rotation" additionally rotates
+            // API keys; the model-selection contract is identical.)
+            //
+            // Hot-path fast path: the SDK's own model registry (fetched live
+            // from the Antigravity SDK at startup, in-memory afterwards) is
+            // the authoritative source for SDK models. When it confirms the
+            // effective model, resolve it directly instead of running the
+            // full multi-provider network discovery (getEligibleCandidates)
+            // on every request — that discovery exists to populate the model
+            // picker UI, not to re-validate an already-confirmed SDK model,
+            // and its cold-cache cost is the dominant "Preparing request…"
+            // delay.
             let validIds = Self.sdkDefaultModelIDs
             let effectiveModelID: String
             if validIds.contains(selectedId) {
@@ -181,33 +193,20 @@ public final class AssistModelRouter: Sendable {
             } else {
                 effectiveModelID = selectedId
             }
-            let candidates = await getEligibleCandidates()
-            if let match = candidates.first(where: { $0.id == effectiveModelID || $0.modelIdentifier == effectiveModelID }) {
-                targetModel = match
-            } else if let firstSdk = candidates.first {
-                targetModel = firstSdk
-            } else {
+            if AntigravitySDKModelFetcher.shared.getModel(byID: effectiveModelID) != nil {
                 targetModel = createSyntheticSDKModel(modelID: effectiveModelID)
-            }
-
-        case "rotation":
-            // Gemini Key Rotation: ONLY use models listed in the SDK, BUT rotate API keys.
-            let validIds = Self.sdkDefaultModelIDs
-            let effectiveModelID: String
-            if validIds.contains(selectedId) {
-                effectiveModelID = selectedId
-            } else if let first = validIds.first {
-                effectiveModelID = first
             } else {
-                effectiveModelID = selectedId
-            }
-            let candidates = await getEligibleCandidates()
-            if let match = candidates.first(where: { $0.id == effectiveModelID || $0.modelIdentifier == effectiveModelID }) {
-                targetModel = match
-            } else if let firstSdk = candidates.first {
-                targetModel = firstSdk
-            } else {
-                targetModel = createSyntheticSDKModel(modelID: effectiveModelID)
+                // Registry does not know this model (stale selection or SDK
+                // fetch not completed): fall back to the full discovery path
+                // so a live candidate can still be found.
+                let candidates = await getEligibleCandidates()
+                if let match = candidates.first(where: { $0.id == effectiveModelID || $0.modelIdentifier == effectiveModelID }) {
+                    targetModel = match
+                } else if let firstSdk = candidates.first {
+                    targetModel = firstSdk
+                } else {
+                    targetModel = createSyntheticSDKModel(modelID: effectiveModelID)
+                }
             }
 
         case "app_models":

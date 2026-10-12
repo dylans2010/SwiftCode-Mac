@@ -69,8 +69,11 @@ public struct AntigravityLimitsModelsUI: View {
         .frame(width: 320, height: 380)
         .background(.ultraThinMaterial)
         .onAppear {
-            quotaService.refreshRealGoogleQuota()
+            quotaService.startPeriodicRefresh()
             syncThinkingLevelWithSelection()
+        }
+        .onDisappear {
+            quotaService.stopPeriodicRefresh()
         }
         .onChange(of: selectedModelID) { _, _ in
             syncThinkingLevelWithSelection()
@@ -352,6 +355,40 @@ public struct AntigravityLimitsModelsUI: View {
                     gaugeColor: AntigravityQuotaService.gaugeColor(forPercentage: quotaService.realThreePWeeklyPercentage),
                     icon: "calendar.badge.clock"
                 )
+            }
+
+            Divider()
+
+            // MARK: - Data source & refresh provenance
+            VStack(alignment: .leading, spacing: 3) {
+                HStack(spacing: 4) {
+                    Image(systemName: "info.circle")
+                        .font(.system(size: 8))
+                        .foregroundStyle(.secondary)
+                    Text(quotaService.quotaDataSourceDescription)
+                        .font(.system(size: 8))
+                        .foregroundStyle(.secondary)
+                        .lineLimit(2)
+                }
+                if let last = quotaService.lastSuccessfulRefresh {
+                    Text("Last refreshed \(last, style: .relative) · auto-refresh every 10 min")
+                        .font(.system(size: 8))
+                        .foregroundStyle(.secondary)
+                } else {
+                    Text("No successful refresh yet · auto-refresh every 10 min")
+                        .font(.system(size: 8))
+                        .foregroundStyle(.secondary)
+                }
+                if let err = quotaService.lastRefreshError {
+                    Text(err)
+                        .font(.system(size: 8))
+                        .foregroundStyle(.orange)
+                        .lineLimit(2)
+                }
+                Text("Antigravity account usage: \(quotaService.antigravityAccountUsageStatus)")
+                    .font(.system(size: 8))
+                    .foregroundStyle(.tertiary)
+                    .lineLimit(3)
             }
         }
         .padding(10)

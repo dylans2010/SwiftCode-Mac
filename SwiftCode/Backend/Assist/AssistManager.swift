@@ -7,7 +7,42 @@ public final class AssistManager: ObservableObject {
 
     @Published public var messages: [AssistMessage] = []
     @Published public var isProcessing = false
-    @Published public var lastError: String?
+    @Published public var lastError: String? {
+        didSet {
+            // Capture error diagnostics at the single point every failure
+            // path flows through: when the error occurred and which request
+            // phase was active. Clearing the error clears its diagnostics.
+            if lastError != nil {
+                lastErrorDate = Date()
+                lastErrorPhase = requestPhase
+            } else {
+                lastErrorDate = nil
+                lastErrorPhase = nil
+            }
+        }
+    }
+    /// When `lastError` was recorded (nil when there is no error).
+    @Published public private(set) var lastErrorDate: Date?
+    /// The request phase active when `lastError` was recorded.
+    @Published public private(set) var lastErrorPhase: AssistRequestPhase?
+    /// Non-fatal warning for the current/last request (e.g. instruction
+    /// content omitted by the context budget). Same diagnostics capture as
+    /// errors; cleared on new requests and conversation reset.
+    @Published public var lastWarning: String? {
+        didSet {
+            if lastWarning != nil {
+                lastWarningDate = Date()
+                lastWarningPhase = requestPhase
+            } else {
+                lastWarningDate = nil
+                lastWarningPhase = nil
+            }
+        }
+    }
+    /// When `lastWarning` was recorded (nil when there is no warning).
+    @Published public private(set) var lastWarningDate: Date?
+    /// The request phase active when `lastWarning` was recorded.
+    @Published public private(set) var lastWarningPhase: AssistRequestPhase?
     @Published public var takeoverReason: String?
     @Published public var currentCodeReview: CodeReviewInternalResult?
     @Published public var isCodeReviewRunning: Bool = false
@@ -32,6 +67,53 @@ public final class AssistManager: ObservableObject {
     private var activeGoogleCloudModelId: String?
     private var activeGoogleCloudModelDisplayName: String?
 
+    // MARK: - Unified request lifecycle state (AssistRequestState.swift)
+    //
+    // `requestPhase` is the single source of truth for what the current
+    // request is doing; `currentActivityStatus` is derived from it for UI
+    // compatibility. `requestGenerationValue` invalidates late callbacks
+    // after clearChat() or a newer request starts.
+    private var requestGenerationValue: Int = 0
+    public private(set) var requestPhase: AssistRequestPhase = .idle
+    /// Request-scoped SystemIndex retrieval ledger. Cleared on conversation
+    /// reset; the shared SystemIndex cache itself is never cleared here.
+    public private(set) var activeRetrievalLedger: SystemIndexRequestLedger?
+
+    /// Records a SystemIndex retrieval into the request-scoped ledger so
+    /// later requests in the same conversation never re-inject the same
+    /// chunks. Shared by the chat, Antigravity, and legacy agent paths.
+    public func recordRetrieval(_ retrieval: SystemIndexBudgetResult) {
+        var ledger = activeRetrievalLedger ?? SystemIndexRequestLedger()
+        ledger.record(retrieval)
+        activeRetrievalLedger = ledger
+    }
+
+    public func setRequestPhase(_ phase: AssistRequestPhase) {
+        requestPhase = phase
+        currentActivityStatus = phase.statusText
+    }
+
+    /// Centralized request failure used by early-return error paths.
+    /// Records the error, moves to the terminal .failed phase, appends a
+    /// system message, and stops processing — so the request phase can
+    /// never be left stale on a failed request.
+    private func failRequest(_ error: String, systemMessage: String? = nil) {
+        lastError = error
+        setRequestPhase(.failed)
+        messages.append(AssistMessage(role: .system, content: systemMessage ?? error))
+        isProcessing = false
+        saveHistory()
+    }
+
+    private func nextGeneration() -> AssistRequestGeneration {
+        requestGenerationValue += 1
+        return AssistRequestGeneration(requestGenerationValue)
+    }
+
+    public var currentGeneration: AssistRequestGeneration {
+        AssistRequestGeneration(requestGenerationValue)
+    }
+
     // Transcript vs Model Context separation
     public private(set) var modelContext: [ModelContextSection] = []
     public private(set) var contextPressure: ContextPressureState?
@@ -50,26 +132,24 @@ public final class AssistManager: ObservableObject {
     @Published public var activeProcess: Process?
     @Published public var activeFallbackMessage: String?
 
+    /// Returns the baseline system prompt assembled from the canonical System
+    /// Assets (AgentSystemAsset.md index + Identity.md + Safeguards.md).
+    /// Task-specific instructions are retrieved separately per request via
+    /// `SystemIndexService.retrieve(for:)` and injected by the request
+    /// pipeline — this baseline is what every request carries.
     public func getSystemPrompt() throws -> String {
         if let cached = cachedSystemPrompt {
             return cached
         }
 
-        guard let url = Bundle.main.url(forResource: "AgentSystemAsset", withExtension: "md") else {
-            let errorMsg = "Failed to locate AgentSystemAsset.md in application bundle."
+        let prompt = SystemIndexService.shared.baselinePrompt()
+        guard !prompt.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            let errorMsg = "Failed to locate System Assets (AgentSystemAsset.md / Identity.md / Safeguards.md) in the application bundle."
             Task { await logger.error(errorMsg, toolId: nil) }
             throw NSError(domain: "AssistManager", code: 404, userInfo: [NSLocalizedDescriptionKey: errorMsg])
         }
-
-        do {
-            let prompt = try String(contentsOf: url, encoding: .utf8)
-            cachedSystemPrompt = prompt
-            return prompt
-        } catch {
-            let errorMsg = "Failed to load AgentSystemAsset.md from bundle: \(error.localizedDescription)"
-            Task { await logger.error(errorMsg, toolId: nil) }
-            throw NSError(domain: "AssistManager", code: 500, userInfo: [NSLocalizedDescriptionKey: errorMsg])
-        }
+        cachedSystemPrompt = prompt
+        return prompt
     }
 
     @MainActor
@@ -219,13 +299,21 @@ public final class AssistManager: ObservableObject {
         }
 
         let metrics = AssistRequestMetrics.start(prompt: trimmed)
+        // Generation token: clearChat() or a newer request invalidates this
+        // generation, so late callbacks can never repopulate a cleared
+        // conversation.
+        let generation = nextGeneration()
+        // Warm the shared instruction index off the critical path. Retrieval
+        // calls below await it; the build is coalesced and cheap afterwards.
+        Task.detached(priority: .utility) { await SystemIndexService.shared.ensureReady() }
 
         await MainActor.run {
             AssistEventNormalizer.shared.resetForNewTask()
             messages.append(AssistMessage(role: .user, content: trimmed, attachments: attachments))
             isProcessing = true
-            currentActivityStatus = "Preparing request…"
+            setRequestPhase(.preparingRequest)
             lastError = nil
+            lastWarning = nil
             saveHistory()
         }
 
@@ -237,7 +325,7 @@ public final class AssistManager: ObservableObject {
 
         // Always prioritize Antigravity in Agent Mode or when explicitly enabled
         if !isLightweightConversation && (AppSettings.shared.isGoogleCloudAssist || (isAgentMode && isAntigravityAvailable)) {
-            await sendGoogleCloudSDKMessage(trimmed, attachments: attachments, envelope: envelope, metrics: metrics)
+            await sendGoogleCloudSDKMessage(trimmed, attachments: attachments, envelope: envelope, metrics: metrics, generation: generation)
             return
         }
 
@@ -245,10 +333,7 @@ public final class AssistManager: ObservableObject {
             guard let _ = self.agent else {
                 let error = "Assist agent is unavailable."
                 await MainActor.run {
-                    lastError = error
-                    messages.append(AssistMessage(role: .system, content: error))
-                    isProcessing = false
-                    saveHistory()
+                    failRequest(error)
                 }
                 return
             }
@@ -258,11 +343,7 @@ public final class AssistManager: ObservableObject {
                 _ = try getSystemPrompt()
             } catch {
                 await MainActor.run {
-                    let errorMsg = "Runtime Configuration Error: The required system prompt 'AgentSystemAsset.md' could not be loaded: \(error.localizedDescription)"
-                    lastError = errorMsg
-                    messages.append(AssistMessage(role: .system, content: errorMsg))
-                    isProcessing = false
-                    saveHistory()
+                    failRequest("Runtime Configuration Error: The required system prompt 'AgentSystemAsset.md' could not be loaded: \(error.localizedDescription)")
                 }
                 return
             }
@@ -271,29 +352,42 @@ public final class AssistManager: ObservableObject {
             let task = Task {
                 defer {
                     Task { @MainActor in
+                        // Only the current generation may reset shared UI
+                        // state; a superseded generation must not resurrect
+                        // "Idle" over a newer in-flight request. Never
+                        // overwrite a terminal phase (e.g. cancelled).
+                        guard generation == self.currentGeneration else { return }
                         self.isProcessing = false
-                        self.currentActivityStatus = "Idle"
+                        if !self.requestPhase.isTerminal {
+                            self.setRequestPhase(.idle)
+                        }
                         self.processNextQueuedMessageIfAny()
                     }
                 }
                 do {
                     try await agentSession.start(objective: trimmed, attachments: attachments, context: context)
                     if Task.isCancelled { return }
+                    // Stale generation: a clear or newer request superseded
+                    // this one — drop its completion instead of appending.
+                    guard generation == self.currentGeneration else { return }
                     await MainActor.run {
                         saveHistory()
                     }
                 } catch {
                     if Task.isCancelled { return }
+                    guard generation == self.currentGeneration else { return }
                     await MainActor.run {
-                        lastError = "Agent execution failed: \(error.localizedDescription)"
-                        messages.append(AssistMessage(role: .system, content: error.localizedDescription))
-                        saveHistory()
+                        failRequest("Agent execution failed: \(error.localizedDescription)",
+                                    systemMessage: error.localizedDescription)
                     }
                 }
             }
             activeAgentTask = task
             _ = await task.result
             await MainActor.run {
+                // A superseded generation must not clear a newer request's
+                // in-flight state.
+                guard generation == self.currentGeneration else { return }
                 self.isProcessing = false
             }
             return
@@ -334,10 +428,7 @@ public final class AssistManager: ObservableObject {
                     errorMsg = "Chat Validation Failed: Missing API key / credentials for provider \(selectedProvider.rawValue). Please configure your key in Assist Settings."
                 }
                 await MainActor.run {
-                    lastError = errorMsg
-                    messages.append(AssistMessage(role: .system, content: errorMsg))
-                    isProcessing = false
-                    saveHistory()
+                    failRequest(errorMsg)
                 }
                 return
             }
@@ -345,15 +436,13 @@ public final class AssistManager: ObservableObject {
             guard FoundationModels.shared.isEnabled else {
                 let errorMsg = "Chat Validation Failed: Local Apple Foundation Models are selected but disabled. Please enable them in Assist Settings."
                 await MainActor.run {
-                    lastError = errorMsg
-                    messages.append(AssistMessage(role: .system, content: errorMsg))
-                    isProcessing = false
-                    saveHistory()
+                    failRequest(errorMsg)
                 }
                 return
             }
         }
         // ------------------------------------------------
+        metrics.mark(.credentialsResolved)
 
         let chatSystemPrompt = """
         You are SwiftCode Assist, a helpful conversational software engineering assistant.
@@ -417,9 +506,38 @@ public final class AssistManager: ObservableObject {
             self.contextPressure = contextEngine!.getPressureState()
         }
 
+        // --- SystemIndex instruction retrieval (shared, provider-independent) ---
+        // Chat mode is conversational (no tools); it carries the short chat
+        // system prompt plus selectively retrieved task sections — never the
+        // whole instruction corpus.
+        setRequestPhase(.retrievingInstructions)
+        metrics.mark(.systemIndexRetrievalStarted)
+        let instructionQuery = InstructionQueryContext(
+            userText: trimmed,
+            taskCategory: SystemIndexService.classifyCategory(for: trimmed),
+            stage: .preparation,
+            modelID: selectedModel,
+            maxTokens: 3000,
+            excludingChunkIDs: activeRetrievalLedger?.retrievedChunkIDs ?? []
+        )
+        let instructionRetrieval = await SystemIndexService.shared.retrieve(for: instructionQuery)
+        metrics.mark(.systemIndexRetrievalCompleted)
+        var chatLedger = activeRetrievalLedger ?? SystemIndexRequestLedger()
+        chatLedger.record(instructionRetrieval)
+        activeRetrievalLedger = chatLedger
+        let retrievedInstructionsBlock = instructionRetrieval.formattedForPrompt()
+        if !instructionRetrieval.notes.isEmpty {
+            await logger.info("SystemIndex (chat): \(instructionRetrieval.notes.joined(separator: " | "))")
+        }
+        if instructionRetrieval.budgetExceeded {
+            lastWarning = instructionRetrieval.notes.joined(separator: " ")
+        }
+
         var prompt = """
         # SYSTEM PROMPT (OPERATING POLICY)
         \(chatSystemPrompt)
+
+        \(retrievedInstructionsBlock)
 
         # HIDDEN RUNTIME INSTRUCTIONS & ROLE
         Execution Key: com.SwiftCode.Assist-Chat
@@ -442,31 +560,73 @@ public final class AssistManager: ObservableObject {
 
         let responseMessage = AssistMessage(role: .assistant, content: "")
         messages.append(responseMessage)
-        currentActivityStatus = "Connecting to model…"
+        setRequestPhase(.sendingRequest)
+        metrics.mark(.requestCreated)
 
+        let streamProgress = AssistStreamProgressMonitor()
+        let messageID = responseMessage.id
         let task = Task { @MainActor [weak self] in
             guard let self else { return }
+            // Stale generation: a clear or newer request superseded this one.
+            guard generation == self.currentGeneration else { return }
             do {
+                metrics.mark(.requestSent)
                 try await LLMService.shared.streamChat(
                     messages: [AIMessage(role: .user, content: prompt)],
                     model: modelId,
                     systemPrompt: "",
                     providerOverride: selectedProvider,
                     onToken: { [weak self] token in
-                        await self?.appendChatToken(token, to: responseMessage.id)
+                        streamProgress.markProgress()
+                        await self?.appendChatToken(token, to: messageID, generation: generation)
+                        metrics.mark(.firstTextDelta)
+                        metrics.mark(.firstVisibleRender)
                     }
                 )
                 guard !Task.isCancelled else { return }
-                self.finishChatResponse(messageID: responseMessage.id)
+                guard generation == self.currentGeneration else { return }
+                self.finishChatResponse(messageID: messageID)
+                metrics.mark(.responseCompleted)
+                metrics.logSummary(modelName: modelId)
             } catch {
                 guard !Task.isCancelled else { return }
-                self.finishChatResponse(messageID: responseMessage.id, error: error.localizedDescription)
+                guard generation == self.currentGeneration else { return }
+                self.finishChatResponse(
+                    messageID: messageID,
+                    error: error.localizedDescription,
+                    timedOut: error is AssistRequestTimeoutError
+                )
+                metrics.mark(.responseCompleted)
+                metrics.logSummary(modelName: modelId)
             }
         }
         activeChatTask = task
+        // Progress watchdog: the chat transport exposes no timeout of its own,
+        // so a stalled stream must fail explicitly instead of spinning forever.
+        let watchdog = Task.detached { [weak self] in
+            while !Task.isCancelled {
+                try? await Task.sleep(nanoseconds: 30_000_000_000)
+                guard streamProgress.secondsSinceProgress() > 180 else { continue }
+                let shouldTimeout = await MainActor.run { [weak self] () -> Bool in
+                    guard let self else { return false }
+                    return self.currentGeneration == generation && self.isProcessing
+                }
+                guard shouldTimeout else { return }
+                task.cancel()
+                await MainActor.run { [weak self] in
+                    self?.finishChatResponse(
+                        messageID: messageID,
+                        error: AssistRequestTimeoutError.timedOut(180).localizedDescription,
+                        timedOut: true
+                    )
+                }
+                return
+            }
+        }
         await task.value
+        watchdog.cancel()
         activeChatTask = nil
-        if currentActivityStatus != "Cancelled" {
+        if requestPhase != .cancelled {
             processNextQueuedMessageIfAny()
         }
 
@@ -496,15 +656,18 @@ public final class AssistManager: ObservableObject {
         return selected.reversed()
     }
 
-    private func appendChatToken(_ token: String, to messageID: UUID) {
+    private func appendChatToken(_ token: String, to messageID: UUID, generation: AssistRequestGeneration) {
+        // Late tokens from a superseded generation must not resurrect a
+        // cleared conversation or pollute a newer one.
+        guard generation == currentGeneration else { return }
         guard let index = messages.firstIndex(where: { $0.id == messageID }) else { return }
         var message = messages[index]
         message.content += token
         messages[index] = message
-        currentActivityStatus = "Receiving response…"
+        setRequestPhase(.receivingResponse)
     }
 
-    private func finishChatResponse(messageID: UUID, error: String? = nil) {
+    private func finishChatResponse(messageID: UUID, error: String? = nil, timedOut: Bool = false) {
         if let error {
             lastError = "AI request failed: \(error)"
             messages.append(AssistMessage(role: .system, content: lastError ?? "AI request failed."))
@@ -513,17 +676,19 @@ public final class AssistManager: ObservableObject {
             messages.remove(at: index)
         }
         isProcessing = false
-        currentActivityStatus = "Idle"
+        // Terminal state: the request is over and the UI must not show a
+        // spinner for it anymore.
+        setRequestPhase(timedOut ? .timedOut : (error != nil ? .failed : .completed))
         saveHistory()
     }
 
     // MARK: - Message Queue System
 
-    public func enqueueMessage(_ content: String, attachments: [AgentFileContext] = []) {
+    public func enqueueMessage(_ content: String, attachments: [AgentFileContext] = [], envelope: AssistTaskEnvelope? = nil) {
         let trimmed = content.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return }
 
-        let item = QueuedAssistMessage(content: trimmed, attachments: attachments)
+        let item = QueuedAssistMessage(content: trimmed, attachments: attachments, envelope: envelope)
         queuedMessages.append(item)
 
         if !isProcessing {
@@ -549,7 +714,7 @@ public final class AssistManager: ObservableObject {
     public func sendQueuedMessageNow(id: UUID) {
         guard let idx = queuedMessages.firstIndex(where: { $0.id == id }) else { return }
         let msg = queuedMessages.remove(at: idx)
-        interruptActiveSessionAndSend(content: msg.content, attachments: msg.attachments)
+        interruptActiveSessionAndSend(content: msg.content, attachments: msg.attachments, envelope: msg.envelope)
     }
 
     public func interruptActiveSessionAndSend(content: String, attachments: [AgentFileContext] = [], envelope: AssistTaskEnvelope? = nil) {
@@ -582,7 +747,7 @@ public final class AssistManager: ObservableObject {
         Task { @MainActor in
             try? await Task.sleep(nanoseconds: 150_000_000)
             self.isProcessing = false
-            self.currentActivityStatus = "Idle"
+            self.setRequestPhase(.idle)
             await self.sendMessage(trimmed, attachments: attachments, envelope: envelope)
         }
     }
@@ -599,11 +764,15 @@ public final class AssistManager: ObservableObject {
         let next = queuedMessages.removeFirst()
         Task { @MainActor in
             defer { self.isDispatchingFromQueue = false }
-            await self.sendMessage(next.content, attachments: next.attachments)
+            await self.sendMessage(next.content, attachments: next.attachments, envelope: next.envelope)
         }
     }
 
     public func stopCurrentSession() {
+        // Invalidate the generation so late callbacks from the cancelled
+        // request are dropped instead of updating the UI afterwards.
+        requestGenerationValue += 1
+
         activeAgentTask?.cancel()
         activeAgentTask = nil
 
@@ -626,7 +795,7 @@ public final class AssistManager: ObservableObject {
         cancelTerminalExecution()
 
         isProcessing = false
-        currentActivityStatus = "Cancelled"
+        setRequestPhase(.cancelled)
         currentCodeReview = nil
         isCodeReviewRunning = false
         if let last = messages.last, last.role == .assistant, last.content.isEmpty, last.activityGroup?.hasContent != true, (last.thinkingContent?.isEmpty ?? true) {
@@ -648,6 +817,13 @@ public final class AssistManager: ObservableObject {
     }
 
     public func clearChat() {
+        // Invalidate the request generation FIRST, before cancelling anything:
+        // any late callback, streaming event, tool result, or error update
+        // still in flight will see a stale generation and drop its update
+        // instead of repopulating the cleared conversation.
+        requestGenerationValue += 1
+        setRequestPhase(.idle)
+
         // Immediately cancel the active agent task and agent session
         activeAgentTask?.cancel()
         activeAgentTask = nil
@@ -674,12 +850,13 @@ public final class AssistManager: ObservableObject {
         PlanQuestionManager.shared.cancelPendingQuestions()
 
         // Immediately cancel terminal execution and any running sub-processes
+        // (also resumes any hung approval continuation as denied).
         cancelTerminalExecution()
 
         // Reset states to a clean, idle state
         isProcessing = false
-        currentActivityStatus = "Idle"
         lastError = nil
+        lastWarning = nil
         takeoverReason = nil
         currentCodeReview = nil
         isCodeReviewRunning = false
@@ -687,7 +864,16 @@ public final class AssistManager: ObservableObject {
         activeFallbackMessage = nil
         AssistModelManager.shared.clearFallbackNotification()
 
+        // Clear the full conversation and its transient execution state — not
+        // just the visible messages. The shared SystemIndex cache, bundled
+        // System Assets, settings, credentials, and project files are
+        // intentionally NOT touched.
         messages.removeAll()
+        modelContext = []
+        contextPressure = nil
+        contextEngine = nil
+        activeRetrievalLedger = nil
+        AssistEventNormalizer.shared.resetForNewTask()
         clearQueue()
         session.reset()
         UserDefaults.standard.removeObject(forKey: "com.swiftcode.assist.history")
@@ -745,8 +931,16 @@ public final class AssistManager: ObservableObject {
     }
 
     private func saveHistory() {
-        if let data = try? JSONEncoder().encode(messages) {
-            UserDefaults.standard.set(data, forKey: "com.swiftcode.assist.history")
+        // Snapshot on the caller and persist off the main thread: encoding the
+        // full message history to JSON on every send is the largest main-thread
+        // stall in the "Preparing request…" window, and it grows with the
+        // conversation. UserDefaults is thread-safe; ordering is preserved
+        // because each snapshot encodes the state at call time.
+        let snapshot = messages
+        Task.detached(priority: .utility) {
+            if let data = try? JSONEncoder().encode(snapshot) {
+                UserDefaults.standard.set(data, forKey: "com.swiftcode.assist.history")
+            }
         }
     }
 
@@ -756,17 +950,18 @@ public final class AssistManager: ObservableObject {
         _ content: String,
         attachments: [AgentFileContext] = [],
         envelope: AssistTaskEnvelope? = nil,
-        metrics: AssistRequestMetrics? = nil
+        metrics: AssistRequestMetrics? = nil,
+        generation: AssistRequestGeneration
     ) async {
         let runtime = GoogleCloudSDKRuntime.shared
         do {
             try await runtime.ensureStarted()
         } catch {
             await MainActor.run {
-                self.lastError = "Google Antigravity engine failed to start: \(error.localizedDescription)"
-                self.messages.append(AssistMessage(role: .system, content: "Engine error: \(error.localizedDescription)"))
-                self.isProcessing = false
-                self.saveHistory()
+                self.failRequest(
+                    "Google Antigravity engine failed to start: \(error.localizedDescription)",
+                    systemMessage: "Engine error: \(error.localizedDescription)"
+                )
             }
             return
         }
@@ -851,20 +1046,13 @@ public final class AssistManager: ObservableObject {
 
                             Your conversation is preserved.
                             """
-                            self.lastError = sessionExpiredMsg
-                            self.messages.append(AssistMessage(role: .assistant, content: sessionExpiredMsg))
-                            self.isProcessing = false
-                            self.saveHistory()
+                            self.failRequest(sessionExpiredMsg)
                         }
                         return
                     }
                 } else {
                     await MainActor.run {
-                        let missingAuthMsg = "Authentication Error (\(initialModelName)): No valid Gemini API Key or Google OAuth account configured. Please enter your Gemini API key or sign in with Google in Assist Settings."
-                        self.lastError = missingAuthMsg
-                        self.messages.append(AssistMessage(role: .assistant, content: missingAuthMsg))
-                        self.isProcessing = false
-                        self.saveHistory()
+                        self.failRequest("Authentication Error (\(initialModelName)): No valid Gemini API Key or Google OAuth account configured. Please enter your Gemini API key or sign in with Google in Assist Settings.")
                     }
                     return
                 }
@@ -872,6 +1060,36 @@ public final class AssistManager: ObservableObject {
         }
 
         let session: GoogleCloudSDKSession
+
+        // --- SystemIndex instruction retrieval (shared, provider-independent) ---
+        // The session carries the baseline system instructions (stable, so
+        // sessions remain reusable); the task-specific sections retrieved here
+        // travel with this request's prompt instead of the whole corpus.
+        metrics?.mark(.credentialsResolved)
+        setRequestPhase(.retrievingInstructions)
+        metrics?.mark(.systemIndexRetrievalStarted)
+        let instructionQuery = InstructionQueryContext(
+            userText: content,
+            taskCategory: SystemIndexService.classifyCategory(for: content),
+            stage: .preparation,
+            modelID: initialModelId,
+            maxTokens: 4000,
+            excludingChunkIDs: activeRetrievalLedger?.retrievedChunkIDs ?? []
+        )
+        let instructionRetrieval = await SystemIndexService.shared.retrieve(for: instructionQuery)
+        metrics?.mark(.systemIndexRetrievalCompleted)
+        var sdkLedger = activeRetrievalLedger ?? SystemIndexRequestLedger()
+        sdkLedger.record(instructionRetrieval)
+        activeRetrievalLedger = sdkLedger
+        let retrievedInstructionsBlock = instructionRetrieval.formattedForPrompt()
+        if !instructionRetrieval.notes.isEmpty {
+            await logger.info("SystemIndex (Antigravity): \(instructionRetrieval.notes.joined(separator: " | "))")
+        }
+        if instructionRetrieval.budgetExceeded {
+            lastWarning = instructionRetrieval.notes.joined(separator: " ")
+        }
+        setRequestPhase(.buildingRequest)
+        metrics?.mark(.toolsPrepared)
         // C-3: reuse only when the full credential-bearing contract matches
         // (see canReuseSession) — a rotated token or changed quota project
         // must force a new session instead of 401ing on a dead bearer.
@@ -891,11 +1109,7 @@ public final class AssistManager: ObservableObject {
             } catch {
                 await logger.error("[AssistManager] Failed to create Antigravity session for \(initialModelName): \(error.localizedDescription)")
                 await MainActor.run {
-                    let sessionErrMsg = "Session Error (\(initialModelName)): \(error.localizedDescription)"
-                    self.lastError = sessionErrMsg
-                    self.messages.append(AssistMessage(role: .system, content: sessionErrMsg))
-                    self.isProcessing = false
-                    self.saveHistory()
+                    failRequest("Session Error (\(initialModelName)): \(error.localizedDescription)")
                 }
                 return
             }
@@ -913,7 +1127,11 @@ public final class AssistManager: ObservableObject {
             defer {
                 Task { @MainActor in
                     self.isProcessing = false
-                    self.currentActivityStatus = "Idle"
+                    // Never overwrite a terminal phase recorded by the turn
+                    // outcome (completed/failed/cancelled/timedOut).
+                    if !self.requestPhase.isTerminal {
+                        self.setRequestPhase(.idle)
+                    }
                 }
             }
 
@@ -950,7 +1168,8 @@ public final class AssistManager: ObservableObject {
                 }
             }
 
-            var currentPrompt = explicitContextPrefix.isEmpty ? content : "\(explicitContextPrefix)\n\n# USER REQUEST\n\(content)"
+            let instructionPrefix = retrievedInstructionsBlock.isEmpty ? "" : retrievedInstructionsBlock + "\n\n"
+            var currentPrompt = instructionPrefix + (explicitContextPrefix.isEmpty ? content : "\(explicitContextPrefix)\n\n# USER REQUEST\n\(content)")
             var currentAttachments = sdkAttachments
             var currentSession: GoogleCloudSDKSession = session
             var currentConfig = initialConfig
@@ -975,7 +1194,8 @@ public final class AssistManager: ObservableObject {
                             self.messages[idx].activityGroup?.isExecuting = false
                             self.saveHistory()
                         }
-                        self.currentActivityStatus = "Idle"
+                        // Truthful terminal state: timed out, not idle.
+                        self.setRequestPhase(.timedOut)
                         self.isProcessing = false
                     }
                     break executionLoop
@@ -993,13 +1213,17 @@ public final class AssistManager: ObservableObject {
                     var thinkingStartTime: Date? = nil
                     streamLoop: for await event in eventStream {
                         guard !Task.isCancelled else { break streamLoop }
+                        // Stale generation: the conversation was cleared or a
+                        // newer request started — drop late events instead of
+                        // repopulating the cleared conversation.
+                        guard generation == self.currentGeneration else { break streamLoop }
                         watchdog.recordActivity()
                         guard let idx = self.messages.indices.last else { continue }
                         switch event {
                         case .agentStarted:
                             metrics?.mark(.firstEventReceived)
                             metrics?.mark(.modelStarted)
-                            self.currentActivityStatus = "Waiting for model output…"
+                            self.setRequestPhase(.waitingForModel)
 
                         case .agentProgress(_, let delta, let thoughtDelta):
                             metrics?.mark(.firstEventReceived)
@@ -1030,7 +1254,8 @@ public final class AssistManager: ObservableObject {
                                     message.content = ""
                                 } else if !safeDelta.isEmpty {
                                     metrics?.mark(.firstTextDelta)
-                                    self.currentActivityStatus = "Receiving response…"
+                                    metrics?.mark(.firstVisibleRender)
+                                    self.setRequestPhase(.receivingResponse)
                                     message.content += safeDelta
                                 }
                                 self.messages[idx] = message
@@ -1038,6 +1263,8 @@ public final class AssistManager: ObservableObject {
                         case .toolStarted(let tool):
                             metrics?.mark(.firstEventReceived)
                             metrics?.mark(.firstToolCall)
+                            metrics?.mark(.toolExecutionStarted)
+                            self.setRequestPhase(.executingTool)
                             let argsDict: [String: Any] = (try? JSONSerialization.jsonObject(with: tool.rawArgs.data(using: .utf8) ?? Data())) as? [String: Any] ?? [:]
                             self.reportToolStarted(callId: tool.id, toolName: tool.name, arguments: argsDict)
 
@@ -1045,9 +1272,13 @@ public final class AssistManager: ObservableObject {
                             self.reportToolProgress(callId: toolId, message: msg)
 
                         case .toolCompleted(let res):
+                            metrics?.mark(.toolExecutionCompleted)
+                            self.setRequestPhase(.handlingToolResult)
                             self.reportToolCompleted(callId: res.id, toolName: res.name, output: res.result, arguments: [:])
 
                         case .toolFailed(let toolId, let name, let err):
+                            metrics?.mark(.toolExecutionCompleted)
+                            self.setRequestPhase(.handlingToolResult)
                             self.reportToolFailed(callId: toolId, toolName: name, error: err, arguments: [:])
 
                         case .workerStarted(_, let workerId, let name, let args):
@@ -1116,7 +1347,7 @@ public final class AssistManager: ObservableObject {
                             self.messages[idx] = finalMessage
                             self.messages[idx].activityGroup?.isExecuting = false
                             self.saveHistory()
-                            self.currentActivityStatus = "Idle"
+                            self.setRequestPhase(.completed)
                             self.isProcessing = false
                             turnCompletedSuccessfully = true
                             break streamLoop
@@ -1218,7 +1449,7 @@ public final class AssistManager: ObservableObject {
                             self.messages[idx].activityGroup?.isExecuting = false
                             self.saveHistory()
                         }
-                        self.currentActivityStatus = "Idle"
+                        self.setRequestPhase(.failed)
                         self.isProcessing = false
                     }
                     break executionLoop
@@ -1282,7 +1513,7 @@ public final class AssistManager: ObservableObject {
                                 self.messages[idx].activityGroup?.isExecuting = false
                             }
                             self.isProcessing = false
-                            self.currentActivityStatus = "Idle"
+                            self.setRequestPhase(.failed)
                             if let old = self.activeGoogleCloudSession {
                                 Task { try? await old.close() }
                             }
@@ -1396,7 +1627,7 @@ public final class AssistManager: ObservableObject {
                                         )
                                     }
                                     self.saveHistory()
-                                    self.currentActivityStatus = "Idle"
+                                    self.setRequestPhase(.failed)
                                     self.isProcessing = false
                                 }
                                 break executionLoop
@@ -1437,7 +1668,7 @@ public final class AssistManager: ObservableObject {
                                     self.messages.append(AssistMessage(role: .assistant, content: quotaMsg))
                                 }
                                 self.saveHistory()
-                                self.currentActivityStatus = "Idle"
+                                self.setRequestPhase(.failed)
                                 self.isProcessing = false
                             }
                             break executionLoop
@@ -1484,8 +1715,10 @@ public final class AssistManager: ObservableObject {
                         let oldName = currentModelName
                         let newName = failover.nextModel.displayName
                         await logger.warning("[AssistManager] Model '\(oldName)' failed. Failing over to '\(newName)'. Error: \(errText)")
+                        metrics?.mark(.followUpRequestInitiated)
                         await MainActor.run {
                             self.currentActivityStatus = "\(oldName) error — switching to \(newName)"
+                            self.requestPhase = .fallingBack
                             if let idx = self.messages.indices.last {
                                 self.messages[idx].activityGroup?.isExecuting = true
                             }
@@ -1509,7 +1742,11 @@ public final class AssistManager: ObservableObject {
                             currentConfig = failover.nextConfig
                             currentModelId = failover.nextModel.modelIdentifier
                             currentModelName = newName
-                            currentPrompt = failover.continuationPrompt
+                            // Preserve the retrieved task instructions across
+                            // failover: the continuation prompt replaces the
+                            // original request, but the task-specific sections
+                            // retrieved for it are still authoritative.
+                            currentPrompt = instructionPrefix + failover.continuationPrompt
                             currentAttachments = []
                             continue executionLoop
                         } catch {
@@ -1545,7 +1782,7 @@ public final class AssistManager: ObservableObject {
                         self.messages.append(AssistMessage(role: .system, content: finalErrorMsg))
                     }
                     self.saveHistory()
-                    self.currentActivityStatus = "Idle"
+                    self.setRequestPhase(.failed)
                     self.isProcessing = false
                 }
                 break executionLoop
@@ -1556,7 +1793,11 @@ public final class AssistManager: ObservableObject {
         _ = await task.result
         await MainActor.run {
             self.isProcessing = false
-            self.currentActivityStatus = "Idle"
+            // Terminal phase was set by the turn outcome (completed/failed);
+            // only fall back to idle when no terminal phase was recorded.
+            if !self.requestPhase.isTerminal {
+                self.setRequestPhase(.idle)
+            }
             self.processNextQueuedMessageIfAny()
         }
     }

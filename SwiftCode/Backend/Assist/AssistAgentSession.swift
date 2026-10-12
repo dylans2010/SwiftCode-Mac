@@ -28,6 +28,10 @@ public final class AssistAgentSession: Sendable {
     public var successfulToolExecutionCount = 0
     public var recentToolResults: [AssistToolResult] = []
     public var recentErrors: [String] = []
+    /// One-time tool-stage SystemIndex retrieval flag. Reset per session
+    /// start; set after the first risky tool triggers safeguard guidance
+    /// injection so it never repeats within a session.
+    private var didInjectToolStageGuidance = false
 
     private var isCancelled = false
     private let registry = AssistToolRegistry()
@@ -297,6 +301,7 @@ public final class AssistAgentSession: Sendable {
         self.executionSummary = nil
         self.activeContext = context
         self.isCancelled = false
+        self.didInjectToolStageGuidance = false
         self.currentActivityGroup = AssistActivityGroup(isExecuting: true)
         self.currentAssistantMessageId = nil
 
@@ -489,6 +494,28 @@ public final class AssistAgentSession: Sendable {
         var consecutiveNoProgressCycles = 0
         var codeReviewAttempts = 0
 
+        // --- SystemIndex task-instruction retrieval (legacy agent path) ---
+        // Retrieved once per session start and injected into every iteration's
+        // prompt. Recorded in AssistManager's request ledger so chunk IDs are
+        // never re-injected by a later request in the same conversation.
+        let instructionQuery = InstructionQueryContext(
+            userText: objective,
+            taskCategory: SystemIndexService.classifyCategory(for: objective),
+            stage: .preparation,
+            modelID: AssistModelManager.shared.selectedModelID,
+            maxTokens: 4000,
+            excludingChunkIDs: AssistManager.shared.activeRetrievalLedger?.retrievedChunkIDs ?? []
+        )
+        let instructionRetrieval = await SystemIndexService.shared.retrieve(for: instructionQuery)
+        AssistManager.shared.recordRetrieval(instructionRetrieval)
+        if !instructionRetrieval.notes.isEmpty {
+            pipelineLogger.info("[SystemIndex] agent path: \(instructionRetrieval.notes.joined(separator: " | "))")
+        }
+        if instructionRetrieval.budgetExceeded {
+            AssistManager.shared.lastWarning = instructionRetrieval.notes.joined(separator: " ")
+        }
+        let taskInstructionBlock = instructionRetrieval.formattedForPrompt()
+
         while !isCancelled && !Task.isCancelled {
             self.iterationCount += 1
             AlertSoundPlayer.shared.play(.agentThinking)
@@ -570,6 +597,8 @@ public final class AssistAgentSession: Sendable {
             let systemPrompt = """
             # SYSTEM PROMPT (OPERATING POLICY)
             \(assetSystemPrompt)
+
+            \(taskInstructionBlock)
 
             You are an autonomous Swift/macOS coding agent in SwiftCode.
             Goal: "\(objective)"
@@ -798,6 +827,30 @@ public final class AssistAgentSession: Sendable {
 
             _ = phaseCoordinator.startPhase("PHASE_06_EXECUTION")
             transition(to: .executing, reason: "Executing tool [\(toolId)]")
+
+            // One-time tool-stage instruction retrieval: before the first
+            // risky tool executes, pull safeguard/tool-call guidance into the
+            // conversation so the model has the current destructive-operation
+            // policy in context. The request ledger prevents re-injection.
+            let toolMeta = AssistToolRouter.shared.metadata(for: toolId)
+            if !didInjectToolStageGuidance && toolMeta.riskLevel >= .potentiallyDestructive {
+                didInjectToolStageGuidance = true
+                let toolQuery = InstructionQueryContext(
+                    userText: "executing tool \(toolId) with risk level \(toolMeta.riskLevel.rawValue): \(explanation)",
+                    taskCategory: .toolUse,
+                    stage: .toolCall,
+                    modelID: AssistModelManager.shared.selectedModelID,
+                    maxTokens: 2000,
+                    excludingChunkIDs: AssistManager.shared.activeRetrievalLedger?.retrievedChunkIDs ?? []
+                )
+                let toolRetrieval = await SystemIndexService.shared.retrieve(for: toolQuery)
+                AssistManager.shared.recordRetrieval(toolRetrieval)
+                let toolBlock = toolRetrieval.formattedForPrompt()
+                if !toolBlock.isEmpty {
+                    appendConversationHistory("# TOOL-CALL SAFEGUARD GUIDANCE\n\(toolBlock)")
+                    pipelineLogger.info("[SystemIndex] tool-stage guidance injected before \(toolId)")
+                }
+            }
 
             guard let tool = registry.getTool(toolId) else {
                 finalizeStreamedToolPreview(status: .failed, result: "Tool '\(toolId)' was not found.")

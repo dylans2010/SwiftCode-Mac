@@ -885,17 +885,22 @@ public struct QueuedAssistMessage: Identifiable, Sendable, Codable, Equatable {
     public var content: String
     public var attachments: [AgentFileContext]
     public let timestamp: Date
+    /// The composer's task envelope (explicit skills, MCP servers, files).
+    /// Preserved so queued messages don't silently lose their selections.
+    public var envelope: AssistTaskEnvelope?
 
     public init(
         id: UUID = UUID(),
         content: String,
         attachments: [AgentFileContext] = [],
-        timestamp: Date = Date()
+        timestamp: Date = Date(),
+        envelope: AssistTaskEnvelope? = nil
     ) {
         self.id = id
         self.content = content
         self.attachments = attachments
         self.timestamp = timestamp
+        self.envelope = envelope
     }
 }
 
