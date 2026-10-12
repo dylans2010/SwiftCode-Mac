@@ -342,9 +342,17 @@ public final class AssistAgentSession: Sendable {
         }
 
         // 3. Verify Authentication state and capabilities
+        // M-7: the legacy check was API-key-only and OAuth-unaware. A valid
+        // Google OAuth session satisfies the Google provider.
         if selectedProvider != .offline && selectedProvider != .codex {
             let key = LLMService.shared.retrieveAPIKey(for: selectedProvider)
-            guard !key.isEmpty else {
+            let googleOAuthOK: Bool = {
+                guard selectedProvider == .google else { return false }
+                let mode = UserDefaults.standard.string(forKey: "assist_google_auth_mode") ?? AppSettings.shared.assistGoogleAuthMode
+                guard mode == "google_oauth", GoogleAccountAuthService.shared.isAuthenticated else { return false }
+                return GoogleAccountAuthService.shared.getValidAccessToken() != nil
+            }()
+            guard !key.isEmpty || googleOAuthOK else {
                 let errorMsg = "Session Validation Failed: Missing API key / credentials for provider \(selectedProvider.rawValue). Please configure your key in Assist Settings."
                 phaseCoordinator.failPhase("PHASE_01_INIT", error: errorMsg)
                 transition(to: .failed, reason: errorMsg)

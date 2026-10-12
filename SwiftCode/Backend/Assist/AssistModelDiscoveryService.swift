@@ -123,6 +123,39 @@ public final class AssistModelDiscoveryService: Sendable {
         }
     }
 
+    /// Resolves the provider record for a free-text custom model ID without
+    /// inferring anything from the display name. (C-2)
+    ///
+    /// Resolution order:
+    /// 1. Exact match against the SDK's own model catalog (live-fetched or
+    ///    bundled seed): adopt the catalog record's provider. This covers the
+    ///    launch race where live discovery hasn't populated yet.
+    /// 2. The explicit `customModelProviderID` setting (default "google"), so
+    ///    a gemini-named custom model with a valid OAuth session keeps its
+    ///    token and routes as the Google provider.
+    /// Internal (not private) so the contract is unit-testable.
+    func providerResolutionForCustomModel(id trimmedCustom: String) -> (providerID: String, providerName: String, source: ModelSource) {
+        let catalog = AntigravitySDKModelFetcher.shared.models + AntigravitySDKModelFetcher.seedModels
+        if let match = catalog.first(where: { $0.id == trimmedCustom }) {
+            switch match.category.lowercased() {
+            case "google":
+                return ("gemini", "Gemini", .gemini)
+            case "anthropic":
+                return ("anthropic", "Anthropic", .claude)
+            case "openai":
+                return ("openai", "OpenAI", .openAI)
+            default:
+                break
+            }
+        }
+        switch AppSettings.shared.customModelProviderID.lowercased() {
+        case "ollama", "local", "lmstudio":
+            return ("ollama", "Local / Ollama", .local)
+        default:
+            return ("gemini", "Gemini", .gemini)
+        }
+    }
+
     private func generateCustomBaselineModels() -> [AssistAvailableModel] {
         var results: [AssistAvailableModel] = []
         let endpoints = CustomEndpointManager.shared.endpoints
@@ -169,15 +202,19 @@ public final class AssistModelDiscoveryService: Sendable {
         let activeCustomModel = AssistModelManager.shared.customModelID.isEmpty ? AppSettings.shared.customModel : AssistModelManager.shared.customModelID
         let trimmedCustom = activeCustomModel.trimmingCharacters(in: .whitespacesAndNewlines)
         if !trimmedCustom.isEmpty && !results.contains(where: { $0.modelIdentifier == trimmedCustom }) {
+            // C-2: resolve the provider from the explicit record/setting —
+            // never inferred from the display name — so a valid OAuth session
+            // is kept for a gemini-named custom model.
+            let resolvedProvider = providerResolutionForCustomModel(id: trimmedCustom)
             results.append(
                 AssistAvailableModel(
                     id: trimmedCustom,
                     displayName: "\(trimmedCustom) (Custom)",
-                    providerID: "custom",
-                    providerName: "Custom Models",
+                    providerID: resolvedProvider.providerID,
+                    providerName: resolvedProvider.providerName,
                     modelIdentifier: trimmedCustom,
                     capabilities: [.toolCalling, .streaming, .structuredOutput, .codeGeneration],
-                    source: .custom,
+                    source: resolvedProvider.source,
                     isConfigured: true,
                     isAvailable: true,
                     supportsStreaming: true,
@@ -353,9 +390,16 @@ public final class AssistModelDiscoveryService: Sendable {
         do {
             let (data, response) = try await URLSession.shared.data(for: request)
             guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
-                if let httpResponse = response as? HTTPURLResponse {
-                    logger.warning("Gemini model discovery returned HTTP \(httpResponse.statusCode)")
-                }
+                let status = (response as? HTTPURLResponse).map { String($0.statusCode) } ?? "unknown"
+                logger.warning("Gemini model discovery returned HTTP \(status)")
+                // H-6: surface the failure in the picker instead of silently
+                // degrading to the bundled catalog. A missing quota project is
+                // the most common OAuth 403 cause — name the fix.
+                let quotaProject = AppSettings.shared.assistGoogleCloudProject.trimmingCharacters(in: .whitespacesAndNewlines)
+                let quotaHint = (quotaProject.isEmpty && oauthToken != nil)
+                    ? " Set your Google Cloud quota project in Settings → Assist → Google Account."
+                    : ""
+                lastDiscoveryErrors["Gemini"] = "Live discovery failed (HTTP \(status)). Showing bundled catalog.\(quotaHint)"
                 return await fallbackAntigravityModels()
             }
 
@@ -417,20 +461,28 @@ public final class AssistModelDiscoveryService: Sendable {
             }
 
             if results.isEmpty {
+                // H-6: an empty live result is a discovery failure, not a
+                // silent success — say so in the picker.
+                lastDiscoveryErrors["Gemini"] = "Live discovery returned no models. Showing bundled catalog."
                 return await fallbackAntigravityModels()
             }
             return results
         } catch {
             logger.error("Gemini model discovery error: \(error.localizedDescription)")
+            lastDiscoveryErrors["Gemini"] = "Live discovery failed (\(error.localizedDescription)). Showing bundled catalog."
             return await fallbackAntigravityModels()
         }
     }
 
     private func fallbackAntigravityModels() async -> [AssistAvailableModel] {
-        let models = await MainActor.run {
-            AntigravitySDKModelFetcher.shared.models.isEmpty
-                ? AntigravitySDKModelFetcher.seedModels
-                : AntigravitySDKModelFetcher.shared.models
+        let (models, isSeedCatalog): ([AntigravitySDKModel], Bool) = await MainActor.run {
+            let live = AntigravitySDKModelFetcher.shared.models
+            // H-6: distinguish live SDK-runtime models from the bundled seed
+            // catalog so the picker never presents the seed list as verified
+            // availability.
+            return live.isEmpty
+                ? (AntigravitySDKModelFetcher.seedModels, true)
+                : (live, false)
         }
         var list: [AssistAvailableModel] = []
         for sdk in models where sdk.category.lowercased() == "google" {
@@ -452,7 +504,9 @@ public final class AssistModelDiscoveryService: Sendable {
                     supportsAgenticUse: true,
                     supportsSubagents: true,
                     priority: sdk.thinkingLevel.lowercased() == "low" ? 10 : 20,
-                    statusDescription: "Available via Google Account",
+                    statusDescription: isSeedCatalog
+                        ? "Available via Google Account · bundled catalog (not live-verified)"
+                        : "Available via Google Account",
                     status: .available,
                     contextWindow: sdk.contextWindow
                 )
@@ -827,15 +881,19 @@ public final class AssistModelDiscoveryService: Sendable {
         let activeCustomModel = AssistModelManager.shared.customModelID.isEmpty ? AppSettings.shared.customModel : AssistModelManager.shared.customModelID
         let trimmedCustom = activeCustomModel.trimmingCharacters(in: .whitespacesAndNewlines)
         if !trimmedCustom.isEmpty && !results.contains(where: { $0.modelIdentifier == trimmedCustom }) {
+            // C-2: resolve the provider from the explicit record/setting —
+            // never inferred from the display name — so a valid OAuth session
+            // is kept for a gemini-named custom model.
+            let resolvedProvider = providerResolutionForCustomModel(id: trimmedCustom)
             results.append(
                 AssistAvailableModel(
                     id: trimmedCustom,
                     displayName: "\(trimmedCustom) (Custom)",
-                    providerID: "custom",
-                    providerName: "Custom Models",
+                    providerID: resolvedProvider.providerID,
+                    providerName: resolvedProvider.providerName,
                     modelIdentifier: trimmedCustom,
                     capabilities: [.toolCalling, .streaming, .structuredOutput, .codeGeneration],
-                    source: .custom,
+                    source: resolvedProvider.source,
                     isConfigured: true,
                     isAvailable: true,
                     supportsStreaming: true,

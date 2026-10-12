@@ -34,6 +34,9 @@ public final class GoogleCloudSDKTests: Sendable {
         results.append(await testRuntimeSessionVerificationProbe())
         results.append(await testGoogleAuthErrorClassification())
         results.append(await testOAuthQuotaProjectHeaderSerialization())
+        results.append(await testSessionReuseContractIncludesCredentials())
+        results.append(await testCustomModelProviderResolution())
+        results.append(await testResolveAPIKeyNeverFallsBackInOAuthMode())
 
         let routerTests = await AssistModelRouterTests.shared.runAllTests()
         results.append(contentsOf: routerTests)
@@ -468,6 +471,136 @@ public final class GoogleCloudSDKTests: Sendable {
             testName: "OAuth Quota Project Header Serialization",
             passed: passed,
             message: passed ? "x-goog-user-project serializes exactly when configured; never fabricated." : "Failures: \(failures.joined(separator: "; "))",
+            duration: Date().timeIntervalSince(start)
+        )
+    }
+
+    // 13. Session Reuse Contract (C-3)
+    // A live bridge session bakes the bearer into its headers once; reusing a
+    // session across a token rotation or quota-project change 401s
+    // persistently. Reuse must require every credential-bearing field to match.
+    public func testSessionReuseContractIncludesCredentials() async -> RuntimeTestCaseResult {
+        let start = Date()
+        var failures: [String] = []
+
+        var base = GoogleCloudSDKConfiguration(model: "gemini-2.5-flash")
+        base.provider = "google"
+        base.oauthToken = "ya29.first"
+        base.userProject = "project-a"
+
+        if !base.canReuseSession(for: base) {
+            failures.append("identical configs refused reuse")
+        }
+        var rotated = base
+        rotated.oauthToken = "ya29.second"
+        if base.canReuseSession(for: rotated) {
+            failures.append("rotated oauthToken still reused the session")
+        }
+        var newProject = base
+        newProject.userProject = "project-b"
+        if base.canReuseSession(for: newProject) {
+            failures.append("changed userProject still reused the session")
+        }
+        var dropped = base
+        dropped.oauthToken = nil
+        if base.canReuseSession(for: dropped) {
+            failures.append("dropped oauthToken still reused the session")
+        }
+        var newKey = base
+        newKey.apiKey = "AIza-new"
+        if base.canReuseSession(for: newKey) {
+            failures.append("changed apiKey still reused the session")
+        }
+        var newModel = base
+        newModel.model = "gemini-2.5-pro"
+        if base.canReuseSession(for: newModel) {
+            failures.append("changed model still reused the session")
+        }
+
+        let passed = failures.isEmpty
+        return RuntimeTestCaseResult(
+            testName: "Session Reuse Contract Includes Credentials",
+            passed: passed,
+            message: passed ? "oauthToken and userProject participate in session reuse; rotations force a new session." : "Failures: \(failures.joined(separator: "; "))",
+            duration: Date().timeIntervalSince(start)
+        )
+    }
+
+    // 14. Custom Model Provider Resolution (C-2)
+    // The free-text custom model's provider must come from an explicit record
+    // (SDK catalog) or explicit setting — never inferred from the name — and
+    // a gemini-named custom model must resolve as the Google provider so a
+    // valid OAuth session keeps its token.
+    public func testCustomModelProviderResolution() async -> RuntimeTestCaseResult {
+        let start = Date()
+        var failures: [String] = []
+        let discovery = AssistModelDiscoveryService.shared
+
+        // The reported C-2 model lives in the bundled seed catalog as Google.
+        let seedResolved = discovery.providerResolutionForCustomModel(id: "gemini-3.8-flash-medium")
+        if seedResolved.providerID != "gemini" {
+            failures.append("seed-catalog gemini id resolved to '\(seedResolved.providerID)' instead of 'gemini'")
+        }
+
+        // Unknown id: explicit setting governs. Default is google.
+        let previousProvider = AppSettings.shared.customModelProviderID
+        defer { AppSettings.shared.customModelProviderID = previousProvider }
+        AppSettings.shared.customModelProviderID = "google"
+        let def = discovery.providerResolutionForCustomModel(id: "some-future-model-xyz-123")
+        if def.providerID != "gemini" {
+            failures.append("unknown custom id defaulted to '\(def.providerID)' instead of 'gemini'")
+        }
+        if def.providerID == "custom" {
+            failures.append("unknown custom id kept providerID 'custom' (token would be dropped)")
+        }
+
+        AppSettings.shared.customModelProviderID = "ollama"
+        let local = discovery.providerResolutionForCustomModel(id: "some-future-model-xyz-123")
+        if local.providerID != "ollama" {
+            failures.append("explicit ollama setting resolved to '\(local.providerID)'")
+        }
+
+        let passed = failures.isEmpty
+        return RuntimeTestCaseResult(
+            testName: "Custom Model Provider Resolution",
+            passed: passed,
+            message: passed ? "Custom model provider resolves from catalog record or explicit setting; gemini ids route as Google." : "Failures: \(failures.joined(separator: "; "))",
+            duration: Date().timeIntervalSince(start)
+        )
+    }
+
+    // 15. No Silent API-Key Fallback in OAuth Mode
+    // In google_oauth mode, resolving an API key for the Google provider must
+    // return nil: the OAuth token travels in its own slot, and a silent
+    // fallback would send the wrong credential kind.
+    public func testResolveAPIKeyNeverFallsBackInOAuthMode() async -> RuntimeTestCaseResult {
+        let start = Date()
+        var failures: [String] = []
+
+        let key = "assist_google_auth_mode"
+        let previousMode = UserDefaults.standard.string(forKey: key)
+        UserDefaults.standard.set("google_oauth", forKey: key)
+        defer {
+            if let previousMode {
+                UserDefaults.standard.set(previousMode, forKey: key)
+            } else {
+                UserDefaults.standard.removeObject(forKey: key)
+            }
+        }
+
+        let router = AssistModelRouter.shared
+        if router.resolveAPIKey(for: "gemini") != nil {
+            failures.append("gemini resolved an API key in google_oauth mode")
+        }
+        if router.resolveAPIKey(for: "google") != nil {
+            failures.append("google resolved an API key in google_oauth mode")
+        }
+
+        let passed = failures.isEmpty
+        return RuntimeTestCaseResult(
+            testName: "No Silent API-Key Fallback in OAuth Mode",
+            passed: passed,
+            message: passed ? "resolveAPIKey returns nil for the Google provider in google_oauth mode." : "Failures: \(failures.joined(separator: "; "))",
             duration: Date().timeIntervalSince(start)
         )
     }

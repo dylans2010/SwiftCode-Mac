@@ -146,6 +146,43 @@ def resolve_gemini_auth(*, api_key, oauth_token, vertex, project, location,
     )
 
 
+def _wrap_turn_error(err_msg: str) -> str:
+    """Attach user guidance to a failed turn's error text — scope problems only.
+
+    Only ACCESS_TOKEN_SCOPE_INSUFFICIENT is relabeled: it is the one failure
+    class where "re-authenticate your Google Account" is the correct
+    remediation (the stored token was minted before the required Developer
+    API scope existed). Every other failure — quota/billing 403s,
+    PERMISSION_DENIED, 401s, API-key problems, and any text merely mentioning
+    "401"/"403" — passes through verbatim so Swift's
+    GoogleAuthErrorClassification remains the single user-facing guidance and
+    a valid token is never blamed. (C-5)
+    """
+    if "ACCESS_TOKEN_SCOPE_INSUFFICIENT" in err_msg:
+        return (
+            "Authentication error (%s). Your Google session was created before "
+            "SwiftCode requested the Gemini API permission it needs; please "
+            "re-authenticate your Google Account to grant it." % err_msg
+        )
+    return err_msg
+
+
+def _require_custom_endpoint(*, provider: str, model: str, base_url: str) -> None:
+    """Fail closed for custom-provider models without an explicit endpoint.
+
+    A custom model with no configured endpoint must never be silently routed
+    to a localhost default: that either hits a dead port or, worse, executes
+    the request against whatever model a local server happens to serve. Raise
+    an actionable configuration error instead. (H-5)
+    """
+    if (provider or "").lower() == "custom" and not (base_url or "").strip():
+        raise GeminiAuthConfigError(
+            "Custom model '%s' has no endpoint configured, so SwiftCode refuses "
+            "to guess one. Add an endpoint in Settings > Assist > Custom Model "
+            "Setup, or pick a provider for the custom model, then try again." % model
+        )
+
+
 
 def sanitize_schema(schema: Any) -> Any:
     """Sanitizes JSON schemas from clients to ensure full compliance with Gemini/OpenAPI."""
@@ -853,15 +890,25 @@ class AgentRunner:
             base_url = params.get("baseURL") or ""
 
             # Extract optional OAuth token and headers
-            oauth_token = params.get("oauthToken") or params.get("oauth_token") or os.environ.get("GOOGLE_OAUTH_ACCESS_TOKEN")
+            oauth_token = params.get("oauthToken") or params.get("oauth_token")
+            if not oauth_token and not (params.get("apiKey") or params.get("api_key")):
+                # Ambient fallback, last resort only: a stale
+                # GOOGLE_OAUTH_ACCESS_TOKEN must never override an API key
+                # Swift explicitly configured for this session. (M-10)
+                oauth_token = os.environ.get("GOOGLE_OAUTH_ACCESS_TOKEN")
             http_headers = dict(params.get("headers") or {})
+            # Remember an ambient GEMINI_API_KEY across the OAuth cleanup below:
+            # the deletion is process-global, and a later api_key session in
+            # this same bridge process may legitimately rely on the ambient
+            # key. (M-9)
+            restored_ambient_gemini_key = None
             if oauth_token:
                 http_headers["Authorization"] = f"Bearer {oauth_token}"
                 # If authenticated with OAuth, do NOT expect or require an API key
                 api_key = None
                 if "GEMINI_API_KEY" in os.environ:
                     # Clean up any ambient dummy or stale GEMINI_API_KEY when OAuth is used
-                    del os.environ["GEMINI_API_KEY"]
+                    restored_ambient_gemini_key = os.environ.pop("GEMINI_API_KEY")
 
             is_litert = (
                 provider == "litert"
@@ -1021,6 +1068,9 @@ class AgentRunner:
 
             else:
                 # Use LocalOpenAIAgentConfig with direct local endpoint or bridge adapter
+                # H-5: fail closed when a custom-provider model has no explicit
+                # endpoint instead of silently routing to a localhost default.
+                _require_custom_endpoint(provider=provider, model=model, base_url=base_url)
                 resolved_base_url = base_url
                 if provider in ("ollama", "lmstudio") and not resolved_base_url:
                     resolved_base_url = "http://localhost:11434/v1" if provider == "ollama" else "http://localhost:1234/v1"
@@ -1064,7 +1114,13 @@ class AgentRunner:
             agent = Agent(config=agent_config)
 
             # Enter agent async context
-            await agent.__aenter__()
+            try:
+                await agent.__aenter__()
+            finally:
+                # M-9: restore the ambient key removed above; the spawned
+                # harness process already inherited the cleaned environment.
+                if restored_ambient_gemini_key is not None:
+                    os.environ["GEMINI_API_KEY"] = restored_ambient_gemini_key
 
             session = ActiveSession(session_id, agent, self.emit_fn)
             self.sessions[session_id] = session
@@ -1175,9 +1231,9 @@ class AgentRunner:
             except Exception as e:
                 logger.exception("Error executing turn in session '%s': %s", session_id, e)
                 session.mark_all_tools_failed(f"Turn execution error: {str(e)}")
-                err_msg = str(e)
-                if any(k in err_msg for k in ("401", "403", "UNAUTHENTICATED", "PERMISSION_DENIED", "invalid api key", "API_KEY_INVALID", "ACCESS_TOKEN_SCOPE_INSUFFICIENT")):
-                    err_msg = f"Authentication error ({err_msg}). Please re-authenticate your Google Account."
+                # C-5: only scope-specific failures get re-auth guidance; every
+                # other error passes through verbatim for Swift's classifier.
+                err_msg = _wrap_turn_error(str(e))
                 emit("agent.failed", {
                     "sessionId": session_id,
                     "error": err_msg,
