@@ -36,10 +36,13 @@ const REGISTRY_IDS = new Set([
   "network.request",
   "ui.contribute",
   "credentials.use",
+  "use.Security",
   "assist.invoke",
   "db.ExploreView",
   "ci.VisualWF",
   "sandbox.view",
+  "virtualization.view",
+  "deployConsole.view",
   "use.SwiftCodeModel",
   "terminal.sandbox",
   "simulator.view",
@@ -76,7 +79,9 @@ describe("snippet library shape", () => {
 
   it("covers the prioritized capabilities with the exact wire IDs", () => {
     const byCapability = new Map(SNIPPETS.map((s) => [s.capabilityId, s.id]));
-    assert.equal(byCapability.get("sandbox.view"), "open-virtualization-console");
+    assert.equal(byCapability.get("sandbox.view"), "open-terminal");
+    assert.equal(byCapability.get("virtualization.view"), "open-virtualization-console");
+    assert.equal(byCapability.get("deployConsole.view"), "open-deployments-console");
     assert.equal(byCapability.get("db.ExploreView"), "open-database-explorer");
     assert.equal(byCapability.get("use.SwiftCodeModel"), "ask-cloud-model");
     assert.equal(byCapability.get("terminal.sandbox"), "run-sandboxed-command");
@@ -99,7 +104,9 @@ describe("searchSnippets / getSnippet", () => {
     const upper = searchSnippets("VIRTUALIZATION").map((s) => s.id).sort();
     const lower = searchSnippets("virtualization").map((s) => s.id).sort();
     assert.deepEqual(upper, lower);
-    assert.ok(searchSnippets("Sandbox.View").some((s) => s.id === "open-virtualization-console"));
+    assert.ok(searchSnippets("Sandbox.View").some((s) => s.id === "open-terminal"));
+    assert.ok(searchSnippets("Virtualization.View").some((s) => s.id === "open-virtualization-console"));
+    assert.ok(searchSnippets("DeployConsole.View").some((s) => s.id === "open-deployments-console"));
     assert.ok(searchSnippets("xcodebuild").some((s) => s.id === "run-project-build"));
   });
 
@@ -109,7 +116,9 @@ describe("searchSnippets / getSnippet", () => {
   });
 
   it("getSnippet returns the snippet by id and undefined for unknown ids", () => {
-    assert.equal(getSnippet("open-virtualization-console")?.capabilityId, "sandbox.view");
+    assert.equal(getSnippet("open-virtualization-console")?.capabilityId, "virtualization.view");
+    assert.equal(getSnippet("open-terminal")?.capabilityId, "sandbox.view");
+    assert.equal(getSnippet("open-deployments-console")?.capabilityId, "deployConsole.view");
     assert.equal(getSnippet("does-not-exist"), undefined);
   });
 });

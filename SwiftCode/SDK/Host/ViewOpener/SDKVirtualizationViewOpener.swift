@@ -4,7 +4,11 @@ import SwiftUI
 
 // MARK: - SDKVirtualizationViewOpener
 //
-// View opener for capability `sandbox.view` ("Virtualization console").
+// View opener for capability `virtualization.view` ("Virtualization console").
+//
+// NOTE (2026-10-12 correction): this opener previously served `sandbox.view`.
+// `sandbox.view` now opens SwiftCode's real Terminal view; the Virtualization
+// console moved to its own `virtualization.view` ID.
 //
 // ## Which surface opens
 // `VirtualizationWindowManager.shared.showWindow(for:)` — the app's
@@ -30,8 +34,8 @@ import SwiftUI
 
 @MainActor
 public struct SDKVirtualizationViewOpener {
-    /// Capability this opener serves: `sandbox.view`.
-    public static let capabilityID: SDKCapabilityID = .sandboxView
+    /// Capability this opener serves: `virtualization.view`.
+    public static let capabilityID: SDKCapabilityID = .virtualizationView
 
     /// Opens the Virtualization Console window for the active project.
     /// - Throws: `SDKError` with code `.projectNotOpen` when no project is

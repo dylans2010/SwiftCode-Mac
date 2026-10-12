@@ -19,6 +19,13 @@ import os
 //     one correlation ID.
 //   - Package installed, updated, disabled, or uninstalled.
 //   - Runtime terminated due to policy, crash, or memory violation.
+//   - Security value lifecycle for the per-app Keychain namespace: value
+//     added, used, deleted, all values wiped on extension uninstall, and
+//     security permission denied. The `detail` for these events carries the
+//     app Security ID, the value ID, and (for use) the operation kind —
+//     NEVER the secret bytes, and never a request body or any string that
+//     could contain them. Every one of these events records the acting
+//     extension identity (`extensionID`) and a correlation ID.
 
 public enum SDKAuditEventType: String, Sendable, Codable, CaseIterable {
     // Permissions
@@ -44,6 +51,32 @@ public enum SDKAuditEventType: String, Sendable, Codable, CaseIterable {
 
     // Runtime
     case runtimeTerminated
+
+    // Security values (per-app Keychain namespace). Recorded by the host
+    // security broker — never by the extension itself. Callers MUST pass the
+    // acting extension's identity as `extensionID` and a correlation ID;
+    // the event's own `timestamp` is the timestamp of record. `detail` on
+    // these events carries identifiers only — the rules below are the
+    // secrets contract for this section, and the strictest part of this
+    // file's redaction policy.
+    /// A secret value was stored under the app's Security ID. `detail`:
+    /// app Security ID + value ID. NEVER the secret bytes.
+    case securityValueAdded
+    /// A stored value was used by a host-mediated operation. `detail`: app
+    /// Security ID + value ID + operation kind. NEVER the secret bytes, and
+    /// NEVER the request body or any other string that could contain them.
+    case securityValueUsed
+    /// A single stored value was deleted. `detail`: app Security ID +
+    /// value ID. NEVER the secret bytes.
+    case securityValueDeleted
+    /// All stored values for an app were wiped because the owning extension
+    /// was uninstalled. `detail`: app Security ID (+ wiped-value count when
+    /// known). NEVER any secret material.
+    case securityValuesWipedOnUninstall
+    /// An extension was denied access to a security value or namespace.
+    /// `detail`: app Security ID + value ID (when one was targeted) +
+    /// reason. NEVER the secret bytes.
+    case securityPermissionDenied
 }
 
 // MARK: - SDKAuditEvent
@@ -185,7 +218,8 @@ public actor SDKAuditLog {
     /// failure must not crash the host flow that reported the event.
     ///
     /// - Parameters:
-    ///   - type: The audit event type (permission/API-key/Assist/lifecycle).
+    ///   - type: The audit event type (permission/API-key/Assist/lifecycle/
+    ///     security).
     ///   - extensionID: The extension the event concerns, if any.
     ///   - capability: The capability the event concerns, if any (stored as
     ///     its raw string value so old records keep decoding).

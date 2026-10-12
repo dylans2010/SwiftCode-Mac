@@ -366,6 +366,55 @@ public actor SDKIPCDispatcher {
             let result = try await SDKSandboxedTerminal.shared.run(request: request, caller: caller)
             return Self.successResponse(requestId: requestId, payload: result)
 
+        case "security.addValue":
+            // SDKSecurityService.addValue authorizes only `.useSecurity`
+            // (the umbrella grant) at the broker on every call, before any
+            // Keychain touch — the terminalSandbox.run pattern. The granular
+            // `security.*` IDs are method scopes, not separately grantable,
+            // and are never checked at the broker.
+            // The Keychain namespace's extension component is derived from
+            // the session-bound caller identity, never from the payload;
+            // the secret is entered by the user into the host's secure
+            // prompt and never crosses IPC. Resolves with {valueID, created}
+            // metadata only.
+            let addRequest = try Self.decodePayload(SDKSecurityAddRequest.self, from: payload, method: method)
+            let added = try await SDKSecurityService.shared.addValue(request: addRequest, caller: caller)
+            return Self.successResponse(requestId: requestId, payload: added)
+
+        case "security.hasValue":
+            // SDKSecurityService.hasValue authorizes only `.useSecurity`
+            // at the broker on every call, before any Keychain touch.
+            // Existence only — the secret is never returned.
+            let hasRequest = try Self.decodePayload(SDKSecurityLookupRequest.self, from: payload, method: method)
+            let hasValue = try await SDKSecurityService.shared.hasValue(request: hasRequest, caller: caller)
+            return Self.successResponse(requestId: requestId, payload: hasValue)
+
+        case "security.listValueIDs":
+            // SDKSecurityService.listValueIDs authorizes only `.useSecurity`
+            // at the broker on every call, before any Keychain touch.
+            // Names and metadata only.
+            let listRequest = try Self.decodePayload(SDKSecurityListRequest.self, from: payload, method: method)
+            let values = try await SDKSecurityService.shared.listValueIDs(request: listRequest, caller: caller)
+            return Self.successResponse(requestId: requestId, payload: values)
+
+        case "security.deleteValue":
+            // SDKSecurityService.deleteValue authorizes only `.useSecurity`
+            // at the broker on every call, before any Keychain touch.
+            let deleteRequest = try Self.decodePayload(SDKSecurityLookupRequest.self, from: payload, method: method)
+            try await SDKSecurityService.shared.deleteValue(request: deleteRequest, caller: caller)
+            return Self.successResponse(requestId: requestId, payload: SDKJSONValue.null)
+
+        case "security.useValue":
+            // SDKSecurityService.useValue authorizes only `.useSecurity`
+            // at the broker on every call, before any Keychain touch.
+            // The secret is read via KeychainSDK's host-only read, attached
+            // as the Authorization header of a host-built HTTPS request,
+            // and only {status, body} comes back — the secret never enters
+            // the response.
+            let useRequest = try Self.decodePayload(SDKSecurityUseRequest.self, from: payload, method: method)
+            let useResult = try await SDKSecurityService.shared.useValue(request: useRequest, caller: caller)
+            return Self.successResponse(requestId: requestId, payload: useResult)
+
         case "commands.register":
             // The registry is a plain store with no broker check of its own:
             // authorize here, at the dispatcher, before touching it.

@@ -241,3 +241,15 @@ is denied and audited. Do not read a stronger claim into this release.
   `SDKLogRedaction.redactSecrets`). Both sides share the `ERR-XXXXXX`
   correlation ID, which is the only linkage — the wire error to an extension
   carries just `{ code, message, correlationId }`.
+
+## Extension-held secrets (`use.Security`)
+
+The `use.Security` capability — per-app-namespaced, host-mediated
+secret storage and use, with the extension never seeing plaintext — is
+specified in `Security-Keychain.md`. Its capability IDs, audit event types,
+scope-list entries, TypeScript client (`TypeScript/package/src/security.ts`),
+and host store (`Host/Security/KeychainSDK.swift`) exist only as
+uncommitted working-tree changes; the `security.*` dispatcher routes and
+`EnterSecuritySDKView` are still missing. The Key and log storage
+guarantees above are the complete implemented-and-committed story for SDK
+secrets.

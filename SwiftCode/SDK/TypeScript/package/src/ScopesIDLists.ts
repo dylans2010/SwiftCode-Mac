@@ -3,8 +3,9 @@
  *
  * Finalized from Docs/Intro-to-SDK.md §8.1 (the fixed capability registry)
  * and §10.4 (IPC methods), matched against the Swift host contracts:
- * - `SwiftCode/SDK/Contracts/Capability/SDKCapability.swift` — the 23 fixed
- *   capability IDs (11 original kebab-case + 12 `<area>.<View>` IDs),
+ * - `SwiftCode/SDK/Contracts/Capability/SDKCapability.swift` — the 28 fixed
+ *   capability IDs (11 original kebab-case + 12 `<area>.<View>` IDs + 5
+ *   `security.*` IDs),
  * - `SwiftCode/SDK/Runtime/IPC/SDKIPCDispatcher.swift` — the real IPC
  *   method strings serving the API capabilities,
  * - `SwiftCode/SDK/Host/ViewOpener/SDKViewOpenerBuiltIns.swift` — the 10
@@ -58,8 +59,8 @@ export interface ScopeIDEntry {
  * Every capability ID in the fixed registry (spec §8.1, registry order),
  * each paired with its scope kind and primary IPC method.
  *
- * 10 entries are views (`ui.openView` + registered openers in
- * `SDKViewOpenerBuiltIns.swift`); 13 are API capabilities served by the
+ * 12 entries are views (`ui.openView` + registered openers in
+ * `SDKViewOpenerBuiltIns.swift`); 18 are API capabilities served by the
  * host adapters. Entries with `ipcMethod: null` have a broker capability
  * but no wired host method in this release — `assist.invoke` is the
  * deny-by-default exception (spec §9): it is never grantable and no
@@ -187,13 +188,33 @@ export const SCOPES_ID_LIST: readonly ScopeIDEntry[] = [
   },
   {
     id: "sandbox.view",
+    title: "Terminal",
+    description:
+      "Open SwiftCode's real Terminal view — a full interactive shell (local shells, SSH nodes, themes), not a sandbox. HIGH-RISK: requires explicit user approval.",
+    kind: "view",
+    ipcMethod: "ui.openView",
+    capabilityId: "sandbox.view",
+    viewId: "sandbox.view",
+  },
+  {
+    id: "virtualization.view",
     title: "Virtualization console",
     description:
       "Open the Virtualization console to view virtual machine state.",
     kind: "view",
     ipcMethod: "ui.openView",
-    capabilityId: "sandbox.view",
-    viewId: "sandbox.view",
+    capabilityId: "virtualization.view",
+    viewId: "virtualization.view",
+  },
+  {
+    id: "deployConsole.view",
+    title: "Deployments console",
+    description:
+      "Open SwiftCode's real Deployments console (Netlify, Vercel, GitHub Pages). HIGH-RISK: deployments change production; requires explicit user approval.",
+    kind: "view",
+    ipcMethod: "ui.openView",
+    capabilityId: "deployConsole.view",
+    viewId: "deployConsole.view",
   },
   {
     id: "use.SwiftCodeModel",
@@ -282,6 +303,51 @@ export const SCOPES_ID_LIST: readonly ScopeIDEntry[] = [
     ipcMethod: "ui.openView",
     capabilityId: "deviceconnect.open",
     viewId: "deviceconnect.open",
+  },
+  {
+    id: "security.addValue",
+    title: "Store a secret",
+    description:
+      "Store a named secret in the host's Keychain vault; the extension never sees the plaintext.",
+    kind: "api",
+    ipcMethod: "security.addValue",
+    capabilityId: "security.addValue",
+  },
+  {
+    id: "security.hasValue",
+    title: "Check a stored secret",
+    description:
+      "Check whether a named secret exists in the vault without revealing its value; the extension never sees plaintext.",
+    kind: "api",
+    ipcMethod: "security.hasValue",
+    capabilityId: "security.hasValue",
+  },
+  {
+    id: "security.listValueIDs",
+    title: "List stored secret names",
+    description:
+      "List the names of stored secrets; values stay hidden and the extension never sees plaintext.",
+    kind: "api",
+    ipcMethod: "security.listValueIDs",
+    capabilityId: "security.listValueIDs",
+  },
+  {
+    id: "security.deleteValue",
+    title: "Delete a stored secret",
+    description:
+      "Permanently delete a named stored secret; the extension never sees the plaintext.",
+    kind: "api",
+    ipcMethod: "security.deleteValue",
+    capabilityId: "security.deleteValue",
+  },
+  {
+    id: "security.useValue",
+    title: "Use a stored secret",
+    description:
+      "Have the host inject a stored secret into an approved host operation; the extension never sees the plaintext.",
+    kind: "api",
+    ipcMethod: "security.useValue",
+    capabilityId: "security.useValue",
   },
 ];
 

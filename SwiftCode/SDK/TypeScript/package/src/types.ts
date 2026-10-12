@@ -407,6 +407,13 @@ export interface SwiftCodeContext {
   readonly events: EventAPI;
   readonly log: Logger;
   /**
+   * Keychain-backed secrets via host mediation. Requires the `use.Security`
+   * capability grant. The extension never sees plaintext secrets: `addValue`
+   * resolves with metadata only, and `useValue` lets the host perform the
+   * HTTPS request with the secret attached as the `Authorization` header.
+   */
+  readonly security: SecurityAPI;
+  /**
    * Host-owned view surfaces (Database Explorer, Virtualization console,
    * CI dashboards, …). Each view is gated by its own capability grant.
    */
@@ -416,6 +423,108 @@ export interface SwiftCodeContext {
    * `disposeAll()` on deactivation so nothing leaks.
    */
   readonly subscriptions: DisposableStore;
+}
+
+/**
+ * Options for `security.addValue(...)`.
+ */
+export interface SecurityAddOptions {
+  /**
+   * Human-readable label stored alongside the secret and shown in the
+   * host's secure prompt (e.g. "GitHub personal access token").
+   */
+  readonly label?: string;
+  /** Prompt text shown in the host's secure popup. */
+  readonly prompt?: string;
+}
+
+/**
+ * Metadata returned when a secret is stored. Carries identity only — the
+ * secret itself never crosses the IPC boundary.
+ */
+export interface SecurityAddedValue {
+  readonly valueID: string;
+  /** True when a new entry was created; false when an existing one was updated. */
+  readonly created: boolean;
+}
+
+/**
+ * Metadata for one stored value. Never carries the secret — only what the
+ * host is willing to reveal for listing.
+ */
+export interface SecurityStoredValue {
+  readonly valueID: string;
+  readonly label: string;
+  /** ISO-8601 creation timestamp from the host. */
+  readonly createdAt: string;
+}
+
+/** HTTPS request the host performs with a stored secret attached. */
+export interface SecurityHTTPRequest {
+  /** HTTP method token (e.g. "GET"). */
+  readonly method: string;
+  /**
+   * HTTPS URL only. Client-side validation rejects anything else, and
+   * rejects URLs that embed credentials — the secret is attached by the
+   * host as the `Authorization` header, never read from the URL.
+   */
+  readonly url: string;
+  /**
+   * Extra headers. The `Authorization` header itself is rejected
+   * client-side: the host owns that header when it attaches the secret.
+   */
+  readonly headers?: Record<string, string>;
+  readonly body?: string;
+}
+
+/**
+ * Operation the host performs with a stored secret. The only supported
+ * kind is `httpAuthorization`: the host attaches the secret as the
+ * `Authorization` header and performs the HTTPS request. The secret never
+ * comes back to the extension — only the response status and body do.
+ */
+export interface SecurityOperation {
+  readonly kind: "httpAuthorization";
+  readonly request: SecurityHTTPRequest;
+}
+
+/**
+ * Result of a host-performed HTTPS request. The secret is never echoed
+ * back; `body` is the raw response body.
+ */
+export interface SecurityHTTPResponse {
+  readonly status: number;
+  readonly body: string;
+}
+
+/**
+ * Host-mediated Keychain access (`security.*` IPC routes).
+ *
+ * Requires the `use.Security` capability grant. Secrets live in the macOS
+ * Keychain under the app's Security ID; extension code only ever sees
+ * metadata (security IDs, value IDs, labels) and response data — never
+ * plaintext secrets. Storing a secret triggers the host's secure popup so
+ * the user enters it directly into the host.
+ */
+export interface SecurityAPI {
+  /**
+   * Stores a secret: triggers the host's secure popup and resolves with
+   * metadata (`{valueID, created}`) once stored. Never resolves with the
+   * secret itself.
+   */
+  addValue(securityID: string, valueID: string, options?: SecurityAddOptions): Promise<SecurityAddedValue>;
+  /** True when a value exists for the given IDs. */
+  hasValue(securityID: string, valueID: string): Promise<boolean>;
+  /** Metadata for every value stored under the security ID. */
+  listValueIDs(securityID: string): Promise<SecurityStoredValue[]>;
+  /** Deletes the stored value. */
+  deleteValue(securityID: string, valueID: string): Promise<void>;
+  /**
+   * Asks the host to perform an HTTPS request with the stored secret
+   * attached as the `Authorization` header. Resolves to `{status, body}`;
+   * the secret never comes back to the extension.
+   */
+  useValue(securityID: string, valueID: string, operation: SecurityOperation): Promise<SecurityHTTPResponse>;
 }
 
 /**

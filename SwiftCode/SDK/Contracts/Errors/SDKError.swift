@@ -53,6 +53,11 @@ public enum SDKErrorCode: String, Sendable, Codable, CaseIterable {
     case invalidArgument = "INVALID_ARGUMENT"
     case requestTimeout = "REQUEST_TIMEOUT"
     case timeout = "TIMEOUT"
+    /// The user dismissed a host-presented prompt (e.g. the secure secret
+    /// entry sheet for `security.addValue`): nothing was stored, changed,
+    /// or sent. Not an error in the host — the extension should ask the
+    /// user to approve and retry.
+    case userCancelled = "USER_CANCELLED"
 
     // Install / update / uninstall
     case installFailed = "INSTALL_FAILED"
@@ -157,6 +162,7 @@ extension SDKErrorCode {
         case .invalidArgument: return "Invalid argument"
         case .requestTimeout: return "Request timed out"
         case .timeout: return "Operation timed out"
+        case .userCancelled: return "The user cancelled the operation"
         case .installFailed: return "Extension installation failed"
         case .updateFailed: return "Extension update failed"
         case .uninstallFailed: return "Extension uninstall failed"

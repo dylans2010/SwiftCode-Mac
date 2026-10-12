@@ -27,10 +27,13 @@ public enum SDKCapabilityID: String, Sendable, Codable, CaseIterable {
     case networkRequest = "network.request"
     case uiContribute = "ui.contribute"
     case credentialsUse = "credentials.use"
+    case useSecurity = "use.Security"
     case assistInvoke = "assist.invoke"
     case dbExploreView = "db.ExploreView"
     case ciVisualWF = "ci.VisualWF"
     case sandboxView = "sandbox.view"
+    case virtualizationView = "virtualization.view"
+    case deployConsoleView = "deployConsole.view"
     case useSwiftCodeModel = "use.SwiftCodeModel"
     case terminalSandbox = "terminal.sandbox"
     case simulatorView = "simulator.view"
@@ -40,6 +43,11 @@ public enum SDKCapabilityID: String, Sendable, Codable, CaseIterable {
     case docsSearch = "docs.search"
     case dictionaryOpen = "dictionary.open"
     case deviceConnectOpen = "deviceconnect.open"
+    case securityAddValue = "security.addValue"
+    case securityHasValue = "security.hasValue"
+    case securityListValueIDs = "security.listValueIDs"
+    case securityDeleteValue = "security.deleteValue"
+    case securityUseValue = "security.useValue"
 }
 
 // MARK: - SDKCapabilityRisk
@@ -226,6 +234,16 @@ public enum SDKCapabilityRegistry {
                 risk: .high,
                 grantableInCurrentRelease: true
             )
+        case .useSecurity:
+            return SDKCapabilityInfo(
+                id: id,
+                title: "Use Security (Keychain)",
+                description: "Lets the extension ask the host to store and use secrets in the macOS Keychain under the app's own Security ID. The extension never sees the plaintext secrets.",
+                grantsSummary: "Store and use Keychain secrets under the app's Security ID through host mediation.",
+                doesNotGrant: "Direct Keychain access, reading or exporting raw secrets, or access to secrets outside the app's Security ID.",
+                risk: .high,
+                grantableInCurrentRelease: true
+            )
         case .assistInvoke:
             return SDKCapabilityInfo(
                 id: id,
@@ -259,10 +277,30 @@ public enum SDKCapabilityRegistry {
         case .sandboxView:
             return SDKCapabilityInfo(
                 id: id,
+                title: "Terminal",
+                description: "Lets the extension open SwiftCode's real Terminal view: a FULL interactive shell (local shells, background commands, SSH nodes, terminal themes) — not a sandbox. Opening it gives the user a complete unsandboxed shell, so this is a high-risk surface requiring explicit user approval.",
+                grantsSummary: "Open SwiftCode's real Terminal view (full interactive shell).",
+                doesNotGrant: "Running commands itself, or any sandboxed execution — see terminal.sandbox for host-mediated command execution.",
+                risk: .high,
+                grantableInCurrentRelease: true
+            )
+        case .virtualizationView:
+            return SDKCapabilityInfo(
+                id: id,
                 title: "Virtualization console",
                 description: "Lets the extension open the Virtualization console to view virtual machine state. Virtualization can provision and mutate guest environments, so this is a high-risk surface.",
                 grantsSummary: "Open the Virtualization console and view VM state.",
                 doesNotGrant: "VM lifecycle actions outside the console's own controls.",
+                risk: .high,
+                grantableInCurrentRelease: true
+            )
+        case .deployConsoleView:
+            return SDKCapabilityInfo(
+                id: id,
+                title: "Deployments console",
+                description: "Lets the extension open SwiftCode's real Deployments console, which can trigger production deployments (Netlify, Vercel, GitHub Pages). Deployments change production, so this is a high-risk surface requiring explicit user approval.",
+                grantsSummary: "Open the Deployments console.",
+                doesNotGrant: "Triggering deployments itself — the user acts in the console's own UI.",
                 risk: .high,
                 grantableInCurrentRelease: true
             )
@@ -355,6 +393,56 @@ public enum SDKCapabilityRegistry {
                 doesNotGrant: "Device pairing authorization or destructive device operations outside the console's own controls.",
                 risk: .medium,
                 grantableInCurrentRelease: true
+            )
+        case .securityAddValue:
+            return SDKCapabilityInfo(
+                id: id,
+                title: "Store a secret",
+                description: "Method scope for the security.addValue IPC method, enforced under the single use.Security grant — not a separately grantable permission. Covers storing a named secret in the host's Keychain vault under the extension's own namespace. The host writes the value; the extension never sees the plaintext.",
+                grantsSummary: "Store named secrets in the host's Keychain vault.",
+                doesNotGrant: "Read existing secrets, or share a vault across extensions.",
+                risk: .high,
+                grantableInCurrentRelease: false
+            )
+        case .securityHasValue:
+            return SDKCapabilityInfo(
+                id: id,
+                title: "Check a stored secret",
+                description: "Method scope for the security.hasValue IPC method, enforced under the single use.Security grant — not a separately grantable permission. Covers checking whether a named secret exists in the extension's vault, without revealing the value. The extension never sees the plaintext.",
+                grantsSummary: "Check whether a named secret exists in the vault.",
+                doesNotGrant: "Reveal the secret's value.",
+                risk: .medium,
+                grantableInCurrentRelease: false
+            )
+        case .securityListValueIDs:
+            return SDKCapabilityInfo(
+                id: id,
+                title: "List stored secret names",
+                description: "Method scope for the security.listValueIDs IPC method, enforced under the single use.Security grant — not a separately grantable permission. Covers listing the names of the secrets the extension has stored. Only names are revealed; values stay hidden and the extension never sees the plaintext.",
+                grantsSummary: "List the names of the extension's stored secrets.",
+                doesNotGrant: "Reveal secret values, or names from other extensions' namespaces.",
+                risk: .medium,
+                grantableInCurrentRelease: false
+            )
+        case .securityDeleteValue:
+            return SDKCapabilityInfo(
+                id: id,
+                title: "Delete a stored secret",
+                description: "Method scope for the security.deleteValue IPC method, enforced under the single use.Security grant — not a separately grantable permission. Covers permanently deleting one of the extension's named secrets from the host vault. The extension never sees the plaintext.",
+                grantsSummary: "Permanently delete a named stored secret.",
+                doesNotGrant: "Delete secrets outside its own namespace, or read secret values.",
+                risk: .high,
+                grantableInCurrentRelease: false
+            )
+        case .securityUseValue:
+            return SDKCapabilityInfo(
+                id: id,
+                title: "Use a stored secret",
+                description: "Method scope for the security.useValue IPC method, enforced under the single use.Security grant — not a separately grantable permission. Covers asking the host to inject a stored secret into an approved host operation on the extension's behalf. The injection happens host-side; the extension never sees the plaintext.",
+                grantsSummary: "Have the host inject a stored secret into an approved operation.",
+                doesNotGrant: "Read or export the secret's raw value.",
+                risk: .high,
+                grantableInCurrentRelease: false
             )
         }
     }

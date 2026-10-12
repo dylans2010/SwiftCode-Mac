@@ -52,13 +52,17 @@ re-case them):
 
 - **Phase 1 IDs:** kebab-case `domain.action` (e.g. `"source-control.read"`).
 - **Platform-capability IDs:** `<area>.<View>` camel/Pascal form (e.g.
-  `"db.ExploreView"`), used by the SDK 1.1.0 platform capabilities.
+  `"db.ExploreView"`), used by the SDK 1.2.0 platform capabilities.
 
 ## Gaps, not omissions
 
-- `deployConsole.view` does **not** exist. There is no deployment-console
+- ~~`deployConsole.view` does **not** exist. There is no deployment-console
   surface anywhere in the codebase, so no capability ID was minted for one.
-  Requesting it is an unknown capability, not a pending feature.
+  Requesting it is an unknown capability, not a pending feature.~~
+  **Correction (2026-10-12):** the audit was wrong — `DeploymentsView`
+  (`SwiftCode/Views/Deployments/DeploymentsView.swift`) is real, so
+  `deployConsole.view` now exists and opens it. The struck paragraph above
+  is kept for history.
 
 ## Grant records
 

@@ -42,6 +42,13 @@ export type {
   TerminalSandboxResult,
   TerminalSandboxAPI,
   UIAPI,
+  SecurityAPI,
+  SecurityAddOptions,
+  SecurityAddedValue,
+  SecurityStoredValue,
+  SecurityHTTPRequest,
+  SecurityOperation,
+  SecurityHTTPResponse,
   SDKErrorShape,
 } from "./types.js";
 
@@ -62,6 +69,15 @@ export type { CreatedContext } from "./context.js";
 
 export { SNIPPETS, searchSnippets, getSnippet } from "./snippets.js";
 export type { Snippet } from "./snippets.js";
+
+export {
+  createSecurityAPI,
+  securityAddValue,
+  securityHasValue,
+  securityListValueIDs,
+  securityDeleteValue,
+  securityUseValue,
+} from "./security.js";
 
 export { SCOPES_ID_LIST, SCOPES_BY_ID } from "./ScopesIDLists.js";
 export type { ScopeIDEntry, ScopeKind } from "./ScopesIDLists.js";

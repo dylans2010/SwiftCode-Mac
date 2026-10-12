@@ -50,10 +50,20 @@ extension SDKViewOpener {
         // SF Symbol picker sheet. MainToolsView id "sf_symbols" posts
         // destination "sfSymbolsBrowser" → .sfSymbolsBrowser.
         (.symbolsBrowse, "sfSymbolsBrowser"),
+        // Terminal sheet. ToolbarActionManager "terminal" → .terminal, whose
+        // WorkspaceView sheet hosts the REAL TerminalView (full interactive
+        // shell — local shells, SSH nodes, themes). HIGH-RISK: this is not a
+        // sandbox; opening it gives the user a complete unsandboxed shell.
+        (.sandboxView, "terminal"),
+        // Deployments console sheet. ToolbarActionManager "deployments" →
+        // .deployments, whose WorkspaceView sheet hosts the REAL
+        // DeploymentsView (Netlify / Vercel / GitHub Pages production
+        // deployments). HIGH-RISK: deployments change production.
+        (.deployConsoleView, "deployments"),
     ]
 
-    /// Registers the ten built-in view openers: four native-window managers,
-    /// three toolbar-notification bridges, and the three sibling openers
+    /// Registers the twelve built-in view openers: four native-window managers,
+    /// five toolbar-notification bridges, and the three sibling openers
     /// (CI workflows, virtualization console, live preview).
     ///
     /// - Throws: `.serviceUnavailable` if any bridge `toolID` no longer

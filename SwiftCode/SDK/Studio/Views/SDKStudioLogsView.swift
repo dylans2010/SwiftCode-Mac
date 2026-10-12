@@ -309,15 +309,21 @@ private struct AuditLogsPane: View {
         case .permissionGranted:
             name = "checkmark.shield"; color = .green
         case .permissionDenied, .permissionRevoked, .assistDenied,
-             .apiKeyScopeFailure, .apiKeyAuthFailure, .runtimeTerminated:
+             .apiKeyScopeFailure, .apiKeyAuthFailure, .runtimeTerminated,
+             .securityPermissionDenied:
             name = "xmark.shield"; color = .red
         case .apiKeyCreated:
             name = "key.badge.plus"; color = .green
+        case .securityValueAdded:
+            name = "key.badge.plus"; color = .green
+        case .securityValueUsed:
+            name = "key"; color = .blue
         case .apiKeyRevoked:
             name = "key.slash"; color = .orange
         case .extensionInstalled, .extensionUpdated:
             name = "square.and.arrow.down"; color = .blue
-        case .extensionDisabled, .extensionUninstalled:
+        case .extensionDisabled, .extensionUninstalled,
+             .securityValueDeleted, .securityValuesWipedOnUninstall:
             name = "trash"; color = .orange
         }
         return Image(systemName: name).foregroundStyle(color)

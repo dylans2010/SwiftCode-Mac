@@ -16,6 +16,7 @@ public enum SDKStudioSection: String, CaseIterable, Identifiable {
     case projects = "Projects"
     case extensions = "Extensions"
     case apiKeys = "API Keys"
+    case security = "Security"
     case logs = "Logs"
     case codeEditor = "Code Editor"
 
@@ -30,6 +31,8 @@ public enum SDKStudioSection: String, CaseIterable, Identifiable {
             return "puzzlepiece.extension"
         case .apiKeys:
             return "key"
+        case .security:
+            return "lock.shield"
         case .logs:
             return "doc.text"
         case .codeEditor:

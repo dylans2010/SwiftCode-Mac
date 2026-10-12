@@ -48,14 +48,44 @@ export const SNIPPETS: readonly Snippet[] = [
     id: "open-virtualization-console",
     title: "Open Virtualization Console",
     description:
-      "Opens the host's Virtualization console window so the user can view virtual machine state. Gated by the sandbox.view capability grant.",
+      "Opens the host's Virtualization console window so the user can view virtual machine state. Gated by the virtualization.view capability grant.",
+    capabilityId: "virtualization.view",
+    tags: ["virtualization", "vm", "console", "window"],
+    code: `import type { SwiftCodeContext } from "@swiftcode/sdk";
+
+export async function runExample(context: SwiftCodeContext): Promise<void> {
+  await context.ui.openView("virtualization.view");
+  context.log.info("Virtualization console opened");
+}
+`,
+  },
+  {
+    id: "open-terminal",
+    title: "Open Terminal",
+    description:
+      "Opens SwiftCode's real Terminal view — a full interactive shell (local shells, SSH nodes, themes), not a sandbox. HIGH-RISK: requires explicit user approval of the sandbox.view grant.",
     capabilityId: "sandbox.view",
-    tags: ["virtualization", "vm", "console", "window", "sandbox"],
+    tags: ["terminal", "shell", "console", "ssh", "window", "sandbox"],
     code: `import type { SwiftCodeContext } from "@swiftcode/sdk";
 
 export async function runExample(context: SwiftCodeContext): Promise<void> {
   await context.ui.openView("sandbox.view");
-  context.log.info("Virtualization console opened");
+  context.log.info("Terminal opened");
+}
+`,
+  },
+  {
+    id: "open-deployments-console",
+    title: "Open Deployments Console",
+    description:
+      "Opens SwiftCode's real Deployments console (Netlify, Vercel, GitHub Pages). HIGH-RISK: deployments change production; requires explicit user approval of the deployConsole.view grant.",
+    capabilityId: "deployConsole.view",
+    tags: ["deployments", "deploy", "netlify", "vercel", "console", "window"],
+    code: `import type { SwiftCodeContext } from "@swiftcode/sdk";
+
+export async function runExample(context: SwiftCodeContext): Promise<void> {
+  await context.ui.openView("deployConsole.view");
+  context.log.info("Deployments console opened");
 }
 `,
   },
@@ -359,6 +389,54 @@ export async function runExample(context: SwiftCodeContext): Promise<void> {
   context.log.info("Current project: " + project.name, {
     id: project.id,
     rootPath: project.rootPath,
+  });
+}
+`,
+  },
+  {
+    id: "store-security-secret",
+    title: "Store a Secret (Security)",
+    description:
+      "Stores a secret in the macOS Keychain under the app's Security ID by triggering the host's secure popup — the user types the secret directly into the host, so extension code never sees it. Resolves with metadata only ({valueID, created}). Requires the use.Security grant.",
+    capabilityId: "use.Security",
+    tags: ["security", "secret", "keychain", "store", "token", "password"],
+    code: `import type { SwiftCodeContext } from "@swiftcode/sdk";
+
+export async function runExample(context: SwiftCodeContext): Promise<void> {
+  const result = await context.security.addValue("api-keys", "github-token", {
+    label: "GitHub personal access token",
+    prompt: "Enter the token this extension may use as an Authorization header.",
+  });
+  context.log.info("Secret stored", {
+    valueID: result.valueID,
+    created: result.created,
+  });
+  const exists = await context.security.hasValue("api-keys", "github-token");
+  context.log.info("Secret present in Keychain", { exists });
+}
+`,
+  },
+  {
+    id: "use-security-secret-for-api-call",
+    title: "Use a Stored Secret for an API Call",
+    description:
+      "Asks the host to perform an HTTPS request with a stored secret attached as the Authorization header. The host performs the request and returns only {status, body} — the secret never comes back to extension code. Requires the use.Security grant.",
+    capabilityId: "use.Security",
+    tags: ["security", "secret", "keychain", "api", "http", "authorization"],
+    code: `import type { SwiftCodeContext } from "@swiftcode/sdk";
+
+export async function runExample(context: SwiftCodeContext): Promise<void> {
+  const response = await context.security.useValue("api-keys", "github-token", {
+    kind: "httpAuthorization",
+    request: {
+      method: "GET",
+      url: "https://api.github.com/user",
+      headers: { Accept: "application/vnd.github+json" },
+    },
+  });
+  context.log.info("API response", {
+    status: response.status,
+    body: response.body,
   });
 }
 `,

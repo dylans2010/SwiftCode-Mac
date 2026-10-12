@@ -20,11 +20,12 @@ import SwiftUI
 // `SDKStudioWindowManager` is a separate task and is NOT part of this
 // file. Tracked in `SwiftCode/SDK/Studio/agent_notes.md`.
 //
-// Shell only: the five detail panes are built in parallel and referenced
+// Shell only: the six detail panes are built in parallel and referenced
 // here, never redefined:
 //   - `SDKStudioProjectsView`   (project & extension generation wizards)
 //   - `SDKStudioExtensionsView` (lifecycle console + manifest inspector)
 //   - `SDKStudioAPIKeysView`    (developer API key management)
+//   - `SDKSecurityManagerView`  (use.Security sensitive-value manager)
 //   - `SDKStudioLogsView`       (dual logging inspector: user + developer)
 //   - `SDKCodeEditorShellView`  (Studio code editor: navigator, tabs,
 //                                console, find bar, snippet browser)
@@ -66,6 +67,8 @@ public struct SDKStudioView: View {
             SDKStudioExtensionsView()
         case .apiKeys:
             SDKStudioAPIKeysView()
+        case .security:
+            SDKSecurityManagerView()
         case .logs:
             SDKStudioLogsView()
         case .codeEditor:

@@ -2,14 +2,41 @@
   {
     "id": "open-virtualization-console",
     "title": "Open Virtualization Console",
-    "description": "Opens the host's Virtualization console window so the user can view virtual machine state. Gated by the sandbox.view capability grant.",
-    "capabilityId": "sandbox.view",
+    "description": "Opens the host's Virtualization console window so the user can view virtual machine state. Gated by the virtualization.view capability grant.",
+    "capabilityId": "virtualization.view",
     "tags": [
       "virtualization",
       "vm",
       "console",
+      "window"
+    ]
+  },
+  {
+    "id": "open-terminal",
+    "title": "Open Terminal",
+    "description": "Opens SwiftCode's real Terminal view — a full interactive shell (local shells, SSH nodes, themes), not a sandbox. HIGH-RISK: requires explicit user approval of the sandbox.view grant.",
+    "capabilityId": "sandbox.view",
+    "tags": [
+      "terminal",
+      "shell",
+      "console",
+      "ssh",
       "window",
       "sandbox"
+    ]
+  },
+  {
+    "id": "open-deployments-console",
+    "title": "Open Deployments Console",
+    "description": "Opens SwiftCode's real Deployments console (Netlify, Vercel, GitHub Pages). HIGH-RISK: deployments change production; requires explicit user approval of the deployConsole.view grant.",
+    "capabilityId": "deployConsole.view",
+    "tags": [
+      "deployments",
+      "deploy",
+      "netlify",
+      "vercel",
+      "console",
+      "window"
     ]
   },
   {
@@ -209,6 +236,34 @@
       "metadata",
       "current",
       "info"
+    ]
+  },
+  {
+    "id": "store-security-secret",
+    "title": "Store a Secret (Security)",
+    "description": "Stores a secret in the macOS Keychain under the app's Security ID by triggering the host's secure popup — the user types the secret directly into the host, so extension code never sees it. Resolves with metadata only ({valueID, created}). Requires the use.Security grant.",
+    "capabilityId": "use.Security",
+    "tags": [
+      "security",
+      "secret",
+      "keychain",
+      "store",
+      "token",
+      "password"
+    ]
+  },
+  {
+    "id": "use-security-secret-for-api-call",
+    "title": "Use a Stored Secret for an API Call",
+    "description": "Asks the host to perform an HTTPS request with a stored secret attached as the Authorization header. The host performs the request and returns only {status, body} — the secret never comes back to extension code. Requires the use.Security grant.",
+    "capabilityId": "use.Security",
+    "tags": [
+      "security",
+      "secret",
+      "keychain",
+      "api",
+      "http",
+      "authorization"
     ]
   }
 ]

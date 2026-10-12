@@ -3,6 +3,12 @@
 **Status:** Phase 1 contract, implemented · **Branch:** `feature/swiftcode-sdk` · **Date:** 2026-10-12
 **Spec:** `Docs/Intro-to-SDK.md` §18 · **ADR:** `SDK-Architecture.md` §10
 
+> **Released:** the `use.Security` capability family (below) shipped with
+> the 1.2.0 SDK package bump, per the registry's additive-case convention
+> ("Additive cases require a minor SDK version bump and a
+> `Compatibility.md` entry"). Nothing below renames, removes, or re-scopes
+> any existing ID.
+
 There are **five version concepts** in the SDK. They are deliberately not
 interchangeable (spec §18): SDK package version, protocol version, and API
 version are checked independently, and `manifestVersion` and the host floor
@@ -12,7 +18,7 @@ are checked on their own paths.
 
 | # | Concept | Current value | Declared by | Governed by |
 |---|---|---|---|---|
-| 1 | **SDK package version** | `1.1.0` | Host (`SwiftCodeSDK.json` `sdkVersion`) | `SDKCompatibility.check` against the manifest's `sdk.versionRange` |
+| 1 | **SDK package version** | `1.2.0` | Host (`SwiftCodeSDK.json` `sdkVersion`) | `SDKCompatibility.check` against the manifest's `sdk.versionRange` |
 | 2 | **Manifest schema generation** | `manifestVersion` `1` | Extension (`swiftcode.json`) | `SDKManifestValidator` (and the JSON schema); new generations are new schema files |
 | 3 | **Host/runtime IPC protocol version** | `1` | Extension (`sdk.protocolVersion`); host (`SwiftCodeSDK.json` `protocolVersion`) | Must match **exactly** — protocol versions are never range-negotiated |
 | 4 | **Internal API version** | `2026.1` | Host (`SwiftCodeSDK.json` `apiVersion`) | Informational only: surfaced for diagnostics, **not** used in the compatibility decision |
@@ -25,7 +31,7 @@ host version metadata, managed by internal developers:
 
 ```json
 {
-  "sdkVersion": "1.1.0",
+  "sdkVersion": "1.2.0",
   "apiVersion": "2026.1",
   "minimumHostVersion": "1.0.0",
   "protocolVersion": 1,
@@ -40,7 +46,7 @@ loads it from the app bundle. User projects' SDK bindings sync from it on
 launch: non-breaking updates propagate automatically; breaking updates
 require an explicit Studio prompt (ADR §10). `SDKConfigStore.isDeprecated`
 answers whether a named public API appears in `deprecatedAPIs` (empty since
-1.0.0, still empty in 1.1.0).
+1.0.0, still empty in 1.2.0).
 
 ## SDK 1.1.0 — additive release (2026-10-12)
 
@@ -64,6 +70,63 @@ re-scoped** — a 1.0.0 extension runs unchanged against the 1.1.0 host.
   module (`SNIPPETS`), and the `UIAPI`, `CloudModelAPI`,
   `TerminalSandboxAPI` interfaces (all re-exported from `index.ts`).
   Protocol version stays `1`; the IPC wire format is unchanged.
+
+## SDK 1.2.0 — additive release (2026-10-12)
+
+Bumped per the capability-registry convention (`SDKCapability.swift`
+enum-header note): additive registry cases require a minor version bump and
+a `Compatibility.md` entry. **Nothing was renamed, removed, or
+re-scoped** — a 1.1.0 extension runs unchanged against the 1.2.0 host.
+
+- **New umbrella capability:** `use.Security` ("Use Security (Keychain)",
+  high risk) — host-mediated Keychain secret storage and use. The
+  extension never sees plaintext: secrets are entered by the user into the
+  host's secure prompt (`SDKSensitiveValuePrompt` /
+  `EnterSecuritySDKView`) and used only through host-performed operations.
+- **Five granular method-scope IDs, pairing 1:1 with the new IPC methods:**
+  `security.addValue`, `security.hasValue`, `security.listValueIDs`,
+  `security.deleteValue`, `security.useValue`. These are **not separately
+  grantable** (`grantableInCurrentRelease: false`): the user grants the
+  single `use.Security` capability, and every `security.*` call authorizes
+  **only** the umbrella at the broker before any Keychain touch (checking a
+  non-grantable ID would deny every call). The granular IDs name the method
+  scope in audit events, scope listings, and approval UX — they can never
+  appear in a grant.
+- **Two new view capability IDs:** `deployConsole.view` (the real
+  Deployments console — Netlify / Vercel / GitHub Pages production
+  deployments — via the toolbar-notification bridge) and
+  `virtualization.view` (the virtualization console, via its sibling
+  opener). Both are `kind: "view"` entries in the `ScopesIDLists` pair and
+  both have real registered openers (the scopes-sync test enforces this).
+- **`sandbox.view` re-targeted:** the built-in view opener for
+  `sandbox.view` now bridges to the real `TerminalView` sheet (full
+  interactive shell — local shells, SSH nodes, themes) instead of a
+  sandboxed terminal surface. HIGH-RISK by nature: opening it gives the
+  user a complete unsandboxed shell. The capability ID is unchanged, so
+  existing manifests and grants keep working; only the opened surface
+  changed.
+- **New IPC routes:** `security.addValue`, `security.hasValue`,
+  `security.listValueIDs`, `security.deleteValue`, `security.useValue`
+  (all added; no existing route changed or removed).
+- **New error code:** `USER_CANCELLED` — the user dismissed a
+  host-presented prompt (e.g. the secure secret entry sheet); nothing was
+  stored, changed, or sent. Flow: `SDKSensitiveValuePrompt` surfaces
+  `CancellationError` → `SDKSecurityService.addValue` converts it to
+  `SDKError(code: .userCancelled)` → the dispatcher encodes
+  `"USER_CANCELLED"` in the error envelope.
+- **Uninstall behavior:** uninstalling an extension wipes every Keychain
+  item in its Security namespace (`SDKExtensionRegistry.removeInstallRecord`
+  → `SDKSecurityService.deleteAllValues`), recorded as
+  `securityValuesWipedOnUninstall`. Fail-closed: a Keychain failure aborts
+  the uninstall.
+- **New audit event types:** `securityValueAdded`, `securityValueUsed`,
+  `securityValueDeleted`, `securityValuesWipedOnUninstall`,
+  `securityPermissionDenied` — identifiers only, never secrets.
+- **New TypeScript exports** (`@swiftcode/sdk`): the `security.ts` client
+  (`createSecurityAPI`, `context.security`, the `security*` standalone
+  helpers, all re-exported from `index.ts`) and the `SecurityAPI` family of
+  types in `types.ts`. Protocol version stays `1`; the IPC wire format is
+  unchanged.
 
 ## Negotiation rules
 

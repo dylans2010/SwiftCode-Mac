@@ -3,7 +3,9 @@
 **Status:** Phase 2 contract, implemented · **Branch:** `feature/swiftcode-sdk` · **Date:** 2026-10-12
 **Spec:** `Docs/Intro-to-SDK.md` §§8.1, 10.4 · **ADR:** `SDK-Architecture.md` §§5, 7, 9, 11
 
-SDK 1.1.0 adds the **platform capabilities**: 12 capability IDs that let an
+SDK 1.1.0 introduced the **platform capabilities**; SDK 1.2.0 completes the
+set at 14 capability IDs with `deployConsole.view` and `virtualization.view`,
+and re-targets `sandbox.view` to the real `TerminalView` sheet. These let an
 extension open host-owned platform surfaces (`ui.openView`), call the
 SwiftCode Cloud Model (`cloudModel.complete`), or run sandboxed commands
 (`terminalSandbox.run`). Every platform capability must be declared in the
@@ -26,10 +28,10 @@ await context.ui.openView("sandbox.view");
   *before* the opener runs: the view is gated by precisely the grant the
   manifest declared. `PERMISSION_DENIED` if the grant is missing.
 - An unknown `viewId` is rejected with a typed `UNKNOWN_CAPABILITY` error —
-  never a silent no-op. There is no deployment console: `deployConsole.view`
-  does not exist anywhere in the codebase (see
-  `Capabilities-and-Permissions.md`, "Gaps, not omissions").
-- The 10 `view` entries delegate to `SDKViewOpener`'s real registered
+  never a silent no-op. `deployConsole.view` opens the real Deployments
+  console (`SwiftCode/Views/Deployments/DeploymentsView.swift`) via the
+  toolbar-notification bridge.
+- The 12 `view` entries delegate to `SDKViewOpener`'s real registered
   openers (`SDKViewOpenerBuiltIns.swift`) — nothing is a stub.
 
 Code samples for common views (including a `context.ui.openView(...)`
@@ -69,10 +71,12 @@ const result = await context.terminalSandbox.run({
 ```
 
 `terminal.sandbox` is **sandboxed command execution, not a terminal UI**
-(`Host/ServiceAdapters/Terminal/SDKSandboxedTerminal.swift`). There is no
-sandboxed terminal view anywhere in the codebase: SwiftCode's real
-`TerminalView` is a full unsandboxed `/bin/zsh` shell and is deliberately
-*not* reused here. All rules are enforced **host-side, on every call**:
+(`Host/ServiceAdapters/Terminal/SDKSandboxedTerminal.swift`). It is
+deliberately distinct from `sandbox.view`, which opens SwiftCode's real
+`TerminalView` — a full unsandboxed `/bin/zsh` shell. That is why
+`sandbox.view` stays a **HIGH-RISK** capability requiring explicit user
+approval: opening it gives the user a complete interactive shell, not a
+sandbox. All rules below are enforced **host-side, on every call**:
 
 1. **Per-call broker authorization** — `.terminalSandbox` is authorized
    *first*, before any validation or process work. A revoked/expired grant

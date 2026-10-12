@@ -20,6 +20,20 @@
  *   ui.openView                 payload {"viewId"} — viewId is the view's
  *                               own capability ID (e.g. "sandbox.view")
  *   log.debug|info|warn|error payload {"message","correlationId?"}
+ *   security.addValue       payload {"securityID","valueID","label?","prompt?"}
+ *                             → {"valueID","created"} (metadata only, never the secret)
+ *   security.hasValue       payload {"securityID","valueID"} → {"hasValue"}
+ *   security.listValueIDs   payload {"securityID"} → {"values":[…]}
+ *   security.deleteValue    payload {"securityID","valueID"}
+ *   security.useValue       payload {"securityID","valueID","operation"}
+ *                             → {"status","body"} (the host attaches the
+ *                               secret as the Authorization header; it never
+ *                               comes back to the extension)
+ *
+ * `security.*` routes are served by the host's Security dispatcher (the
+ * `use.Security` host phase, capability ID "use.Security"). Until the
+ * routes land, the host answers with a typed error — calls reject with an
+ * {@link SDKError}, never a fabricated result.
  *
  * `project.getCurrent` is NOT in the dispatcher routing table. It is sent
  * as `project.getCurrent` anyway, and the host answers with a typed error
@@ -50,6 +64,7 @@ import type {
   ProjectInfo,
   RepositoryDiff,
   RepositoryStatus,
+  SecurityAPI,
   SourceControlAPI,
   SwiftCodeContext,
   TerminalSandboxAPI,
@@ -58,6 +73,7 @@ import type {
   UIAPI,
 } from "./types.js";
 import { SDKError, type HostConnection, type HostEvent } from "./ipc.js";
+import { createSecurityAPI } from "./security.js";
 
 /** Client-side mirror of the host's command-ID rule (SDKCommandRegistry). */
 const COMMAND_ID_PATTERN = /^[a-z][a-z0-9-]{0,63}$/;
@@ -655,6 +671,10 @@ export function createContext(
     connection.request(method, payload).catch(() => undefined);
   }
 
+  // Security API over the same IPC connection. Also installs the active
+  // connection for the standalone security.* helpers in security.ts.
+  const security: SecurityAPI = createSecurityAPI(connection);
+
   const context: SwiftCodeContext = {
     extension: extensionInfo,
     project,
@@ -666,6 +686,7 @@ export function createContext(
     events,
     log,
     ui,
+    security,
     subscriptions,
   };
 

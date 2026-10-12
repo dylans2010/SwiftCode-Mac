@@ -499,7 +499,28 @@ public actor SDKExtensionRegistry {
     /// Called by the uninstall flow AFTER the extension has been deactivated.
     /// Removes the now-empty parent id directory when no versions remain,
     /// and drops the id from the in-memory cache.
-    public func removeInstallRecord(extensionID: String, version: String) throws {
+    ///
+    /// The extension's Security namespace is wiped FIRST: every Keychain
+    /// item the extension stored via `use.Security` (all app Security IDs,
+    /// all value IDs) is deleted before the install record goes away. The
+    /// wipe is fail-closed — a Keychain failure aborts the uninstall with
+    /// `.uninstallFailed` so secrets can never silently survive an
+    /// uninstall that reported success. Revoking grants is the Studio
+    /// uninstall view's job (it calls `SDKGrantStore.revokeAll(for:)` next);
+    /// stored values are deleted here regardless of grant state.
+    public func removeInstallRecord(extensionID: String, version: String) async throws {
+        do {
+            try await SDKSecurityService.shared.deleteAllValues(securityID: extensionID)
+        } catch {
+            let underlying = (error as? SDKError)?.code.rawValue ?? "unknown"
+            throw registryError(
+                code: .uninstallFailed,
+                message: "Could not delete the extension's stored secrets.",
+                suggestion: "Check that the macOS Keychain is unlocked and try again.",
+                diagnostics: ["extensionID": extensionID, "underlyingCode": underlying]
+            )
+        }
+
         let versionDir = versionDirectory(id: extensionID, version: version)
         var isDirectory: ObjCBool = false
         guard FileManager.default.fileExists(atPath: versionDir.path, isDirectory: &isDirectory),

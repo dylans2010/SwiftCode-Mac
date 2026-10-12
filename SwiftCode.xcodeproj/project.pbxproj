@@ -2711,6 +2711,12 @@
 		370d8ec142492747144cb2b5 /* SDKCodeSnippetLibraryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = e2d120e4647910de4cc3d299 /* SDKCodeSnippetLibraryView.swift */; };
 		9da18f80aff07f14e21e36f6 /* SDKCodeBuildRunView.swift in Sources */ = {isa = PBXBuildFile; fileRef = d28a34f03dc988bb60d35229 /* SDKCodeBuildRunView.swift */; };
 		c31bf70d0f80bb034190e5d6 /* snippets.json in Resources */ = {isa = PBXBuildFile; fileRef = ebff2051be203957cc428feb /* snippets.json */; };
+		vf8Ufnixnzx98JfszV2AlPpw /* SDKSecurityContracts.swift in Sources */ = {isa = PBXBuildFile; fileRef = HKI3CsxfHWHGq43C0obeSqck /* SDKSecurityContracts.swift */; };
+		rZsBVu7NX99lzJL1ABWUigmW /* KeychainSDK.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6VIBMoZTC6d3Fx4kke4Yx2Am /* KeychainSDK.swift */; };
+		dTV0VF5LlxEbMEfpPnxMKOzn /* SDKSensitiveValuePrompt.swift in Sources */ = {isa = PBXBuildFile; fileRef = Pj9RdiiqM4UDz6cLAveur9gS /* SDKSensitiveValuePrompt.swift */; };
+		2zjwDtGwbj9A5OaQnNManGqP /* SDKSecurityService.swift in Sources */ = {isa = PBXBuildFile; fileRef = wwccAQFYbISAtwf1CI176wfp /* SDKSecurityService.swift */; };
+		cRPTa6lVZMwGABM1Pk3pki7f /* EnterSecuritySDKView.swift in Sources */ = {isa = PBXBuildFile; fileRef = kWdk7XWkAe8TVMpiQDyLjOzx /* EnterSecuritySDKView.swift */; };
+		VWpUnCxvUTkw0DfXmMy7u7Ow /* SDKSecurityManagerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = sbwizh8HgT46lk1WQ3AeqfKV /* SDKSecurityManagerView.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -5392,6 +5398,13 @@
 		e2d120e4647910de4cc3d299 /* SDKCodeSnippetLibraryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SDKCodeSnippetLibraryView.swift; sourceTree = "<group>"; };
 		d28a34f03dc988bb60d35229 /* SDKCodeBuildRunView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SDKCodeBuildRunView.swift; sourceTree = "<group>"; };
 		ebff2051be203957cc428feb /* snippets.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = snippets.json; sourceTree = "<group>"; };
+		HKI3CsxfHWHGq43C0obeSqck /* SDKSecurityContracts.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SDKSecurityContracts.swift; sourceTree = "<group>"; };
+		6VIBMoZTC6d3Fx4kke4Yx2Am /* KeychainSDK.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeychainSDK.swift; sourceTree = "<group>"; };
+		Pj9RdiiqM4UDz6cLAveur9gS /* SDKSensitiveValuePrompt.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SDKSensitiveValuePrompt.swift; sourceTree = "<group>"; };
+		wwccAQFYbISAtwf1CI176wfp /* SDKSecurityService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SDKSecurityService.swift; sourceTree = "<group>"; };
+		kWdk7XWkAe8TVMpiQDyLjOzx /* EnterSecuritySDKView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EnterSecuritySDKView.swift; sourceTree = "<group>"; };
+		sbwizh8HgT46lk1WQ3AeqfKV /* SDKSecurityManagerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SDKSecurityManagerView.swift; sourceTree = "<group>"; };
+		99AjgY1lrGunB1oR7RQOyjdo /* Security-Keychain.md */ = {isa = PBXFileReference; lastKnownFileType = text.markdown; path = Security-Keychain.md; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -9689,6 +9702,7 @@
 				8bb2a0ba2e356f7bfac551a3 /* SDKBuildContracts.swift */,
 				3ee0543d0d82bed510b04d6f /* SDKIPCEnvelope.swift */,
 				15221418a985a8c239a50c2e /* SDKVersionNegotiation.swift */,
+				HKI3CsxfHWHGq43C0obeSqck /* SDKSecurityContracts.swift */,
 			);
 			name = Protocol;
 			path = Protocol;
@@ -9705,9 +9719,21 @@
 				75DE7BAC842A2BA0E06F3DD6 /* APIKeys */,
 				6867F8539DC139E59D8813F8 /* ServiceAdapters */,
 				88728D12E945F729F7D20D82 /* PublicAPI */,
+				P2Z80bK24BEPyeZiIVfNVnr2 /* Security */,
 			);
 			name = Host;
 			path = Host;
+			sourceTree = "<group>";
+		};
+		P2Z80bK24BEPyeZiIVfNVnr2 /* Security */ = {
+			isa = PBXGroup;
+			children = (
+				6VIBMoZTC6d3Fx4kke4Yx2Am /* KeychainSDK.swift */,
+				Pj9RdiiqM4UDz6cLAveur9gS /* SDKSensitiveValuePrompt.swift */,
+				wwccAQFYbISAtwf1CI176wfp /* SDKSecurityService.swift */,
+			);
+			name = Security;
+			path = Security;
 			sourceTree = "<group>";
 		};
 		5112bc67d5d1af6adeaa93fd /* ExtensionRegistry */ = {
@@ -9808,6 +9834,7 @@
 			isa = PBXGroup;
 			children = (
 				36058e4be68e5f37daf861c4 /* SDK-Architecture.md */,
+				99AjgY1lrGunB1oR7RQOyjdo /* Security-Keychain.md */,
 			);
 			name = Documentation;
 			path = Documentation;
@@ -9960,6 +9987,8 @@
 				E141B1A831DDB54AB63D9F3F /* SDKGrantManagerView.swift */,
 				7E8FC4F1948C842D38040C50 /* SDKStudioAPIKeysView.swift */,
 				8C3EC07651184159D310C93A /* SDKStudioLogsView.swift */,
+				kWdk7XWkAe8TVMpiQDyLjOzx /* EnterSecuritySDKView.swift */,
+				sbwizh8HgT46lk1WQ3AeqfKV /* SDKSecurityManagerView.swift */,
 			);
 			name = Views;
 			path = Views;
@@ -12874,6 +12903,12 @@
 				069d1804e2c541699b16c383 /* SDKCodeProjectRootView.swift in Sources */,
 				370d8ec142492747144cb2b5 /* SDKCodeSnippetLibraryView.swift in Sources */,
 				9da18f80aff07f14e21e36f6 /* SDKCodeBuildRunView.swift in Sources */,
+				vf8Ufnixnzx98JfszV2AlPpw /* SDKSecurityContracts.swift in Sources */,
+				rZsBVu7NX99lzJL1ABWUigmW /* KeychainSDK.swift in Sources */,
+				dTV0VF5LlxEbMEfpPnxMKOzn /* SDKSensitiveValuePrompt.swift in Sources */,
+				2zjwDtGwbj9A5OaQnNManGqP /* SDKSecurityService.swift in Sources */,
+				cRPTa6lVZMwGABM1Pk3pki7f /* EnterSecuritySDKView.swift in Sources */,
+				VWpUnCxvUTkw0DfXmMy7u7Ow /* SDKSecurityManagerView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

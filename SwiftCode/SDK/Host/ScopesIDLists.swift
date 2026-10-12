@@ -12,9 +12,9 @@ import Foundation
 // wired a method in this release; never a placeholder) and, for view
 // entries, the `viewId` payload value for `ui.openView`.
 //
-// The 10 `view` entries delegate to `SDKViewOpener`'s REAL registered
+// The 12 `view` entries delegate to `SDKViewOpener`'s REAL registered
 // openers (`SDKViewOpenerBuiltIns.swift`) — nothing here is a stub. The
-// 13 `api` entries are served by their host adapters over IPC
+// 18 `api` entries are served by their host adapters over IPC
 // (authorized per-call at `SDKCapabilityBroker` through the adapters, see
 // `SDKIPCDispatcher`'s security model), NOT by this table: there is no
 // view to open and this file must never fabricate one.
@@ -77,7 +77,7 @@ public enum ScopesIDLists {
     }
 
     /// Every capability in the fixed registry, in `SDKCapabilityRegistry.all`
-    /// order. 10 are views; 13 are API capabilities. `ipcMethod == nil`
+    /// order. 10 are views; 18 are API capabilities. `ipcMethod == nil`
     /// means no host method is wired in this release — `assist.invoke`
     /// additionally being deny-by-default (spec §9, `SDKAssistGate`).
     public static let all: [ScopeEntry] = [
@@ -200,12 +200,30 @@ public enum ScopesIDLists {
         ),
         ScopeEntry(
             id: "sandbox.view",
-            title: "Virtualization console",
-            description: "Open the Virtualization console to view virtual machine state.",
+            title: "Terminal",
+            description: "Open SwiftCode's real Terminal view — a full interactive shell (local shells, SSH nodes, themes), not a sandbox. HIGH-RISK: requires explicit user approval.",
             kind: .view,
             ipcMethod: "ui.openView",
             capabilityId: .sandboxView,
             viewId: "sandbox.view"
+        ),
+        ScopeEntry(
+            id: "virtualization.view",
+            title: "Virtualization console",
+            description: "Open the Virtualization console to view virtual machine state.",
+            kind: .view,
+            ipcMethod: "ui.openView",
+            capabilityId: .virtualizationView,
+            viewId: "virtualization.view"
+        ),
+        ScopeEntry(
+            id: "deployConsole.view",
+            title: "Deployments console",
+            description: "Open SwiftCode's real Deployments console (Netlify, Vercel, GitHub Pages). HIGH-RISK: deployments change production; requires explicit user approval.",
+            kind: .view,
+            ipcMethod: "ui.openView",
+            capabilityId: .deployConsoleView,
+            viewId: "deployConsole.view"
         ),
         ScopeEntry(
             id: "use.SwiftCodeModel",
@@ -287,6 +305,51 @@ public enum ScopesIDLists {
             ipcMethod: "ui.openView",
             capabilityId: .deviceConnectOpen,
             viewId: "deviceconnect.open"
+        ),
+        ScopeEntry(
+            id: "security.addValue",
+            title: "Store a secret",
+            description: "Store a named secret in the host's Keychain vault; the extension never sees the plaintext.",
+            kind: .api,
+            ipcMethod: "security.addValue",
+            capabilityId: .securityAddValue,
+            viewId: nil
+        ),
+        ScopeEntry(
+            id: "security.hasValue",
+            title: "Check a stored secret",
+            description: "Check whether a named secret exists in the vault without revealing its value; the extension never sees plaintext.",
+            kind: .api,
+            ipcMethod: "security.hasValue",
+            capabilityId: .securityHasValue,
+            viewId: nil
+        ),
+        ScopeEntry(
+            id: "security.listValueIDs",
+            title: "List stored secret names",
+            description: "List the names of stored secrets; values stay hidden and the extension never sees plaintext.",
+            kind: .api,
+            ipcMethod: "security.listValueIDs",
+            capabilityId: .securityListValueIDs,
+            viewId: nil
+        ),
+        ScopeEntry(
+            id: "security.deleteValue",
+            title: "Delete a stored secret",
+            description: "Permanently delete a named stored secret; the extension never sees the plaintext.",
+            kind: .api,
+            ipcMethod: "security.deleteValue",
+            capabilityId: .securityDeleteValue,
+            viewId: nil
+        ),
+        ScopeEntry(
+            id: "security.useValue",
+            title: "Use a stored secret",
+            description: "Have the host inject a stored secret into an approved host operation; the extension never sees the plaintext.",
+            kind: .api,
+            ipcMethod: "security.useValue",
+            capabilityId: .securityUseValue,
+            viewId: nil
         ),
     ]
 
