@@ -143,6 +143,12 @@ export function createStdioConnection(
   }
 
   function handleEvent(frame: Record<string, unknown>): void {
+    if (frame["protocolVersion"] !== SDK_PROTOCOL_VERSION) {
+      diagnose(
+        `event frame with unsupported protocolVersion ${String(frame["protocolVersion"])}; ignoring (this SDK speaks version ${SDK_PROTOCOL_VERSION})`,
+      );
+      return;
+    }
     const name = frame["event"];
     if (typeof name !== "string" || name.length === 0) {
       diagnose("event frame missing event name; ignoring");

@@ -108,6 +108,30 @@ public enum SDKNodeLauncher {
         )
     }
 
+    /// Environment variable name fragments treated as secret-bearing.
+    /// Any variable whose uppercased name contains one of these fragments is
+    /// stripped before the extension process is spawned. The extension
+    /// runtime has no legitimate need for host secrets (API keys, tokens,
+    /// client secrets); inheriting them ambiently would defeat the
+    /// "secrets never cross into the extension process" contract below.
+    /// Deliberately conservative: generic `*KEY*` is NOT matched (too many
+    /// benign names), only compound fragments that reliably name secrets.
+    private static let secretEnvNameFragments = [
+        "SECRET", "PASSWORD", "PASSWD", "CREDENTIAL",
+        "PRIVATE_KEY", "API_KEY", "APIKEY", "ACCESS_KEY",
+        "AUTH_TOKEN", "CLIENT_SECRET", "SESSION_TOKEN",
+    ]
+
+    /// The host environment with secret-bearing variables removed.
+    /// Everything else (PATH, HOME, TMPDIR, LANG, NODE_*, …) passes through
+    /// unchanged so the node runtime behaves normally.
+    private static func sanitizedEnvironment() -> [String: String] {
+        ProcessInfo.processInfo.environment.filter { name, _ in
+            let upper = name.uppercased()
+            return !secretEnvNameFragments.contains { upper.contains($0) }
+        }
+    }
+
     // MARK: Launch
 
     /// Launches the validated extension entry point as a child `node`
@@ -118,9 +142,12 @@ public enum SDKNodeLauncher {
     ///   `[entrypoint.path]` — a single argv element, no shell, so there is
     ///   no shell-quoting or shell-injection surface at this layer.
     /// - `currentDirectoryURL` = `workingDirectory`.
-    /// - `environment` = the host process environment, inherited as-is. The
-    ///   runtime-adapter layer passes no secrets through this boundary:
-    ///   secrets never cross into the extension process.
+    /// - `environment` = the host process environment with secret-bearing
+    ///   variables stripped (`sanitizedEnvironment()`). The runtime-adapter
+    ///   layer passes no secrets through this boundary, and ambient
+    ///   inheritance cannot leak them either: anything named like a secret
+    ///   (API keys, tokens, passwords, client secrets) never crosses into
+    ///   the extension process.
     /// - Dedicated `Pipe`s for stdin/stdout/stderr, exposed on the returned
     ///   `SDKLaunchedRuntime` for the IPC layer.
     ///
@@ -161,7 +188,7 @@ public enum SDKNodeLauncher {
         process.executableURL = nodeURL
         process.arguments = [entrypoint.path]
         process.currentDirectoryURL = workingDirectory
-        process.environment = ProcessInfo.processInfo.environment
+        process.environment = sanitizedEnvironment()
         process.standardInput = stdinPipe
         process.standardOutput = stdoutPipe
         process.standardError = stderrPipe

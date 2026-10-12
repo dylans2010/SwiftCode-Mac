@@ -196,6 +196,23 @@ describe("ipc", () => {
     }
   });
 
+  it("event frame with protocolVersion != 1 is ignored (mirrors Swift SDKIPCDispatcher)", async () => {
+    const restore = swallowStderr();
+    try {
+      const { connection, hostWriteRaw } = makeLoopback();
+      const seen = [];
+      connection.onEvent((event) => seen.push(event.name));
+      // v2 event must NOT reach listeners; v1 event must.
+      hostWriteRaw('{"protocolVersion":2,"type":"event","requestId":"v2","event":"commands.execute","payload":{}}\n');
+      hostWriteRaw('{"protocolVersion":1,"type":"event","requestId":"v1","event":"shutdown","payload":{}}\n');
+      await new Promise((resolve) => setImmediate(resolve));
+      assert.deepEqual(seen, ["shutdown"]);
+      connection.close();
+    } finally {
+      restore();
+    }
+  });
+
   it('sendEvent emits a well-formed type:"event" envelope with protocolVersion 1', async () => {
     const { connection, nextRequestLine } = makeLoopback();
     connection.sendEvent("lifecycle.activated", { extensionId: "demo.ext" });

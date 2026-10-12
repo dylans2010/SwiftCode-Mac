@@ -961,11 +961,27 @@ private enum ScaffoldEngine {
             }
         }
         var written: [String] = []
+        // Containment anchor: no template path may escape the target
+        // directory, even after placeholder substitution. All current
+        // template paths are static literals, so this is defense in depth
+        // against a future template that puts a placeholder in a path.
+        let targetPath = target.standardizedFileURL.path
         for file in files {
             let subs = file.isJSON ? jsonSubstitutions : substitutions
             let relativePath = applySubstitutions(subs, to: file.path)
             let content = applySubstitutions(subs, to: file.content)
             let url = target.appendingPathComponent(relativePath)
+            let resolvedPath = url.standardizedFileURL.path
+            guard resolvedPath == targetPath || resolvedPath.hasPrefix(targetPath + "/") else {
+                throw ScaffoldError.writeFailed(
+                    path: relativePath,
+                    underlying: NSError(
+                        domain: "SDKStudio.Scaffold",
+                        code: 2,
+                        userInfo: [NSLocalizedDescriptionKey: "A template path escapes the target directory."]
+                    )
+                )
+            }
             do {
                 try fm.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true, attributes: nil)
                 try content.write(to: url, atomically: true, encoding: .utf8)
