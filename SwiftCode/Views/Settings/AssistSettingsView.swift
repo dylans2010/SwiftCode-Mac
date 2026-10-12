@@ -805,46 +805,9 @@ struct AssistSettingsView: View {
                                         .controlSize(.small)
 
                                         if settings.assistModelRoutingStrategy == "rotation" {
-                                            HStack(spacing: 8) {
-                                                let keyCount = AlternativeKeyManager.shared.keys.count
-                                                let readyCount = AlternativeKeyManager.shared.keys.filter { $0.isAvailableForUse }.count
-                                                Circle()
-                                                    .fill(readyCount > 0 ? Color.green : Color.secondary)
-                                                    .frame(width: 6, height: 6)
-                                                Text("\(keyCount) Gemini keys saved (\(readyCount) ready)")
-                                                    .font(.system(size: 10.5, weight: .medium))
-                                                Spacer()
-                                                Button {
-                                                    showAlternativeKeysSheet = true
-                                                } label: {
-                                                    Text("Manage Keys")
-                                                        .font(.system(size: 10.5, weight: .semibold))
-                                                }
-                                                .buttonStyle(.bordered)
-                                                .controlSize(.mini)
-                                            }
-                                            .padding(.horizontal, 9)
-                                            .padding(.vertical, 5)
-                                            .background(Color.orange.opacity(0.08), in: RoundedRectangle(cornerRadius: 6))
+                                            rotationKeysRow
                                         } else if settings.assistModelRoutingStrategy == "app_models" {
-                                            let stats = discoveryService.getDiscoveryStats()
-                                            HStack(spacing: 6) {
-                                                Circle().fill(Color.green).frame(width: 5, height: 5)
-                                                Text("\(stats.total) models in catalog")
-                                                    .font(.system(size: 10.5, weight: .semibold))
-                                                Text("·").foregroundStyle(.secondary)
-                                                Text("\(stats.providers) providers")
-                                                    .font(.system(size: 10.5))
-                                                    .foregroundStyle(.secondary)
-                                                Text("·").foregroundStyle(.secondary)
-                                                Text("\(stats.agentCompatible) agent-compatible")
-                                                    .font(.system(size: 10.5, weight: .semibold))
-                                                    .foregroundStyle(.blue)
-                                                Spacer()
-                                            }
-                                            .padding(.horizontal, 9)
-                                            .padding(.vertical, 5)
-                                            .background(Color.purple.opacity(0.08), in: RoundedRectangle(cornerRadius: 6))
+                                            appModelsStatsRow
                                         }
                                     }
 
@@ -2061,6 +2024,58 @@ struct AssistSettingsView: View {
     }
 
     @ViewBuilder
+    // MARK: - Model Routing Strategy Rows
+
+    /// Status row for the "Gemini Key Rotation" strategy. Extracted from the
+    /// settings body: the inline if/else exceeded the type-checker's budget.
+    private var rotationKeysRow: some View {
+        let keyCount = AlternativeKeyManager.shared.keys.count
+        let readyCount = AlternativeKeyManager.shared.keys.filter { $0.isAvailableForUse }.count
+        return HStack(spacing: 8) {
+            Circle()
+                .fill(readyCount > 0 ? Color.green : Color.secondary)
+                .frame(width: 6, height: 6)
+            Text("\(keyCount) Gemini keys saved (\(readyCount) ready)")
+                .font(.system(size: 10.5, weight: .medium))
+            Spacer()
+            Button {
+                showAlternativeKeysSheet = true
+            } label: {
+                Text("Manage Keys")
+                    .font(.system(size: 10.5, weight: .semibold))
+            }
+            .buttonStyle(.bordered)
+            .controlSize(.mini)
+        }
+        .padding(.horizontal, 9)
+        .padding(.vertical, 5)
+        .background(Color.orange.opacity(0.08), in: RoundedRectangle(cornerRadius: 6))
+    }
+
+    /// Status row for the "App Model Catalog" strategy. Extracted from the
+    /// settings body for the same reason as rotationKeysRow.
+    private var appModelsStatsRow: some View {
+        let stats = discoveryService.getDiscoveryStats()
+        return HStack(spacing: 6) {
+            Circle().fill(Color.green).frame(width: 5, height: 5)
+            Text("\(stats.total) models in catalog")
+                .font(.system(size: 10.5, weight: .semibold))
+            Text("·").foregroundStyle(.secondary)
+            Text("\(stats.providers) providers")
+                .font(.system(size: 10.5))
+                .foregroundStyle(.secondary)
+            Text("·").foregroundStyle(.secondary)
+            Text("\(stats.agentCompatible) agent-compatible")
+                .font(.system(size: 10.5, weight: .semibold))
+                .foregroundStyle(.blue)
+            Spacer()
+        }
+        .padding(.horizontal, 9)
+        .padding(.vertical, 5)
+        .background(Color.purple.opacity(0.08), in: RoundedRectangle(cornerRadius: 6))
+    }
+
+    @ViewBuilder
     // MARK: - SwiftCode Cloud Model List
 
     /// Discovered cloud models with manual refresh. The server hosts many
@@ -2104,7 +2119,7 @@ struct AssistSettingsView: View {
                               ? "checkmark.circle.fill" : "circle")
                             .font(.system(size: 11))
                             .foregroundStyle(settings.selectedAssistModelID == model.internalID
-                                             ? .accentColor : .secondary)
+                                             ? Color.accentColor : Color.secondary)
                         Text(model.displayName)
                             .font(.system(size: 11))
                             .foregroundStyle(.primary)

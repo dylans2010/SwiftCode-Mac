@@ -320,7 +320,7 @@ public actor SystemIndexService {
                 found.append((relative, url))
             }
         }
-        return found.sorted { $0.relativePath < $1.relativePath }
+        return found.sorted { $0.0 < $1.0 }
     }
 
     // MARK: Persistence
