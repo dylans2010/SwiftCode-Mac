@@ -2677,6 +2677,40 @@
 		1E75ADF255A4577156705CD6 /* SDKGrantManagerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E141B1A831DDB54AB63D9F3F /* SDKGrantManagerView.swift */; };
 		EBCAD42C10A0B098A26B6996 /* SDKStudioAPIKeysView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7E8FC4F1948C842D38040C50 /* SDKStudioAPIKeysView.swift */; };
 		D3BA49AD94F1FC76FB82002F /* SDKStudioLogsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8C3EC07651184159D310C93A /* SDKStudioLogsView.swift */; };
+		e40fcdbc3943856786332af3 /* SDKCloudModelContracts.swift in Sources */ = {isa = PBXBuildFile; fileRef = f99145b760dcfb4c84af6556 /* SDKCloudModelContracts.swift */; };
+		8379a649e45ebd740951f905 /* SDKTerminalContracts.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8a44d0a2350784d93d0eb3d1 /* SDKTerminalContracts.swift */; };
+		c3a047062aa1178c9dce97ee /* SDKBootstrap.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0ebba1e5066b731541466116 /* SDKBootstrap.swift */; };
+		bf77b2d768e6fed7ea88a014 /* ScopesIDLists.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0f9b83c174e5267124aa8348 /* ScopesIDLists.swift */; };
+		8b47952ee99c84b184f454a9 /* SDKAPIKeySessionAuth.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5908b02675a551a18dc9f2bc /* SDKAPIKeySessionAuth.swift */; };
+		980e0e68fd8f1c151876b93e /* SDKCloudModelAdapter.swift in Sources */ = {isa = PBXBuildFile; fileRef = fe2ae3d7389d2f4c56b81c13 /* SDKCloudModelAdapter.swift */; };
+		576dfcd4b2a24dcfe0093fb4 /* SDKSandboxedTerminal.swift in Sources */ = {isa = PBXBuildFile; fileRef = 82e43fd0b3036f06dfef3399 /* SDKSandboxedTerminal.swift */; };
+		63063120929f493f47928728 /* SDKViewOpener.swift in Sources */ = {isa = PBXBuildFile; fileRef = 68f7ebe835d4147602afce7e /* SDKViewOpener.swift */; };
+		552d200341705fd4b1164de2 /* SDKViewOpenerBuiltIns.swift in Sources */ = {isa = PBXBuildFile; fileRef = 475a8d3a48eaf715157cfc76 /* SDKViewOpenerBuiltIns.swift */; };
+		f1744d069f68c9e44495db96 /* SDKViewOpenerSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = 61b19f12ce6806b341337c91 /* SDKViewOpenerSupport.swift */; };
+		43d35137f46ac1c51a53f6bc /* SDKCIWorkflowViewOpener.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9b90701206ae1a549d471d4e /* SDKCIWorkflowViewOpener.swift */; };
+		2975408e67e0bafba5799bc1 /* SDKVirtualizationViewOpener.swift in Sources */ = {isa = PBXBuildFile; fileRef = c6ab3c26da4e2240f96aa4d1 /* SDKVirtualizationViewOpener.swift */; };
+		760cd774eae2e370b6ec906c /* SDKLivePreviewViewOpener.swift in Sources */ = {isa = PBXBuildFile; fileRef = 079559b7232f0ed3de573ce6 /* SDKLivePreviewViewOpener.swift */; };
+		0afa6f58de559a299e769b3f /* SDKBuildRunRequest.swift in Sources */ = {isa = PBXBuildFile; fileRef = 24d46599405e8eb3ad6b2dc8 /* SDKBuildRunRequest.swift */; };
+		256c49223ae0cb77b7a43f38 /* SDKCodeBuildRunner.swift in Sources */ = {isa = PBXBuildFile; fileRef = c6baad3f66f738446ac43ae7 /* SDKCodeBuildRunner.swift */; };
+		cfe1a0dc438ab295b67216e5 /* SDKCodeDocument.swift in Sources */ = {isa = PBXBuildFile; fileRef = 39f6c64a70597fef62118053 /* SDKCodeDocument.swift */; };
+		327c06924e1f596a162009f4 /* SDKCodeEditorState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 394e6c1035a415f299b6daac /* SDKCodeEditorState.swift */; };
+		d64196071420e02f9a112acc /* SDKCodeFileNode.swift in Sources */ = {isa = PBXBuildFile; fileRef = d97fa7d7b9ed6197593a5f83 /* SDKCodeFileNode.swift */; };
+		3e9d2246d626aff04faede66 /* SDKCodeLanguage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 96c83194d8dc3ff7d0eadfcd /* SDKCodeLanguage.swift */; };
+		ed12e75c447aa74019af1f9b /* SDKConsoleEntry.swift in Sources */ = {isa = PBXBuildFile; fileRef = 558455d42e246a63ff8c7ddf /* SDKConsoleEntry.swift */; };
+		95bd49fe2e09f4c064843174 /* SDKKeywordHighlighter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 72bd6fa5be14ecf8be47e2bc /* SDKKeywordHighlighter.swift */; };
+		0904c47704e5c2420bdc3d81 /* SDKStudioCodeEditorSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7b8067a6c68f2446857ffe27 /* SDKStudioCodeEditorSection.swift */; };
+		18b2aca03671daf5d14ea9e0 /* SDKSyntaxHighlighter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1b0ecf7bc6f06a5630e30272 /* SDKSyntaxHighlighter.swift */; };
+		3a7c2e2f5f20ba1857ed9673 /* SDKCodeConsoleView.swift in Sources */ = {isa = PBXBuildFile; fileRef = fb05294640f4386ca72776ff /* SDKCodeConsoleView.swift */; };
+		4a7cd18e57721625cc579a4e /* SDKCodeEditorShellView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1c1e6e78b2626519bc8b184f /* SDKCodeEditorShellView.swift */; };
+		2cf4f1c3e6b80b7e6c87e43c /* SDKCodeEditorTabBarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 71398088462c32522a8f9383 /* SDKCodeEditorTabBarView.swift */; };
+		6dd8b102d46cf38ac8b674d4 /* SDKCodeEditorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2714bc09eff3b93bb368f90c /* SDKCodeEditorView.swift */; };
+		8ed0f489338e9746a3572b91 /* SDKCodeFileNavigatorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3e6c139ed580880708914933 /* SDKCodeFileNavigatorView.swift */; };
+		06a4d0501e37f6ea8d88f79f /* SDKCodeFindBarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 518dcbeda1be033d3acc7bb1 /* SDKCodeFindBarView.swift */; };
+		df449597620ce1d845a36e99 /* SDKCodeFindCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0cb34a27a52fda3ab816b636 /* SDKCodeFindCoordinator.swift */; };
+		069d1804e2c541699b16c383 /* SDKCodeProjectRootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 15ba53bcb249f6bc3519c4d2 /* SDKCodeProjectRootView.swift */; };
+		370d8ec142492747144cb2b5 /* SDKCodeSnippetLibraryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = e2d120e4647910de4cc3d299 /* SDKCodeSnippetLibraryView.swift */; };
+		9da18f80aff07f14e21e36f6 /* SDKCodeBuildRunView.swift in Sources */ = {isa = PBXBuildFile; fileRef = d28a34f03dc988bb60d35229 /* SDKCodeBuildRunView.swift */; };
+		c31bf70d0f80bb034190e5d6 /* snippets.json in Resources */ = {isa = PBXBuildFile; fileRef = ebff2051be203957cc428feb /* snippets.json */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -5324,6 +5358,40 @@
 		E141B1A831DDB54AB63D9F3F /* SDKGrantManagerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SDKGrantManagerView.swift; sourceTree = "<group>"; };
 		7E8FC4F1948C842D38040C50 /* SDKStudioAPIKeysView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SDKStudioAPIKeysView.swift; sourceTree = "<group>"; };
 		8C3EC07651184159D310C93A /* SDKStudioLogsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SDKStudioLogsView.swift; sourceTree = "<group>"; };
+		f99145b760dcfb4c84af6556 /* SDKCloudModelContracts.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SDKCloudModelContracts.swift; sourceTree = "<group>"; };
+		8a44d0a2350784d93d0eb3d1 /* SDKTerminalContracts.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SDKTerminalContracts.swift; sourceTree = "<group>"; };
+		0ebba1e5066b731541466116 /* SDKBootstrap.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SDKBootstrap.swift; sourceTree = "<group>"; };
+		0f9b83c174e5267124aa8348 /* ScopesIDLists.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScopesIDLists.swift; sourceTree = "<group>"; };
+		5908b02675a551a18dc9f2bc /* SDKAPIKeySessionAuth.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SDKAPIKeySessionAuth.swift; sourceTree = "<group>"; };
+		fe2ae3d7389d2f4c56b81c13 /* SDKCloudModelAdapter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SDKCloudModelAdapter.swift; sourceTree = "<group>"; };
+		82e43fd0b3036f06dfef3399 /* SDKSandboxedTerminal.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SDKSandboxedTerminal.swift; sourceTree = "<group>"; };
+		68f7ebe835d4147602afce7e /* SDKViewOpener.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SDKViewOpener.swift; sourceTree = "<group>"; };
+		475a8d3a48eaf715157cfc76 /* SDKViewOpenerBuiltIns.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SDKViewOpenerBuiltIns.swift; sourceTree = "<group>"; };
+		61b19f12ce6806b341337c91 /* SDKViewOpenerSupport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SDKViewOpenerSupport.swift; sourceTree = "<group>"; };
+		9b90701206ae1a549d471d4e /* SDKCIWorkflowViewOpener.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SDKCIWorkflowViewOpener.swift; sourceTree = "<group>"; };
+		c6ab3c26da4e2240f96aa4d1 /* SDKVirtualizationViewOpener.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SDKVirtualizationViewOpener.swift; sourceTree = "<group>"; };
+		079559b7232f0ed3de573ce6 /* SDKLivePreviewViewOpener.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SDKLivePreviewViewOpener.swift; sourceTree = "<group>"; };
+		24d46599405e8eb3ad6b2dc8 /* SDKBuildRunRequest.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SDKBuildRunRequest.swift; sourceTree = "<group>"; };
+		c6baad3f66f738446ac43ae7 /* SDKCodeBuildRunner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SDKCodeBuildRunner.swift; sourceTree = "<group>"; };
+		39f6c64a70597fef62118053 /* SDKCodeDocument.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SDKCodeDocument.swift; sourceTree = "<group>"; };
+		394e6c1035a415f299b6daac /* SDKCodeEditorState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SDKCodeEditorState.swift; sourceTree = "<group>"; };
+		d97fa7d7b9ed6197593a5f83 /* SDKCodeFileNode.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SDKCodeFileNode.swift; sourceTree = "<group>"; };
+		96c83194d8dc3ff7d0eadfcd /* SDKCodeLanguage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SDKCodeLanguage.swift; sourceTree = "<group>"; };
+		558455d42e246a63ff8c7ddf /* SDKConsoleEntry.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SDKConsoleEntry.swift; sourceTree = "<group>"; };
+		72bd6fa5be14ecf8be47e2bc /* SDKKeywordHighlighter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SDKKeywordHighlighter.swift; sourceTree = "<group>"; };
+		7b8067a6c68f2446857ffe27 /* SDKStudioCodeEditorSection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SDKStudioCodeEditorSection.swift; sourceTree = "<group>"; };
+		1b0ecf7bc6f06a5630e30272 /* SDKSyntaxHighlighter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SDKSyntaxHighlighter.swift; sourceTree = "<group>"; };
+		fb05294640f4386ca72776ff /* SDKCodeConsoleView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SDKCodeConsoleView.swift; sourceTree = "<group>"; };
+		1c1e6e78b2626519bc8b184f /* SDKCodeEditorShellView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SDKCodeEditorShellView.swift; sourceTree = "<group>"; };
+		71398088462c32522a8f9383 /* SDKCodeEditorTabBarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SDKCodeEditorTabBarView.swift; sourceTree = "<group>"; };
+		2714bc09eff3b93bb368f90c /* SDKCodeEditorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SDKCodeEditorView.swift; sourceTree = "<group>"; };
+		3e6c139ed580880708914933 /* SDKCodeFileNavigatorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SDKCodeFileNavigatorView.swift; sourceTree = "<group>"; };
+		518dcbeda1be033d3acc7bb1 /* SDKCodeFindBarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SDKCodeFindBarView.swift; sourceTree = "<group>"; };
+		0cb34a27a52fda3ab816b636 /* SDKCodeFindCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SDKCodeFindCoordinator.swift; sourceTree = "<group>"; };
+		15ba53bcb249f6bc3519c4d2 /* SDKCodeProjectRootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SDKCodeProjectRootView.swift; sourceTree = "<group>"; };
+		e2d120e4647910de4cc3d299 /* SDKCodeSnippetLibraryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SDKCodeSnippetLibraryView.swift; sourceTree = "<group>"; };
+		d28a34f03dc988bb60d35229 /* SDKCodeBuildRunView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SDKCodeBuildRunView.swift; sourceTree = "<group>"; };
+		ebff2051be203957cc428feb /* snippets.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = snippets.json; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -9566,6 +9634,7 @@
 		4e16daf4694a914601d6f7c9 /* SDK */ = {
 			isa = PBXGroup;
 			children = (
+				430f20af973bde8b691c6f7b /* TypeScript */,
 				1014ad71b4934bce4d05135b /* Contracts */,
 				c64104b493a886b9648c7cfe /* Host */,
 				5d8e0320750093895bba3565 /* Runtime */,
@@ -9613,6 +9682,8 @@
 		7c6d5c28daa0e9e580dc99c1 /* Protocol */ = {
 			isa = PBXGroup;
 			children = (
+				f99145b760dcfb4c84af6556 /* SDKCloudModelContracts.swift */,
+				8a44d0a2350784d93d0eb3d1 /* SDKTerminalContracts.swift */,
 				1c08cd6a7d15301fd1d1c37a /* SDKProjectInfo.swift */,
 				b7cc294bc5a9b286f295c5b5 /* SDKSourceControlContracts.swift */,
 				8bb2a0ba2e356f7bfac551a3 /* SDKBuildContracts.swift */,
@@ -9626,6 +9697,9 @@
 		c64104b493a886b9648c7cfe /* Host */ = {
 			isa = PBXGroup;
 			children = (
+				8fa42a2f8e1754cbd954e7ee /* ViewOpener */,
+				0ebba1e5066b731541466116 /* SDKBootstrap.swift */,
+				0f9b83c174e5267124aa8348 /* ScopesIDLists.swift */,
 				5112bc67d5d1af6adeaa93fd /* ExtensionRegistry */,
 				1AFEE2DD6AA3DA8C12B6B260 /* CapabilityBroker */,
 				75DE7BAC842A2BA0E06F3DD6 /* APIKeys */,
@@ -9650,6 +9724,8 @@
 		6867F8539DC139E59D8813F8 /* ServiceAdapters */ = {
 			isa = PBXGroup;
 			children = (
+				f33a27843b0efc2c213dfd05 /* Terminal */,
+				4cc8c7c07fbc81953d0f4477 /* CloudModel */,
 				C9C3E89B26610B27E48070DC /* SourceControl */,
 				C3FBB77BD4424CBE60CAD77E /* Build */,
 			);
@@ -9797,6 +9873,7 @@
 		75DE7BAC842A2BA0E06F3DD6 /* APIKeys */ = {
 			isa = PBXGroup;
 			children = (
+				5908b02675a551a18dc9f2bc /* SDKAPIKeySessionAuth.swift */,
 				217A0D9102742676168DF1F3 /* SDKAPIKey.swift */,
 				57B860072DA9BB42608704E6 /* SDKKeychain.swift */,
 				9BE39BB6CBBA7FAF9F3760B6 /* SDKAPIKeyStore.swift */,
@@ -9863,6 +9940,7 @@
 		B7737D891448A089F91BAD86 /* Studio */ = {
 			isa = PBXGroup;
 			children = (
+				b9be9c8885521dc8c4e3e24c /* CodeEditor */,
 				F8F51D5576F1C1E6A365B09C /* SDKStudioSection.swift */,
 				72D7E1544DAB48FC0DDDD353 /* SDKStudioWindowManager.swift */,
 				188988C0E48974E8882574BC /* Views */,
@@ -9874,6 +9952,7 @@
 		188988C0E48974E8882574BC /* Views */ = {
 			isa = PBXGroup;
 			children = (
+				d28a34f03dc988bb60d35229 /* SDKCodeBuildRunView.swift */,
 				69AE14E8B3C5EB654226CFB4 /* SDKStudioView.swift */,
 				7261E59682DCF7B1D22C4197 /* SDKStudioProjectsView.swift */,
 				3B93C640CF6B39CE3F3E30E6 /* SDKStudioExtensionsView.swift */,
@@ -9884,6 +9963,92 @@
 			);
 			name = Views;
 			path = Views;
+			sourceTree = "<group>";
+		};
+		8fa42a2f8e1754cbd954e7ee /* ViewOpener */ = {
+			isa = PBXGroup;
+			children = (
+				68f7ebe835d4147602afce7e /* SDKViewOpener.swift */,
+				475a8d3a48eaf715157cfc76 /* SDKViewOpenerBuiltIns.swift */,
+				61b19f12ce6806b341337c91 /* SDKViewOpenerSupport.swift */,
+				9b90701206ae1a549d471d4e /* SDKCIWorkflowViewOpener.swift */,
+				c6ab3c26da4e2240f96aa4d1 /* SDKVirtualizationViewOpener.swift */,
+				079559b7232f0ed3de573ce6 /* SDKLivePreviewViewOpener.swift */,
+			);
+			name = ViewOpener;
+			path = ViewOpener;
+			sourceTree = "<group>";
+		};
+		4cc8c7c07fbc81953d0f4477 /* CloudModel */ = {
+			isa = PBXGroup;
+			children = (
+				fe2ae3d7389d2f4c56b81c13 /* SDKCloudModelAdapter.swift */,
+			);
+			name = CloudModel;
+			path = CloudModel;
+			sourceTree = "<group>";
+		};
+		f33a27843b0efc2c213dfd05 /* Terminal */ = {
+			isa = PBXGroup;
+			children = (
+				82e43fd0b3036f06dfef3399 /* SDKSandboxedTerminal.swift */,
+			);
+			name = Terminal;
+			path = Terminal;
+			sourceTree = "<group>";
+		};
+		b9be9c8885521dc8c4e3e24c /* CodeEditor */ = {
+			isa = PBXGroup;
+			children = (
+				ccf7a485d22e2350462e1bdb /* Views */,
+				24d46599405e8eb3ad6b2dc8 /* SDKBuildRunRequest.swift */,
+				c6baad3f66f738446ac43ae7 /* SDKCodeBuildRunner.swift */,
+				39f6c64a70597fef62118053 /* SDKCodeDocument.swift */,
+				394e6c1035a415f299b6daac /* SDKCodeEditorState.swift */,
+				d97fa7d7b9ed6197593a5f83 /* SDKCodeFileNode.swift */,
+				96c83194d8dc3ff7d0eadfcd /* SDKCodeLanguage.swift */,
+				558455d42e246a63ff8c7ddf /* SDKConsoleEntry.swift */,
+				72bd6fa5be14ecf8be47e2bc /* SDKKeywordHighlighter.swift */,
+				7b8067a6c68f2446857ffe27 /* SDKStudioCodeEditorSection.swift */,
+				1b0ecf7bc6f06a5630e30272 /* SDKSyntaxHighlighter.swift */,
+			);
+			name = CodeEditor;
+			path = CodeEditor;
+			sourceTree = "<group>";
+		};
+		ccf7a485d22e2350462e1bdb /* Views */ = {
+			isa = PBXGroup;
+			children = (
+				fb05294640f4386ca72776ff /* SDKCodeConsoleView.swift */,
+				1c1e6e78b2626519bc8b184f /* SDKCodeEditorShellView.swift */,
+				71398088462c32522a8f9383 /* SDKCodeEditorTabBarView.swift */,
+				2714bc09eff3b93bb368f90c /* SDKCodeEditorView.swift */,
+				3e6c139ed580880708914933 /* SDKCodeFileNavigatorView.swift */,
+				518dcbeda1be033d3acc7bb1 /* SDKCodeFindBarView.swift */,
+				0cb34a27a52fda3ab816b636 /* SDKCodeFindCoordinator.swift */,
+				15ba53bcb249f6bc3519c4d2 /* SDKCodeProjectRootView.swift */,
+				e2d120e4647910de4cc3d299 /* SDKCodeSnippetLibraryView.swift */,
+			);
+			name = Views;
+			path = Views;
+			sourceTree = "<group>";
+		};
+		430f20af973bde8b691c6f7b /* TypeScript */ = {
+			isa = PBXGroup;
+			children = (
+				26a70d63f80bba9f342982c2 /* package */,
+			);
+			name = TypeScript;
+			path = TypeScript;
+			sourceTree = "<group>";
+		};
+		26a70d63f80bba9f342982c2 /* package */ = {
+			isa = PBXGroup;
+			children = (
+				ebff2051be203957cc428feb /* snippets.json */,
+			);
+			name = package;
+			path = package;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -10902,6 +11067,7 @@
 				F5F8B2052E2DD6BA69FA6589 /* xzoom.txt in Resources */,
 				F5F8BCAA8E945889ED30AB8A /* zlib-acknowledgement.txt in Resources */,
 				2d8ac922c9c89dd26cfcab38 /* SwiftCodeSDK.json in Resources */,
+				c31bf70d0f80bb034190e5d6 /* snippets.json in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -12675,6 +12841,39 @@
 				FA760F41FC93C79274D4F706 /* SDKIPCDispatcher.swift in Sources */,
 				DBC78209AE01473EE6B29EB7 /* SDKExtensionRegistry.swift in Sources */,
 				FEB502AF674F6E993CCAF980 /* SDKCommandRegistry.swift in Sources */,
+				e40fcdbc3943856786332af3 /* SDKCloudModelContracts.swift in Sources */,
+				8379a649e45ebd740951f905 /* SDKTerminalContracts.swift in Sources */,
+				c3a047062aa1178c9dce97ee /* SDKBootstrap.swift in Sources */,
+				bf77b2d768e6fed7ea88a014 /* ScopesIDLists.swift in Sources */,
+				8b47952ee99c84b184f454a9 /* SDKAPIKeySessionAuth.swift in Sources */,
+				980e0e68fd8f1c151876b93e /* SDKCloudModelAdapter.swift in Sources */,
+				576dfcd4b2a24dcfe0093fb4 /* SDKSandboxedTerminal.swift in Sources */,
+				63063120929f493f47928728 /* SDKViewOpener.swift in Sources */,
+				552d200341705fd4b1164de2 /* SDKViewOpenerBuiltIns.swift in Sources */,
+				f1744d069f68c9e44495db96 /* SDKViewOpenerSupport.swift in Sources */,
+				43d35137f46ac1c51a53f6bc /* SDKCIWorkflowViewOpener.swift in Sources */,
+				2975408e67e0bafba5799bc1 /* SDKVirtualizationViewOpener.swift in Sources */,
+				760cd774eae2e370b6ec906c /* SDKLivePreviewViewOpener.swift in Sources */,
+				0afa6f58de559a299e769b3f /* SDKBuildRunRequest.swift in Sources */,
+				256c49223ae0cb77b7a43f38 /* SDKCodeBuildRunner.swift in Sources */,
+				cfe1a0dc438ab295b67216e5 /* SDKCodeDocument.swift in Sources */,
+				327c06924e1f596a162009f4 /* SDKCodeEditorState.swift in Sources */,
+				d64196071420e02f9a112acc /* SDKCodeFileNode.swift in Sources */,
+				3e9d2246d626aff04faede66 /* SDKCodeLanguage.swift in Sources */,
+				ed12e75c447aa74019af1f9b /* SDKConsoleEntry.swift in Sources */,
+				95bd49fe2e09f4c064843174 /* SDKKeywordHighlighter.swift in Sources */,
+				0904c47704e5c2420bdc3d81 /* SDKStudioCodeEditorSection.swift in Sources */,
+				18b2aca03671daf5d14ea9e0 /* SDKSyntaxHighlighter.swift in Sources */,
+				3a7c2e2f5f20ba1857ed9673 /* SDKCodeConsoleView.swift in Sources */,
+				4a7cd18e57721625cc579a4e /* SDKCodeEditorShellView.swift in Sources */,
+				2cf4f1c3e6b80b7e6c87e43c /* SDKCodeEditorTabBarView.swift in Sources */,
+				6dd8b102d46cf38ac8b674d4 /* SDKCodeEditorView.swift in Sources */,
+				8ed0f489338e9746a3572b91 /* SDKCodeFileNavigatorView.swift in Sources */,
+				06a4d0501e37f6ea8d88f79f /* SDKCodeFindBarView.swift in Sources */,
+				df449597620ce1d845a36e99 /* SDKCodeFindCoordinator.swift in Sources */,
+				069d1804e2c541699b16c383 /* SDKCodeProjectRootView.swift in Sources */,
+				370d8ec142492747144cb2b5 /* SDKCodeSnippetLibraryView.swift in Sources */,
+				9da18f80aff07f14e21e36f6 /* SDKCodeBuildRunView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
