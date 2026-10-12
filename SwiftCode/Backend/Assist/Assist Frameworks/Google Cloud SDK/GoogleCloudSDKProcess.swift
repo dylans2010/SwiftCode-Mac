@@ -162,7 +162,11 @@ public actor GoogleCloudSDKProcess {
         // which is @MainActor) because this runs on the process actor.
         let googleAuthMode = UserDefaults.standard.string(forKey: "assist_google_auth_mode") ?? "google_oauth"
         let isOAuthMode = googleAuthMode == "google_oauth"
-        if let oauthToken = try await GoogleAccountAuthService.shared.getValidAccessToken(), !oauthToken.isEmpty {
+        // M-10: GOOGLE_OAUTH_ACCESS_TOKEN is only injected in OAuth mode. In
+        // API-key mode a lingering valid OAuth token in the process
+        // environment would otherwise hijack sessions Swift explicitly
+        // configured for API-key auth (credential-kind separation).
+        if isOAuthMode, let oauthToken = try await GoogleAccountAuthService.shared.getValidAccessToken(), !oauthToken.isEmpty {
             env["GOOGLE_OAUTH_ACCESS_TOKEN"] = oauthToken
         } else if !isOAuthMode, let apiKey = KeychainService.shared.get(forKey: LLMProvider.google.keychainKey), !apiKey.isEmpty {
             env["GEMINI_API_KEY"] = apiKey

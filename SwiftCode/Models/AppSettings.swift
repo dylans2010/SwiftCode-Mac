@@ -84,6 +84,10 @@ class AppSettings: ObservableObject {
         didSet {
             debouncedSave("alternativeKeysEnabled", alternativeKeysEnabled)
             UserDefaults.standard.set(alternativeKeysEnabled, forKey: "assist.alternativeKeysEnabled")
+            // M-4: toggling key rotation changes which credentials back the
+            // Google provider — drop the discovery cache so a removed key
+            // stops advertising its models immediately.
+            Task { await AssistModelDiscoveryService.shared.discoverAllModels(forceRefresh: true) }
         }
     }
 
@@ -138,6 +142,17 @@ class AppSettings: ObservableObject {
     }
     @Published var customModel: String {
         didSet { debouncedSave("customModel", customModel) }
+    }
+    /// Explicit provider for the free-text custom model ID. The custom-model
+    /// record's providerID is resolved from this setting (or an exact
+    /// SDK-catalog match) — never inferred from the model name. Defaults to
+    /// Google so an authenticated Google session is never dropped for want of
+    /// a catalog entry. (C-2)
+    @Published var customModelProviderID: String {
+        didSet {
+            debouncedSave("assist_custom_model_provider_id", customModelProviderID)
+            UserDefaults.standard.set(customModelProviderID, forKey: "assist_custom_model_provider_id")
+        }
     }
     @Published var selectedAssistModelID: String {
         didSet {
@@ -372,6 +387,7 @@ class AppSettings: ObservableObject {
         antigravityExecutionMode = UserDefaults.standard.string(forKey: "antigravity_execution_mode") ?? "bridge"
         selectedModel = UserDefaults.standard.string(forKey: "selectedModel") ?? "openai/gpt-4o"
         customModel   = UserDefaults.standard.string(forKey: "customModel") ?? ""
+        customModelProviderID = UserDefaults.standard.string(forKey: "assist_custom_model_provider_id") ?? "google"
         selectedAssistModelID = UserDefaults.standard.string(forKey: "selectedAssistModelID") ?? AssistModelOption.swiftCodeBalanced.id
         autoSave = UserDefaults.standard.object(forKey: "autoSave") as? Bool ?? true
         editorFontSize = UserDefaults.standard.object(forKey: "editorFontSize") as? Double ?? 14
