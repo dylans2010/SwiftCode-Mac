@@ -321,23 +321,23 @@ public final class AssistModelDiscoveryService: Sendable {
         let isOauthActive = GoogleAccountAuthService.shared.isAuthenticated
 
         guard !trimmedKey.isEmpty || (isOauthActive && oauthToken != nil) else {
-            return []
+            return await fallbackAntigravityModels()
         }
 
         var request: URLRequest
         if !trimmedKey.isEmpty {
             guard let url = URL(string: "https://generativelanguage.googleapis.com/v1beta/models?pageSize=1000&key=\(trimmedKey)") else {
-                return []
+                return await fallbackAntigravityModels()
             }
             request = URLRequest(url: url)
         } else if let token = oauthToken {
             guard let url = URL(string: "https://generativelanguage.googleapis.com/v1beta/models?pageSize=1000") else {
-                return []
+                return await fallbackAntigravityModels()
             }
             request = URLRequest(url: url)
             request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
         } else {
-            return []
+            return await fallbackAntigravityModels()
         }
 
         request.httpMethod = "GET"
@@ -349,7 +349,7 @@ public final class AssistModelDiscoveryService: Sendable {
                 if let httpResponse = response as? HTTPURLResponse {
                     logger.warning("Gemini model discovery returned HTTP \(httpResponse.statusCode)")
                 }
-                return []
+                return await fallbackAntigravityModels()
             }
 
             struct GeminiListResponse: Codable {
@@ -409,16 +409,13 @@ public final class AssistModelDiscoveryService: Sendable {
                 )
             }
 
-            if results.isEmpty && isOauthActive {
+            if results.isEmpty {
                 return await fallbackAntigravityModels()
             }
             return results
         } catch {
             logger.error("Gemini model discovery error: \(error.localizedDescription)")
-            if isOauthActive {
-                return await fallbackAntigravityModels()
-            }
-            return []
+            return await fallbackAntigravityModels()
         }
     }
 

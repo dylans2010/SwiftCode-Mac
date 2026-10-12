@@ -263,7 +263,34 @@ public final class AssistModelRouter: Sendable {
                 // Ensure default SDK models are always present even before provider sync completes
                 baseModels = Self.sdkDefaultModelIDs.map { createSyntheticSDKModel(modelID: $0) }
             } else {
-                baseModels = filtered
+                // Ensure all filtered SDK default models are marked as configured and agentic
+                baseModels = filtered.map { model in
+                    if model.isConfigured && model.supportsAgenticUse && model.supportsToolCalling {
+                        return model
+                    }
+                    return AssistAvailableModel(
+                        id: model.id,
+                        displayName: model.displayName,
+                        providerID: model.providerID,
+                        providerName: model.providerName,
+                        modelIdentifier: model.modelIdentifier,
+                        capabilities: model.capabilities.union([.streaming, .toolCalling, .vision, .structuredOutput, .subagents]),
+                        source: model.source,
+                        isConfigured: true,
+                        isAvailable: true,
+                        supportsStreaming: model.supportsStreaming,
+                        supportsToolCalling: true,
+                        supportsVision: model.supportsVision,
+                        supportsStructuredOutput: model.supportsStructuredOutput,
+                        supportsAgenticUse: true,
+                        supportsSubagents: model.supportsSubagents,
+                        priority: model.priority,
+                        statusDescription: model.statusDescription,
+                        status: .available,
+                        contextWindow: model.contextWindow,
+                        endpointURL: model.endpointURL
+                    )
+                }
             }
         } else {
             // App Model Catalog: try ALL models from the Available Models card
