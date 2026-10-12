@@ -118,33 +118,66 @@ public final class GoogleAccountAuthService: NSObject, ObservableObject {
         61, 110, 106, 105, 63, 42, 116, 59, 42, 42, 41, 116, 61, 53, 53, 61, 54, 63, 47, 41,
         63, 40, 57, 53, 52, 46, 63, 52, 46, 116, 57, 53, 55
     ])
+    /// Scopes requested by SwiftCode's own "Sign in with Google" flow, per
+    /// the Gemini Developer API's documented OAuth contract
+    /// (https://ai.google.dev/gemini-api/docs/oauth): an access token without
+    /// generative-language.retriever is rejected with 403
+    /// ACCESS_TOKEN_SCOPE_INSUFFICIENT on generativelanguage.googleapis.com.
+    ///
+    /// These scopes are only requestable with an OAuth client you own.
+    /// Google's first-party clients (including the Antigravity IDE client this
+    /// app previously borrowed) do not have the generative-language.* scopes
+    /// registered, so the authorization server rejects the request outright
+    /// with "Unregistered scope(s) in the request" (Error 403:
+    /// restricted_client). The Antigravity-IDE-internal scopes (cclog,
+    /// experimentsandconfigs, aicode) are intentionally not requested here:
+    /// they belong to Google's IDE, not to Developer API usage, and would only
+    /// widen the consent screen on a personal client.
     public static let requiredScopes = [
         "https://www.googleapis.com/auth/cloud-platform",
-        // Required by the Gemini Developer API's documented OAuth contract:
-        // an OAuth access token without this scope is rejected with
-        // 403 ACCESS_TOKEN_SCOPE_INSUFFICIENT on generativelanguage.googleapis.com.
-        // See https://ai.google.dev/gemini-api/docs/oauth
         "https://www.googleapis.com/auth/generative-language.retriever",
         "https://www.googleapis.com/auth/userinfo.email",
         "https://www.googleapis.com/auth/userinfo.profile",
-        "https://www.googleapis.com/auth/cclog",
-        "https://www.googleapis.com/auth/experimentsandconfigs",
-        "https://www.googleapis.com/auth/aicode",
         "openid"
     ]
     private var scopes: String {
         Self.requiredScopes.joined(separator: " ")
     }
 
-    private var clientID: String {
+    /// A user-owned OAuth client ID for SwiftCode's own sign-in flow.
+    /// Resolution order: Settings field -> GOOGLE_CLIENT_ID env ->
+    /// GOOGLE_CLIENT_ID Info.plist -> nil (not configured).
+    public var customOAuthClientID: String? {
+        let configured = AppSettings.shared.assistGoogleClientID.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !configured.isEmpty { return configured }
         if let env = ProcessInfo.processInfo.environment["GOOGLE_CLIENT_ID"], !env.isEmpty {
             return env
         }
         if let info = Bundle.main.infoDictionary?["GOOGLE_CLIENT_ID"] as? String, !info.isEmpty {
             return info
         }
-        // Public PKCE client ID for Google Antigravity IDE & developer tools
-        return Self.antigravityClientID
+        return nil
+    }
+
+    /// Whether SwiftCode's own sign-in flow can run. Google rejects the
+    /// Developer API scopes on any OAuth client SwiftCode does not own
+    /// ("Unregistered scope(s) in the request", Error 403:
+    /// restricted_client), so without a user-owned client the authorization
+    /// request can never succeed and sign-in is gated on this.
+    public var isCustomOAuthClientConfigured: Bool { customOAuthClientID != nil }
+
+    /// Set when sign-in is attempted without a configured OAuth client, so
+    /// the UI can present the client-setup guide instead of a dead session.
+    @Published public private(set) var needsOAuthClientSetup = false
+
+    public func dismissOAuthClientSetup() { needsOAuthClientSetup = false }
+
+    private var clientID: String {
+        // The Antigravity fallback below is retained only for refreshing
+        // previously imported CLI credentials minted against it. SwiftCode's
+        // own sign-in flow is gated on isCustomOAuthClientConfigured and
+        // never reaches the authorization server with the borrowed client.
+        customOAuthClientID ?? Self.antigravityClientID
     }
 
     /// Client secret override for a user-configured confidential OAuth client.
@@ -294,6 +327,17 @@ public final class GoogleAccountAuthService: NSObject, ObservableObject {
 
     public func signIn() {
         guard !isAuthenticating else { return }
+
+        // Google rejects the Developer API scopes on any OAuth client
+        // SwiftCode does not own ("Unregistered scope(s) in the request",
+        // Error 403: restricted_client). Opening the authorization session
+        // without a configured client can never succeed, so surface the
+        // setup guide instead of a dead session.
+        guard isCustomOAuthClientConfigured else {
+            needsOAuthClientSetup = true
+            return
+        }
+        needsOAuthClientSetup = false
 
         authError = nil
         isAuthenticating = true
@@ -538,7 +582,7 @@ public final class GoogleAccountAuthService: NSObject, ObservableObject {
             if !refreshToken.isEmpty || (accessToken != nil && !accessToken!.isEmpty) {
                 let clientID = (json["client_id"] as? String) ?? Self.antigravityClientID
                 let clientSecret = json["client_secret"] as? String
-                let scopes = (json["scopes"] as? [String]) ?? Self.requiredScopes
+                let scopes = (json["scopes"] as? [String]) ?? [] // Unknown: never fabricate granted scopes.
                 return AntigravityCredentials(
                     clientID: clientID,
                     clientSecret: clientSecret,
@@ -553,7 +597,7 @@ public final class GoogleAccountAuthService: NSObject, ObservableObject {
         if let refreshToken = json["refresh_token"] as? String, !refreshToken.isEmpty {
             let clientID = (json["client_id"] as? String) ?? Self.antigravityClientID
             let clientSecret = json["client_secret"] as? String
-            let scopes = (json["scopes"] as? [String]) ?? Self.requiredScopes
+            let scopes = (json["scopes"] as? [String]) ?? [] // Unknown: never fabricate granted scopes.
             let accessToken = json["access_token"] as? String
             return AntigravityCredentials(
                 clientID: clientID,
