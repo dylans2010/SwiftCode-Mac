@@ -95,7 +95,7 @@ public actor GoogleCloudSDKBridge {
         try await start()
         var params = config.toDictionary()
         params["sessionId"] = sessionId
-        return try await transport.sendRequest(method: "session.create", params: params, timeout: 30.0)
+        return try await transport.sendRequest(method: "session.create", params: params, timeout: 60.0)
     }
 
     /// Resumes an existing agent session.
@@ -103,7 +103,7 @@ public actor GoogleCloudSDKBridge {
         try await start()
         var params = config.toDictionary()
         params["sessionId"] = sessionId
-        return try await transport.sendRequest(method: "session.resume", params: params, timeout: 30.0)
+        return try await transport.sendRequest(method: "session.resume", params: params, timeout: 60.0)
     }
 
     /// Closes an active agent session.
