@@ -36,15 +36,17 @@
 - Keep `ScopesIDLists.ts` (`SwiftCode/SDK/TypeScript/package/src/`) and `ScopesIDLists.swift`
   (`SwiftCode/SDK/Host/`) in sync — the two-way sync test must stay green when adding IDs.
 
-## 2. Task 1 — Installable package + GitHub Releases distribution
+## 2. Task 1 — Installable package + GitHub distribution (PARTIALLY DONE — 2026-10-12)
 
-- `SwiftCode/SDK/TypeScript/package/package.json` must be a proper publishable manifest: name `@swiftcode/sdk`,
+- `SwiftCode/SDK/TypeScript/package/package.json` is a proper publishable manifest: name `@swiftcode/sdk`,
   version, `files`, `exports`, `bin` entries for the CLI (`swiftcode`), `engines` (node >= 18).
-- `npm pack` in the package dir must produce a real, complete tarball (package + runtime adapter + CLI + templates
-  + snippets + ScopesIDLists — everything a user needs, nothing hand-edited after install).
-- Distribution decision (Dylan confirmed): **GitHub Releases, no npm registry.** Release process:
-  `npm pack` → attach `swiftcode-sdk-<version>.tgz` to a GitHub Release tagged `sdk-v<version>` on
-  `dylans2010/SwiftCode-Mac`. Document the exact commands in `SwiftCode/SDK/Documentation/`.
+- **Distribution is LIVE:** the packed tarball is committed at `SwiftCode/SDK/Distribution/swiftcode-sdk-1.0.0.tgz`
+  (41 KB, 23 files) and served from the `sdk-v1.0.0` tag + GitHub Release ("SwiftCode SDK v1.0.0"). Install link —
+  verified working with stock node via `npm install <url>`, no registry, no auth:
+  `https://raw.githubusercontent.com/dylans2010/SwiftCode-Mac/sdk-v1.0.0/SwiftCode/SDK/Distribution/swiftcode-sdk-1.0.0.tgz`
+- Note: the Release carries no attached asset (asset upload to uploads.github.com is unreachable from this
+  environment); the committed tarball served over raw.githubusercontent IS the distribution artifact.
+- Remaining for the future agent: version-bump process (re-pack → commit tarball → move tag → update Release body).
 
 ## 3. Task 2 — Studio first-launch SDK installer
 
