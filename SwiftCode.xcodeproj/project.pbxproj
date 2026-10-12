@@ -681,10 +681,10 @@
 		7A20F6F63E6D6DF3FDDA9B48 /* Paper.json in Resources */ = {isa = PBXBuildFile; fileRef = E715162B5187267B8824C56F /* Paper.json */; };
 		7A36AB0EF529D40F7C289A73 /* GistModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1BEBC4E21BD07431556CE6A6 /* GistModels.swift */; };
 		7A73B923B0864FFFBAE12027 /* ListDirectory.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3E4275F7E1A94E06B4883EA5 /* ListDirectory.swift */; };
-		7A810247C000000000000000 /* ../../Shared/Markdown/MarkdownBlockRenderer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A810247C000000000000001 /* ../../Shared/Markdown/MarkdownBlockRenderer.swift */; };
-		7A810247C000000000000002 /* ../../Shared/Markdown/MarkdownRenderCache.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A810247C000000000000003 /* ../../Shared/Markdown/MarkdownRenderCache.swift */; };
-		7A810247C000000000000004 /* ../../Shared/Markdown/MarkdownRenderOptions.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A810247C000000000000005 /* ../../Shared/Markdown/MarkdownRenderOptions.swift */; };
-		7A810247C000000000000006 /* ../../Shared/Markdown/MarkdownRenderer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A810247C000000000000007 /* ../../Shared/Markdown/MarkdownRenderer.swift */; };
+		7A810247C000000000000000 /* MarkdownBlockRenderer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A810247C000000000000001 /* MarkdownBlockRenderer.swift */; };
+		7A810247C000000000000002 /* MarkdownRenderCache.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A810247C000000000000003 /* MarkdownRenderCache.swift */; };
+		7A810247C000000000000004 /* MarkdownRenderOptions.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A810247C000000000000005 /* MarkdownRenderOptions.swift */; };
+		7A810247C000000000000006 /* MarkdownRenderer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A810247C000000000000007 /* MarkdownRenderer.swift */; };
 		7A810247C000000000000008 /* AIInsight.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A810247C000000000000009 /* AIInsight.swift */; };
 		7A810247C00000000000000A /* AnalyticsSnapshot.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A810247C00000000000000B /* AnalyticsSnapshot.swift */; };
 		7A810247C00000000000000C /* AttachmentRecord.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A810247C00000000000000D /* AttachmentRecord.swift */; };
@@ -996,14 +996,14 @@
 		A076FB17D482BC82D4A1517B /* Core/DatabaseCache.swift in Sources */ = {isa = PBXBuildFile; fileRef = F71B8247C9EA48313094E708 /* Core/DatabaseCache.swift */; };
 		A0BA2C8FB101493EA10980EB /* AppSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = E18B61526A0145AA9590C9AE /* AppSettings.swift */; };
 		A0DA5FCE92D7E2F9E66BB1DF /* AssistUndoTool.swift in Sources */ = {isa = PBXBuildFile; fileRef = ADFCB86A4E56A1291BADE584 /* AssistUndoTool.swift */; };
-		A1000001B001000100000001 /* SwiftCode/Backend/Assist/AssistRequestMetrics.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1000001F001000100000001 /* SwiftCode/Backend/Assist/AssistRequestMetrics.swift */; };
-		A1000002B001000100000002 /* SwiftCode/Backend/Assist/AssistTaskContext.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1000002F001000100000002 /* SwiftCode/Backend/Assist/AssistTaskContext.swift */; };
-		A1000003B001000100000003 /* SwiftCode/Backend/Assist/Tools/search_skills.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1000003F001000100000003 /* SwiftCode/Backend/Assist/Tools/search_skills.swift */; };
-		A1000004B001000100000004 /* SwiftCode/Core/AI/Agent/Skills/SkillDescriptor.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1000004F001000100000004 /* SwiftCode/Core/AI/Agent/Skills/SkillDescriptor.swift */; };
-		A1000005B001000100000005 /* SwiftCode/Core/AI/Agent/Skills/SkillDiscoveryService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1000005F001000100000005 /* SwiftCode/Core/AI/Agent/Skills/SkillDiscoveryService.swift */; };
-		A1000006B001000100000006 /* SwiftCode/Core/AI/Agent/Skills/SkillIndex.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1000006F001000100000006 /* SwiftCode/Core/AI/Agent/Skills/SkillIndex.swift */; };
-		A1000007B001000100000007 /* SwiftCode/Views/Assist/AssistComposerPopup.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1000007F001000100000007 /* SwiftCode/Views/Assist/AssistComposerPopup.swift */; };
-		A1000008B001000100000008 /* SwiftCode/Views/Settings/Skills/ModernSkillsBrowserView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1000008F001000100000008 /* SwiftCode/Views/Settings/Skills/ModernSkillsBrowserView.swift */; };
+		A1000001B001000100000001 /* AssistRequestMetrics.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1000001F001000100000001 /* AssistRequestMetrics.swift */; };
+		A1000002B001000100000002 /* AssistTaskContext.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1000002F001000100000002 /* AssistTaskContext.swift */; };
+		A1000003B001000100000003 /* search_skills.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1000003F001000100000003 /* search_skills.swift */; };
+		A1000004B001000100000004 /* SkillDescriptor.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1000004F001000100000004 /* SkillDescriptor.swift */; };
+		A1000005B001000100000005 /* SkillDiscoveryService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1000005F001000100000005 /* SkillDiscoveryService.swift */; };
+		A1000006B001000100000006 /* SkillIndex.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1000006F001000100000006 /* SkillIndex.swift */; };
+		A1000007B001000100000007 /* AssistComposerPopup.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1000007F001000100000007 /* AssistComposerPopup.swift */; };
+		A1000008B001000100000008 /* ModernSkillsBrowserView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1000008F001000100000008 /* ModernSkillsBrowserView.swift */; };
 		A103C2E17C0E538256C7278E /* LogConsoleView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 26A2214B1EA1974C9709B778 /* LogConsoleView.swift */; };
 		A103ECEB1B513C24542737E1 /* SearchDocumentationView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EC4978018A58A635B164593E /* SearchDocumentationView.swift */; };
 		A10DE9AB75E3E283785DD550 /* FileNode.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6291F6B2323D40008CF052F5 /* FileNode.swift */; };
@@ -1198,8 +1198,8 @@
 		B1001014A1001014A1001014 /* ConnectFileService.swift in Sources */ = {isa = PBXBuildFile; fileRef = C1001014A1001014A1001014 /* ConnectFileService.swift */; };
 		B1001015A1001015A1001015 /* ConnectAssistService.swift in Sources */ = {isa = PBXBuildFile; fileRef = C1001015A1001015A1001015 /* ConnectAssistService.swift */; };
 		B1001016A1001016A1001016 /* ConnectDeviceService.swift in Sources */ = {isa = PBXBuildFile; fileRef = C1001016A1001016A1001016 /* ConnectDeviceService.swift */; };
-		B1001017A1001017A1001017 /* SwiftCode/Views/Settings/ConnectSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C1001017A1001017A1001017 /* SwiftCode/Views/Settings/ConnectSettingsView.swift */; };
-		B1001020A1001020A1001020 /* SwiftCode/Views/Settings/ConnectPairingApprovalSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = C1001020A1001020A1001020 /* SwiftCode/Views/Settings/ConnectPairingApprovalSheet.swift */; };
+		B1001017A1001017A1001017 /* ConnectSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C1001017A1001017A1001017 /* ConnectSettingsView.swift */; };
+		B1001020A1001020A1001020 /* ConnectPairingApprovalSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = C1001020A1001020A1001020 /* ConnectPairingApprovalSheet.swift */; };
 		B1001021A1001021A1001021 /* DiscoveredIOSDevice.swift in Sources */ = {isa = PBXBuildFile; fileRef = C1001021A1001021A1001021 /* DiscoveredIOSDevice.swift */; };
 		B1001022A1001022A1001022 /* IOSDiscoveryService.swift in Sources */ = {isa = PBXBuildFile; fileRef = C1001022A1001022A1001022 /* IOSDiscoveryService.swift */; };
 		B1001023A1001023A1001023 /* ConnectDiagnostics.swift in Sources */ = {isa = PBXBuildFile; fileRef = C1001023A1001023A1001023 /* ConnectDiagnostics.swift */; };
@@ -3300,10 +3300,10 @@
 		79C04415E32A9CC3998EC37A /* SimulatorDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SimulatorDetailView.swift; sourceTree = "<group>"; };
 		7A4131BDA0BF4ECAB6AFD89C /* IPAddressInfoView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IPAddressInfoView.swift; sourceTree = "<group>"; };
 		7A6A7D93E7A74C9CB434289A /* JavaMaven.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JavaMaven.swift; sourceTree = "<group>"; };
-		7A810247C000000000000001 /* ../../Shared/Markdown/MarkdownBlockRenderer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ../../Shared/Markdown/MarkdownBlockRenderer.swift; sourceTree = "<group>"; };
-		7A810247C000000000000003 /* ../../Shared/Markdown/MarkdownRenderCache.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ../../Shared/Markdown/MarkdownRenderCache.swift; sourceTree = "<group>"; };
-		7A810247C000000000000005 /* ../../Shared/Markdown/MarkdownRenderOptions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ../../Shared/Markdown/MarkdownRenderOptions.swift; sourceTree = "<group>"; };
-		7A810247C000000000000007 /* ../../Shared/Markdown/MarkdownRenderer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ../../Shared/Markdown/MarkdownRenderer.swift; sourceTree = "<group>"; };
+		7A810247C000000000000001 /* MarkdownBlockRenderer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MarkdownBlockRenderer.swift; sourceTree = "<group>"; };
+		7A810247C000000000000003 /* MarkdownRenderCache.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MarkdownRenderCache.swift; sourceTree = "<group>"; };
+		7A810247C000000000000005 /* MarkdownRenderOptions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MarkdownRenderOptions.swift; sourceTree = "<group>"; };
+		7A810247C000000000000007 /* MarkdownRenderer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MarkdownRenderer.swift; sourceTree = "<group>"; };
 		7A810247C000000000000009 /* AIInsight.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIInsight.swift; sourceTree = "<group>"; };
 		7A810247C00000000000000B /* AnalyticsSnapshot.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AnalyticsSnapshot.swift; sourceTree = "<group>"; };
 		7A810247C00000000000000D /* AttachmentRecord.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AttachmentRecord.swift; sourceTree = "<group>"; };
@@ -3659,14 +3659,14 @@
 		A0F1FD305E21860882673D0F /* SwiftCode/Views/Developer/Virtualization/Core/SCVirtualizationEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SwiftCode/Views/Developer/Virtualization/Core/SCVirtualizationEngine.swift; sourceTree = SOURCE_ROOT; };
 		A0F1FE6837ABC8B391706BDF /* SwiftCode/Views/Developer/Virtualization/UI/SCVirtualizationView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SwiftCode/Views/Developer/Virtualization/UI/SCVirtualizationView.swift; sourceTree = SOURCE_ROOT; };
 		A0FFD30EEF09CA76A2C01D50 /* Models/DatabaseTrigger.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Models/DatabaseTrigger.swift; sourceTree = "<group>"; };
-		A1000001F001000100000001 /* SwiftCode/Backend/Assist/AssistRequestMetrics.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SwiftCode/Backend/Assist/AssistRequestMetrics.swift; sourceTree = SOURCE_ROOT; };
-		A1000002F001000100000002 /* SwiftCode/Backend/Assist/AssistTaskContext.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SwiftCode/Backend/Assist/AssistTaskContext.swift; sourceTree = SOURCE_ROOT; };
-		A1000003F001000100000003 /* SwiftCode/Backend/Assist/Tools/search_skills.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SwiftCode/Backend/Assist/Tools/search_skills.swift; sourceTree = SOURCE_ROOT; };
-		A1000004F001000100000004 /* SwiftCode/Core/AI/Agent/Skills/SkillDescriptor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SwiftCode/Core/AI/Agent/Skills/SkillDescriptor.swift; sourceTree = SOURCE_ROOT; };
-		A1000005F001000100000005 /* SwiftCode/Core/AI/Agent/Skills/SkillDiscoveryService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SwiftCode/Core/AI/Agent/Skills/SkillDiscoveryService.swift; sourceTree = SOURCE_ROOT; };
-		A1000006F001000100000006 /* SwiftCode/Core/AI/Agent/Skills/SkillIndex.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SwiftCode/Core/AI/Agent/Skills/SkillIndex.swift; sourceTree = SOURCE_ROOT; };
-		A1000007F001000100000007 /* SwiftCode/Views/Assist/AssistComposerPopup.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SwiftCode/Views/Assist/AssistComposerPopup.swift; sourceTree = SOURCE_ROOT; };
-		A1000008F001000100000008 /* SwiftCode/Views/Settings/Skills/ModernSkillsBrowserView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SwiftCode/Views/Settings/Skills/ModernSkillsBrowserView.swift; sourceTree = SOURCE_ROOT; };
+		A1000001F001000100000001 /* AssistRequestMetrics.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssistRequestMetrics.swift; sourceTree = "<group>"; };
+		A1000002F001000100000002 /* AssistTaskContext.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssistTaskContext.swift; sourceTree = "<group>"; };
+		A1000003F001000100000003 /* search_skills.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = search_skills.swift; sourceTree = "<group>"; };
+		A1000004F001000100000004 /* SkillDescriptor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SkillDescriptor.swift; sourceTree = "<group>"; };
+		A1000005F001000100000005 /* SkillDiscoveryService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SkillDiscoveryService.swift; sourceTree = "<group>"; };
+		A1000006F001000100000006 /* SkillIndex.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SkillIndex.swift; sourceTree = "<group>"; };
+		A1000007F001000100000007 /* AssistComposerPopup.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssistComposerPopup.swift; sourceTree = "<group>"; };
+		A1000008F001000100000008 /* ModernSkillsBrowserView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModernSkillsBrowserView.swift; sourceTree = "<group>"; };
 		A114197E60D9E765B59FB600 /* ProjectInspector/ProjectInspectorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProjectInspector/ProjectInspectorView.swift; sourceTree = "<group>"; };
 		A132C3AB577BB87EAF7ED11B /* Views/DatabaseImportExportView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Views/DatabaseImportExportView.swift; sourceTree = "<group>"; };
 		A1332B8131E27F86E84CC220 /* SnippetsLibraryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SnippetsLibraryView.swift; sourceTree = "<group>"; };
@@ -3853,7 +3853,6 @@
 		B8D320501619BE7BA05ED7B3 /* CronGeneratorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CronGeneratorView.swift; sourceTree = "<group>"; };
 		B8DD1FD745ECC23DEC52C8C0 /* TextBufferEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TextBufferEngine.swift; sourceTree = "<group>"; };
 		B8F02183BE1140B1B9E4D376 /* CoreModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CoreModels.swift; sourceTree = "<group>"; };
-		B8F5DFA425F117A054A6D071 /* BuildConfiguration.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BuildConfiguration.swift; sourceTree = "<group>"; };
 		B8F81DC5DD48A017149D290B /* GzipCompressorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GzipCompressorView.swift; sourceTree = "<group>"; };
 		B90A14F8825EA8F4E2475C4B /* SwiftLintRunnerExtensionView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SwiftLintRunnerExtensionView.swift; sourceTree = "<group>"; };
 		B92D2DFFD86049CCBCEAA051 /* DiffCheckerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DiffCheckerView.swift; sourceTree = "<group>"; };
@@ -3926,8 +3925,8 @@
 		C1001014A1001014A1001014 /* ConnectFileService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConnectFileService.swift; sourceTree = "<group>"; };
 		C1001015A1001015A1001015 /* ConnectAssistService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConnectAssistService.swift; sourceTree = "<group>"; };
 		C1001016A1001016A1001016 /* ConnectDeviceService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConnectDeviceService.swift; sourceTree = "<group>"; };
-		C1001017A1001017A1001017 /* SwiftCode/Views/Settings/ConnectSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SwiftCode/Views/Settings/ConnectSettingsView.swift; sourceTree = SOURCE_ROOT; };
-		C1001020A1001020A1001020 /* SwiftCode/Views/Settings/ConnectPairingApprovalSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SwiftCode/Views/Settings/ConnectPairingApprovalSheet.swift; sourceTree = SOURCE_ROOT; };
+		C1001017A1001017A1001017 /* ConnectSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConnectSettingsView.swift; sourceTree = "<group>"; };
+		C1001020A1001020A1001020 /* ConnectPairingApprovalSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConnectPairingApprovalSheet.swift; sourceTree = "<group>"; };
 		C1001021A1001021A1001021 /* DiscoveredIOSDevice.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DiscoveredIOSDevice.swift; sourceTree = "<group>"; };
 		C1001022A1001022A1001022 /* IOSDiscoveryService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IOSDiscoveryService.swift; sourceTree = "<group>"; };
 		C1001023A1001023A1001023 /* ConnectDiagnostics.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConnectDiagnostics.swift; sourceTree = "<group>"; };
@@ -5135,10 +5134,10 @@
 		FBB200E77D8947F2430853AC /* AssistAppendFileTool.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssistAppendFileTool.swift; sourceTree = "<group>"; };
 		FBC8670F25314EF19797D25C /* VisualUIAssetsPanel.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = VisualUIAssetsPanel.swift; sourceTree = "<group>"; };
 		FBEBD3A4ABAF787AD20D1524 /* AssistDeleteDirectoryTool.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssistDeleteDirectoryTool.swift; sourceTree = "<group>"; };
-		FC57A09B301F28AE00BD1BCB /* CodingDictionaryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = CodingDictionaryView.swift; path = SwiftCode/Views/Utilities/CodingDictionaryView.swift; sourceTree = "<group>"; };
-		FC57A09D301F28AE00BD1BCD /* CodeDictionarySearch.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = CodeDictionarySearch.swift; path = SwiftCode/Views/Utilities/CodeDictionarySearch.swift; sourceTree = "<group>"; };
-		FC57A09D301F297F00BD1BCB /* DictionaryManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = DictionaryManager.swift; path = SwiftCode/Backend/Dictionary/DictionaryManager.swift; sourceTree = "<group>"; };
-		FC57A09F301F2A8700BD1BCB /* CodingDictionaryModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = CodingDictionaryModels.swift; path = SwiftCode/Backend/Dictionary/CodingDictionaryModels.swift; sourceTree = "<group>"; };
+		FC57A09B301F28AE00BD1BCB /* CodingDictionaryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CodingDictionaryView.swift; sourceTree = "<group>"; };
+		FC57A09D301F28AE00BD1BCD /* CodeDictionarySearch.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CodeDictionarySearch.swift; sourceTree = "<group>"; };
+		FC57A09D301F297F00BD1BCB /* DictionaryManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DictionaryManager.swift; sourceTree = "<group>"; };
+		FC57A09F301F2A8700BD1BCB /* CodingDictionaryModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CodingDictionaryModels.swift; sourceTree = "<group>"; };
 		FD0EFEEFF10842969DB5A893 /* ParseJSON.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ParseJSON.swift; sourceTree = "<group>"; };
 		FD158DEA1E8D463E25C6A4EC /* GistCommentSectionView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GistCommentSectionView.swift; sourceTree = "<group>"; };
 		FD199B0FD6644340A3C609DC /* AgentToolRegistry.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AgentToolRegistry.swift; sourceTree = "<group>"; };
@@ -5458,6 +5457,7 @@
 				BC4ED3821A1E7390B7CFD995 /* AssistWriteFileTool.swift */,
 				D9F800020000000000000001 /* ExecutionPlanTool.swift */,
 				D9F800020000000000000002 /* PlanAskUserTool.swift */,
+				A1000003F001000100000003 /* search_skills.swift */,
 			);
 			path = Tools;
 			sourceTree = "<group>";
@@ -5631,6 +5631,9 @@
 		2132E3AB1A6A49219F9B9F52 /* Skills */ = {
 			isa = PBXGroup;
 			children = (
+				A1000004F001000100000004 /* SkillDescriptor.swift */,
+				A1000005F001000100000005 /* SkillDiscoveryService.swift */,
+				A1000006F001000100000006 /* SkillIndex.swift */,
 			);
 			path = Skills;
 			sourceTree = "<group>";
@@ -5783,6 +5786,7 @@
 				C46493C840B09DCD68F12134 /* AssistPlanView.swift */,
 				8E7952EF405A445030396ECB /* AssistPlannerView.swift */,
 				277B2689C37E945ED7BC0C66 /* AssistUserTakeover.swift */,
+				A1000007F001000100000007 /* AssistComposerPopup.swift */,
 			);
 			path = Assist;
 			sourceTree = "<group>";
@@ -6062,7 +6066,6 @@
 				6AB2D1AD681BC048CB097303 /* BuildDiagnostic.swift */,
 				8AE57462B0B5E506FA9CC059 /* BuildTargetInfo.swift */,
 				978D23E75B01ECDFDDE58E37 /* BuildScheme.swift */,
-				B8F5DFA425F117A054A6D071 /* BuildConfiguration.swift */,
 			);
 			path = Build;
 			sourceTree = "<group>";
@@ -6270,13 +6273,21 @@
 			path = ThreadInspector;
 			sourceTree = "<group>";
 		};
-		550406F186F4791910811394 /* Markdown */ = {
+		64E394B830809520EE287082 /* Shared */ = {
 			isa = PBXGroup;
 			children = (
-				7A810247C000000000000001 /* ../../Shared/Markdown/MarkdownBlockRenderer.swift */,
-				7A810247C000000000000003 /* ../../Shared/Markdown/MarkdownRenderCache.swift */,
-				7A810247C000000000000005 /* ../../Shared/Markdown/MarkdownRenderOptions.swift */,
-				7A810247C000000000000007 /* ../../Shared/Markdown/MarkdownRenderer.swift */,
+				79CC8C1BA1328ED235B615C9 /* Markdown */,
+			);
+			path = Shared;
+			sourceTree = "<group>";
+		};
+		79CC8C1BA1328ED235B615C9 /* Markdown */ = {
+			isa = PBXGroup;
+			children = (
+				7A810247C000000000000001 /* MarkdownBlockRenderer.swift */,
+				7A810247C000000000000003 /* MarkdownRenderCache.swift */,
+				7A810247C000000000000007 /* MarkdownRenderer.swift */,
+				7A810247C000000000000005 /* MarkdownRenderOptions.swift */,
 			);
 			path = Markdown;
 			sourceTree = "<group>";
@@ -6314,6 +6325,8 @@
 				AA110001BB220001CC331004 /* XcodeProjTabs.swift */,
 				4A27AF985BA20ABA3FE4EE35 /* Sims */,
 				791D31C38A869B0F335DAF24 /* Database */,
+				FC57A09D301F28AE00BD1BCD /* CodeDictionarySearch.swift */,
+				FC57A09B301F28AE00BD1BCB /* CodingDictionaryView.swift */,
 			);
 			path = Utilities;
 			sourceTree = "<group>";
@@ -6440,6 +6453,7 @@
 				64C8322A1218BF6AAE171EBE /* SkillsView.swift */,
 				B9E5EDB0B600624C35CA347D /* SkillsAddView.swift */,
 				60AC2D4C28DFAB7C4DA01E8E /* SkillsInfoView.swift */,
+				A1000008F001000100000008 /* ModernSkillsBrowserView.swift */,
 			);
 			path = Skills;
 			sourceTree = "<group>";
@@ -6513,13 +6527,8 @@
 		6CFC827E67DCAE34C72B9CED = {
 			isa = PBXGroup;
 			children = (
-				FC57A09F301F2A8700BD1BCB /* CodingDictionaryModels.swift */,
-				FC57A09D301F297F00BD1BCB /* DictionaryManager.swift */,
-				FC57A09B301F28AE00BD1BCB /* CodingDictionaryView.swift */,
-				FC57A09D301F28AE00BD1BCD /* CodeDictionarySearch.swift */,
 				A83491FC57C3309ECF4AD0DD /* SwiftCode */,
 				021F2B7F3E0C61452C987484 /* Products */,
-				FC928F57303F9DEA0003853A /* Recovered References */,
 			);
 			sourceTree = "<group>";
 		};
@@ -6908,7 +6917,6 @@
 			isa = PBXGroup;
 			children = (
 				21ED0487F63148248C3E5D74 /* Diff */,
-				550406F186F4791910811394 /* Markdown */,
 				ACDB99DB88F546F6D6F4637B /* TextBuffer */,
 				E62980EE6DD4661475F9BBF9 /* SyntaxHighlighting */,
 				B0010001B0010001B0010005 /* Internal */,
@@ -7146,6 +7154,8 @@
 				0AD835D66CAA78EC371E60BF /* Tools */,
 				0B09C1E88D5C631A7A46F9CA /* AssistRequestState.swift */,
 				1EEFDE66CFF5D1AE17C41B31 /* SystemIndexTestSuite.swift */,
+				A1000001F001000100000001 /* AssistRequestMetrics.swift */,
+				A1000002F001000100000002 /* AssistTaskContext.swift */,
 			);
 			path = Assist;
 			sourceTree = "<group>";
@@ -8323,6 +8333,7 @@
 				A09BF755F69BF5047F1B5216 /* Tools */,
 				C38806164DD566333A92A410 /* ViewModels */,
 				FE18E54E76741F54A82CD586 /* Views */,
+				64E394B830809520EE287082 /* Shared */,
 			);
 			path = SwiftCode;
 			sourceTree = "<group>";
@@ -8407,6 +8418,8 @@
 				D587D00CA4BBF03908427CC1 /* CreditsView.swift */,
 				DDF6BFF1BD9AC2E992179763 /* PluginCodeCreateView.swift */,
 				F41E7F18C6B47F81E7C1872A /* ModelDownloadProgressView.swift */,
+				C1001017A1001017A1001017 /* ConnectSettingsView.swift */,
+				C1001020A1001020A1001020 /* ConnectPairingApprovalSheet.swift */,
 			);
 			path = Settings;
 			sourceTree = "<group>";
@@ -9033,6 +9046,8 @@
 		DEC001DFB00C0DEB12345678 /* Dictionary */ = {
 			isa = PBXGroup;
 			children = (
+				FC57A09F301F2A8700BD1BCB /* CodingDictionaryModels.swift */,
+				FC57A09D301F297F00BD1BCB /* DictionaryManager.swift */,
 			);
 			path = Dictionary;
 			sourceTree = "<group>";
@@ -9262,23 +9277,6 @@
 				E715162B5187267B8824C56F /* Paper.json */,
 			);
 			path = Themes;
-			sourceTree = "<group>";
-		};
-		FC928F57303F9DEA0003853A /* Recovered References */ = {
-			isa = PBXGroup;
-			children = (
-				C1001017A1001017A1001017 /* SwiftCode/Views/Settings/ConnectSettingsView.swift */,
-				C1001020A1001020A1001020 /* SwiftCode/Views/Settings/ConnectPairingApprovalSheet.swift */,
-				A1000001F001000100000001 /* SwiftCode/Backend/Assist/AssistRequestMetrics.swift */,
-				A1000002F001000100000002 /* SwiftCode/Backend/Assist/AssistTaskContext.swift */,
-				A1000003F001000100000003 /* SwiftCode/Backend/Assist/Tools/search_skills.swift */,
-				A1000004F001000100000004 /* SwiftCode/Core/AI/Agent/Skills/SkillDescriptor.swift */,
-				A1000005F001000100000005 /* SwiftCode/Core/AI/Agent/Skills/SkillDiscoveryService.swift */,
-				A1000006F001000100000006 /* SwiftCode/Core/AI/Agent/Skills/SkillIndex.swift */,
-				A1000007F001000100000007 /* SwiftCode/Views/Assist/AssistComposerPopup.swift */,
-				A1000008F001000100000008 /* SwiftCode/Views/Settings/Skills/ModernSkillsBrowserView.swift */,
-			);
-			name = "Recovered References";
 			sourceTree = "<group>";
 		};
 		FD1B005835C75052E48A0BA2 /* Persistence */ = {
@@ -10493,14 +10491,14 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				A1000001B001000100000001 /* SwiftCode/Backend/Assist/AssistRequestMetrics.swift in Sources */,
-				A1000002B001000100000002 /* SwiftCode/Backend/Assist/AssistTaskContext.swift in Sources */,
-				A1000003B001000100000003 /* SwiftCode/Backend/Assist/Tools/search_skills.swift in Sources */,
-				A1000004B001000100000004 /* SwiftCode/Core/AI/Agent/Skills/SkillDescriptor.swift in Sources */,
-				A1000005B001000100000005 /* SwiftCode/Core/AI/Agent/Skills/SkillDiscoveryService.swift in Sources */,
-				A1000006B001000100000006 /* SwiftCode/Core/AI/Agent/Skills/SkillIndex.swift in Sources */,
-				A1000007B001000100000007 /* SwiftCode/Views/Assist/AssistComposerPopup.swift in Sources */,
-				A1000008B001000100000008 /* SwiftCode/Views/Settings/Skills/ModernSkillsBrowserView.swift in Sources */,
+				A1000001B001000100000001 /* AssistRequestMetrics.swift in Sources */,
+				A1000002B001000100000002 /* AssistTaskContext.swift in Sources */,
+				A1000003B001000100000003 /* search_skills.swift in Sources */,
+				A1000004B001000100000004 /* SkillDescriptor.swift in Sources */,
+				A1000005B001000100000005 /* SkillDiscoveryService.swift in Sources */,
+				A1000006B001000100000006 /* SkillIndex.swift in Sources */,
+				A1000007B001000100000007 /* AssistComposerPopup.swift in Sources */,
+				A1000008B001000100000008 /* ModernSkillsBrowserView.swift in Sources */,
 				8E4166F3134063D969CE396C /* WorkerContextBuilder.swift in Sources */,
 				8E5D65C48D9A161B17FB5530 /* WorkerTaskDecomposer.swift in Sources */,
 				8ED63EB6A3941EB0354442EB /* WorkerScheduler.swift in Sources */,
@@ -11055,10 +11053,10 @@
 				7A810247F00000000000010E /* Editors/TestingNotesEditor.swift in Sources */,
 				7A810247F00000000000010F /* Editors/Shared/BaseEditorView.swift in Sources */,
 				7A810247F000000000000110 /* Editors/Shared/DocNSTextView.swift in Sources */,
-				7A810247C000000000000000 /* ../../Shared/Markdown/MarkdownBlockRenderer.swift in Sources */,
-				7A810247C000000000000002 /* ../../Shared/Markdown/MarkdownRenderCache.swift in Sources */,
-				7A810247C000000000000004 /* ../../Shared/Markdown/MarkdownRenderOptions.swift in Sources */,
-				7A810247C000000000000006 /* ../../Shared/Markdown/MarkdownRenderer.swift in Sources */,
+				7A810247C000000000000000 /* MarkdownBlockRenderer.swift in Sources */,
+				7A810247C000000000000002 /* MarkdownRenderCache.swift in Sources */,
+				7A810247C000000000000004 /* MarkdownRenderOptions.swift in Sources */,
+				7A810247C000000000000006 /* MarkdownRenderer.swift in Sources */,
 				7A810247C000000000000008 /* AIInsight.swift in Sources */,
 				7A810247C00000000000000A /* AnalyticsSnapshot.swift in Sources */,
 				7A810247C00000000000000C /* AttachmentRecord.swift in Sources */,
@@ -11403,8 +11401,8 @@
 				B1001014A1001014A1001014 /* ConnectFileService.swift in Sources */,
 				B1001015A1001015A1001015 /* ConnectAssistService.swift in Sources */,
 				B1001016A1001016A1001016 /* ConnectDeviceService.swift in Sources */,
-				B1001017A1001017A1001017 /* SwiftCode/Views/Settings/ConnectSettingsView.swift in Sources */,
-				B1001020A1001020A1001020 /* SwiftCode/Views/Settings/ConnectPairingApprovalSheet.swift in Sources */,
+				B1001017A1001017A1001017 /* ConnectSettingsView.swift in Sources */,
+				B1001020A1001020A1001020 /* ConnectPairingApprovalSheet.swift in Sources */,
 				B1001021A1001021A1001021 /* DiscoveredIOSDevice.swift in Sources */,
 				B1001022A1001022A1001022 /* IOSDiscoveryService.swift in Sources */,
 				B1001023A1001023A1001023 /* ConnectDiagnostics.swift in Sources */,
