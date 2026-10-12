@@ -5279,11 +5279,6 @@
 		36058e4be68e5f37daf861c4 /* SDK-Architecture.md */ = {isa = PBXFileReference; lastKnownFileType = text.markdown; path = SDK-Architecture.md; sourceTree = "<group>"; };
 		58676fe3b835c7db81ecb962 /* swiftcode-extension-v1.schema.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = swiftcode-extension-v1.schema.json; sourceTree = "<group>"; };
 		517bf485ff3889b828610213 /* repository-build-extension.swiftcode.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = repository-build-extension.swiftcode.json; sourceTree = "<group>"; };
-		668fb57c4104a583327e6771 /* agent_notes.md */ = {isa = PBXFileReference; lastKnownFileType = text.markdown; path = agent_notes.md; sourceTree = "<group>"; };
-		9538fb06248263bb4be78ed2 /* agent_notes.md */ = {isa = PBXFileReference; lastKnownFileType = text.markdown; path = agent_notes.md; sourceTree = "<group>"; };
-		5648b55f8780a9ddfa6379c2 /* agent_notes.md */ = {isa = PBXFileReference; lastKnownFileType = text.markdown; path = agent_notes.md; sourceTree = "<group>"; };
-		3d13155873e2bbac0f055b3b /* agent_notes.md */ = {isa = PBXFileReference; lastKnownFileType = text.markdown; path = agent_notes.md; sourceTree = "<group>"; };
-		23a7d5547c970f589efc94a8 /* agent_notes.md */ = {isa = PBXFileReference; lastKnownFileType = text.markdown; path = agent_notes.md; sourceTree = "<group>"; };
 		3C360E9F8BE681E73F021F01 /* SDKCapability.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SDKCapability.swift; sourceTree = "<group>"; };
 		D9477619861CC24E94E63DB3 /* SDKGrantStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SDKGrantStore.swift; sourceTree = "<group>"; };
 		0A87E73566795A97372CBED0 /* SDKApprovalView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SDKApprovalView.swift; sourceTree = "<group>"; };
@@ -5293,13 +5288,6 @@
 		217A0D9102742676168DF1F3 /* SDKAPIKey.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SDKAPIKey.swift; sourceTree = "<group>"; };
 		57B860072DA9BB42608704E6 /* SDKKeychain.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SDKKeychain.swift; sourceTree = "<group>"; };
 		9BE39BB6CBBA7FAF9F3760B6 /* SDKAPIKeyStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SDKAPIKeyStore.swift; sourceTree = "<group>"; };
-		9FDC63ACD350944B03E3B96E /* agent_notes.md */ = {isa = PBXFileReference; lastKnownFileType = text.markdown; path = agent_notes.md; sourceTree = "<group>"; };
-		09692778747E70FEFF3FBB9C /* agent_notes.md */ = {isa = PBXFileReference; lastKnownFileType = text.markdown; path = agent_notes.md; sourceTree = "<group>"; };
-		4B62A410170A6633C5AC6A7D /* agent_notes.md */ = {isa = PBXFileReference; lastKnownFileType = text.markdown; path = agent_notes.md; sourceTree = "<group>"; };
-		759BB258042E82B0BD5857DB /* agent_notes.md */ = {isa = PBXFileReference; lastKnownFileType = text.markdown; path = agent_notes.md; sourceTree = "<group>"; };
-		16515AB4A9F67B66870F0965 /* agent_notes.md */ = {isa = PBXFileReference; lastKnownFileType = text.markdown; path = agent_notes.md; sourceTree = "<group>"; };
-		00BFDFB3737A50433A570DC9 /* agent_notes.md */ = {isa = PBXFileReference; lastKnownFileType = text.markdown; path = agent_notes.md; sourceTree = "<group>"; };
-		13ABAB5EE0C7204D1C535D60 /* agent_notes.md */ = {isa = PBXFileReference; lastKnownFileType = text.markdown; path = agent_notes.md; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -9579,7 +9567,6 @@
 			children = (
 				a5b5e2c368bd7c67f2137f24 /* SDKManifest.swift */,
 				58676fe3b835c7db81ecb962 /* swiftcode-extension-v1.schema.json */,
-				668fb57c4104a583327e6771 /* agent_notes.md */,
 				c4f87aafd64d96649df0a011 /* ExampleManifests */,
 			);
 			name = Manifest;
@@ -9594,7 +9581,6 @@
 				8bb2a0ba2e356f7bfac551a3 /* SDKBuildContracts.swift */,
 				3ee0543d0d82bed510b04d6f /* SDKIPCEnvelope.swift */,
 				15221418a985a8c239a50c2e /* SDKVersionNegotiation.swift */,
-				9538fb06248263bb4be78ed2 /* agent_notes.md */,
 			);
 			name = Protocol;
 			path = Protocol;
@@ -9616,7 +9602,6 @@
 			children = (
 				eb3094250784a0bd6a4aeb97 /* SDKManifestValidator.swift */,
 				d115ab1f0a46f9a9bbf91208 /* SDKPackageValidator.swift */,
-				5648b55f8780a9ddfa6379c2 /* agent_notes.md */,
 			);
 			name = ExtensionRegistry;
 			path = ExtensionRegistry;
@@ -9637,7 +9622,6 @@
 				31e8cfbc12a2503c0081eee2 /* SDKLogRedaction.swift */,
 				403166408e16b87f706efed0 /* SDKUserLogger.swift */,
 				0b6cc61918d5317eb85cc4aa /* SDKDeveloperLogger.swift */,
-				3d13155873e2bbac0f055b3b /* agent_notes.md */,
 			);
 			name = Diagnostics;
 			path = Diagnostics;
@@ -9646,7 +9630,6 @@
 		f56dee4b71e8cd3924562700 /* Internal */ = {
 			isa = PBXGroup;
 			children = (
-				23a7d5547c970f589efc94a8 /* agent_notes.md */,
 				f3c121253f45506a8855cb9e /* SDKConfigStore */,
 				1796036c1e6c8082c8939947 /* DirectServiceAccess */,
 			);
@@ -9705,7 +9688,6 @@
 			isa = PBXGroup;
 			children = (
 				3C360E9F8BE681E73F021F01 /* SDKCapability.swift */,
-				9FDC63ACD350944B03E3B96E /* agent_notes.md */,
 			);
 			name = Capability;
 			path = Capability;
@@ -9715,7 +9697,6 @@
 			isa = PBXGroup;
 			children = (
 				C424E8BFC2252F4783F2F5C8 /* SDKCapabilityBroker.swift */,
-				759BB258042E82B0BD5857DB /* agent_notes.md */,
 				D5FF580D115433CD3F98DFED /* Grants */,
 				AF10CDFF47EB09835C93E724 /* Approval */,
 			);
@@ -9727,7 +9708,6 @@
 			isa = PBXGroup;
 			children = (
 				D9477619861CC24E94E63DB3 /* SDKGrantStore.swift */,
-				09692778747E70FEFF3FBB9C /* agent_notes.md */,
 			);
 			name = Grants;
 			path = Grants;
@@ -9737,7 +9717,6 @@
 			isa = PBXGroup;
 			children = (
 				0A87E73566795A97372CBED0 /* SDKApprovalView.swift */,
-				4B62A410170A6633C5AC6A7D /* agent_notes.md */,
 			);
 			name = Approval;
 			path = Approval;
@@ -9749,7 +9728,6 @@
 				217A0D9102742676168DF1F3 /* SDKAPIKey.swift */,
 				57B860072DA9BB42608704E6 /* SDKKeychain.swift */,
 				9BE39BB6CBBA7FAF9F3760B6 /* SDKAPIKeyStore.swift */,
-				13ABAB5EE0C7204D1C535D60 /* agent_notes.md */,
 			);
 			name = APIKeys;
 			path = APIKeys;
@@ -9759,7 +9737,6 @@
 			isa = PBXGroup;
 			children = (
 				83C115BEC1C47787480A00AD /* SDKAuditLog.swift */,
-				16515AB4A9F67B66870F0965 /* agent_notes.md */,
 			);
 			name = Audit;
 			path = Audit;
@@ -9769,7 +9746,6 @@
 			isa = PBXGroup;
 			children = (
 				EEF9F6A38F94B2206E916548 /* SDKAssistGate.swift */,
-				00BFDFB3737A50433A570DC9 /* agent_notes.md */,
 			);
 			name = Authorization;
 			path = Authorization;
