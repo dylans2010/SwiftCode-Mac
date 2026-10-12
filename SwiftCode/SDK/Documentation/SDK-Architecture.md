@@ -29,7 +29,7 @@ SwiftCode/SDK/
 ├── Internal/        # #if DEBUG-only: SandboxBypass, TestHarness, SDKConfigStore, DirectServiceAccess
 ├── Assist/          # Authorization (deny-by-default gate) + Audit
 ├── TypeScript/      # package/, cli/, runtime-adapter/, templates/ (node sources, not compiled into the app)
-├── Testing/         # test harness sources
+├── Testing/         # test harness sources (pending — directory not yet created)
 └── Documentation/   # SDK-Architecture.md (this file), Extension-Manifest.md, Capabilities-and-Permissions.md,
                      # TypeScript-Extensions.md, Runtime-and-Security.md, Compatibility.md
 ```

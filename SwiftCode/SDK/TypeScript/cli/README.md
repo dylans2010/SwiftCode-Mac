@@ -1,8 +1,9 @@
 # swiftcode CLI
 
-Developer CLI for the SwiftCode SDK platform (spec §13). Zero runtime
-dependencies — Node.js 18+ only. Command modules live in `commands/` and
-follow the contract in [`commands/CONTRACT.md`](commands/CONTRACT.md).
+Developer CLI for the SwiftCode SDK platform (spec §13). One runtime
+dependency (`archiver`, used by `package`) — Node.js 18+ only. Command
+modules live in `commands/` and follow the contract in
+[`commands/CONTRACT.md`](commands/CONTRACT.md).
 
 ## Install / run
 
@@ -98,10 +99,24 @@ swiftcode package [dir] [--out <dir>] [--json]
    (default `<dir>/dist-package/`), then prints the path and its sha256
    digest — only after the archive closes successfully.
 
-### dev — (not yet implemented)
+### dev — local development loop
 
-Local development session (watch, recompile, revalidate, restart). Real
-implementation only; no stub shipped.
+```sh
+swiftcode dev [dir]
+```
+
+`[dir]` defaults to the current directory. Requires `swiftcode.json` +
+`package.json` + `tsconfig.json` there, runs an initial cycle, then watches
+`src/` (recursively) plus the three config files (300 ms debounce). Each
+cycle, in order with timestamped phase labels: `[compile]` (`tsc -p
+tsconfig.json` — errors stop the cycle, the watcher stays alive),
+`[manifest]` + `[package]` (manifest + package validation, mirroring the
+`validate` checks), `[tests]` (`node --test tests/*.test.mjs` when `tests/`
+exists). A failed phase stops the rest of that cycle but never the watcher.
+
+No host attachment in v1: dev rebuilds, revalidates, and retests on change —
+it never activates an extension. Run against the live host from SwiftCode
+Studio. SIGINT/SIGTERM shut down cleanly (exit 0).
 
 ### install — (implemented; docs pending)
 
