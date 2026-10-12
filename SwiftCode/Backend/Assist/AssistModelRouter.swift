@@ -615,19 +615,20 @@ public final class AssistModelRouter: Sendable {
             return nil
         }
 
+        let reasonString = error.localizedDescription.isEmpty ? failureClass.rawValue : error.localizedDescription
         let event = ModelFailoverEvent(
             failedModelID: failedModel.modelIdentifier,
             failedProviderID: failedModel.providerName,
             newModelID: nextModel.modelIdentifier,
             newProviderID: nextModel.providerName,
             failureClass: failureClass,
-            reason: error.localizedDescription
+            reason: reasonString
         )
         self.lastFailoverEvent = event
         self.failoverHistory.append(event)
         self.currentRuntimeModel = nextModel
 
-        logger.info("[ModelRouter] Failover initiated: \(failedModel.displayName) -> \(nextModel.displayName) (\(failureClass.rawValue))")
+        logger.warning("[ModelRouter] Failover initiated from '\(failedModel.displayName)' to '\(nextModel.displayName)': Reason: \(reasonString) (\(failureClass.rawValue))")
 
         // Build continuous task handoff prompt
         var handoff = "CONTINUATION DIRECTIVE:\n"
@@ -657,7 +658,7 @@ public final class AssistModelRouter: Sendable {
         let oauthToken: String?
 
         let googleAuthMode = UserDefaults.standard.string(forKey: "assist_google_auth_mode") ?? AppSettings.shared.assistGoogleAuthMode
-        let isOAuthAuthenticated = (googleAuthMode == "google_oauth" || GoogleAccountAuthService.shared.isAuthenticated) && !AppSettings.shared.alternativeKeysEnabled
+        let isOAuthAuthenticated = (googleAuthMode == "google_oauth") && GoogleAccountAuthService.shared.isAuthenticated && !AppSettings.shared.alternativeKeysEnabled
 
         if isOAuthAuthenticated {
             // Strictly rely ONLY on Antigravity allowance / OAuth session. NO API keys.

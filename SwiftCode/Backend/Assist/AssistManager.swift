@@ -780,6 +780,23 @@ public final class AssistManager: ObservableObject {
         let initialModelName = initialRouted?.model.displayName ?? (initialConfig.model)
         metrics?.mark(.modelResolved)
 
+        // Validate that credentials exist before initiating execution for Gemini/Google models
+        let isInitialGemini = initialModelId.lowercased().contains("gemini") || initialModelName.lowercased().contains("gemini") || (initialConfig.provider == "gemini" || initialConfig.provider == "google")
+        if isInitialGemini {
+            let hasApiKey = !(initialConfig.apiKey ?? "").trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            let hasOAuth = !(initialConfig.oauthToken ?? "").trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            if !hasApiKey && !hasOAuth {
+                await MainActor.run {
+                    let missingAuthMsg = "Authentication Error (\(initialModelName)): No valid Gemini API Key or Google OAuth account configured. Please enter your Gemini API key or sign in with Google in Assist Settings."
+                    self.lastError = missingAuthMsg
+                    self.messages.append(AssistMessage(role: .assistant, content: missingAuthMsg))
+                    self.isProcessing = false
+                    self.saveHistory()
+                }
+                return
+            }
+        }
+
         let session: GoogleCloudSDKSession
         if let existing = activeGoogleCloudSession,
            existing.config.model == initialConfig.model &&
