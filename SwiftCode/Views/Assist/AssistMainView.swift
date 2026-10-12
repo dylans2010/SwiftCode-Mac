@@ -191,11 +191,15 @@ public struct AssistMainView: View {
                             .padding(.top, 8)
 
                             // Native Conversational Chat Bubbles
+                            // Notice messages (warnings/errors) render as their own
+                            // tappable yellow/red cards, not plain bubbles.
                             ForEach(filteredMessages) { message in
                                 if let composio = message.composioExecution {
                                     AgentUseComposio(metadata: composio)
                                 } else if let mcp = message.mcpExecution {
                                     AgentUseMCP(metadata: mcp)
+                                } else if message.noticeLevel != nil {
+                                    AssistNoticeView(message: message)
                                 } else {
                                     AssistChatBubble(message: message)
                                 }
@@ -434,10 +438,6 @@ public struct AssistMainView: View {
                         .padding(.horizontal, 4)
                     }
                     .frame(height: 28)
-                }
-
-                if !manager.logger.logs.isEmpty {
-                    MiniLogFeed(logger: manager.logger)
                 }
 
                 queuedMessagesView
@@ -1372,6 +1372,142 @@ public struct AssistMainView: View {
 }
 
 // MARK: - Subviews
+
+/// Warning/error notice message: yellow for warnings, red for errors.
+/// Tappable to expand/collapse. When the notice carries a ServerErrorDetail,
+/// a "(Server Error)" button opens a dialog showing the raw API exchange —
+/// endpoint, status code, timestamp, verbatim response body — all copyable.
+private struct AssistNoticeView: View {
+    let message: AssistMessage
+    @State private var expanded = false
+    @State private var showingServerError = false
+
+    private var isError: Bool { message.noticeLevel == .error }
+    private var tint: Color { isError ? .red : .yellow }
+
+    var body: some View {
+        HStack(alignment: .top, spacing: 8) {
+            Image(systemName: isError ? "xmark.octagon.fill" : "exclamationmark.triangle.fill")
+                .foregroundStyle(tint)
+                .font(.system(size: 14))
+                .padding(.top, 2)
+
+            VStack(alignment: .leading, spacing: 4) {
+                Button {
+                    withAnimation(.easeInOut(duration: 0.15)) { expanded.toggle() }
+                } label: {
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text(message.content)
+                            .font(.system(size: 12))
+                            .foregroundStyle(tint)
+                            .lineLimit(expanded ? nil : 2)
+                            .multilineTextAlignment(.leading)
+                            .textSelection(.enabled)
+                        Text(expanded ? "Show less" : "Tap to expand")
+                            .font(.system(size: 9))
+                            .foregroundStyle(.tertiary)
+                    }
+                }
+                .buttonStyle(.plain)
+
+                if message.serverError != nil {
+                    Button("(Server Error)") { showingServerError = true }
+                        .font(.system(size: 10, weight: .semibold))
+                        .foregroundStyle(tint)
+                }
+            }
+
+            Spacer(minLength: 4)
+        }
+        .padding(10)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(tint.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+        .overlay(RoundedRectangle(cornerRadius: 8).stroke(tint.opacity(0.35), lineWidth: 1))
+        .sheet(isPresented: $showingServerError) {
+            if let detail = message.serverError {
+                ServerErrorDialog(detail: detail)
+            }
+        }
+    }
+}
+
+/// Small dialog showing a model API error exactly as the server returned it.
+/// Nothing here is hardcoded: endpoint, status code, timestamp, and the
+/// verbatim response body all come from the live HTTP exchange.
+private struct ServerErrorDialog: View {
+    let detail: ServerErrorDetail
+    @Environment(\.dismiss) private var dismiss
+    @State private var copied = false
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                Label("Server Error", systemImage: "server.rack")
+                    .font(.headline)
+                Spacer()
+                Button(copied ? "Copied" : "Copy") { copyAll() }
+                    .buttonStyle(.bordered)
+                    .controlSize(.small)
+                    .disabled(copied)
+            }
+
+            Grid(alignment: .leading, horizontalSpacing: 12, verticalSpacing: 6) {
+                GridRow {
+                    Text("Endpoint").font(.caption).foregroundStyle(.secondary)
+                    Text(detail.endpoint)
+                        .font(.system(size: 11, design: .monospaced))
+                        .textSelection(.enabled)
+                }
+                GridRow {
+                    Text("Status").font(.caption).foregroundStyle(.secondary)
+                    Text(detail.statusCode.map(String.init) ?? "No response")
+                        .font(.system(size: 11, design: .monospaced))
+                        .textSelection(.enabled)
+                }
+                GridRow {
+                    Text("Time").font(.caption).foregroundStyle(.secondary)
+                    Text(detail.timestamp, format: .dateTime.hour().minute().second())
+                        .font(.system(size: 11))
+                        .textSelection(.enabled)
+                }
+            }
+
+            Divider()
+
+            Text("Response body")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            ScrollView {
+                Text(detail.rawBody)
+                    .font(.system(size: 11, design: .monospaced))
+                    .textSelection(.enabled)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            .frame(minHeight: 120)
+
+            HStack {
+                Spacer()
+                Button("Close") { dismiss() }
+                    .keyboardShortcut(.defaultAction)
+            }
+        }
+        .padding(16)
+        .frame(minWidth: 520, minHeight: 380)
+    }
+
+    private func copyAll() {
+        let text = """
+            Endpoint: \(detail.endpoint)
+            Status: \(detail.statusCode.map(String.init) ?? "No response")
+            Time: \(detail.timestamp)
+            Body:
+            \(detail.rawBody)
+            """
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(text, forType: .string)
+        copied = true
+    }
+}
 
 private struct AssistChatBubble: View {
     let message: AssistMessage

@@ -502,7 +502,6 @@
 		5C5E700000000000000000D2 /* GitHubIntelligenceAndOperations.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5C5E700000000000000000D1 /* GitHubIntelligenceAndOperations.swift */; };
 		5C5E70000000000000000102 /* CodexSignInFlow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5C5E70000000000000000101 /* CodexSignInFlow.swift */; };
 		5C5E70000000000000000104 /* AssistErrorBubble.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5C5E70000000000000000103 /* AssistErrorBubble.swift */; };
-		5C5E70000000000000000106 /* MiniLogFeed.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5C5E70000000000000000105 /* MiniLogFeed.swift */; };
 		5C5E70000000000000000202 /* ChooseModelForAgent.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5C5E70000000000000000201 /* ChooseModelForAgent.swift */; };
 		5C5E70000000000000000204 /* AddFilesAgentContext.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5C5E70000000000000000203 /* AddFilesAgentContext.swift */; };
 		5C5E70000000000000000206 /* FileAgentHelper.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5C5E70000000000000000205 /* FileAgentHelper.swift */; };
@@ -3133,7 +3132,6 @@
 		5C5E700000000000000000D1 /* GitHubIntelligenceAndOperations.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GitHubIntelligenceAndOperations.swift; sourceTree = "<group>"; };
 		5C5E70000000000000000101 /* CodexSignInFlow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CodexSignInFlow.swift; sourceTree = "<group>"; };
 		5C5E70000000000000000103 /* AssistErrorBubble.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssistErrorBubble.swift; sourceTree = "<group>"; };
-		5C5E70000000000000000105 /* MiniLogFeed.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MiniLogFeed.swift; sourceTree = "<group>"; };
 		5C5E70000000000000000201 /* ChooseModelForAgent.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChooseModelForAgent.swift; sourceTree = "<group>"; };
 		5C5E70000000000000000203 /* AddFilesAgentContext.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AddFilesAgentContext.swift; sourceTree = "<group>"; };
 		5C5E70000000000000000205 /* FileAgentHelper.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FileAgentHelper.swift; sourceTree = "<group>"; };
@@ -5782,7 +5780,6 @@
 				F8A83FA9469EB821F44AFE87 /* TaskProgressView.swift */,
 				F899E0EAC319753E37A4AE19 /* AgentControlsView.swift */,
 				5C5E70000000000000000103 /* AssistErrorBubble.swift */,
-				5C5E70000000000000000105 /* MiniLogFeed.swift */,
 				5C5E70000000000000000101 /* CodexSignInFlow.swift */,
 				5C5E70000000000000000201 /* ChooseModelForAgent.swift */,
 				5C5E70000000000000000203 /* AddFilesAgentContext.swift */,
@@ -10927,7 +10924,6 @@
 				F893DB828A042DD9A40A38D7 /* TaskProgressView.swift in Sources */,
 				F8452BC86F91B4C83223AC6B /* AgentControlsView.swift in Sources */,
 				5C5E70000000000000000104 /* AssistErrorBubble.swift in Sources */,
-				5C5E70000000000000000106 /* MiniLogFeed.swift in Sources */,
 				5C5E70000000000000000102 /* CodexSignInFlow.swift in Sources */,
 				5C5E70000000000000000202 /* ChooseModelForAgent.swift in Sources */,
 				5C5E70000000000000000204 /* AddFilesAgentContext.swift in Sources */,
