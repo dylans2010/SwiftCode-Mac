@@ -33,6 +33,12 @@ import Foundation
 //    - `commands.register`: `SDKCommandRegistry` is a plain store with no
 //      broker check of its own, so the dispatcher authorizes `.uiContribute`
 //      at the broker before touching it.
+//    - `ui.openView`: `SDKViewOpener` is a plain registry with no broker
+//      check of its own, so the dispatcher authorizes the *view's own*
+//      capability ID (taken from the payload) at the broker before the
+//      opener runs. Each view is gated by exactly the grant the extension's
+//      manifest declared; a denial surfaces as the broker's typed
+//      permission error.
 //    - `build.wait` / `build.cancel`: these act on handles minted by an
 //      authorized `build.run` in this same session. The handle map is never
 //      exposed to the extension and handle IDs are unguessable UUIDs, so
@@ -45,6 +51,20 @@ import Foundation
 // 3. Assist is deny-by-default (§9). `SDKAssistGate.check` runs FIRST —
 //    before any routing or payload decoding — so no method name, however
 //    spelled, can reach Assist through this dispatcher.
+//
+// 4. Session API keys (§8.2.1). When the host-created session carries a
+//    presented developer API key (`SDKRuntimeSessionInfo.presentedAPIKey`,
+//    bound from the `SWIFTCODE_API_KEY` environment variable by the host
+//    coordinator), the dispatcher verifies it against `SDKAPIKeyStore` on
+//    EVERY request, before building the caller identity. Verification
+//    failure fails the whole request closed with a typed error
+//    (`.apiKeyInvalid` / `.apiKeyRevoked` / `.apiKeyRateLimited` /
+//    `.serviceUnavailable`) — a session that presents a key must present a
+//    VALID key. The verified key metadata rides on `SDKCallerIdentity.apiKey`
+//    so the capability broker can enforce the `capabilities:request` scope
+//    on privileged capabilities. Sessions without a key are unaffected.
+//    The secret itself is never logged, never persisted, and never appears
+//    in any error or audit record — only the failure code is recorded.
 
 public actor SDKIPCDispatcher {
 
@@ -89,9 +109,12 @@ public actor SDKIPCDispatcher {
     ///   2. Decode `SDKRequestEnvelope<SDKJSONValue>`; extract method + requestId.
     ///      FIRST — before any routing or payload decoding — run the Assist
     ///      deny-list (`SDKAssistGate.check`, §9).
-    ///   3. Build the caller identity from the SESSION (never the payload).
-    ///   4. Route with a 60 s per-request timeout (→ `.ipcTimeout`).
-    ///   5. Encode the `SDKResponseEnvelope` (`ok`/payload or `ok: false` +
+    ///   3. Verify the session's presented developer API key, if any
+    ///      (`verifySessionAPIKey`, §8.2.1) — fail closed on any failure.
+    ///   4. Build the caller identity from the SESSION (never the payload),
+    ///      attaching the verified key metadata when present.
+    ///   5. Route with a 60 s per-request timeout (→ `.ipcTimeout`).
+    ///   6. Encode the `SDKResponseEnvelope` (`ok`/payload or `ok: false` +
     ///      `SDKErrorPayload(from:)`).
     public func dispatch(_ data: Data) async -> Data {
         // Best-effort requestId for pre-decode failures: the frame may not
@@ -129,13 +152,21 @@ public actor SDKIPCDispatcher {
             // --- Assist through this dispatcher.
             try await SDKAssistGate.check(ipcMethod: method, callerExtensionID: session.extensionID)
 
+            // --- 3b. Session API-key verification (§8.2.1). Verified on
+            // --- EVERY request: revocation and expiry take effect
+            // --- immediately, and no "still valid" verdict is cached.
+            let apiKey = try await verifySessionAPIKey()
+
             // --- 4. Session-bound caller identity. Extension-supplied
             // --- identity is never trusted: no identity fields are read
             // --- from the payload anywhere in this dispatcher (§10.4).
+            // --- The verified key (when the session presents one) rides
+            // --- along so the broker can enforce `capabilities:request`.
             let caller = SDKCallerIdentity(
                 extensionID: session.extensionID,
                 packageDigest: session.packageDigest,
-                projectRootPath: session.projectRootPath
+                projectRootPath: session.projectRootPath,
+                apiKey: apiKey
             )
 
             // --- 5. Route with a 60 s per-request timeout.
@@ -215,12 +246,47 @@ public actor SDKIPCDispatcher {
         SDKIPCCodec.encodeResponse(SDKResponseEnvelope(requestId: requestId, payload: payload))
     }
 
+    // MARK: - Session API-key verification
+
+    /// Verifies the session's presented developer API key against
+    /// `SDKAPIKeyStore` (spec §8.2.1), returning the verified metadata.
+    ///
+    /// - Returns: nil when the session presents no key (keyless sessions
+    ///   authorize purely through user grants — today's behavior).
+    /// - Throws: fails closed on every failure mode — `.apiKeyInvalid`
+    ///   (malformed/forged/unknown/expired), `.apiKeyRevoked`,
+    ///   `.apiKeyRateLimited`, `.serviceUnavailable`. The caller
+    ///   (`dispatch`) projects the typed error onto the wire; a session
+    ///   that presents a key must present a VALID key or nothing works.
+    ///
+    /// Called on EVERY request: revocation and expiry take effect on the
+    /// next request, and no validity verdict is ever cached (see
+    /// `SDKAPIKeyStore.verify`). The secret itself never appears in the
+    /// audit record — only the extension/session IDs and the failure code.
+    private func verifySessionAPIKey() async throws -> SDKAPIKey? {
+        guard let presented = session.presentedAPIKey else { return nil }
+        do {
+            return try await SDKAPIKeyStore.shared.verify(secret: presented)
+        } catch {
+            let sdkError = error as? SDKError
+            await SDKAuditLog.shared.record(
+                type: .apiKeyAuthFailure,
+                extensionID: session.extensionID,
+                detail: "session API key verification failed (\(sdkError?.code.rawValue ?? "unknown"))",
+                correlationId: sdkError?.correlationId
+            )
+            throw error
+        }
+    }
+
     // MARK: - Routing
     //
     // Every privileged method re-authorizes at the broker THROUGH THE
     // ADAPTERS (see the file header): the dispatcher does not pre-authorize,
-    // except on `commands.register` where the registry has no broker check
-    // of its own. A malformed payload for a KNOWN method is `.invalidArgument`;
+    // except on `commands.register` and `ui.openView`, where the registry
+    // has no broker check of its own (the dispatcher authorizes
+    // `.uiContribute` and the view's own capability ID respectively). A
+    // malformed payload for a KNOWN method is `.invalidArgument`;
     // an unknown method is `.ipcMalformed`.
 
     private func route(
@@ -283,6 +349,17 @@ public actor SDKIPCDispatcher {
             await handle.cancel()
             return Self.successResponse(requestId: requestId, payload: SDKJSONValue.null)
 
+        case "terminalSandbox.run":
+            // SDKSandboxedTerminal.run authorizes `.terminalSandbox` at the
+            // broker on every call, before any validation or process work.
+            // This is host-mediated sandboxed execution, not a terminal
+            // view: no shell, allow-listed executables only, cwd confined
+            // to the caller's project scope, sanitized environment, hard
+            // timeout with SIGKILL escalation, byte-capped output.
+            let request = try Self.decodePayload(SDKSandboxRunRequest.self, from: payload, method: method)
+            let result = try await SDKSandboxedTerminal.shared.run(request: request, caller: caller)
+            return Self.successResponse(requestId: requestId, payload: result)
+
         case "commands.register":
             // The registry is a plain store with no broker check of its own:
             // authorize here, at the dispatcher, before touching it.
@@ -297,6 +374,18 @@ public actor SDKIPCDispatcher {
             // only identity that matters here.
             let commandID = try Self.stringField("commandID", from: payload, method: method)
             await SDKCommandRegistry.shared.unregister(commandID: commandID, extensionID: caller.extensionID)
+            return Self.successResponse(requestId: requestId, payload: SDKJSONValue.null)
+
+        case "ui.openView":
+            // SDKViewOpener is a plain registry with no broker check of its
+            // own: authorize here, at the dispatcher, before touching it —
+            // the commands.register pattern. The capability is the view's
+            // own ID from the payload, so each view is gated by exactly the
+            // grant the extension's manifest declared; a denial throws the
+            // broker's typed permission error.
+            let viewID = try Self.viewID(from: payload, method: method)
+            try await SDKCapabilityBroker.authorize(viewID, for: caller)
+            try await SDKViewOpener.shared.open(viewID: viewID)
             return Self.successResponse(requestId: requestId, payload: SDKJSONValue.null)
 
         case "log.debug", "log.info":
@@ -410,6 +499,22 @@ public actor SDKIPCDispatcher {
             correlationId = nil
         }
         return (message, correlationId)
+    }
+
+    /// `{"viewId": "<capability-id>"}` for the `ui.openView` route. The raw
+    /// string must name a capability in the fixed `SDKCapabilityID` registry;
+    /// an unknown ID is `.unknownCapability` — the same code the host's
+    /// strict manifest validator uses for undeclared capability IDs (P1b).
+    private static func viewID(from payload: SDKJSONValue, method: String) throws -> SDKCapabilityID {
+        let raw = try Self.stringField("viewId", from: payload, method: method)
+        guard let viewID = SDKCapabilityID(rawValue: raw) else {
+            throw SDKError(
+                code: .unknownCapability,
+                message: "Unknown view \"\(raw)\".",
+                suggestion: "Use a capability ID from the SDK capability registry (e.g. \"db.ExploreView\")."
+            )
+        }
+        return viewID
     }
 
     /// Looks up a live build handle minted by `build.run` in this session.
