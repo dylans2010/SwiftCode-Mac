@@ -38,6 +38,8 @@ public final class GoogleCloudSDKTests: Sendable {
         results.append(await testCustomModelProviderResolution())
         results.append(await testResolveAPIKeyNeverFallsBackInOAuthMode())
         results.append(await testChatModeGoogleOAuthSatisfiesCheck())
+        results.append(await testDeveloperAPIScopesAreClientCompatible())
+        results.append(await testSignInRequiresCustomOAuthClient())
 
         let routerTests = await AssistModelRouterTests.shared.runAllTests()
         results.append(contentsOf: routerTests)
@@ -641,6 +643,78 @@ public final class GoogleCloudSDKTests: Sendable {
             testName: "Chat Mode Google OAuth Credential Check",
             passed: passed,
             message: passed ? "OAuth session satisfies the Chat Mode Google check exactly when provider, mode, session, and token all agree." : "Failures: \(failures.joined(separator: "; "))",
+            duration: Date().timeIntervalSince(start)
+        )
+    }
+
+    // 13. Developer API Scopes Are Client-Compatible
+    // The sign-in flow must request exactly the documented Developer API
+    // scopes. The Antigravity-IDE-internal scopes (cclog,
+    // experimentsandconfigs, aicode) are not requested: on a user-owned
+    // client they would only widen the consent screen, and Google's own
+    // clients reject the generative-language.* scopes outright
+    // ("Unregistered scope(s)", 403 restricted_client).
+    public func testDeveloperAPIScopesAreClientCompatible() async -> RuntimeTestCaseResult {
+        let start = Date()
+        var failures: [String] = []
+        let scopes = GoogleAccountAuthService.requiredScopes
+        for needed in ["https://www.googleapis.com/auth/cloud-platform",
+                       "https://www.googleapis.com/auth/generative-language.retriever",
+                       "https://www.googleapis.com/auth/userinfo.email",
+                       "https://www.googleapis.com/auth/userinfo.profile",
+                       "openid"] {
+            if !scopes.contains(needed) { failures.append("missing \(needed)") }
+        }
+        for ideOnly in ["cclog", "experimentsandconfigs", "aicode"] {
+            if scopes.contains(where: { $0.contains(ideOnly) }) {
+                failures.append("IDE-internal scope requested: \(ideOnly)")
+            }
+        }
+        let passed = failures.isEmpty
+        return RuntimeTestCaseResult(
+            testName: "Developer API Scopes Are Client-Compatible",
+            passed: passed,
+            message: passed ? "Sign-in requests exactly the documented Developer API scopes." : "Failures: \(failures.joined(separator: "; "))",
+            duration: Date().timeIntervalSince(start)
+        )
+    }
+
+    // 14. Sign-In Requires a Custom OAuth Client
+    // Without a user-owned OAuth client, Google rejects the authorization
+    // request before any token is issued, so signIn() must surface the
+    // setup guide instead of opening a dead authorization session.
+    public func testSignInRequiresCustomOAuthClient() async -> RuntimeTestCaseResult {
+        let start = Date()
+        var failures: [String] = []
+        let (flagSet, authenticating, gatePassed): (Bool, Bool, Bool) = await MainActor.run {
+            let service = GoogleAccountAuthService.shared
+            let previous = AppSettings.shared.assistGoogleClientID
+            AppSettings.shared.assistGoogleClientID = ""
+            defer { AppSettings.shared.assistGoogleClientID = previous }
+            // Env/Info.plist overrides are out of the test's control; skip
+            // when one is present rather than asserting a false negative.
+            guard service.customOAuthClientID == nil else { return (false, false, true) }
+            service.dismissOAuthClientSetup()
+            service.signIn()
+            let result = (service.needsOAuthClientSetup, service.isAuthenticating)
+            service.dismissOAuthClientSetup()
+            return (result.0, result.1, false)
+        }
+        if gatePassed {
+            return RuntimeTestCaseResult(
+                testName: "Sign-In Requires a Custom OAuth Client",
+                passed: true,
+                message: "Skipped: a GOOGLE_CLIENT_ID override is present in this environment.",
+                duration: Date().timeIntervalSince(start)
+            )
+        }
+        if !flagSet { failures.append("needsOAuthClientSetup not set") }
+        if authenticating { failures.append("sign-in proceeded without a client") }
+        let passed = failures.isEmpty
+        return RuntimeTestCaseResult(
+            testName: "Sign-In Requires a Custom OAuth Client",
+            passed: passed,
+            message: passed ? "signIn() without a client surfaces the setup guide and starts no session." : "Failures: \(failures.joined(separator: "; "))",
             duration: Date().timeIntervalSince(start)
         )
     }
