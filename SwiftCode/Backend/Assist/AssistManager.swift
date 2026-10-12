@@ -819,7 +819,7 @@ public final class AssistManager: ObservableObject {
                 activeGoogleCloudModelId = initialModelId
                 activeGoogleCloudModelDisplayName = initialModelName
             } catch {
-                logger.error("[AssistManager] Failed to create Antigravity session for \(initialModelName): \(error.localizedDescription)")
+                await logger.error("[AssistManager] Failed to create Antigravity session for \(initialModelName): \(error.localizedDescription)")
                 await MainActor.run {
                     let sessionErrMsg = "Session Error (\(initialModelName)): \(error.localizedDescription)"
                     self.lastError = sessionErrMsg
@@ -1278,7 +1278,7 @@ public final class AssistManager: ObservableObject {
 
                     // 2. Multi-Provider Failover
                     let priorOutput = await MainActor.run { self.messages.last?.content ?? "" }
-                    logger.warning("[AssistManager] Model '\(currentModelName)' failed: \(errText)")
+                    await logger.warning("[AssistManager] Model '\(currentModelName)' failed: \(errText)")
                     if let failover = await AssistModelRouter.shared.handleTurnFailure(
                         failedModelIdentifier: currentModelId,
                         errorText: errText,
@@ -1287,7 +1287,7 @@ public final class AssistManager: ObservableObject {
                     ) {
                         let oldName = currentModelName
                         let newName = failover.nextModel.displayName
-                        logger.warning("[AssistManager] Model '\(oldName)' failed. Failing over to '\(newName)'. Error: \(errText)")
+                        await logger.warning("[AssistManager] Model '\(oldName)' failed. Failing over to '\(newName)'. Error: \(errText)")
                         await MainActor.run {
                             self.currentActivityStatus = "\(oldName) error — switching to \(newName)"
                             if let idx = self.messages.indices.last {
@@ -1325,10 +1325,10 @@ public final class AssistManager: ObservableObject {
                 }
 
                 // Terminal failure
+                let rawErr = turnError ?? ((altKeysEnabled && isGemini) ? "All configured Gemini API keys are currently unavailable." : "\(currentModelName) execution failed")
+                let finalErrorMsg = "Error (\(currentModelName)): \(rawErr)"
+                await logger.error("[AssistManager] Terminal failure: \(finalErrorMsg)")
                 await MainActor.run {
-                    let rawErr = turnError ?? ((altKeysEnabled && isGemini) ? "All configured Gemini API keys are currently unavailable." : "\(currentModelName) execution failed")
-                    let finalErrorMsg = "Error (\(currentModelName)): \(rawErr)"
-                    logger.error("[AssistManager] Terminal failure: \(finalErrorMsg)")
                     self.lastError = finalErrorMsg
                     if let idx = self.messages.indices.last {
                         self.messages[idx].activityGroup?.isExecuting = false
