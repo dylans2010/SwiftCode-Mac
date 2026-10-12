@@ -1,0 +1,249 @@
+import Foundation
+
+// MARK: - SDKCapabilityBroker
+//
+// THE SINGLE AUTHORIZATION CHOKE POINT FOR THE SWIFTCODE SDK.
+//
+// Every privileged host operation — project reads, workspace reads/writes,
+// source-control operations, builds, task execution, network requests, UI
+// contributions, credential use — MUST call
+// `SDKCapabilityBroker.authorize(_:for:)` on every call, before touching the
+// underlying service. There is exactly one public entry point on purpose:
+// authorization decisions are made in exactly one place so they cannot drift
+// out of sync across adapters.
+//
+// SECURITY CONTROLS vs. NON-CONTROLS:
+// - UI hiding, manifest capability claims, and TypeScript type signatures are
+//   NOT security controls. A malicious extension can send arbitrary IPC
+//   messages; the host validates identity, grants, scope, and package
+//   identity here, on the receiving side, on EVERY call (spec §8.4).
+// - A valid manifest is a request, not an authorization token.
+// - `assist.invoke` is deny-by-default and NEVER grantable in this release
+//   (spec §9); it is checked first, before any grant-store lookup, so no
+//   grant, scope, or identity state can ever satisfy it.
+//
+// ENFORCEMENT ORDER (real checks, no short-circuits):
+//   1. `assist.invoke` -> always deny + `assistDenied` audit event.
+//   2. Active-grant lookup in `SDKGrantStore` -> nil classifies precisely:
+//        no record at all      -> PERMISSION_DENIED  (+ permissionDenied audit)
+//        newest record revoked -> PERMISSION_REVOKED (+ permissionRevoked audit)
+//        newest record expired -> PERMISSION_EXPIRED  (+ permissionDenied audit)
+//        active but otherwise scoped -> PERMISSION_DENIED ("outside the
+//        approved project"; activeGrant filtered it out on project root)
+//   3. Scope check: standardized grant project root vs. standardized caller
+//      root -> mismatch is PERMISSION_DENIED ("outside the approved project").
+//   4. Package-digest binding: grant.packageDigest != caller.packageDigest ->
+//      PERMISSION_DENIED ("extension was updated; re-approval required").
+//      Reinstalls or content changes never silently inherit grants (spec §8.7).
+//   5. Success returns Void — authorization is a gate, not a token. Nothing
+//      is returned that the extension could cache or replay; the caller must
+//      re-authorize on every privileged request.
+//
+// HONEST LIMITATION (until runtime Phase 4): extension registration and
+// active-state tracking (spec §8.4's "registered and currently active"
+// check) arrive with the runtime lifecycle. Until then the broker trusts the
+// `SDKCallerIdentity` passed by host-owned code paths only — every call site
+// of `authorize` MUST be host code (service adapters, host API façade).
+// Extension-supplied identity fields are never accepted at the IPC boundary;
+// identity is bound to the host-created runtime session there.
+
+// MARK: - SDKCallerIdentity
+
+/// The identity an extension presents when the host asks for a privileged
+/// operation. Constructed ONLY by host-owned code from host-known state
+/// (installed package registry + host-created runtime session). Extension
+/// messages must never supply this directly.
+public struct SDKCallerIdentity: Sendable {
+    /// The extension ID from its validated manifest (e.g.
+    /// "com.example.repository-build-extension").
+    public let extensionID: String
+
+    /// SHA-256 hex of the installed package the caller is running. Binds
+    /// grants to the exact package content the user approved; any content
+    /// change forces re-approval (spec §8.7).
+    public let packageDigest: String
+
+    /// Filesystem path of the project root the caller claims to act within.
+    /// Checked against the grant's approved scope after normalization.
+    public let projectRootPath: String
+
+    public init(extensionID: String, packageDigest: String, projectRootPath: String) {
+        self.extensionID = extensionID
+        self.packageDigest = packageDigest
+        self.projectRootPath = projectRootPath
+    }
+}
+
+// MARK: - SDKCapabilityBroker
+
+/// The single authorization gate for SDK host operations. Stateless; all
+/// state lives in `SDKGrantStore` (grants) and `SDKAuditLog` (audits).
+public enum SDKCapabilityBroker {
+
+    /// Authorize a single privileged operation. Throws an `SDKError` on any
+    /// denial; returns `Void` on success (a gate, not a token).
+    ///
+    /// - Parameters:
+    ///   - capability: The capability the requested operation maps to.
+    ///   - caller: Host-constructed identity of the requesting extension.
+    public static func authorize(_ capability: SDKCapabilityID, for caller: SDKCallerIdentity) async throws {
+        let correlationId = SDKError.newCorrelationId()
+
+        // --- 1. Assist gate: deny-by-default, never grantable. Checked FIRST,
+        // --- before the grant store, so no grant can ever satisfy it.
+        if capability == .assistInvoke {
+            await SDKAuditLog.shared.record(
+                type: .assistDenied,
+                extensionID: caller.extensionID,
+                capability: capability,
+                detail: "assist.invoke requested",
+                correlationId: correlationId
+            )
+            throw SDKError(
+                code: .assistDenied,
+                message: "Assist is not available to extensions.",
+                suggestion: "Remove the assist request from the manifest.",
+                correlationId: correlationId
+            )
+        }
+
+        // --- 2/3. Grant lookup. A nil active grant is classified precisely by
+        // --- inspecting the newest record for this capability (revoked and
+        // --- expired records are deliberately NOT returned by activeGrant).
+        guard let grant = await SDKGrantStore.shared.activeGrant(
+            extensionID: caller.extensionID,
+            capability: capability,
+            projectRootPath: caller.projectRootPath
+        ) else {
+            try await denyForInactiveGrant(capability, caller: caller, correlationId: correlationId)
+        }
+
+        // --- 4. Scope check. activeGrant matched on the raw stored string; the
+        // --- broker re-checks on normalized paths so "/a/../b", trailing
+        // --- slashes, and other unnormalized spellings cannot escape scope.
+        let approvedRoot = URL(fileURLWithPath: grant.scope.projectRootPath).standardized.path
+        let callerRoot = URL(fileURLWithPath: caller.projectRootPath).standardized.path
+        guard approvedRoot == callerRoot else {
+            await SDKAuditLog.shared.record(
+                type: .permissionDenied,
+                extensionID: caller.extensionID,
+                capability: capability,
+                detail: "authorize(\(capability.rawValue)) denied: outside the approved project",
+                correlationId: correlationId
+            )
+            throw SDKError(
+                code: .permissionDenied,
+                message: "This operation is outside the approved project.",
+                suggestion: "Only use this capability within the project the user approved.",
+                correlationId: correlationId
+            )
+        }
+
+        // --- 5. Package-digest binding. A changed digest means the package
+        // --- content changed after approval; grants never transfer silently.
+        guard grant.packageDigest == caller.packageDigest else {
+            await SDKAuditLog.shared.record(
+                type: .permissionDenied,
+                extensionID: caller.extensionID,
+                capability: capability,
+                detail: "authorize(\(capability.rawValue)) denied: extension was updated; re-approval required",
+                correlationId: correlationId
+            )
+            throw SDKError(
+                code: .permissionDenied,
+                message: "This extension was updated; its permissions require re-approval.",
+                suggestion: "Ask the user to re-approve this capability in SwiftCode Studio.",
+                correlationId: correlationId
+            )
+        }
+
+        // Authorized. The gate returns nothing by design.
+    }
+
+    // MARK: - Precise denial classification
+
+    /// Throws the exact denial for a missing/inactive grant. `activeGrant`
+    /// returns nil for four distinct states; this helper distinguishes them
+    /// by inspecting the newest stored record for the capability.
+    ///
+    /// Classification order (newest record wins):
+    ///   revoked -> PERMISSION_REVOKED (+ permissionRevoked audit)
+    ///   expired -> PERMISSION_EXPIRED (+ permissionDenied audit)
+    ///   active but path-filtered -> PERMISSION_DENIED, scope message
+    ///   no record at all -> PERMISSION_DENIED, missing-grant message
+    private static func denyForInactiveGrant(
+        _ capability: SDKCapabilityID,
+        caller: SDKCallerIdentity,
+        correlationId: String
+    ) async throws -> Never {
+        let records = await SDKGrantStore.shared.grants(for: caller.extensionID)
+        let newest = records
+            .filter { $0.capability == capability }
+            .max { $0.grantedAt < $1.grantedAt }
+
+        guard let record = newest else {
+            await SDKAuditLog.shared.record(
+                type: .permissionDenied,
+                extensionID: caller.extensionID,
+                capability: capability,
+                detail: "authorize(\(capability.rawValue)) denied: no grant for this capability",
+                correlationId: correlationId
+            )
+            throw SDKError(
+                code: .permissionDenied,
+                message: "This extension has not been granted the '\(capability.rawValue)' capability.",
+                suggestion: "Ask the user to approve this capability in SwiftCode Studio before the extension uses it.",
+                correlationId: correlationId
+            )
+        }
+
+        if record.revokedAt != nil {
+            await SDKAuditLog.shared.record(
+                type: .permissionRevoked,
+                extensionID: caller.extensionID,
+                capability: capability,
+                detail: "authorize(\(capability.rawValue)) denied: grant was revoked",
+                correlationId: correlationId
+            )
+            throw SDKError(
+                code: .permissionRevoked,
+                message: "The '\(capability.rawValue)' permission was revoked.",
+                suggestion: "Ask the user to re-approve this capability in SwiftCode Studio.",
+                correlationId: correlationId
+            )
+        }
+
+        if let expiresAt = record.expiresAt, expiresAt <= Date() {
+            await SDKAuditLog.shared.record(
+                type: .permissionDenied,
+                extensionID: caller.extensionID,
+                capability: capability,
+                detail: "authorize(\(capability.rawValue)) denied: grant expired",
+                correlationId: correlationId
+            )
+            throw SDKError(
+                code: .permissionExpired,
+                message: "The '\(capability.rawValue)' permission has expired.",
+                suggestion: "Ask the user to re-approve this capability in SwiftCode Studio.",
+                correlationId: correlationId
+            )
+        }
+
+        // The newest record is live (granted, not revoked, not expired), so
+        // the only reason activeGrant filtered it out is the project-root
+        // filter: the grant is scoped to a different project.
+        await SDKAuditLog.shared.record(
+            type: .permissionDenied,
+            extensionID: caller.extensionID,
+            capability: capability,
+            detail: "authorize(\(capability.rawValue)) denied: grant scoped to a different project",
+            correlationId: correlationId
+        )
+        throw SDKError(
+            code: .permissionDenied,
+            message: "This operation is outside the approved project.",
+            suggestion: "Only use this capability within the project the user approved.",
+            correlationId: correlationId
+        )
+    }
+}

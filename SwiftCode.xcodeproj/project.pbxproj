@@ -2650,6 +2650,15 @@
 		8c020c19e829f375c863a140 /* SDKConfigStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 449dc5c5e0de2787c93d75f2 /* SDKConfigStore.swift */; };
 		af56ea63ce1f0bbfd401f948 /* DirectServiceAccess.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5e5569b923a170b35a98a8fd /* DirectServiceAccess.swift */; };
 		2d8ac922c9c89dd26cfcab38 /* SwiftCodeSDK.json in Resources */ = {isa = PBXBuildFile; fileRef = e712057a2819a18528569eb3 /* SwiftCodeSDK.json */; };
+		38553EA350CC80AD27350441 /* SDKCapability.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3C360E9F8BE681E73F021F01 /* SDKCapability.swift */; };
+		47B238631C8367C2973C7750 /* SDKGrantStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = D9477619861CC24E94E63DB3 /* SDKGrantStore.swift */; };
+		63C6CB3DFB510DFA08A52BCF /* SDKApprovalView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0A87E73566795A97372CBED0 /* SDKApprovalView.swift */; };
+		2696907B317FEA4EFBF032EA /* SDKCapabilityBroker.swift in Sources */ = {isa = PBXBuildFile; fileRef = C424E8BFC2252F4783F2F5C8 /* SDKCapabilityBroker.swift */; };
+		0EDCFE270EDED372C41E9650 /* SDKAuditLog.swift in Sources */ = {isa = PBXBuildFile; fileRef = 83C115BEC1C47787480A00AD /* SDKAuditLog.swift */; };
+		EC11978660598EAEF93FE4EF /* SDKAssistGate.swift in Sources */ = {isa = PBXBuildFile; fileRef = EEF9F6A38F94B2206E916548 /* SDKAssistGate.swift */; };
+		64B1C74F9D1528075E739992 /* SDKAPIKey.swift in Sources */ = {isa = PBXBuildFile; fileRef = 217A0D9102742676168DF1F3 /* SDKAPIKey.swift */; };
+		E709B52A7A0033A628667351 /* SDKKeychain.swift in Sources */ = {isa = PBXBuildFile; fileRef = 57B860072DA9BB42608704E6 /* SDKKeychain.swift */; };
+		4916D1835240C7C527472B69 /* SDKAPIKeyStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9BE39BB6CBBA7FAF9F3760B6 /* SDKAPIKeyStore.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -5275,6 +5284,22 @@
 		5648b55f8780a9ddfa6379c2 /* agent_notes.md */ = {isa = PBXFileReference; lastKnownFileType = text.markdown; path = agent_notes.md; sourceTree = "<group>"; };
 		3d13155873e2bbac0f055b3b /* agent_notes.md */ = {isa = PBXFileReference; lastKnownFileType = text.markdown; path = agent_notes.md; sourceTree = "<group>"; };
 		23a7d5547c970f589efc94a8 /* agent_notes.md */ = {isa = PBXFileReference; lastKnownFileType = text.markdown; path = agent_notes.md; sourceTree = "<group>"; };
+		3C360E9F8BE681E73F021F01 /* SDKCapability.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SDKCapability.swift; sourceTree = "<group>"; };
+		D9477619861CC24E94E63DB3 /* SDKGrantStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SDKGrantStore.swift; sourceTree = "<group>"; };
+		0A87E73566795A97372CBED0 /* SDKApprovalView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SDKApprovalView.swift; sourceTree = "<group>"; };
+		C424E8BFC2252F4783F2F5C8 /* SDKCapabilityBroker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SDKCapabilityBroker.swift; sourceTree = "<group>"; };
+		83C115BEC1C47787480A00AD /* SDKAuditLog.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SDKAuditLog.swift; sourceTree = "<group>"; };
+		EEF9F6A38F94B2206E916548 /* SDKAssistGate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SDKAssistGate.swift; sourceTree = "<group>"; };
+		217A0D9102742676168DF1F3 /* SDKAPIKey.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SDKAPIKey.swift; sourceTree = "<group>"; };
+		57B860072DA9BB42608704E6 /* SDKKeychain.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SDKKeychain.swift; sourceTree = "<group>"; };
+		9BE39BB6CBBA7FAF9F3760B6 /* SDKAPIKeyStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SDKAPIKeyStore.swift; sourceTree = "<group>"; };
+		9FDC63ACD350944B03E3B96E /* agent_notes.md */ = {isa = PBXFileReference; lastKnownFileType = text.markdown; path = agent_notes.md; sourceTree = "<group>"; };
+		09692778747E70FEFF3FBB9C /* agent_notes.md */ = {isa = PBXFileReference; lastKnownFileType = text.markdown; path = agent_notes.md; sourceTree = "<group>"; };
+		4B62A410170A6633C5AC6A7D /* agent_notes.md */ = {isa = PBXFileReference; lastKnownFileType = text.markdown; path = agent_notes.md; sourceTree = "<group>"; };
+		759BB258042E82B0BD5857DB /* agent_notes.md */ = {isa = PBXFileReference; lastKnownFileType = text.markdown; path = agent_notes.md; sourceTree = "<group>"; };
+		16515AB4A9F67B66870F0965 /* agent_notes.md */ = {isa = PBXFileReference; lastKnownFileType = text.markdown; path = agent_notes.md; sourceTree = "<group>"; };
+		00BFDFB3737A50433A570DC9 /* agent_notes.md */ = {isa = PBXFileReference; lastKnownFileType = text.markdown; path = agent_notes.md; sourceTree = "<group>"; };
+		13ABAB5EE0C7204D1C535D60 /* agent_notes.md */ = {isa = PBXFileReference; lastKnownFileType = text.markdown; path = agent_notes.md; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -9522,6 +9547,7 @@
 				5d8e0320750093895bba3565 /* Runtime */,
 				f56dee4b71e8cd3924562700 /* Internal */,
 				05741e4101c1afb1851fff99 /* Documentation */,
+				71106F83F9C3DD1C00B28EA2 /* Assist */,
 			);
 			name = SDK;
 			path = SDK;
@@ -9533,6 +9559,7 @@
 				c69135894820de052d307629 /* Errors */,
 				9150b1bcfb95bd56e93efb92 /* Manifest */,
 				7c6d5c28daa0e9e580dc99c1 /* Protocol */,
+				63AA1C2E0663035CC3B10E3E /* Capability */,
 			);
 			name = Contracts;
 			path = Contracts;
@@ -9577,6 +9604,8 @@
 			isa = PBXGroup;
 			children = (
 				5112bc67d5d1af6adeaa93fd /* ExtensionRegistry */,
+				1AFEE2DD6AA3DA8C12B6B260 /* CapabilityBroker */,
+				75DE7BAC842A2BA0E06F3DD6 /* APIKeys */,
 			);
 			name = Host;
 			path = Host;
@@ -9660,6 +9689,90 @@
 			);
 			name = ExampleManifests;
 			path = ExampleManifests;
+			sourceTree = "<group>";
+		};
+		71106F83F9C3DD1C00B28EA2 /* Assist */ = {
+			isa = PBXGroup;
+			children = (
+				59AEDB249D1BE9F9CF09F808 /* Audit */,
+				B30D85264BC35BDF49B008FE /* Authorization */,
+			);
+			name = Assist;
+			path = Assist;
+			sourceTree = "<group>";
+		};
+		63AA1C2E0663035CC3B10E3E /* Capability */ = {
+			isa = PBXGroup;
+			children = (
+				3C360E9F8BE681E73F021F01 /* SDKCapability.swift */,
+				9FDC63ACD350944B03E3B96E /* agent_notes.md */,
+			);
+			name = Capability;
+			path = Capability;
+			sourceTree = "<group>";
+		};
+		1AFEE2DD6AA3DA8C12B6B260 /* CapabilityBroker */ = {
+			isa = PBXGroup;
+			children = (
+				C424E8BFC2252F4783F2F5C8 /* SDKCapabilityBroker.swift */,
+				759BB258042E82B0BD5857DB /* agent_notes.md */,
+				D5FF580D115433CD3F98DFED /* Grants */,
+				AF10CDFF47EB09835C93E724 /* Approval */,
+			);
+			name = CapabilityBroker;
+			path = CapabilityBroker;
+			sourceTree = "<group>";
+		};
+		D5FF580D115433CD3F98DFED /* Grants */ = {
+			isa = PBXGroup;
+			children = (
+				D9477619861CC24E94E63DB3 /* SDKGrantStore.swift */,
+				09692778747E70FEFF3FBB9C /* agent_notes.md */,
+			);
+			name = Grants;
+			path = Grants;
+			sourceTree = "<group>";
+		};
+		AF10CDFF47EB09835C93E724 /* Approval */ = {
+			isa = PBXGroup;
+			children = (
+				0A87E73566795A97372CBED0 /* SDKApprovalView.swift */,
+				4B62A410170A6633C5AC6A7D /* agent_notes.md */,
+			);
+			name = Approval;
+			path = Approval;
+			sourceTree = "<group>";
+		};
+		75DE7BAC842A2BA0E06F3DD6 /* APIKeys */ = {
+			isa = PBXGroup;
+			children = (
+				217A0D9102742676168DF1F3 /* SDKAPIKey.swift */,
+				57B860072DA9BB42608704E6 /* SDKKeychain.swift */,
+				9BE39BB6CBBA7FAF9F3760B6 /* SDKAPIKeyStore.swift */,
+				13ABAB5EE0C7204D1C535D60 /* agent_notes.md */,
+			);
+			name = APIKeys;
+			path = APIKeys;
+			sourceTree = "<group>";
+		};
+		59AEDB249D1BE9F9CF09F808 /* Audit */ = {
+			isa = PBXGroup;
+			children = (
+				83C115BEC1C47787480A00AD /* SDKAuditLog.swift */,
+				16515AB4A9F67B66870F0965 /* agent_notes.md */,
+			);
+			name = Audit;
+			path = Audit;
+			sourceTree = "<group>";
+		};
+		B30D85264BC35BDF49B008FE /* Authorization */ = {
+			isa = PBXGroup;
+			children = (
+				EEF9F6A38F94B2206E916548 /* SDKAssistGate.swift */,
+				00BFDFB3737A50433A570DC9 /* agent_notes.md */,
+			);
+			name = Authorization;
+			path = Authorization;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -12424,6 +12537,15 @@
 				76e7756021b50be003d84302 /* SDKDeveloperLogger.swift in Sources */,
 				8c020c19e829f375c863a140 /* SDKConfigStore.swift in Sources */,
 				af56ea63ce1f0bbfd401f948 /* DirectServiceAccess.swift in Sources */,
+				38553EA350CC80AD27350441 /* SDKCapability.swift in Sources */,
+				47B238631C8367C2973C7750 /* SDKGrantStore.swift in Sources */,
+				63C6CB3DFB510DFA08A52BCF /* SDKApprovalView.swift in Sources */,
+				2696907B317FEA4EFBF032EA /* SDKCapabilityBroker.swift in Sources */,
+				0EDCFE270EDED372C41E9650 /* SDKAuditLog.swift in Sources */,
+				EC11978660598EAEF93FE4EF /* SDKAssistGate.swift in Sources */,
+				64B1C74F9D1528075E739992 /* SDKAPIKey.swift in Sources */,
+				E709B52A7A0033A628667351 /* SDKKeychain.swift in Sources */,
+				4916D1835240C7C527472B69 /* SDKAPIKeyStore.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
