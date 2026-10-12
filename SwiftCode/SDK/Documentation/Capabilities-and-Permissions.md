@@ -25,11 +25,40 @@ to compile.
 | `ui.contribute` | UI contributions | medium | Register host-rendered contributions (commands). Does NOT grant native code injection |
 | `credentials.use` | Credential use | high | Narrowly scoped, host-mediated credential use. The extension never sees the raw secret |
 | `assist.invoke` | Assist invocation | restricted | **Never grantable in this release.** Any request → typed `ASSIST_DENIED` + audit event |
+| `db.ExploreView` | Database Explorer | medium | Open the Database Explorer window for project databases. Does NOT grant arbitrary SQL outside the explorer or direct database-connection access |
+| `ci.VisualWF` | CI / visual workflow | medium | Open the CI / visual workflow views. Does NOT grant triggering pipeline runs or editing workflow definitions |
+| `sandbox.view` | Virtualization console | high | Open the Virtualization console and view VM state. Does NOT grant VM lifecycle actions outside the console's own controls |
+| `use.SwiftCodeModel` | SwiftCode Cloud Model | high | Invoke the SwiftCode Cloud Model through the host under host-enforced quota. Does NOT grant direct model-endpoint access, quota bypass, or use of other cloud models |
+| `terminal.sandbox` | Sandboxed command execution | high | Run sandboxed shell commands through host-mediated execution — NOT a view. Does NOT grant a terminal surface, unsandboxed shell access, or files outside the sandbox |
+| `simulator.view` | Simulator workspace | medium | Open the Simulator workspace. Does NOT grant creating, deleting, or retyping simulators outside the workspace |
+| `preview.live` | Live SwiftUI preview | medium | Render live SwiftUI previews. Does NOT grant editing source files through previews or unrestricted build execution beyond preview compilation |
+| `uibuilder.open` | Visual UI Builder | medium | Open the Visual UI Builder. Does NOT grant applying UI changes to the project outside the builder's own flow |
+| `symbols.browse` | SF Symbol picker | low | Browse and pick SF Symbols. Does NOT grant any system modification, network access, or file access |
+| `docs.search` | Documentation browser | low | Search and read documentation. Does NOT grant network access beyond the doc browser or any file mutation |
+| `dictionary.open` | Coding dictionary | low | Open the coding dictionary reference. Does NOT grant network access beyond the dictionary or any project modification |
+| `deviceconnect.open` | Device Connect | medium | Open the Device Connect surface for paired devices. Does NOT grant device pairing authorization or destructive device operations outside the console's own controls |
 
-`grantableInCurrentRelease` is `true` for all ten except `assist.invoke`.
+`grantableInCurrentRelease` is `true` for all 22 except `assist.invoke`.
 Risk tier drives the approval UX (low-risk capabilities default on in the
 approval sheet; medium/high default off) and the Developer API Key scope
 requirements.
+
+## Two ID naming conventions
+
+The registry carries two historical conventions (documented in
+`SDKCapability.swift`'s enum-header note; both spellings are valid,
+**case-sensitive wire IDs** — match them verbatim, never normalize or
+re-case them):
+
+- **Phase 1 IDs:** kebab-case `domain.action` (e.g. `"source-control.read"`).
+- **Platform-capability IDs:** `<area>.<View>` camel/Pascal form (e.g.
+  `"db.ExploreView"`), used by the SDK 1.1.0 platform capabilities.
+
+## Gaps, not omissions
+
+- `deployConsole.view` does **not** exist. There is no deployment-console
+  surface anywhere in the codebase, so no capability ID was minted for one.
+  Requesting it is an unknown capability, not a pending feature.
 
 ## Grant records
 

@@ -12,7 +12,7 @@ are checked on their own paths.
 
 | # | Concept | Current value | Declared by | Governed by |
 |---|---|---|---|---|
-| 1 | **SDK package version** | `1.0.0` | Host (`SwiftCodeSDK.json` `sdkVersion`) | `SDKCompatibility.check` against the manifest's `sdk.versionRange` |
+| 1 | **SDK package version** | `1.1.0` | Host (`SwiftCodeSDK.json` `sdkVersion`) | `SDKCompatibility.check` against the manifest's `sdk.versionRange` |
 | 2 | **Manifest schema generation** | `manifestVersion` `1` | Extension (`swiftcode.json`) | `SDKManifestValidator` (and the JSON schema); new generations are new schema files |
 | 3 | **Host/runtime IPC protocol version** | `1` | Extension (`sdk.protocolVersion`); host (`SwiftCodeSDK.json` `protocolVersion`) | Must match **exactly** — protocol versions are never range-negotiated |
 | 4 | **Internal API version** | `2026.1` | Host (`SwiftCodeSDK.json` `apiVersion`) | Informational only: surfaced for diagnostics, **not** used in the compatibility decision |
@@ -25,7 +25,7 @@ host version metadata, managed by internal developers:
 
 ```json
 {
-  "sdkVersion": "1.0.0",
+  "sdkVersion": "1.1.0",
   "apiVersion": "2026.1",
   "minimumHostVersion": "1.0.0",
   "protocolVersion": 1,
@@ -39,8 +39,31 @@ The DEBUG-only `SDKConfigStore` (`#if DEBUG`, stripped from release builds)
 loads it from the app bundle. User projects' SDK bindings sync from it on
 launch: non-breaking updates propagate automatically; breaking updates
 require an explicit Studio prompt (ADR §10). `SDKConfigStore.isDeprecated`
-answers whether a named public API appears in `deprecatedAPIs` (empty in
-1.0.0).
+answers whether a named public API appears in `deprecatedAPIs` (empty since
+1.0.0, still empty in 1.1.0).
+
+## SDK 1.1.0 — additive release (2026-10-12)
+
+Bumped per the capability-registry convention (`SDKCapability.swift`
+enum-header note): additive registry cases require a minor version bump and
+a `Compatibility.md` entry. **Nothing was renamed, removed, or
+re-scoped** — a 1.0.0 extension runs unchanged against the 1.1.0 host.
+
+- **12 new capability IDs:** `db.ExploreView`, `ci.VisualWF`,
+  `sandbox.view`, `use.SwiftCodeModel`, `terminal.sandbox`,
+  `simulator.view`, `preview.live`, `uibuilder.open`, `symbols.browse`,
+  `docs.search`, `dictionary.open`, `deviceconnect.open`. The 11 original
+  Phase 1 IDs are unchanged. New IDs use the `<area>.<View>` camel/Pascal
+  convention; existing IDs are untouched.
+- **New IPC routes:** `ui.openView`, `cloudModel.complete`,
+  `terminalSandbox.run` (all added; no existing route changed or removed).
+- **New TypeScript exports** (`@swiftcode/sdk`): the `ScopesIDLists.ts`
+  module (`SCOPES_ID_LIST`, `SCOPES_BY_ID`, synced 1:1 with the host's
+  `ScopesIDLists` table — drift fails
+  `TypeScript/package/tests/scopes-sync.test.mjs`), the `snippets.ts`
+  module (`SNIPPETS`), and the `UIAPI`, `CloudModelAPI`,
+  `TerminalSandboxAPI` interfaces (all re-exported from `index.ts`).
+  Protocol version stays `1`; the IPC wire format is unchanged.
 
 ## Negotiation rules
 
