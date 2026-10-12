@@ -82,10 +82,13 @@ await extension.activate(context);
   `correlationId`). Malformed inbound frames are ignored with a stderr
   diagnostic and never crash the connection.
 - `createContext(connection, extensionInfo)` — builds the real
-  `SwiftCodeContext`: `project`, `sourceControl`, `build`, `commands`,
-  `events`, `log`, `subscriptions`, plus `getCommandHandler(id)` for the
-  runtime's `commands.execute` dispatch.
+  `SwiftCodeContext`: `project`, `sourceControl`, `build`, `cloudModel`,
+  `terminalSandbox`, `commands`, `events`, `log`, `ui`, `subscriptions`,
+  plus `getCommandHandler(id)` for the runtime's `commands.execute`
+  dispatch.
 - `SDKError` — typed error for host rejections and IPC failures.
+- Snippet library — `SNIPPETS`, `searchSnippets(query)`,
+  `getSnippet(id)` from `./snippets.js` (see below).
 
 ### Method coverage (matches the Swift host dispatcher)
 
@@ -98,6 +101,9 @@ await extension.activate(context);
 | `handle.cancel()` | `build.cancel` | `{handleId}` |
 | `commands.register(def)` | `commands.register` | `{id, title}` |
 | disposable from `register` | `commands.unregister` | `{commandID}` |
+| `cloudModel.complete(request)` | `cloudModel.complete` | `{prompt, history?, systemPrompt?, modelIdentifier?}` → `{response}` |
+| `terminalSandbox.run(request)` | `terminalSandbox.run` | `{command, args, workingDirectory?, timeout?}` → `TerminalSandboxResult` |
+| `ui.openView(viewId)` | `ui.openView` | `{viewId}` — `viewId` is the view's own capability ID (e.g. `"sandbox.view"`); the host answers with a null payload |
 | `log.debug/info/warn/error` | `log.*` | `{message, correlationId?}` (fire-and-forget) |
 
 `project.getCurrent()` is sent as `project.getCurrent`; the current host
@@ -109,6 +115,38 @@ project.
 events; it is safe to consume concurrently with `wait()`. Events that
 arrive before the handle exists (the host forwards them detached from the
 run request) are stashed by the context router and replayed in order.
+
+## Snippet library
+
+`src/snippets.ts` is a preset, searchable library of working TypeScript
+snippets against the real SDK API — one snippet per capability that has a
+TypeScript context API (16 snippets: virtualization console, database
+explorer, cloud model, sandboxed commands, CI workflows, source control,
+builds, simulator, live preview, UI builder, SF symbols, docs, dictionary,
+device connect, command registration, project metadata). Every snippet's
+`code` is a self-contained example that typechecks against the built
+package (verified by `tests/snippets.test.mjs`); each snippet's
+`capabilityId` is the exact wire ID the extension manifest must request
+(`SDKCapabilityID` in
+`SwiftCode/SDK/Contracts/Capability/SDKCapability.swift`).
+
+- `searchSnippets(query)` — case-insensitive search across id, title,
+  description, capabilityId, tags, and code. A blank query returns every
+  snippet.
+- `getSnippet(id)` — returns one snippet by id, or `undefined`.
+
+The Studio snippet browser reads the light manifest
+`snippets.json` at the package root (`id`, `title`, `description`,
+`capabilityId`, `tags` — no code). It is **generated**, not hand-written:
+
+```sh
+npm run build            # tsc, then regenerates snippets.json
+npm run build:snippets   # regenerate snippets.json from dist/ only
+```
+
+The generator is `scripts/build-snippets.mjs`. Regenerate after editing
+`src/snippets.ts`; `tests/snippets.test.mjs` fails when the checked-in
+`snippets.json` is out of sync.
 
 ## Security notes
 
