@@ -22,6 +22,10 @@ struct SwiftCodeApp: App {
         AgentSystemInitializer.shared.initialize()
         StylingBootstrap.initialize()
         LicenseCatalog.prewarm()
+        // SwiftCode SDK host bootstrap (one-time, idempotent): registers the
+        // built-in view openers on the main actor before any extension can
+        // call `ui.openView`. Failures are logged, not thrown, by the bootstrap.
+        Task { await SDKBootstrap.bootstrapIfNeeded() }
     }
 
     @State private var sessionStore = ProjectSessionStore.shared
