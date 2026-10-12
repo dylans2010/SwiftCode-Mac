@@ -52,7 +52,7 @@ public enum SCCloudConfiguration {
     /// `.ollamaNative` uses:
     ///   chat     → POST /api/chat
     ///   discovery→ GET  /api/tags
-    public enum WireFormat {
+    public enum WireFormat: Sendable {
         case openAICompatible
         case ollamaNative
     }
@@ -180,6 +180,8 @@ public enum SCCloudConfiguration {
 
     /// True when the user enabled the toggle AND selected any cloud model.
     /// Reads the UI-facing settings only — the fingerprint itself is never consulted here.
+    /// Main-actor isolated because AppSettings is main-actor isolated.
+    @MainActor
     public static var isEnabledAndSelected: Bool {
         AppSettings.shared.useSwiftCodeCloudModel
             && isCloudModelID(AppSettings.shared.selectedAssistModelID)
@@ -355,11 +357,12 @@ public final class SCCloudModelDiscovery: @unchecked Sendable {
             }
             let unique = Array(Dictionary(grouping: fetched, by: { $0.endpointName }).values.compactMap { $0.first })
                 .sorted { $0.endpointName.localizedCaseInsensitiveCompare($1.endpointName) == .orderedAscending }
-            lock.lock()
-            cachedModels = unique
-            cachedUpdatedAt = Date()
-            lock.unlock()
-            persistLocked(models: unique, updatedAt: Date())
+            let now = Date()
+            lock.withLock {
+                cachedModels = unique
+                cachedUpdatedAt = now
+            }
+            persistLocked(models: unique, updatedAt: now)
             logger.info("[SCCloud] Discovered \(unique.count) cloud models.")
             return unique
         } catch {
@@ -767,7 +770,10 @@ public final class SCCloudModelClient: Sendable {
         // when the cache is stale, but proceed with the previous cache when the
         // server is unreachable.
         await SCCloudModelDiscovery.shared.refreshIfStale()
-        let resolvedModel = try resolveModelIdentifier(explicit: modelIdentifier)
+        // AppSettings is main-actor isolated; hop there for the read, then
+        // resolve off the main thread.
+        let selectedID = await MainActor.run { AppSettings.shared.selectedAssistModelID }
+        let resolvedModel = try resolveModelIdentifier(explicit: modelIdentifier, selectedID: selectedID)
 
         var fullHistory = history
         if let systemPrompt, !systemPrompt.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
@@ -816,11 +822,12 @@ public final class SCCloudModelClient: Sendable {
     }
 
     /// Resolves the exact server-side model name for a chat request.
-    private func resolveModelIdentifier(explicit: String?) throws -> String {
+    /// `selectedID` must be captured from AppSettings on the main actor by the
+    /// caller — this stays nonisolated so it can run off the main thread.
+    private func resolveModelIdentifier(explicit: String?, selectedID: String) throws -> String {
         if let explicit, !explicit.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             return explicit
         }
-        let selectedID = AppSettings.shared.selectedAssistModelID
         if let endpointName = SCCloudConfiguration.endpointName(forInternalID: selectedID) {
             return endpointName
         }

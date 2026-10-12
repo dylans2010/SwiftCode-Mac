@@ -58,14 +58,14 @@ public enum MarkdownBlock: Sendable, Identifiable {
 
 /// Renders inline-markdown source (bold/italic/strikethrough/inline-code/
 /// links) as styled text. Falls back to plain text when parsing fails.
-fileprivate func inlineText(_ source: String, font: Font = .body) -> Text {
+fileprivate func inlineText(_ source: String, font: Font = .body) -> SwiftUI.Text {
     if let attributed = try? AttributedString(
         markdown: source,
         options: AttributedString.MarkdownParsingOptions(interpretedSyntax: .inlineOnlyPreservingWhitespace)
     ) {
-        return Text(attributed).font(font)
+        return SwiftUI.Text(attributed).font(font)
     }
-    return Text(source).font(font)
+    return SwiftUI.Text(source).font(font)
 }
 
 @MainActor
