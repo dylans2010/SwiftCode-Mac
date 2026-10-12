@@ -336,6 +336,13 @@ public final class AssistModelDiscoveryService: Sendable {
             }
             request = URLRequest(url: url)
             request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+            // The Developer API's OAuth contract requires the quota project on
+            // every request; without it this call fails with 403 and discovery
+            // silently falls back to the bundled catalog.
+            let quotaProject = AppSettings.shared.assistGoogleCloudProject.trimmingCharacters(in: .whitespacesAndNewlines)
+            if !quotaProject.isEmpty {
+                request.setValue(quotaProject, forHTTPHeaderField: "x-goog-user-project")
+            }
         } else {
             return await fallbackAntigravityModels()
         }

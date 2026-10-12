@@ -890,6 +890,10 @@ public final class AssistManager: ObservableObject {
             let maxFailoverAttempts = 3
             var protocolCorrectionAttempts = 0
             var totalIdleTimeoutUsed: TimeInterval = 0
+            // Guards the 403 scope-insufficient path: a scope-upgrade re-auth
+            // is attempted at most once per user message so a rejected token
+            // can never spin an infinite re-authentication loop.
+            var didAttemptScopeReauth = false
 
             executionLoop: while attempts < maxFailoverAttempts {
                 guard totalIdleTimeoutUsed < 240 else {
@@ -1155,35 +1159,89 @@ public final class AssistManager: ObservableObject {
                 let isGemini = currentModelId.lowercased().contains("gemini") || currentModelName.lowercased().contains("gemini") || (currentConfig.provider == "gemini" || currentConfig.provider == "google")
 
                 if let errText = turnError {
-                    // --- OAuth Scope Insufficient (403 ACCESS_TOKEN_SCOPE_INSUFFICIENT) ---
-                    // Occurs when the user is OAuth-authenticated but their token lacks the Antigravity scope.
-                    // Automatically prompt the user to approve the updated scopes without failing into API key rotation.
-                    let isQuotaOrRateLimit = AssistModelRouter.shared.isQuotaOrRateLimit(errorText: errText)
-                    let isScopeInsufficient = !isQuotaOrRateLimit && (
-                        errText.contains("ACCESS_TOKEN_SCOPE_INSUFFICIENT") ||
-                        (errText.contains("403") && (errText.contains("insufficient authentication scopes") || (errText.contains("PERMISSION_DENIED") && errText.contains("scope"))))
-                    )
-                    if isScopeInsufficient && GoogleAccountAuthService.shared.isAuthenticated && !GoogleAccountAuthService.shared.hasRequiredAssistScopes() {
+                    // --- Classified auth error handling ---
+                    // A 403 ACCESS_TOKEN_SCOPE_INSUFFICIENT is only fixable by
+                    // re-authentication when the stored token was minted before
+                    // the required Developer API scope existed. Otherwise the
+                    // endpoint is rejecting a correctly-scoped token (missing
+                    // quota project, wrong endpoint, or a product restriction):
+                    // re-authenticating would loop forever, so the actual
+                    // restriction is explained instead. Account mode is never
+                    // silently switched to API-key mode here.
+                    let classification = GoogleAuthErrorClassification.classify(errText)
+                    let isQuotaOrRateLimit: Bool = {
+                        if case .quotaOrRateLimit = classification.kind { return true }
+                        return AssistModelRouter.shared.isQuotaOrRateLimit(errorText: errText)
+                    }()
+
+                    if case .scopeInsufficient(let storedScopes) = classification.kind {
+                        let needsScopeUpgrade = !(storedScopes?.contains("generative-language.retriever") ?? false)
+                        if needsScopeUpgrade && !didAttemptScopeReauth && GoogleAccountAuthService.shared.isAuthenticated {
+                            // One-shot scope upgrade: the new sign-in requests
+                            // the Developer API scope the old token lacks.
+                            didAttemptScopeReauth = true
+                            await MainActor.run {
+                                if let idx = self.messages.indices.last {
+                                    self.messages[idx].activityGroup?.isExecuting = false
+                                    self.messages[idx].content = ""
+                                }
+                                self.isProcessing = false
+                                self.currentActivityStatus = "Re-authenticating to enable Assist…"
+                                if let old = self.activeGoogleCloudSession {
+                                    Task { try? await old.close() }
+                                }
+                                self.activeGoogleCloudSession = nil
+                                let scopeMessage = """
+                                **Action required — additional permissions needed**
+
+                                Your Google account session was created before SwiftCode requested the Gemini API permission it needs. \
+                                A sign-in prompt has been opened — please approve the permissions to continue using Assist.
+                                """
+                                self.messages.append(AssistMessage(role: .system, content: scopeMessage))
+                                self.saveHistory()
+                                GoogleAccountAuthService.shared.reAuthenticateForAssistScopes()
+                            }
+                            break executionLoop
+                        }
+                        // Not fixable by re-authentication: report the actual
+                        // restriction with the preserved diagnostics, keep the
+                        // conversation and the selected auth mode intact, and do
+                        // not fall through into API-key rotation.
                         await MainActor.run {
                             if let idx = self.messages.indices.last {
                                 self.messages[idx].activityGroup?.isExecuting = false
-                                self.messages[idx].content = ""
                             }
                             self.isProcessing = false
-                            self.currentActivityStatus = "Re-authenticating to enable Assist…"
+                            self.currentActivityStatus = "Idle"
                             if let old = self.activeGoogleCloudSession {
                                 Task { try? await old.close() }
                             }
                             self.activeGoogleCloudSession = nil
-                            let scopeMessage = """
-                            **Action required — additional permissions needed**
+                            let diagnostics = classification.diagnosticSummary
+                            let restrictionMessage = """
+                            **Google account authentication failed**
 
-                            Your Google account session is missing the permissions needed to use the Gemini API directly without an API key. \
-                            A sign-in prompt has been opened — please approve the permissions to continue using Assist.
+                            The Gemini API rejected the request (\(diagnostics)) even though your \
+                            Google session already carries the required permissions. Signing in again \
+                            will not fix this.
+
+                            What to check:
+                            1. **Google Cloud project** — OAuth requests to the Gemini API must \
+                            carry a quota project. Set your project ID in Settings → Assist → \
+                            Google Account. Usage is billed to that project (Google's documented \
+                            account-authentication contract).
+                            2. **API enablement** — the Generative Language API must be enabled \
+                            for that project in the Google Cloud console.
+
+                            Your Antigravity IDE subscription quota is not accessible to \
+                            third-party applications — Google does not authorize that integration.
+
+                            Your conversation and sign-in are preserved. You can also switch to \
+                            API Key mode explicitly in Settings → Assist → Google Account.
                             """
-                            self.messages.append(AssistMessage(role: .system, content: scopeMessage))
+                            self.messages.append(AssistMessage(role: .assistant, content: restrictionMessage))
+                            self.lastError = restrictionMessage
                             self.saveHistory()
-                            GoogleAccountAuthService.shared.reAuthenticateForAssistScopes()
                         }
                         break executionLoop
                     }
