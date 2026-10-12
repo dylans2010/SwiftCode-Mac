@@ -43,6 +43,17 @@ public enum SDKAuditEventType: String, Sendable, Codable, CaseIterable {
     case apiKeyScopeFailure
     case apiKeyAuthFailure
 
+    // Assist authorization entitlements (Docs/Intro-to-SDK.md §12).
+    // Granted only through the Assist access application flow
+    // (`SDKAssistApplicationStore.approve` → `SDKAPIKeyStore.grantEntitlement`),
+    // never from the manifest or client code.
+    /// An entitlement was granted to a developer API key. `detail`: the key
+    /// ID and the entitlement ID — never secrets.
+    case entitlementGranted
+    /// An entitlement was revoked from a developer API key. `detail`: the
+    /// key ID and the entitlement ID — never secrets.
+    case entitlementRevoked
+
     // Extension lifecycle
     case extensionInstalled
     case extensionUpdated

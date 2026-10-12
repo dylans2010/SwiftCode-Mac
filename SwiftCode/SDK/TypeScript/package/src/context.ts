@@ -44,6 +44,8 @@
 
 import { randomUUID } from "node:crypto";
 import type {
+  AssistAPI,
+  AssistUIAPI,
   BuildDiagnostic,
   BuildHandle,
   BuildOutputEvent,
@@ -74,6 +76,8 @@ import type {
 } from "./types.js";
 import { SDKError, type HostConnection, type HostEvent } from "./ipc.js";
 import { createSecurityAPI } from "./security.js";
+import { createAssistAPI } from "./assist.js";
+import { createAssistUIAPI } from "./assistUI.js";
 
 /** Client-side mirror of the host's command-ID rule (SDKCommandRegistry). */
 const COMMAND_ID_PATTERN = /^[a-z][a-z0-9-]{0,63}$/;
@@ -675,6 +679,12 @@ export function createContext(
   // connection for the standalone security.* helpers in security.ts.
   const security: SecurityAPI = createSecurityAPI(connection);
 
+  // Assist SDK variants (task B2) over the same IPC connection. Both are
+  // entitlement-gated host-side; the TS layer translates only the host's
+  // typed ASSIST_DENIED denial and never fabricates entitlement state.
+  const assist: AssistAPI = createAssistAPI(connection);
+  const assistUI: AssistUIAPI = createAssistUIAPI(connection);
+
   const context: SwiftCodeContext = {
     extension: extensionInfo,
     project,
@@ -687,6 +697,8 @@ export function createContext(
     log,
     ui,
     security,
+    assist,
+    assistUI,
     subscriptions,
   };
 

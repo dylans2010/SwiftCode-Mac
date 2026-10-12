@@ -29,6 +29,21 @@ public enum SDKCapabilityID: String, Sendable, Codable, CaseIterable {
     case credentialsUse = "credentials.use"
     case useSecurity = "use.Security"
     case assistInvoke = "assist.invoke"
+    // Entitlement-only Assist SDK variants (Docs/Intro-to-SDK.md §11–§12,
+    // task B2/B3). These are NEVER grantable through the manifest: only a
+    // verified `com.SwiftCode.developer-AI-Assist` entitlement on the
+    // developer's API key unlocks them, enforced at the capability broker
+    // and IPC dispatcher (sibling task). Keep deny-by-default intact.
+    case assistUI = "assist.ui"
+    case assistHeadless = "assist.headless"
+    // The viewId the `assistSDK.UI` variant opens through `ui.openView`
+    // (assist.viewId rule, task B2): `SDKViewOpenerBuiltIns.swift`
+    // registers no Assist view, so the agreed viewId is the literal
+    // `"assist.main"`. Registered by `SDKAssistUIOpener` at SDK bootstrap
+    // (not in BuiltIns — see that file for the scopes-sync rationale).
+    // Entitlement-only like the other Assist variants: never grantable
+    // through the manifest.
+    case assistMainView = "assist.main"
     case dbExploreView = "db.ExploreView"
     case ciVisualWF = "ci.VisualWF"
     case sandboxView = "sandbox.view"
@@ -98,7 +113,10 @@ public struct SDKCapabilityInfo: Sendable {
     public let risk: SDKCapabilityRisk
 
     /// Whether the host may grant this capability in the current release.
-    /// `false` only for `assist.invoke` (ADR §9).
+    /// `false` for `assist.invoke` (ADR §9) and for the entitlement-only
+    /// Assist variants `assist.ui` / `assist.headless`, which are unlocked
+    /// by the key-bound entitlement flow (Docs/Intro-to-SDK.md §12),
+    /// never by a grant.
     public let grantableInCurrentRelease: Bool
 
     public init(
@@ -251,6 +269,36 @@ public enum SDKCapabilityRegistry {
                 description: "Would let the extension request Assist operations under a separate authorization flow. Assist is unavailable to extensions in this release: any request is denied with a typed error and recorded as an audit event.",
                 grantsSummary: "Request separately authorized Assist operations.",
                 doesNotGrant: "Automatic access to Assist, user conversations, or all models/tools.",
+                risk: .restricted,
+                grantableInCurrentRelease: false
+            )
+        case .assistUI:
+            return SDKCapabilityInfo(
+                id: id,
+                title: "Assist embedded UI",
+                description: "Lets the extension embed SwiftCode's real Assist main view through ui.openView. Entitlement-only: requires the com.SwiftCode.developer-AI-Assist entitlement on the developer's API key (Docs/Intro-to-SDK.md §12); never grantable through the manifest.",
+                grantsSummary: "Embed the host's Assist main view; the extension never touches Assist internals.",
+                doesNotGrant: "Headless Assist API access, conversation content beyond what the view shows, or custom Assist chrome.",
+                risk: .restricted,
+                grantableInCurrentRelease: false
+            )
+        case .assistHeadless:
+            return SDKCapabilityInfo(
+                id: id,
+                title: "Assist headless API",
+                description: "Lets the extension drive Assist sessions, streaming responses, and approved tool calls over the entitled assist.invoke IPC route. Entitlement-only: requires the com.SwiftCode.developer-AI-Assist entitlement on the developer's API key (Docs/Intro-to-SDK.md §12); never grantable through the manifest.",
+                grantsSummary: "Create, message, stream, and close Assist sessions and invoke approved tools through host mediation.",
+                doesNotGrant: "Opening any Assist view surface, or Assist access without the key-bound entitlement.",
+                risk: .restricted,
+                grantableInCurrentRelease: false
+            )
+        case .assistMainView:
+            return SDKCapabilityInfo(
+                id: id,
+                title: "Assist main view",
+                description: "Opens SwiftCode's real Assist main view through ui.openView (viewId \"assist.main\"). Entitlement-only: requires the com.SwiftCode.developer-AI-Assist entitlement on the developer's API key (Docs/Intro-to-SDK.md §12); never grantable through the manifest. The extension never touches Assist internals and gets no custom Assist chrome.",
+                grantsSummary: "Open the host's Assist main view for the agreed viewId.",
+                doesNotGrant: "Headless Assist API access, or Assist access without the key-bound entitlement.",
                 risk: .restricted,
                 grantableInCurrentRelease: false
             )
@@ -459,10 +507,12 @@ public enum SDKCapabilityRegistry {
     /// enforcement (spec §8.2.1): high-risk capabilities (network requests,
     /// custom builds, credential use, workspace/source-control writes, task
     /// execution) additionally require the `capabilities:request` scope on
-    /// a session-presented developer API key. `.restricted` (Assist) is not
-    /// "privileged" in this sense — it is deny-by-default and never
-    /// grantable, so the broker rejects it unconditionally before any scope
-    /// logic runs.
+    /// a session-presented developer API key. `.restricted` (Assist,
+    /// including the entitlement-only `assist.ui` / `assist.headless`
+    /// variants) is not "privileged" in this sense — it is deny-by-default
+    /// and never grantable, so the broker rejects it unconditionally
+    /// before any scope logic runs; the entitled path is enforced
+    /// separately at the dispatcher (sibling task).
     public static func isPrivileged(_ id: SDKCapabilityID) -> Bool {
         info(for: id).risk == .high
     }

@@ -3,9 +3,9 @@
  *
  * Finalized from Docs/Intro-to-SDK.md §8.1 (the fixed capability registry)
  * and §10.4 (IPC methods), matched against the Swift host contracts:
- * - `SwiftCode/SDK/Contracts/Capability/SDKCapability.swift` — the 28 fixed
+ * - `SwiftCode/SDK/Contracts/Capability/SDKCapability.swift` — the 30 fixed
  *   capability IDs (11 original kebab-case + 12 `<area>.<View>` IDs + 5
- *   `security.*` IDs),
+ *   `security.*` IDs + 2 Assist SDK variants `assist.ui`/`assist.headless`),
  * - `SwiftCode/SDK/Runtime/IPC/SDKIPCDispatcher.swift` — the real IPC
  *   method strings serving the API capabilities,
  * - `SwiftCode/SDK/Host/ViewOpener/SDKViewOpenerBuiltIns.swift` — the 10
@@ -60,11 +60,14 @@ export interface ScopeIDEntry {
  * each paired with its scope kind and primary IPC method.
  *
  * 12 entries are views (`ui.openView` + registered openers in
- * `SDKViewOpenerBuiltIns.swift`); 18 are API capabilities served by the
+ * `SDKViewOpenerBuiltIns.swift`); 20 are API capabilities served by the
  * host adapters. Entries with `ipcMethod: null` have a broker capability
  * but no wired host method in this release — `assist.invoke` is the
  * deny-by-default exception (spec §9): it is never grantable and no
- * method pattern reaches it (`SDKAssistGate`).
+ * method pattern reaches it (`SDKAssistGate`). The `assist.ui` and
+ * `assist.headless` entries are entitlement-only (task B3): their
+ * `assist.invoke` route is the dedicated entitled path the sibling
+ * dispatcher/gate task implements, not a manifest grant.
  */
 export const SCOPES_ID_LIST: readonly ScopeIDEntry[] = [
   {
@@ -165,6 +168,24 @@ export const SCOPES_ID_LIST: readonly ScopeIDEntry[] = [
     kind: "api",
     ipcMethod: null,
     capabilityId: "assist.invoke",
+  },
+  {
+    id: "assist.ui",
+    title: "Assist embedded UI",
+    description:
+      "Embed SwiftCode's real Assist main view (assist.main) through ui.openView. Entitlement-only: requires the com.SwiftCode.developer-AI-Assist entitlement on the developer's API key; never grantable through the manifest. The entitled IPC route is assist.invoke (sibling dispatcher/gate task).",
+    kind: "api",
+    ipcMethod: "assist.invoke",
+    capabilityId: "assist.ui",
+  },
+  {
+    id: "assist.headless",
+    title: "Assist headless API",
+    description:
+      "Drive Assist sessions, streaming responses, and approved tool calls over the entitled assist.invoke IPC route. Entitlement-only: requires the com.SwiftCode.developer-AI-Assist entitlement on the developer's API key; never grantable through the manifest.",
+    kind: "api",
+    ipcMethod: "assist.invoke",
+    capabilityId: "assist.headless",
   },
   {
     id: "db.ExploreView",

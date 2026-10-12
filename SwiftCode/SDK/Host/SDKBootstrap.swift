@@ -76,6 +76,17 @@ public enum SDKBootstrap {
 
             // Future one-time SDK registrations belong here.
 
+            // Assist main view opener (SDKAssistUIOpener): registers the
+            // real AssistMainView for the agreed viewId "assist.main"
+            // (assist.viewId rule, task B2). Registered here rather than in
+            // SDKViewOpenerBuiltIns so the scopes-sync contract (every
+            // BuiltIns opener needs a kind:"view" ScopesIDLists entry)
+            // stays green while `assist.ui` is an API-kind entry.
+            // Never throws out of bootstrap: a failed registration must
+            // not break app launch; the opener simply stays unregistered
+            // and `open` throws typed `.serviceUnavailable`.
+            await SDKAssistUIOpener.registerAssistViewOpener()
+
             didBootstrap = true
             logger.debug("SDKBootstrap: complete")
         } catch {

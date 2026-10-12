@@ -383,8 +383,12 @@ export interface UIAPI {
 /**
  * The context handed to an extension on activation.
  *
- * Assist is deliberately NOT present here (spec §9): it is a separately
- * protected authorization boundary and stays unavailable to extensions.
+ * Assist reaches extensions ONLY through the two entitled SDK variants
+ * (Docs/Intro-to-SDK.md §11, task B2): `assist` (headless `assistSDK`)
+ * and `assistUI` (`assistSDK.UI`). Both are entitlement-gated — the
+ * `com.SwiftCode.developer-AI-Assist` entitlement on the developer's API
+ * key (task B3), never the manifest — and every call fails with the
+ * verbatim {@link ASSIST_ACCESS_DENIED_MESSAGE} when the host denies it.
  */
 export interface SwiftCodeContext {
   readonly extension: ExtensionInfo;
@@ -418,6 +422,19 @@ export interface SwiftCodeContext {
    * CI dashboards, …). Each view is gated by its own capability grant.
    */
   readonly ui: UIAPI;
+  /**
+   * Headless Assist variant (`assistSDK`): sessions, streaming responses,
+   * and approved tool calls — no UI surface. Entitlement-gated
+   * (`com.SwiftCode.developer-AI-Assist`); denials surface as
+   * {@link SDKAssistAccessError} with the verbatim user message.
+   */
+  readonly assist: AssistAPI;
+  /**
+   * UI Assist variant (`assistSDK.UI`): embeds the host's real Assist main
+   * view only. Entitlement-gated like `assist`; denials surface as
+   * {@link SDKAssistAccessError} with the verbatim user message.
+   */
+  readonly assistUI: AssistUIAPI;
   /**
    * Collects every registration/subscription. The runtime calls
    * `disposeAll()` on deactivation so nothing leaks.
@@ -536,4 +553,138 @@ export interface SDKErrorShape {
   readonly code: string;
   readonly message: string;
   readonly correlationId: string;
+}
+
+/* ------------------------------------------------------------------ */
+/* Assist SDK variants (task B2: `assistSDK` and `assistSDK.UI`)       */
+/* ------------------------------------------------------------------ */
+
+/**
+ * The exact user-facing message the host produces when an Assist call is
+ * denied for lack of a verified entitlement (Docs/Intro-to-SDK.md §13).
+ *
+ * VERBATIM — do not reword. The TypeScript layer never fabricates this:
+ * it is thrown only when the host answers with the typed `ASSIST_DENIED`
+ * denial, via {@link SDKAssistAccessError}.
+ */
+export const ASSIST_ACCESS_DENIED_MESSAGE: string =
+  "This app is not allowed to use Assist because access has not yet been verified. Please check with the app developer for further information.";
+
+/**
+ * Typed denial for Assist calls. Thrown ONLY when the host answers with
+ * the typed `ASSIST_DENIED` error — i.e. the host has checked the
+ * key-bound `com.SwiftCode.developer-AI-Assist` entitlement and found it
+ * missing or revoked.
+ *
+ * The TS layer cannot know entitlement state itself and must NOT
+ * fabricate it: any other host rejection (including `PERMISSION_DENIED`
+ * for unrelated reasons) propagates as the original {@link SDKErrorShape}
+ * untouched. Catch this class specifically to show the user the exact
+ * §13 message.
+ */
+export class SDKAssistAccessError extends Error {
+  /** Always `"ASSIST_DENIED"`: the typed host denial code. */
+  readonly code: "ASSIST_DENIED" = "ASSIST_DENIED";
+  /** Correlation ID of the denied request, for host-side log lookup. */
+  readonly correlationId: string;
+
+  constructor(correlationId?: string) {
+    super(ASSIST_ACCESS_DENIED_MESSAGE);
+    this.name = "SDKAssistAccessError";
+    // randomUUID is called lazily to avoid importing node:crypto at module
+    // load for pure-type consumers of this file.
+    this.correlationId =
+      typeof correlationId === "string" && correlationId.length > 0
+        ? correlationId
+        : "unknown";
+  }
+}
+
+/** Metadata for one headless Assist session. Never carries contents. */
+export interface AssistSessionInfo {
+  readonly sessionId: string;
+  readonly createdAt: string;
+}
+
+/** Options for `AssistAPI.createSession`. */
+export interface AssistSessionOptions {
+  readonly systemPrompt?: string;
+  readonly model?: string;
+}
+
+/** One tool invocation requested through an Assist session. */
+export interface AssistToolCall {
+  readonly tool: string;
+  readonly arguments: Record<string, unknown>;
+}
+
+/** The host-mediated result of one tool invocation. */
+export interface AssistToolResult {
+  readonly tool: string;
+  readonly result: unknown;
+}
+
+/** One chunk of a streamed Assist response. `done: true` ends the stream. */
+export interface AssistStreamChunk {
+  readonly delta: string;
+  readonly done: boolean;
+}
+
+/**
+ * Headless Assist variant (`assistSDK`): the full Assist API surface
+ * EXCEPT UI — sessions, streaming responses, and tool access per the
+ * approved scope. The developer renders everything themselves.
+ *
+ * Every function routes through the IPC connection to the host's
+ * dedicated entitled route. There is intentionally NO view-opening path
+ * in this interface: presenting UI belongs to {@link AssistUIAPI}.
+ *
+ * Entitlement: every call requires the key-bound
+ * `com.SwiftCode.developer-AI-Assist` entitlement (task B3), enforced by
+ * the host at the IPC dispatcher / capability broker. When the host
+ * denies, the call throws {@link SDKAssistAccessError} carrying the
+ * verbatim §13 message — the TS layer never decides entitlement itself.
+ */
+export interface AssistAPI {
+  /** Creates a headless Assist session on the host. */
+  createSession(options?: AssistSessionOptions): Promise<AssistSessionInfo>;
+  /** Lists this extension's live headless Assist sessions. Metadata only. */
+  listSessions(): Promise<AssistSessionInfo[]>;
+  /**
+   * Sends one message in a session; resolves with the full assistant
+   * reply text.
+   */
+  sendMessage(sessionId: string, message: string): Promise<string>;
+  /**
+   * Sends one message and yields response chunks as they stream in.
+   * The async iterator ends when the host sends a chunk with
+   * `done: true`.
+   */
+  streamMessage(sessionId: string, message: string): AsyncIterable<AssistStreamChunk>;
+  /**
+   * Invokes one approved tool through the session, host-mediated. The
+   * tool must be within the extension's approved scope; anything else is
+   * denied by the host with the typed denial.
+   */
+  invokeTool(sessionId: string, call: AssistToolCall): Promise<AssistToolResult>;
+  /** Closes a headless Assist session. */
+  closeSession(sessionId: string): Promise<void>;
+}
+
+/**
+ * UI Assist variant (`assistSDK.UI`): exposes ONLY embedding of the
+ * host's real Assist main view inside the developer's app. The host
+ * presents it; the extension never touches Assist internals and gets no
+ * headless session/streaming APIs here.
+ *
+ * Entitlement: like {@link AssistAPI}, gated by the key-bound
+ * `com.SwiftCode.developer-AI-Assist` entitlement; a host denial throws
+ * {@link SDKAssistAccessError} with the verbatim §13 message.
+ */
+export interface AssistUIAPI {
+  /**
+   * Presents the host's Assist main view (`assist.main`). Resolves once
+   * the host has opened it.
+   */
+  openAssistView(): Promise<void>;
 }

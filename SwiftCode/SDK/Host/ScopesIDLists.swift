@@ -77,9 +77,12 @@ public enum ScopesIDLists {
     }
 
     /// Every capability in the fixed registry, in `SDKCapabilityRegistry.all`
-    /// order. 10 are views; 18 are API capabilities. `ipcMethod == nil`
+    /// order. 10 are views; 20 are API capabilities. `ipcMethod == nil`
     /// means no host method is wired in this release — `assist.invoke`
     /// additionally being deny-by-default (spec §9, `SDKAssistGate`).
+    /// The `assist.ui` / `assist.headless` entries name the entitled
+    /// `assist.invoke` route (task B2/B3); the dispatcher + gate path is
+    /// owned by the sibling task.
     public static let all: [ScopeEntry] = [
         ScopeEntry(
             id: "project.read",
@@ -178,6 +181,24 @@ public enum ScopesIDLists {
             kind: .api,
             ipcMethod: nil,
             capabilityId: .assistInvoke,
+            viewId: nil
+        ),
+        ScopeEntry(
+            id: "assist.ui",
+            title: "Assist embedded UI",
+            description: "Embed SwiftCode's real Assist main view (assist.main) through ui.openView. Entitlement-only: requires the com.SwiftCode.developer-AI-Assist entitlement on the developer's API key; never grantable through the manifest.",
+            kind: .api,
+            ipcMethod: "assist.invoke",
+            capabilityId: .assistUI,
+            viewId: nil
+        ),
+        ScopeEntry(
+            id: "assist.headless",
+            title: "Assist headless API",
+            description: "Drive Assist sessions, streaming responses, and approved tool calls over the entitled assist.invoke IPC route. Entitlement-only: requires the com.SwiftCode.developer-AI-Assist entitlement on the developer's API key; never grantable through the manifest.",
+            kind: .api,
+            ipcMethod: "assist.invoke",
+            capabilityId: .assistHeadless,
             viewId: nil
         ),
         ScopeEntry(

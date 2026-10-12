@@ -320,6 +320,10 @@ private struct AuditLogsPane: View {
             name = "key"; color = .blue
         case .apiKeyRevoked:
             name = "key.slash"; color = .orange
+        case .entitlementGranted:
+            name = "checkmark.seal"; color = .green
+        case .entitlementRevoked:
+            name = "xmark.seal"; color = .orange
         case .extensionInstalled, .extensionUpdated:
             name = "square.and.arrow.down"; color = .blue
         case .extensionDisabled, .extensionUninstalled,

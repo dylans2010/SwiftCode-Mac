@@ -32,6 +32,9 @@ import SwiftUI
 //   - `AvailableExtensionsView`  (installed extensions/apps browser: run
 //                                contributed commands, enable/disable,
 //                                uninstall — spec §7)
+//   - `AssistAccessFormView`     (Assist access application form + pending
+//                                queue: approve/deny grants the key-bound
+//                                Assist entitlement — spec §10)
 //
 // Native macOS SwiftUI (`NavigationSplitView`), macOS 15, Swift 6.
 //
@@ -90,6 +93,8 @@ public struct SDKStudioView: View {
             SDKCodeEditorShellView()
         case .installedExtensions:
             AvailableExtensionsView()
+        case .assistAccess:
+            AssistAccessFormView()
         }
     }
 }

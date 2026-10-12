@@ -50,7 +50,15 @@ export type {
   SecurityOperation,
   SecurityHTTPResponse,
   SDKErrorShape,
+  AssistAPI,
+  AssistUIAPI,
+  AssistSessionInfo,
+  AssistSessionOptions,
+  AssistStreamChunk,
+  AssistToolCall,
+  AssistToolResult,
 } from "./types.js";
+export { SDKAssistAccessError, ASSIST_ACCESS_DENIED_MESSAGE } from "./types.js";
 
 export {
   SDKError,
@@ -78,6 +86,9 @@ export {
   securityDeleteValue,
   securityUseValue,
 } from "./security.js";
+
+export { createAssistAPI } from "./assist.js";
+export { createAssistUIAPI, ASSIST_VIEW_ID } from "./assistUI.js";
 
 export { SCOPES_ID_LIST, SCOPES_BY_ID } from "./ScopesIDLists.js";
 export type { ScopeIDEntry, ScopeKind } from "./ScopesIDLists.js";
