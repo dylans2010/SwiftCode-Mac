@@ -188,8 +188,10 @@ creation/publishing and privileged capability access.
   `apps:publish` (publish/release), `capabilities:request` (privileged
   capabilities — network, custom builds, credential use, platform
   publishing). `requireScope(_:for:)` throws `API_KEY_SCOPE_INSUFFICIENT`.
-  API keys do not expire — revocation is the lifecycle control, and it is
-  immediate.
+  Keys support an optional `expiresAt` (nil = never expires); revocation
+  remains the primary lifecycle control, and both revocation and expiry
+  take effect immediately — the dispatcher re-verifies the session's key
+  on every request.
 - **Storage (`SDKKeychain`):** purpose-built wrapper — secrets live only in
   the Keychain (`kSecClassGenericPassword`, service `com.swiftcode.sdk`),
   with **no UserDefaults fallback** (the app's general `KeychainService`
@@ -198,3 +200,25 @@ creation/publishing and privileged capability access.
   accessibility `kSecAttrAccessibleWhenUnlockedThisDeviceOnly`, no iCloud
   sync. Keychain failures surface as `SERVICE_UNAVAILABLE`, never by
   degrading to a weaker store.
+- **Delivery (secret handoff):** the secret is shown exactly once at
+  creation (Studio) and never persisted by the host. To present it, the
+  developer exports `SWIFTCODE_API_KEY` in the host process's environment;
+  the host coordinator binds it to the extension session
+  (`SDKRuntimeSessionInfo.presentedAPIKey`, in-memory only) via
+  `SDKAPIKeySessionAuth.presentedKeyFromEnvironment()`. The extension
+  process never sees the secret and no file-based config store exists by
+  design. Lost secret = revoke + generate a new key.
+- **Consumption:** `SDKIPCDispatcher` verifies the session's presented key
+  on every request (fail closed: `API_KEY_INVALID` / `API_KEY_REVOKED` /
+  `API_KEY_RATE_LIMITED`), attaches the verified metadata to
+  `SDKCallerIdentity.apiKey`, and the broker enforces `capabilities:request`
+  for privileged capabilities (high-risk: workspace/source-control writes,
+  builds, task execution, network, credential use) — at both grant
+  issuance (`SDKGrantStore.recordGrants(authorizedByAPIKey:)`) and
+  authorization (`SDKCapabilityBroker.authorize`), each emitting
+  `apiKeyScopeFailure` on denial. Sessions presenting no key authorize
+  purely through user grants, as before.
+- **Brute-force protection:** `verify(secret:)` is in-memory rate limited —
+  at most 10 failed verifications per 60 seconds per presented key ID, then
+  a 5-minute lockout (`API_KEY_RATE_LIMITED`). Only invalid-secret failures
+  count; success clears the bucket.

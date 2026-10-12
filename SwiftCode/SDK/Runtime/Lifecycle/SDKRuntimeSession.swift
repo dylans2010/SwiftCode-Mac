@@ -25,19 +25,33 @@ public struct SDKRuntimeSessionInfo: Sendable {
     /// The validated manifest (data only; validation lives in
     /// `SDKManifestValidator` / `SDKPackageValidator`).
     public let manifest: SDKManifest
+    /// Developer API key secret presented for this session, if any (spec
+    /// §8.2.1). Set by the host coordinator from
+    /// `SDKAPIKeySessionAuth.presentedKeyFromEnvironment()` — i.e. the
+    /// `SWIFTCODE_API_KEY` environment variable. This is the session's
+    /// handshake credential: `SDKIPCDispatcher` verifies it against
+    /// `SDKAPIKeyStore` on every request the session makes, failing closed
+    /// with `.apiKeyInvalid` when verification fails. It is never
+    /// persisted, never logged, and never leaves host memory.
+    ///
+    /// Nil (the default) means the session presents no key and authorizes
+    /// purely through user grants.
+    public let presentedAPIKey: String?
 
     public init(
         sessionID: UUID = UUID(),
         extensionID: String,
         packageDigest: String,
         projectRootPath: String,
-        manifest: SDKManifest
+        manifest: SDKManifest,
+        presentedAPIKey: String? = nil
     ) {
         self.sessionID = sessionID
         self.extensionID = extensionID
         self.packageDigest = packageDigest
         self.projectRootPath = projectRootPath
         self.manifest = manifest
+        self.presentedAPIKey = presentedAPIKey
     }
 }
 

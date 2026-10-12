@@ -327,12 +327,73 @@ public actor SDKGrantStore {
     // MARK: - Mutations
 
     /// Inserts or replaces grant records by `id`, then persists.
-    public func recordGrants(_ records: [SDKGrantRecord]) throws {
+    ///
+    /// - Parameter authorizedByAPIKey: the verified developer API key the
+    ///   issuing session presented, if any (spec §8.2.1). When non-nil,
+    ///   issuing a grant for a privileged capability
+    ///   (`SDKCapabilityRegistry.isPrivileged`) additionally requires the
+    ///   key to carry the `capabilities:request` scope: otherwise the whole
+    ///   batch is rejected with `.apiKeyScopeInsufficient` and NOTHING is
+    ///   persisted (fail closed — partial issuance would leave the store in
+    ///   a half-authorized state). A nil key means the grants come from the
+    ///   user-approval path, which this gate does not constrain.
+    public func recordGrants(
+        _ records: [SDKGrantRecord],
+        authorizedByAPIKey apiKey: SDKAPIKey? = nil
+    ) throws {
         try ensureLoaded()
+        if let apiKey {
+            try enforceKeyScopeForIssuance(records: records, apiKey: apiKey)
+        }
         for record in records {
             cache[record.id] = record
         }
         try persist()
+    }
+
+    /// Grant-issuance side of the `capabilities:request` scope gate: a
+    /// session whose key lacks the scope cannot be granted privileged
+    /// capabilities. Emits an `apiKeyScopeFailure` audit event on denial
+    /// (key ID only — never secret material).
+    private func enforceKeyScopeForIssuance(records: [SDKGrantRecord], apiKey: SDKAPIKey) throws {
+        if apiKey.revokedAt != nil {
+            throw SDKError(
+                code: .apiKeyRevoked,
+                message: "This developer API key was revoked.",
+                suggestion: "Generate a new key in Studio → Settings → Developer API Keys."
+            )
+        }
+        if apiKey.isExpired {
+            throw SDKError(
+                code: .apiKeyInvalid,
+                message: "This developer API key has expired.",
+                suggestion: "Generate a new key in Studio → Settings → Developer API Keys."
+            )
+        }
+        let privileged = records.filter { SDKCapabilityRegistry.isPrivileged($0.capability) }
+        guard !privileged.isEmpty else { return }
+        guard apiKey.scopes.contains(.capabilitiesRequest) else {
+            let correlationId = SDKError.newCorrelationId()
+            let capabilities = privileged
+                .map { $0.capability.rawValue }
+                .sorted()
+                .joined(separator: ", ")
+            await SDKAuditLog.shared.record(
+                type: .apiKeyScopeFailure,
+                extensionID: privileged[0].extensionID,
+                detail: "grant issuance denied: session API key \(apiKey.id.uuidString) "
+                    + "lacks \"capabilities:request\" for privileged capabilities (\(capabilities))",
+                correlationId: correlationId
+            )
+            throw SDKError(
+                code: .apiKeyScopeInsufficient,
+                message: "This developer API key does not include the \"capabilities:request\" scope, "
+                    + "which is required to grant privileged capabilities (\(capabilities)).",
+                suggestion: "Create a key with the \"capabilities:request\" scope in Studio → Settings → Developer API Keys.",
+                diagnostics: ["keyId": apiKey.id.uuidString, "missingScope": "capabilities:request"],
+                correlationId: correlationId
+            )
+        }
     }
 
     /// Stamps `revokedAt` on every record for `extensionID` +

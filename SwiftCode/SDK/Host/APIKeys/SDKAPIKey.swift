@@ -59,6 +59,12 @@ public struct SDKAPIKeyScope: Sendable, Hashable, RawRepresentable, Codable {
 // storage to steal. `revokedAt != nil` means revoked; verification checks it
 // on every call, so revocation takes effect immediately (spec §8.2.1,
 // ADR §11).
+//
+// `expiresAt` is an OPTIONAL expiry: nil means the key does not expire and
+// revocation remains the lifecycle control. When set, `verify` rejects the
+// key once `expiresAt` has passed (as `.apiKeyInvalid` — an expired key is
+// an invalid key). The property is `Optional`, so metadata written before
+// this field existed decodes with `expiresAt == nil` (backwards compatible).
 
 public struct SDKAPIKey: Sendable, Codable {
     public let id: UUID
@@ -70,6 +76,9 @@ public struct SDKAPIKey: Sendable, Codable {
     public let createdAt: Date
     public var lastUsedAt: Date?
     public var revokedAt: Date?
+    /// Optional expiry. Nil = does not expire. Honored by
+    /// `SDKAPIKeyStore.verify(secret:)` on every call.
+    public let expiresAt: Date?
 
     public init(
         id: UUID = UUID(),
@@ -78,7 +87,8 @@ public struct SDKAPIKey: Sendable, Codable {
         scopes: Set<SDKAPIKeyScope>,
         createdAt: Date = Date(),
         lastUsedAt: Date? = nil,
-        revokedAt: Date? = nil
+        revokedAt: Date? = nil,
+        expiresAt: Date? = nil
     ) {
         self.id = id
         self.keyPrefix = keyPrefix
@@ -87,12 +97,20 @@ public struct SDKAPIKey: Sendable, Codable {
         self.createdAt = createdAt
         self.lastUsedAt = lastUsedAt
         self.revokedAt = revokedAt
+        self.expiresAt = expiresAt
     }
 
     /// True when the key has been revoked. Convenience only — the
     /// authorization boundary must go through `SDKAPIKeyStore.verify(secret:)`,
     /// which enforces this on every call.
     public var isRevoked: Bool { revokedAt != nil }
+
+    /// True when `expiresAt` is set and has passed. Convenience only —
+    /// like revocation, expiry is enforced by `verify(secret:)`.
+    public var isExpired: Bool {
+        guard let expiresAt else { return false }
+        return expiresAt <= Date()
+    }
 }
 
 // MARK: - SDKAPIKeyCodec
@@ -125,10 +143,11 @@ public enum SDKAPIKeyCodec {
     /// Rejects absurdly long inputs before any parsing (DoS bound).
     private static let maxSecretLength = 4096
 
-    /// The signed payload. `iat` is informational (key age / debugging);
-    /// API keys do not expire — revocation is the lifecycle control
-    /// (spec §8.2.1: "revocation must be immediate at the authorization
-    /// boundary").
+    /// The signed payload. `iat` is informational (key age / debugging).
+    /// Optional key expiry lives in the stored `SDKAPIKey.expiresAt`
+    /// metadata (checked by `SDKAPIKeyStore.verify`), not in the payload —
+    /// the payload stays minimal and every expiry decision reads fresh
+    /// metadata, so expiry takes effect immediately like revocation.
     private struct Payload: Codable {
         let id: UUID
         let prefix: String
@@ -221,6 +240,36 @@ public enum SDKAPIKeyCodec {
         guard payload.prefix == prefix else { throw invalidSecretError() }
 
         return (payload.id, prefix)
+    }
+
+    // MARK: - Untrusted ID extraction (rate limiting only)
+
+    /// Extracts the key ID from a presented secret WITHOUT verifying the
+    /// signature. UNTRUSTED: the returned ID proves nothing about the
+    /// secret's validity — it is only a stable bucket label for brute-force
+    /// rate limiting (`SDKAPIKeyStore`). Returns nil when the secret is so
+    /// malformed that no ID can be structurally extracted.
+    ///
+    /// NEVER use this for an authorization decision; authorization goes
+    /// through `parseAndVerify`, which checks the HMAC.
+    public static func extractPresentedKeyID(from secret: String) -> UUID? {
+        guard secret.count <= maxSecretLength else { return nil }
+
+        let rest: Substring
+        if secret.hasPrefix(livePrefix + "_") {
+            rest = secret.dropFirst(livePrefix.count + 1)
+        } else if secret.hasPrefix(testPrefix + "_") {
+            rest = secret.dropFirst(testPrefix.count + 1)
+        } else {
+            return nil
+        }
+
+        let parts = rest.split(separator: ".", omittingEmptySubsequences: false)
+        guard parts.count == 2, !parts[0].isEmpty else { return nil }
+        guard let payloadJSON = base64URLDecode(String(parts[0])) else { return nil }
+
+        struct IDOnly: Decodable { let id: UUID }
+        return try? JSONDecoder().decode(IDOnly.self, from: payloadJSON).id
     }
 
     // MARK: - Private helpers

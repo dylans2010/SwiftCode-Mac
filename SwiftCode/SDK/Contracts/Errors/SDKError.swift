@@ -63,6 +63,7 @@ public enum SDKErrorCode: String, Sendable, Codable, CaseIterable {
     case apiKeyInvalid = "API_KEY_INVALID"
     case apiKeyScopeInsufficient = "API_KEY_SCOPE_INSUFFICIENT"
     case apiKeyRevoked = "API_KEY_REVOKED"
+    case apiKeyRateLimited = "API_KEY_RATE_LIMITED"
 
     // Assist gate (deny-by-default; never grantable in this release)
     case assistDenied = "ASSIST_DENIED"
@@ -162,6 +163,7 @@ extension SDKErrorCode {
         case .apiKeyInvalid: return "Developer API key is invalid"
         case .apiKeyScopeInsufficient: return "Developer API key lacks the required scope"
         case .apiKeyRevoked: return "Developer API key was revoked"
+        case .apiKeyRateLimited: return "Developer API key verification is temporarily rate limited"
         case .assistDenied: return "Assist is not available to extensions"
         }
     }

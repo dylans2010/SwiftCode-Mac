@@ -110,11 +110,11 @@ public actor SDKIPCDispatcher {
     ///      FIRST — before any routing or payload decoding — run the Assist
     ///      deny-list (`SDKAssistGate.check`, §9).
     ///   3. Verify the session's presented developer API key, if any
-    ///      (`verifySessionAPIKey`, §8.2.1) — fail closed on any failure.
-    ///   4. Build the caller identity from the SESSION (never the payload),
-    ///      attaching the verified key metadata when present.
-    ///   5. Route with a 60 s per-request timeout (→ `.ipcTimeout`).
-    ///   6. Encode the `SDKResponseEnvelope` (`ok`/payload or `ok: false` +
+    ///      (`verifySessionAPIKey`, §8.2.1) — fail closed on any failure —
+    ///      build the caller identity from the SESSION (never the payload),
+    ///      attaching the verified key metadata when present, and route —
+    ///      all inside the 60 s per-request timeout (→ `.ipcTimeout`).
+    ///   4. Encode the `SDKResponseEnvelope` (`ok`/payload or `ok: false` +
     ///      `SDKErrorPayload(from:)`).
     public func dispatch(_ data: Data) async -> Data {
         // Best-effort requestId for pre-decode failures: the frame may not
@@ -152,25 +152,31 @@ public actor SDKIPCDispatcher {
             // --- Assist through this dispatcher.
             try await SDKAssistGate.check(ipcMethod: method, callerExtensionID: session.extensionID)
 
-            // --- 3b. Session API-key verification (§8.2.1). Verified on
-            // --- EVERY request: revocation and expiry take effect
-            // --- immediately, and no "still valid" verdict is cached.
-            let apiKey = try await verifySessionAPIKey()
-
-            // --- 4. Session-bound caller identity. Extension-supplied
-            // --- identity is never trusted: no identity fields are read
-            // --- from the payload anywhere in this dispatcher (§10.4).
-            // --- The verified key (when the session presents one) rides
-            // --- along so the broker can enforce `capabilities:request`.
-            let caller = SDKCallerIdentity(
-                extensionID: session.extensionID,
-                packageDigest: session.packageDigest,
-                projectRootPath: session.projectRootPath,
-                apiKey: apiKey
-            )
-
-            // --- 5. Route with a 60 s per-request timeout.
+            // --- 3b + 4 + 5. Session API-key verification (§8.2.1),
+            // --- caller-identity binding, and routing — all inside the 60 s
+            // --- per-request timeout. Verification runs inside the budget
+            // --- because it performs Keychain I/O: it must never hang a
+            // --- request past the deadline.
+            //
+            // --- 3b. Verified on EVERY request: revocation and expiry take
+            // --- effect immediately, and no "still valid" verdict is cached.
+            // --- Fail closed: any verification failure fails the request.
             return try await withPerRequestTimeout {
+                let apiKey = try await self.verifySessionAPIKey()
+
+                // --- 4. Session-bound caller identity. Extension-supplied
+                // --- identity is never trusted: no identity fields are read
+                // --- from the payload anywhere in this dispatcher (§10.4).
+                // --- The verified key (when the session presents one) rides
+                // --- along so the broker can enforce `capabilities:request`.
+                let caller = SDKCallerIdentity(
+                    extensionID: self.session.extensionID,
+                    packageDigest: self.session.packageDigest,
+                    projectRootPath: self.session.projectRootPath,
+                    apiKey: apiKey
+                )
+
+                // --- 5. Route.
                 try await self.route(
                     method: method,
                     requestId: requestId,

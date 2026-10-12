@@ -24,6 +24,12 @@ import Foundation
 //
 // ENFORCEMENT ORDER (real checks, no short-circuits):
 //   1. `assist.invoke` -> always deny + `assistDenied` audit event.
+//   1b. API-key scope gate: when the caller is bound to a verified
+//       developer API key (the session presented one), privileged
+//       capabilities (`SDKCapabilityRegistry.isPrivileged`) additionally
+//       require the key to carry the `capabilities:request` scope ->
+//       deny + `apiKeyScopeFailure` audit event. Sessions without a key
+//       skip this gate (user grants alone decide).
 //   2. Active-grant lookup in `SDKGrantStore` -> nil classifies precisely:
 //        no record at all      -> PERMISSION_DENIED  (+ permissionDenied audit)
 //        newest record revoked -> PERMISSION_REVOKED (+ permissionRevoked audit)
@@ -67,10 +73,22 @@ public struct SDKCallerIdentity: Sendable {
     /// Checked against the grant's approved scope after normalization.
     public let projectRootPath: String
 
-    public init(extensionID: String, packageDigest: String, projectRootPath: String) {
+    /// Verified developer API key bound to the caller's session, if the
+    /// session presented one (`SDKRuntimeSessionInfo.presentedAPIKey`,
+    /// verified per-request by `SDKIPCDispatcher`). Nil for sessions
+    /// without a key — those authorize purely through user grants.
+    public let apiKey: SDKAPIKey?
+
+    public init(
+        extensionID: String,
+        packageDigest: String,
+        projectRootPath: String,
+        apiKey: SDKAPIKey? = nil
+    ) {
         self.extensionID = extensionID
         self.packageDigest = packageDigest
         self.projectRootPath = projectRootPath
+        self.apiKey = apiKey
     }
 }
 
@@ -105,6 +123,28 @@ public enum SDKCapabilityBroker {
                 suggestion: "Remove the assist request from the manifest.",
                 correlationId: correlationId
             )
+        }
+
+        // --- 1b. API-key scope gate (spec §8.2.1). A session that presents
+        // --- a developer API key opts into key-based authorization:
+        // --- privileged capabilities additionally require the
+        // --- `capabilities:request` scope on the key. Fail closed — a key
+        // --- without the scope can never unlock a privileged capability,
+        // --- no matter what grants exist. Keyless sessions skip this gate.
+        if let apiKey = caller.apiKey, SDKCapabilityRegistry.isPrivileged(capability) {
+            do {
+                try await SDKAPIKeyStore.shared.requireScope(.capabilitiesRequest, for: apiKey)
+            } catch {
+                await SDKAuditLog.shared.record(
+                    type: .apiKeyScopeFailure,
+                    extensionID: caller.extensionID,
+                    capability: capability,
+                    detail: "authorize(\(capability.rawValue)) denied: session API key "
+                        + "\(apiKey.id.uuidString) lacks \"capabilities:request\"",
+                    correlationId: correlationId
+                )
+                throw error
+            }
         }
 
         // --- 2/3. Grant lookup. A nil active grant is classified precisely by

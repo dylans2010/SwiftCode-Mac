@@ -366,4 +366,16 @@ public enum SDKCapabilityRegistry {
         guard let id = SDKCapabilityID(rawValue: rawValue) else { return nil }
         return info(for: id)
     }
+
+    /// Whether the capability is privileged for developer-API-key scope
+    /// enforcement (spec §8.2.1): high-risk capabilities (network requests,
+    /// custom builds, credential use, workspace/source-control writes, task
+    /// execution) additionally require the `capabilities:request` scope on
+    /// a session-presented developer API key. `.restricted` (Assist) is not
+    /// "privileged" in this sense — it is deny-by-default and never
+    /// grantable, so the broker rejects it unconditionally before any scope
+    /// logic runs.
+    public static func isPrivileged(_ id: SDKCapabilityID) -> Bool {
+        info(for: id).risk == .high
+    }
 }
