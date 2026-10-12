@@ -796,20 +796,40 @@ public final class AssistManager: ObservableObject {
         if isGoogleAuthActive && GoogleAccountAuthService.shared.isAuthenticated && !GoogleAccountAuthService.shared.hasRequiredAssistScopes() && !altKeysEnabled {
             await MainActor.run {
                 self.isProcessing = false
-                self.currentActivityStatus = "Re-authenticating to enable Assist…"
                 if let old = self.activeGoogleCloudSession {
                     Task { try? await old.close() }
                 }
                 self.activeGoogleCloudSession = nil
-                let scopeMessage = """
-                **Action required — additional permissions needed**
+                // A scope upgrade requires an authorization session, which
+                // Google only opens for a user-owned OAuth client. Without
+                // one, say so and point at Settings instead of claiming a
+                // prompt was opened.
+                let canReauth = GoogleAccountAuthService.shared.isCustomOAuthClientConfigured
+                let scopeMessage: String
+                if canReauth {
+                    self.currentActivityStatus = "Re-authenticating to enable Assist…"
+                    scopeMessage = """
+                    **Action required — additional permissions needed**
 
-                Your Google account session is missing the permissions needed to use the Gemini API directly without an API key. \
-                A sign-in prompt has been opened — please approve the permissions to continue using Assist.
-                """
+                    Your Google account session is missing the permissions needed to use the Gemini API directly without an API key. \
+                    A sign-in prompt has been opened — please approve the permissions to continue using Assist.
+                    """
+                } else {
+                    self.currentActivityStatus = "Idle"
+                    GoogleAccountAuthService.shared.flagOAuthClientSetup()
+                    scopeMessage = """
+                    **Action required — OAuth client ID needed**
+
+                    Your Google account session is missing the permissions needed to use the Gemini API without an API key, and SwiftCode can't upgrade it yet: Google only allows the required API scopes on an OAuth client you create yourself.
+
+                    Open Settings → Assist → Google Account and complete the one-time OAuth client setup, then send your message again.
+                    """
+                }
                 self.messages.append(AssistMessage(role: .system, content: scopeMessage))
                 self.saveHistory()
-                GoogleAccountAuthService.shared.reAuthenticateForAssistScopes()
+                if canReauth {
+                    GoogleAccountAuthService.shared.reAuthenticateForAssistScopes()
+                }
             }
             return
         }
@@ -1256,20 +1276,36 @@ public final class AssistManager: ObservableObject {
                                     self.messages[idx].content = ""
                                 }
                                 self.isProcessing = false
-                                self.currentActivityStatus = "Re-authenticating to enable Assist…"
                                 if let old = self.activeGoogleCloudSession {
                                     Task { try? await old.close() }
                                 }
                                 self.activeGoogleCloudSession = nil
-                                let scopeMessage = """
-                                **Action required — additional permissions needed**
+                                let canReauth = GoogleAccountAuthService.shared.isCustomOAuthClientConfigured
+                                let scopeMessage: String
+                                if canReauth {
+                                    self.currentActivityStatus = "Re-authenticating to enable Assist…"
+                                    scopeMessage = """
+                                    **Action required — additional permissions needed**
 
-                                Your Google account session was created before SwiftCode requested the Gemini API permission it needs. \
-                                A sign-in prompt has been opened — please approve the permissions to continue using Assist.
-                                """
+                                    Your Google account session was created before SwiftCode requested the Gemini API permission it needs. \
+                                    A sign-in prompt has been opened — please approve the permissions to continue using Assist.
+                                    """
+                                } else {
+                                    self.currentActivityStatus = "Idle"
+                                    GoogleAccountAuthService.shared.flagOAuthClientSetup()
+                                    scopeMessage = """
+                                    **Action required — OAuth client ID needed**
+
+                                    Your Google account session was created before SwiftCode requested the Gemini API permission it needs, and it can't be upgraded yet: Google only allows the required API scopes on an OAuth client you create yourself.
+
+                                    Open Settings → Assist → Google Account and complete the one-time OAuth client setup, then try again.
+                                    """
+                                }
                                 self.messages.append(AssistMessage(role: .system, content: scopeMessage))
                                 self.saveHistory()
-                                GoogleAccountAuthService.shared.reAuthenticateForAssistScopes()
+                                if canReauth {
+                                    GoogleAccountAuthService.shared.reAuthenticateForAssistScopes()
+                                }
                             }
                             break executionLoop
                         }

@@ -172,6 +172,11 @@ public final class GoogleAccountAuthService: NSObject, ObservableObject {
 
     public func dismissOAuthClientSetup() { needsOAuthClientSetup = false }
 
+    /// Flags that an OAuth client ID must be configured. Used by flows that
+    /// can't present the Settings UI themselves (e.g. the Assist chat) so
+    /// the setup guide is waiting when the user opens Settings.
+    public func flagOAuthClientSetup() { needsOAuthClientSetup = true }
+
     private var clientID: String {
         // The Antigravity fallback below is retained only for refreshing
         // previously imported CLI credentials minted against it. SwiftCode's
