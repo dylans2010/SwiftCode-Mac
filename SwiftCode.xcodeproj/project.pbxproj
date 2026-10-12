@@ -2659,6 +2659,9 @@
 		64B1C74F9D1528075E739992 /* SDKAPIKey.swift in Sources */ = {isa = PBXBuildFile; fileRef = 217A0D9102742676168DF1F3 /* SDKAPIKey.swift */; };
 		E709B52A7A0033A628667351 /* SDKKeychain.swift in Sources */ = {isa = PBXBuildFile; fileRef = 57B860072DA9BB42608704E6 /* SDKKeychain.swift */; };
 		4916D1835240C7C527472B69 /* SDKAPIKeyStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9BE39BB6CBBA7FAF9F3760B6 /* SDKAPIKeyStore.swift */; };
+		4EDBEC42F1C0E6A5487ADF5E /* SDKSourceControlAdapter.swift in Sources */ = {isa = PBXBuildFile; fileRef = EFB7467FC11F54C3713CF885 /* SDKSourceControlAdapter.swift */; };
+		18095D71A6C964CCCB751722 /* SDKBuildService.swift in Sources */ = {isa = PBXBuildFile; fileRef = DDB91E5267550C18B40615A5 /* SDKBuildService.swift */; };
+		B9433FF279534085B038F994 /* SDKBuildOutputParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0BED5DCAF1D65121356CAD9E /* SDKBuildOutputParser.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -5288,6 +5291,9 @@
 		217A0D9102742676168DF1F3 /* SDKAPIKey.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SDKAPIKey.swift; sourceTree = "<group>"; };
 		57B860072DA9BB42608704E6 /* SDKKeychain.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SDKKeychain.swift; sourceTree = "<group>"; };
 		9BE39BB6CBBA7FAF9F3760B6 /* SDKAPIKeyStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SDKAPIKeyStore.swift; sourceTree = "<group>"; };
+		EFB7467FC11F54C3713CF885 /* SDKSourceControlAdapter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SDKSourceControlAdapter.swift; sourceTree = "<group>"; };
+		DDB91E5267550C18B40615A5 /* SDKBuildService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SDKBuildService.swift; sourceTree = "<group>"; };
+		0BED5DCAF1D65121356CAD9E /* SDKBuildOutputParser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SDKBuildOutputParser.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -9592,12 +9598,42 @@
 				5112bc67d5d1af6adeaa93fd /* ExtensionRegistry */,
 				1AFEE2DD6AA3DA8C12B6B260 /* CapabilityBroker */,
 				75DE7BAC842A2BA0E06F3DD6 /* APIKeys */,
+				6867F8539DC139E59D8813F8 /* ServiceAdapters */,
 			);
 			name = Host;
 			path = Host;
 			sourceTree = "<group>";
 		};
 		5112bc67d5d1af6adeaa93fd /* ExtensionRegistry */ = {
+		6867F8539DC139E59D8813F8 /* ServiceAdapters */ = {
+			isa = PBXGroup;
+			children = (
+				C9C3E89B26610B27E48070DC /* SourceControl */,
+				C3FBB77BD4424CBE60CAD77E /* Build */,
+			);
+			name = ServiceAdapters;
+			path = ServiceAdapters;
+			sourceTree = "<group>";
+		};
+		C9C3E89B26610B27E48070DC /* SourceControl */ = {
+			isa = PBXGroup;
+			children = (
+				EFB7467FC11F54C3713CF885 /* SDKSourceControlAdapter.swift */,
+			);
+			name = SourceControl;
+			path = SourceControl;
+			sourceTree = "<group>";
+		};
+		C3FBB77BD4424CBE60CAD77E /* Build */ = {
+			isa = PBXGroup;
+			children = (
+				DDB91E5267550C18B40615A5 /* SDKBuildService.swift */,
+				0BED5DCAF1D65121356CAD9E /* SDKBuildOutputParser.swift */,
+			);
+			name = Build;
+			path = Build;
+			sourceTree = "<group>";
+		};
 			isa = PBXGroup;
 			children = (
 				eb3094250784a0bd6a4aeb97 /* SDKManifestValidator.swift */,
@@ -12522,6 +12558,9 @@
 				64B1C74F9D1528075E739992 /* SDKAPIKey.swift in Sources */,
 				E709B52A7A0033A628667351 /* SDKKeychain.swift in Sources */,
 				4916D1835240C7C527472B69 /* SDKAPIKeyStore.swift in Sources */,
+				4EDBEC42F1C0E6A5487ADF5E /* SDKSourceControlAdapter.swift in Sources */,
+				18095D71A6C964CCCB751722 /* SDKBuildService.swift in Sources */,
+				B9433FF279534085B038F994 /* SDKBuildOutputParser.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
