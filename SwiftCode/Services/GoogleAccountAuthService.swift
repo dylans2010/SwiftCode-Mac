@@ -107,17 +107,11 @@ public final class GoogleAccountAuthService: NSObject, ObservableObject {
     // MARK: - OAuth Configuration
     private let callbackScheme = "swiftcode"
 
-    private static func reconstructToken(_ bytes: [UInt8], key: UInt8 = 0x5A) -> String {
-        let decoded = bytes.map { $0 ^ key }
-        return String(bytes: decoded, encoding: .utf8) ?? ""
-    }
-
-    public static let antigravityClientID = reconstructToken([
-        107, 106, 109, 107, 106, 106, 108, 106, 108, 106, 111, 99, 107, 119, 46, 55, 50, 41, 41, 51,
-        52, 104, 50, 104, 107, 54, 57, 40, 63, 104, 105, 111, 44, 46, 53, 54, 53, 48, 50, 110,
-        61, 110, 106, 105, 63, 42, 116, 59, 42, 42, 41, 116, 61, 53, 53, 61, 54, 63, 47, 41,
-        63, 40, 57, 53, 52, 46, 63, 52, 46, 116, 57, 53, 55
-    ])
+    /// SwiftCode's own Google OAuth client ID (Desktop application type).
+    /// A plain string, not obfuscated: client IDs for PKCE public clients
+    /// are public identifiers by design, not secrets. No client secret is
+    /// used or needed (RFC 7636).
+    public static let swiftCodeClientID = "671720100031-tkph1mke7c5bj3l93t5eemrplti78i77.apps.googleusercontent.com"
     /// Scopes requested by SwiftCode's own "Sign in with Google" flow, per
     /// the Gemini Developer API's documented OAuth contract
     /// (https://ai.google.dev/gemini-api/docs/oauth): an access token without
@@ -144,45 +138,16 @@ public final class GoogleAccountAuthService: NSObject, ObservableObject {
         Self.requiredScopes.joined(separator: " ")
     }
 
-    /// A user-owned OAuth client ID for SwiftCode's own sign-in flow.
-    /// Resolution order: Settings field -> GOOGLE_CLIENT_ID env ->
-    /// GOOGLE_CLIENT_ID Info.plist -> nil (not configured).
-    public var customOAuthClientID: String? {
-        let configured = AppSettings.shared.assistGoogleClientID.trimmingCharacters(in: .whitespacesAndNewlines)
-        if !configured.isEmpty { return configured }
+    private var clientID: String {
+        // Silent overrides for testing or advanced setups; otherwise
+        // SwiftCode's own OAuth client.
         if let env = ProcessInfo.processInfo.environment["GOOGLE_CLIENT_ID"], !env.isEmpty {
             return env
         }
         if let info = Bundle.main.infoDictionary?["GOOGLE_CLIENT_ID"] as? String, !info.isEmpty {
             return info
         }
-        return nil
-    }
-
-    /// Whether SwiftCode's own sign-in flow can run. Google rejects the
-    /// Developer API scopes on any OAuth client SwiftCode does not own
-    /// ("Unregistered scope(s) in the request", Error 403:
-    /// restricted_client), so without a user-owned client the authorization
-    /// request can never succeed and sign-in is gated on this.
-    public var isCustomOAuthClientConfigured: Bool { customOAuthClientID != nil }
-
-    /// Set when sign-in is attempted without a configured OAuth client, so
-    /// the UI can present the client-setup guide instead of a dead session.
-    @Published public private(set) var needsOAuthClientSetup = false
-
-    public func dismissOAuthClientSetup() { needsOAuthClientSetup = false }
-
-    /// Flags that an OAuth client ID must be configured. Used by flows that
-    /// can't present the Settings UI themselves (e.g. the Assist chat) so
-    /// the setup guide is waiting when the user opens Settings.
-    public func flagOAuthClientSetup() { needsOAuthClientSetup = true }
-
-    private var clientID: String {
-        // The Antigravity fallback below is retained only for refreshing
-        // previously imported CLI credentials minted against it. SwiftCode's
-        // own sign-in flow is gated on isCustomOAuthClientConfigured and
-        // never reaches the authorization server with the borrowed client.
-        customOAuthClientID ?? Self.antigravityClientID
+        return Self.swiftCodeClientID
     }
 
     /// Client secret override for a user-configured confidential OAuth client.
@@ -332,17 +297,6 @@ public final class GoogleAccountAuthService: NSObject, ObservableObject {
 
     public func signIn() {
         guard !isAuthenticating else { return }
-
-        // Google rejects the Developer API scopes on any OAuth client
-        // SwiftCode does not own ("Unregistered scope(s) in the request",
-        // Error 403: restricted_client). Opening the authorization session
-        // without a configured client can never succeed, so surface the
-        // setup guide instead of a dead session.
-        guard isCustomOAuthClientConfigured else {
-            needsOAuthClientSetup = true
-            return
-        }
-        needsOAuthClientSetup = false
 
         authError = nil
         isAuthenticating = true
@@ -585,7 +539,7 @@ public final class GoogleAccountAuthService: NSObject, ObservableObject {
             let refreshToken = (tokenObj["refresh_token"] as? String) ?? ""
             let accessToken = tokenObj["access_token"] as? String
             if !refreshToken.isEmpty || (accessToken != nil && !accessToken!.isEmpty) {
-                let clientID = (json["client_id"] as? String) ?? Self.antigravityClientID
+                let clientID = (json["client_id"] as? String) ?? Self.swiftCodeClientID
                 let clientSecret = json["client_secret"] as? String
                 let scopes = (json["scopes"] as? [String]) ?? [] // Unknown: never fabricate granted scopes.
                 return AntigravityCredentials(
@@ -600,7 +554,7 @@ public final class GoogleAccountAuthService: NSObject, ObservableObject {
 
         // Structure 2: Flat { "refresh_token": "...", "client_id": "..." }
         if let refreshToken = json["refresh_token"] as? String, !refreshToken.isEmpty {
-            let clientID = (json["client_id"] as? String) ?? Self.antigravityClientID
+            let clientID = (json["client_id"] as? String) ?? Self.swiftCodeClientID
             let clientSecret = json["client_secret"] as? String
             let scopes = (json["scopes"] as? [String]) ?? [] // Unknown: never fabricate granted scopes.
             let accessToken = json["access_token"] as? String

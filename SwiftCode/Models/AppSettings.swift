@@ -115,18 +115,6 @@ class AppSettings: ObservableObject {
         }
     }
 
-    /// User-owned Google OAuth client ID (Desktop application type) used by
-    /// SwiftCode's own "Sign in with Google" flow. Required: Google rejects
-    /// the Gemini Developer API scopes on OAuth clients SwiftCode does not
-    /// own ("Unregistered scope(s) in the request", Error 403:
-    /// restricted_client), so account authentication cannot work without this.
-    @Published var assistGoogleClientID: String {
-        didSet {
-            debouncedSave("assist_google_client_id", assistGoogleClientID)
-            UserDefaults.standard.set(assistGoogleClientID, forKey: "assist_google_client_id")
-        }
-    }
-
     /// Google Cloud project ID used as the quota project (x-goog-user-project)
     /// for Google account (OAuth) authentication against the Gemini Developer
     /// API. OAuth usage is attributed to — and billed to — this project.
@@ -396,7 +384,6 @@ class AppSettings: ObservableObject {
         }
         assistGoogleAuthMode = UserDefaults.standard.string(forKey: "assist_google_auth_mode") ?? "google_oauth"
         assistGoogleCloudProject = UserDefaults.standard.string(forKey: "assist_google_cloud_project") ?? ""
-        assistGoogleClientID = UserDefaults.standard.string(forKey: "assist_google_client_id") ?? ""
         antigravityExecutionMode = UserDefaults.standard.string(forKey: "antigravity_execution_mode") ?? "bridge"
         selectedModel = UserDefaults.standard.string(forKey: "selectedModel") ?? "openai/gpt-4o"
         customModel   = UserDefaults.standard.string(forKey: "customModel") ?? ""

@@ -559,7 +559,6 @@ struct AssistSettingsView: View {
     // API-key mode is an explicit opt-in alternative.
     @AppStorage("assist_google_auth_mode") private var assistGoogleAuthMode: String = "google_oauth"
     @ObservedObject private var googleAuth = GoogleAccountAuthService.shared
-    @ObservedObject private var appSettings = AppSettings.shared
     @ObservedObject private var quotaService = AntigravityQuotaService.shared
     @ObservedObject private var sdkModelFetcher = AntigravitySDKModelFetcher.shared
     @State private var showSignOutConfirmation = false
@@ -991,8 +990,6 @@ struct AssistSettingsView: View {
                                             Text("Sign in with your Google account to use Gemini models without an API key. OAuth usage is attributed to your Google Cloud project below (the Gemini API's documented account-authentication contract).")
                                                 .font(.caption2)
                                                 .foregroundColor(.secondary)
-
-                                            oAuthClientSetupSection
 
                                             VStack(alignment: .leading, spacing: 4) {
                                                 Text("Google Cloud Project ID")
@@ -2081,88 +2078,6 @@ struct AssistSettingsView: View {
     }
 
     @ViewBuilder
-    @ViewBuilder
-    private var oAuthClientSetupSection: some View {
-        if googleAuth.needsOAuthClientSetup {
-            HStack(alignment: .top, spacing: 6) {
-                Image(systemName: "exclamationmark.triangle.fill")
-                    .foregroundColor(.orange)
-                    .font(.caption)
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("An OAuth client ID is required before signing in.")
-                        .font(.caption2.bold())
-                    Text("Google rejects the Gemini API scopes on clients SwiftCode doesn't own. Create one below — it takes two minutes.")
-                        .font(.caption2)
-                        .foregroundColor(.secondary)
-                }
-                Spacer()
-                Button("Dismiss") { googleAuth.dismissOAuthClientSetup() }
-                    .font(.caption2)
-                    .buttonStyle(.plain)
-            }
-            .padding(8)
-            .background(Color.orange.opacity(0.12))
-            .cornerRadius(8)
-        }
-
-        VStack(alignment: .leading, spacing: 4) {
-            Text("OAuth Client ID")
-                .font(.caption2.bold())
-            TextField("1234567890-abc....apps.googleusercontent.com", text: Binding(
-                get: { appSettings.assistGoogleClientID },
-                set: {
-                    appSettings.assistGoogleClientID = $0.trimmingCharacters(in: .whitespacesAndNewlines)
-                    if !appSettings.assistGoogleClientID.isEmpty { googleAuth.dismissOAuthClientSetup() }
-                }
-            ))
-            .textFieldStyle(.roundedBorder)
-            .font(.caption2)
-            Text("Your own Google OAuth client ID (Desktop app type). Required — Google only allows the Gemini API scopes on a client you create yourself.")
-                .font(.caption2)
-                .foregroundColor(.secondary)
-        }
-        .padding(.top, 2)
-
-        if !googleAuth.isCustomOAuthClientConfigured {
-            VStack(alignment: .leading, spacing: 6) {
-                Text("Why a personal client ID?")
-                    .font(.caption2.bold())
-                Text("SwiftCode can't borrow Google's own OAuth clients for Gemini API access: Google only permits the required API scopes on a client registered to you. Without your own client ID, Google rejects the sign-in outright (\"Unregistered scope(s)\", error 403: restricted_client). Your client ID stays in your Google account — nothing is shared with anyone.")
-                    .font(.caption2)
-                    .foregroundColor(.secondary)
-                Text("Setup (one time)")
-                    .font(.caption2.bold())
-                    .padding(.top, 2)
-                VStack(alignment: .leading, spacing: 3) {
-                    Text("1. Open Google Cloud Console → APIs & Services → Credentials.")
-                    Text("2. Create Credentials → OAuth client ID → application type: Desktop app. (Use the same project as the quota project below, or any project you own.)")
-                    Text("3. On the OAuth consent screen, add these scopes:")
-                    Text("   • https://www.googleapis.com/auth/cloud-platform")
-                    Text("   • https://www.googleapis.com/auth/generative-language.retriever")
-                    Text("4. Copy the client ID into the OAuth Client ID field above, then sign in again.")
-                    Text("5. The loopback redirect (http://127.0.0.1) needs no extra configuration for Desktop clients. A \"Google hasn't verified this app\" warning is normal for a personal client — choose Continue.")
-                }
-                .font(.caption2)
-                .foregroundColor(.secondary)
-                HStack(spacing: 12) {
-                    Link(destination: URL(string: "https://console.cloud.google.com/apis/credentials")!) {
-                        Label("Google Cloud Console", systemImage: "arrow.up.right")
-                            .font(.caption2)
-                    }
-                    Link(destination: URL(string: "https://ai.google.dev/gemini-api/docs/oauth")!) {
-                        Label("Official OAuth quickstart", systemImage: "arrow.up.right")
-                            .font(.caption2)
-                    }
-                }
-                .padding(.top, 2)
-            }
-            .padding(8)
-            .background(Color.accentColor.opacity(0.08))
-            .cornerRadius(8)
-            .padding(.top, 2)
-        }
-    }
-
     private var authenticatedAccountView: some View {
         VStack(alignment: .leading, spacing: 12) {
             HStack(spacing: 12) {
@@ -2232,10 +2147,6 @@ struct AssistSettingsView: View {
                     RoundedRectangle(cornerRadius: 8)
                         .stroke(Color.orange.opacity(0.3), lineWidth: 1)
                 )
-
-            if !googleAuth.isCustomOAuthClientConfigured || googleAuth.needsOAuthClientSetup {
-                oAuthClientSetupSection
-            }
             }
 
             Divider()

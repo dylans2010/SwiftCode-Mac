@@ -39,7 +39,7 @@ public final class GoogleCloudSDKTests: Sendable {
         results.append(await testResolveAPIKeyNeverFallsBackInOAuthMode())
         results.append(await testChatModeGoogleOAuthSatisfiesCheck())
         results.append(await testDeveloperAPIScopesAreClientCompatible())
-        results.append(await testSignInRequiresCustomOAuthClient())
+        results.append(await testDefaultOAuthClientIDIsConfigured())
 
         let routerTests = await AssistModelRouterTests.shared.runAllTests()
         results.append(contentsOf: routerTests)
@@ -679,42 +679,25 @@ public final class GoogleCloudSDKTests: Sendable {
         )
     }
 
-    // 14. Sign-In Requires a Custom OAuth Client
-    // Without a user-owned OAuth client, Google rejects the authorization
-    // request before any token is issued, so signIn() must surface the
-    // setup guide instead of opening a dead authorization session.
-    public func testSignInRequiresCustomOAuthClient() async -> RuntimeTestCaseResult {
+    // 14. Default OAuth Client ID Is SwiftCode's Own
+    // Sign-in must use SwiftCode's own OAuth client by default: Google
+    // rejects the Developer API scopes on clients SwiftCode does not own
+    // ("Unregistered scope(s)", 403 restricted_client). The ID is a public
+    // identifier (PKCE public client, no secret), so it ships in the clear.
+    public func testDefaultOAuthClientIDIsConfigured() async -> RuntimeTestCaseResult {
         let start = Date()
         var failures: [String] = []
-        let (flagSet, authenticating, gatePassed): (Bool, Bool, Bool) = await MainActor.run {
-            let service = GoogleAccountAuthService.shared
-            let previous = AppSettings.shared.assistGoogleClientID
-            AppSettings.shared.assistGoogleClientID = ""
-            defer { AppSettings.shared.assistGoogleClientID = previous }
-            // Env/Info.plist overrides are out of the test's control; skip
-            // when one is present rather than asserting a false negative.
-            guard service.customOAuthClientID == nil else { return (false, false, true) }
-            service.dismissOAuthClientSetup()
-            service.signIn()
-            let result = (service.needsOAuthClientSetup, service.isAuthenticating)
-            service.dismissOAuthClientSetup()
-            return (result.0, result.1, false)
+        let clientID = GoogleAccountAuthService.swiftCodeClientID
+        if clientID.isEmpty { failures.append("default client ID is empty") }
+        if !clientID.hasSuffix(".apps.googleusercontent.com") {
+            failures.append("default client ID is malformed")
         }
-        if gatePassed {
-            return RuntimeTestCaseResult(
-                testName: "Sign-In Requires a Custom OAuth Client",
-                passed: true,
-                message: "Skipped: a GOOGLE_CLIENT_ID override is present in this environment.",
-                duration: Date().timeIntervalSince(start)
-            )
-        }
-        if !flagSet { failures.append("needsOAuthClientSetup not set") }
-        if authenticating { failures.append("sign-in proceeded without a client") }
+        if clientID.contains(" ") { failures.append("default client ID contains whitespace") }
         let passed = failures.isEmpty
         return RuntimeTestCaseResult(
-            testName: "Sign-In Requires a Custom OAuth Client",
+            testName: "Default OAuth Client ID Is Configured",
             passed: passed,
-            message: passed ? "signIn() without a client surfaces the setup guide and starts no session." : "Failures: \(failures.joined(separator: "; "))",
+            message: passed ? "Sign-in defaults to SwiftCode's own OAuth client ID." : "Failures: \(failures.joined(separator: "; "))",
             duration: Date().timeIntervalSince(start)
         )
     }
