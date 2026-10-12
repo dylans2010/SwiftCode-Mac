@@ -2047,7 +2047,9 @@ struct AssistSettingsView: View {
                 googleAuth.signOut()
             }
         } message: {
-            Text("Are you sure you want to sign out? Your session will switch back to API key authentication.")
+            // M-3: sign-out does not change the auth mode — say what actually
+            // happens instead of promising a switch to API-key auth.
+            Text("Are you sure you want to sign out? Google models will be unavailable until you sign in again or switch to API key authentication in Settings.")
         }
         .onAppear {
             loadAPIKeys()
