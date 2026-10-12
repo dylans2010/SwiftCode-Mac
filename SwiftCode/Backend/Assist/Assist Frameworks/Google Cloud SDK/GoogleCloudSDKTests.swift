@@ -32,6 +32,8 @@ public final class GoogleCloudSDKTests: Sendable {
         results.append(await testSecurityCredentialSafety())
         results.append(await testAntigravityAccountAuthenticationStateAndOAuthResolution())
         results.append(await testRuntimeSessionVerificationProbe())
+        results.append(await testGoogleAuthErrorClassification())
+        results.append(await testOAuthQuotaProjectHeaderSerialization())
 
         let routerTests = await AssistModelRouterTests.shared.runAllTests()
         results.append(contentsOf: routerTests)
@@ -368,6 +370,104 @@ public final class GoogleCloudSDKTests: Sendable {
             testName: "Runtime Session Verification Probe",
             passed: passed,
             message: passed ? "Runtime session verification probe correctly rejected invalid OAuth token." : "Verification probe failed to reject invalid token.",
+            duration: Date().timeIntervalSince(start)
+        )
+    }
+
+    // 11. Google Auth Error Classification
+    // The reported production failure must classify as scope-insufficient with
+    // its diagnostics preserved - never as a generic "Authentication error".
+    public func testGoogleAuthErrorClassification() async -> RuntimeTestCaseResult {
+        let start = Date()
+        var failures: [String] = []
+
+        let reportedError = """
+        Authentication error (Gemini 3.8 Flash (Medium)): Agent execution terminated \
+        due to error. "agent executor error: Error 403, Message: Request had \
+        insufficient authentication scopes., Status: PERMISSION_DENIED, Details: \
+        [map[@type:type.googleapis.com/google.rpc.ErrorInfo \
+        metadata:map[method:google.ai.generativelanguage.v1beta.GenerativeService.StreamGenerateContent \
+        service:generativelanguage.googleapis.com] reason:ACCESS_TOKEN_SCOPE_INSUFFICIENT]]"
+        """
+
+        // Legacy token (minted before the Developer API scope existed) -> fixable by re-auth.
+        let legacyScopes = "https://www.googleapis.com/auth/cloud-platform https://www.googleapis.com/auth/aicode openid"
+        let legacy = GoogleAuthErrorClassification.classify(reportedError, storedScopes: legacyScopes)
+        if case .scopeInsufficient(let stored) = legacy.kind {
+            if stored != legacyScopes { failures.append("legacy stored scopes not carried") }
+        } else {
+            failures.append("reported 403 did not classify as scopeInsufficient")
+        }
+        if legacy.httpStatus != 403 { failures.append("httpStatus not 403") }
+        if legacy.reason != "ACCESS_TOKEN_SCOPE_INSUFFICIENT" { failures.append("reason not preserved") }
+        if legacy.service != "generativelanguage.googleapis.com" { failures.append("service not preserved") }
+        if !(legacy.method?.contains("StreamGenerateContent") ?? false) { failures.append("method not preserved") }
+
+        // Current token (already has the Developer API scope) -> NOT fixable by
+        // re-auth; the caller must explain the restriction instead of looping.
+        let currentScopes = legacyScopes + " https://www.googleapis.com/auth/generative-language.retriever"
+        let current = GoogleAuthErrorClassification.classify(reportedError, storedScopes: currentScopes)
+        if case .scopeInsufficient(let stored) = current.kind {
+            let needsUpgrade = !(stored?.contains("generative-language.retriever") ?? false)
+            if needsUpgrade { failures.append("correctly-scoped token flagged as needing scope upgrade") }
+        } else {
+            failures.append("scoped 403 did not classify as scopeInsufficient")
+        }
+
+        let quota = GoogleAuthErrorClassification.classify("Error 429: RESOURCE_EXHAUSTED quota exceeded", storedScopes: nil)
+        if quota.kind != .quotaOrRateLimit { failures.append("429 quota misclassified") }
+
+        let badKey = GoogleAuthErrorClassification.classify("API_KEY_INVALID: API key not valid", storedScopes: nil)
+        if badKey.kind != .apiKeyInvalid { failures.append("API_KEY_INVALID misclassified") }
+
+        let unauth = GoogleAuthErrorClassification.classify("Error 401 UNAUTHENTICATED: invalid credentials", storedScopes: nil)
+        if unauth.kind != .invalidOrExpiredCredential { failures.append("401 misclassified") }
+
+        let other = GoogleAuthErrorClassification.classify("model returned an empty response", storedScopes: nil)
+        if other.kind != .notAuthError { failures.append("non-auth error misclassified") }
+
+        let passed = failures.isEmpty
+        return RuntimeTestCaseResult(
+            testName: "Google Auth Error Classification",
+            passed: passed,
+            message: passed ? "403 scope errors classify with diagnostics preserved; re-auth only offered for legacy scopes." : "Failures: \(failures.joined(separator: "; "))",
+            duration: Date().timeIntervalSince(start)
+        )
+    }
+
+    // 12. OAuth Quota Project Header Serialization
+    // The x-goog-user-project header is the Developer API's documented OAuth
+    // contract; it must be present when a project is configured and absent
+    // (never fabricated) when it is not.
+    public func testOAuthQuotaProjectHeaderSerialization() async -> RuntimeTestCaseResult {
+        let start = Date()
+        var failures: [String] = []
+
+        var withProject = GoogleCloudSDKConfiguration(model: "gemini-3.8-flash")
+        withProject.userProject = "my-quota-project"
+        withProject.oauthToken = "ya29.test"
+        withProject.apiKey = nil
+        let dict = withProject.toDictionary()
+        let headers = dict["headers"] as? [String: String]
+        if headers?["x-goog-user-project"] != "my-quota-project" {
+            failures.append("x-goog-user-project header missing or wrong")
+        }
+        if (dict["apiKey"] as? String) != nil {
+            failures.append("apiKey present alongside oauthToken")
+        }
+
+        var withoutProject = GoogleCloudSDKConfiguration(model: "gemini-3.8-flash")
+        withoutProject.oauthToken = "ya29.test"
+        let dict2 = withoutProject.toDictionary()
+        if dict2["headers"] != nil {
+            failures.append("headers fabricated when no project configured")
+        }
+
+        let passed = failures.isEmpty
+        return RuntimeTestCaseResult(
+            testName: "OAuth Quota Project Header Serialization",
+            passed: passed,
+            message: passed ? "x-goog-user-project serializes exactly when configured; never fabricated." : "Failures: \(failures.joined(separator: "; "))",
             duration: Date().timeIntervalSince(start)
         )
     }
