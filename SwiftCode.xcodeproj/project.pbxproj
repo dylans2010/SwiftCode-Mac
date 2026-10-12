@@ -5307,6 +5307,7 @@
 				4C47C4FF7B334B3FB3EAEA86 /* SwiftCode/Views/Build/DeviceConnectKit/Managers/SigningManager.swift */,
 			);
 			name = Managers;
+			path = Managers;
 			sourceTree = "<group>";
 		};
 		021F2B7F3E0C61452C987484 /* Products */ = {
@@ -5323,6 +5324,7 @@
 				47E07AFFBA4144E08A40B716 /* SwiftCode/Views/Build/DeviceConnectKit/Views/Components/DeviceConnectComponents.swift */,
 			);
 			name = Components;
+			path = Components;
 			sourceTree = "<group>";
 		};
 		040DEBA1FC7BDFB9DE2A733F /* MemoryInspector */ = {
@@ -5603,6 +5605,7 @@
 				21B36F6D4B384637B606BC11 /* SwiftCode/Views/Build/DeviceConnectKit/Views/Deployment/DeviceConnectDeploymentView.swift */,
 			);
 			name = Deployment;
+			path = Deployment;
 			sourceTree = "<group>";
 		};
 		1E9974CBD42FD18742B0C0B0 /* Paywall */ = {
@@ -5756,6 +5759,7 @@
 				1FE8BB4C86954093ACC40A9D /* SwiftCode/Views/Build/DeviceConnectKit/Services/BuildService.swift */,
 			);
 			name = Services;
+			path = Services;
 			sourceTree = "<group>";
 		};
 		2728272BBD18205D5F7E9FB0 /* CI Building */ = {
@@ -5992,6 +5996,7 @@
 				72EC190B21F44B25AB6EC42E /* SwiftCode/Views/Build/DeviceConnectKit/Views/Sessions/DeviceConnectSessionsView.swift */,
 			);
 			name = Sessions;
+			path = Sessions;
 			sourceTree = "<group>";
 		};
 		316091E9EFFB81D28292D786 /* Core */ = {
@@ -6268,6 +6273,7 @@
 				18DFFBF289334243A8B01018 /* SwiftCode/Views/Build/DeviceConnectKit/Views/Environment/DeviceConnectEnvironmentView.swift */,
 			);
 			name = Environment;
+			path = Environment;
 			sourceTree = "<group>";
 		};
 		53754DD4A8CE21248EB540A6 /* ThreadInspector */ = {
@@ -6437,6 +6443,7 @@
 				A8385876B96B4969B4636E57 /* SwiftCode/Views/Build/DeviceConnectKit/Commands/InstallApplicationCommand.swift */,
 			);
 			name = Commands;
+			path = Commands;
 			sourceTree = "<group>";
 		};
 		609DB41C5AACAB1D43EAEE7A /* CrashDebugger */ = {
@@ -6483,6 +6490,7 @@
 				27264C7F30AE495395A19256 /* SwiftCode/Views/Build/DeviceConnectKit/Views/Sheets/DeviceConnectSheets.swift */,
 			);
 			name = Sheets;
+			path = Sheets;
 			sourceTree = "<group>";
 		};
 		62EEFFB507750E793AC7EF35 /* RuntimeFlags */ = {
@@ -6656,6 +6664,7 @@
 				B0D8BA330BE044F1BFEA0A57 /* SwiftCode/Views/Build/DeviceConnectKit/Views/Toolbar/DeviceConnectToolbar.swift */,
 			);
 			name = Toolbar;
+			path = Toolbar;
 			sourceTree = "<group>";
 		};
 		73DBC5F4AA3F5DE0BEFBEA35 /* Models */ = {
@@ -6993,6 +7002,7 @@
 				79242388A3CE4414A18F5C0F /* SwiftCode/Views/Build/DeviceConnectKit/Views/Inspector/DeviceConnectInspector.swift */,
 			);
 			name = Inspector;
+			path = Inspector;
 			sourceTree = "<group>";
 		};
 		865D34D3DC4F39171012B285 /* Collaboration */ = {
@@ -7278,6 +7288,7 @@
 				A477491273074DFA84646F17 /* SwiftCode/Views/Build/DeviceConnectKit/Helpers/LogParser.swift */,
 			);
 			name = Helpers;
+			path = Helpers;
 			sourceTree = "<group>";
 		};
 		9202E3117A117B2EA9BD82E4 /* File Templates */ = {
@@ -7293,6 +7304,7 @@
 				C8B77C7E02DE4624B53D7325 /* SwiftCode/Views/Build/DeviceConnectKit/Views/Settings/DeviceConnectSettingsView.swift */,
 			);
 			name = Settings;
+			path = Settings;
 			sourceTree = "<group>";
 		};
 		97B80356D4B807C8D785C776 /* Testing */ = {
@@ -8529,6 +8541,7 @@
 				CAB4FD08A9894691B353A0D4 /* SwiftCode/Views/Build/DeviceConnectKit/DeviceConnectView.swift */,
 			);
 			name = DeviceConnectKit;
+			path = DeviceConnectKit;
 			sourceTree = "<group>";
 		};
 		B2A7690712D32834FD7DE4D4 /* Gists */ = {
@@ -8609,6 +8622,7 @@
 				8F0FD9046E9446258489734F /* SwiftCode/Views/Build/DeviceConnectKit/Models/DeploymentHistory.swift */,
 			);
 			name = Models;
+			path = Models;
 			sourceTree = "<group>";
 		};
 		B7D0BB000000000000000001 /* Cloud */ = {
@@ -8814,6 +8828,7 @@
 				1B607AD673764CE4A8600BE9 /* SwiftCode/Views/Build/DeviceConnectKit/Core/DeploymentPipeline.swift */,
 			);
 			name = Core;
+			path = Core;
 			sourceTree = "<group>";
 		};
 		CEF5FC0244969C6E0DCAA8B4 /* Presets */ = {
@@ -9056,6 +9071,7 @@
 				183EA3D3E4A04395B69B31B1 /* SwiftCode/Views/Build/DeviceConnectKit/Views/Console/DeviceConnectConsole.swift */,
 			);
 			name = Console;
+			path = Console;
 			sourceTree = "<group>";
 		};
 		DF953BD0479F4F12914E758C /* Views */ = {
@@ -9073,6 +9089,7 @@
 				736A763AAB7A47E6BAE2F7A5 /* Toolbar */,
 			);
 			name = Views;
+			path = Views;
 			sourceTree = "<group>";
 		};
 		E063E218D13ACDDD0B728F8D /* Git */ = {
@@ -9360,6 +9377,7 @@
 				90D4FC04A5F9498C86F665BF /* SwiftCode/Views/Build/DeviceConnectKit/Views/Sidebar/DeviceConnectSidebar.swift */,
 			);
 			name = Sidebar;
+			path = Sidebar;
 			sourceTree = "<group>";
 		};
 		SNDGRP000000000000000001 /* Sounds */ = {
