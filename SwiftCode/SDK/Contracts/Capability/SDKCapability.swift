@@ -9,6 +9,12 @@ import Foundation
 //
 // Raw values are the exact capability IDs used in manifests, grant records,
 // and IPC messages. They are part of the wire contract: never change them.
+//
+// ID naming: the registry carries two historical conventions. The original
+// Phase 1 IDs use kebab-case `domain.action` (e.g. `"source-control.read"`);
+// the later platform-capability IDs use `<area>.<View>` camel/Pascal form
+// (e.g. `"db.ExploreView"`). Both spellings are valid, case-sensitive wire
+// IDs — match them verbatim and never normalize or re-case them.
 
 public enum SDKCapabilityID: String, Sendable, Codable, CaseIterable {
     case projectRead = "project.read"
@@ -22,6 +28,18 @@ public enum SDKCapabilityID: String, Sendable, Codable, CaseIterable {
     case uiContribute = "ui.contribute"
     case credentialsUse = "credentials.use"
     case assistInvoke = "assist.invoke"
+    case dbExploreView = "db.ExploreView"
+    case ciVisualWF = "ci.VisualWF"
+    case sandboxView = "sandbox.view"
+    case useSwiftCodeModel = "use.SwiftCodeModel"
+    case terminalSandbox = "terminal.sandbox"
+    case simulatorView = "simulator.view"
+    case previewLive = "preview.live"
+    case uiBuilderOpen = "uibuilder.open"
+    case symbolsBrowse = "symbols.browse"
+    case docsSearch = "docs.search"
+    case dictionaryOpen = "dictionary.open"
+    case deviceConnectOpen = "deviceconnect.open"
 }
 
 // MARK: - SDKCapabilityRisk
@@ -217,6 +235,126 @@ public enum SDKCapabilityRegistry {
                 doesNotGrant: "Automatic access to Assist, user conversations, or all models/tools.",
                 risk: .restricted,
                 grantableInCurrentRelease: false
+            )
+        case .dbExploreView:
+            return SDKCapabilityInfo(
+                id: id,
+                title: "Database Explorer",
+                description: "Lets the extension open the real Database Explorer window for browsing project databases. All querying happens through the explorer's own UI and host-mediated connections.",
+                grantsSummary: "Open the Database Explorer window for project databases.",
+                doesNotGrant: "Arbitrary SQL execution outside the explorer or direct database-connection access.",
+                risk: .medium,
+                grantableInCurrentRelease: true
+            )
+        case .ciVisualWF:
+            return SDKCapabilityInfo(
+                id: id,
+                title: "CI / visual workflow",
+                description: "Lets the extension open the CI and visual workflow views to inspect pipelines and workflow graphs. The extension only gets a window into this surface, not control of it.",
+                grantsSummary: "Open the CI / visual workflow views.",
+                doesNotGrant: "Triggering pipeline runs or editing workflow definitions.",
+                risk: .medium,
+                grantableInCurrentRelease: true
+            )
+        case .sandboxView:
+            return SDKCapabilityInfo(
+                id: id,
+                title: "Virtualization console",
+                description: "Lets the extension open the Virtualization console to view virtual machine state. Virtualization can provision and mutate guest environments, so this is a high-risk surface.",
+                grantsSummary: "Open the Virtualization console and view VM state.",
+                doesNotGrant: "VM lifecycle actions outside the console's own controls.",
+                risk: .high,
+                grantableInCurrentRelease: true
+            )
+        case .useSwiftCodeModel:
+            return SDKCapabilityInfo(
+                id: id,
+                title: "SwiftCode Cloud Model",
+                description: "Lets the extension call the SwiftCode Cloud Model through the host, which enforces the user's quota on every call. The extension never touches model credentials or the raw endpoint.",
+                grantsSummary: "Invoke the SwiftCode Cloud Model through the host under host-enforced quota.",
+                doesNotGrant: "Direct model-endpoint access, quota bypass, or use of other cloud models.",
+                risk: .high,
+                grantableInCurrentRelease: true
+            )
+        case .terminalSandbox:
+            return SDKCapabilityInfo(
+                id: id,
+                title: "Sandboxed command execution",
+                description: "Lets the extension run shell commands through the host's sandboxed execution service. This is NOT a view: commands run without any terminal UI, always inside the sandbox the host defines.",
+                grantsSummary: "Run sandboxed shell commands through host-mediated execution.",
+                doesNotGrant: "Opening a terminal surface, unsandboxed shell access, or files outside the sandbox.",
+                risk: .high,
+                grantableInCurrentRelease: true
+            )
+        case .simulatorView:
+            return SDKCapabilityInfo(
+                id: id,
+                title: "Simulator workspace",
+                description: "Lets the extension open the Simulator workspace to view and interact with booted simulators. All simulator management stays inside the workspace's own UI.",
+                grantsSummary: "Open the Simulator workspace.",
+                doesNotGrant: "Creating, deleting, or retyping simulators outside the workspace.",
+                risk: .medium,
+                grantableInCurrentRelease: true
+            )
+        case .previewLive:
+            return SDKCapabilityInfo(
+                id: id,
+                title: "Live SwiftUI preview",
+                description: "Lets the extension render live SwiftUI previews of project views. Previews compile through the host's managed preview pipeline.",
+                grantsSummary: "Render live SwiftUI previews.",
+                doesNotGrant: "Editing source files through previews or unrestricted build execution beyond preview compilation.",
+                risk: .medium,
+                grantableInCurrentRelease: true
+            )
+        case .uiBuilderOpen:
+            return SDKCapabilityInfo(
+                id: id,
+                title: "Visual UI Builder",
+                description: "Lets the extension open the Visual UI Builder for composing interfaces. Applying changes to the project happens through the builder's own flow, not through the extension.",
+                grantsSummary: "Open the Visual UI Builder.",
+                doesNotGrant: "Applying UI changes to the project outside the builder's own flow.",
+                risk: .medium,
+                grantableInCurrentRelease: true
+            )
+        case .symbolsBrowse:
+            return SDKCapabilityInfo(
+                id: id,
+                title: "SF Symbol picker",
+                description: "Lets the extension open the SF Symbol picker so the user can browse and pick system symbols. Purely informational.",
+                grantsSummary: "Browse and pick SF Symbols.",
+                doesNotGrant: "Any system modification, network access, or file access.",
+                risk: .low,
+                grantableInCurrentRelease: true
+            )
+        case .docsSearch:
+            return SDKCapabilityInfo(
+                id: id,
+                title: "Documentation browser",
+                description: "Lets the extension open the documentation browser to search and read developer documentation. Read-only reference access.",
+                grantsSummary: "Search and read documentation.",
+                doesNotGrant: "Network access beyond the doc browser or any file mutation.",
+                risk: .low,
+                grantableInCurrentRelease: true
+            )
+        case .dictionaryOpen:
+            return SDKCapabilityInfo(
+                id: id,
+                title: "Coding dictionary",
+                description: "Lets the extension open the coding dictionary for quick reference on APIs and language terms. Read-only reference access.",
+                grantsSummary: "Open the coding dictionary reference.",
+                doesNotGrant: "Network access beyond the dictionary or any project modification.",
+                risk: .low,
+                grantableInCurrentRelease: true
+            )
+        case .deviceConnectOpen:
+            return SDKCapabilityInfo(
+                id: id,
+                title: "Device Connect",
+                description: "Lets the extension open the Device Connect surface for managing paired Apple devices. Device operations stay inside Device Connect's own controls.",
+                grantsSummary: "Open the Device Connect surface for paired devices.",
+                doesNotGrant: "Device pairing authorization or destructive device operations outside the console's own controls.",
+                risk: .medium,
+                grantableInCurrentRelease: true
             )
         }
     }
