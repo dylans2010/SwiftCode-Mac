@@ -37,6 +37,7 @@ public final class GoogleCloudSDKTests: Sendable {
         results.append(await testSessionReuseContractIncludesCredentials())
         results.append(await testCustomModelProviderResolution())
         results.append(await testResolveAPIKeyNeverFallsBackInOAuthMode())
+        results.append(await testChatModeGoogleOAuthSatisfiesCheck())
 
         let routerTests = await AssistModelRouterTests.shared.runAllTests()
         results.append(contentsOf: routerTests)
@@ -542,16 +543,20 @@ public final class GoogleCloudSDKTests: Sendable {
             failures.append("seed-catalog gemini id resolved to '\(seedResolved.providerID)' instead of 'gemini'")
         }
 
-        // Unknown id: explicit setting governs. Default is google.
+        // Unknown id: explicit setting governs. Default is google, but N-2
+        // scopes the google default to gemini-named ids only.
         let previousProvider = AppSettings.shared.customModelProviderID
         defer { AppSettings.shared.customModelProviderID = previousProvider }
         AppSettings.shared.customModelProviderID = "google"
-        let def = discovery.providerResolutionForCustomModel(id: "some-future-model-xyz-123")
-        if def.providerID != "gemini" {
-            failures.append("unknown custom id defaulted to '\(def.providerID)' instead of 'gemini'")
+        let futureGemini = discovery.providerResolutionForCustomModel(id: "gemini-9.9-ultra-future")
+        if futureGemini.providerID != "gemini" {
+            failures.append("unknown gemini-named custom id defaulted to '\(futureGemini.providerID)' instead of 'gemini' (C-2)")
         }
-        if def.providerID == "custom" {
-            failures.append("unknown custom id kept providerID 'custom' (token would be dropped)")
+        // N-2: a non-gemini free-text id must NOT route to Google — it keeps
+        // providerID "custom" and fails closed without an explicit endpoint.
+        let llama = discovery.providerResolutionForCustomModel(id: "llama3")
+        if llama.providerID != "custom" {
+            failures.append("non-gemini custom id 'llama3' resolved to '\(llama.providerID)' instead of 'custom' (N-2)")
         }
 
         AppSettings.shared.customModelProviderID = "ollama"
@@ -601,6 +606,41 @@ public final class GoogleCloudSDKTests: Sendable {
             testName: "No Silent API-Key Fallback in OAuth Mode",
             passed: passed,
             message: passed ? "resolveAPIKey returns nil for the Google provider in google_oauth mode." : "Failures: \(failures.joined(separator: "; "))",
+            duration: Date().timeIntervalSince(start)
+        )
+    }
+
+    // 16. Chat Mode Google OAuth Satisfies Credential Check (N-1)
+    // A valid Google OAuth session must satisfy the Chat Mode credential
+    // check for the Google provider — the old API-key-only gate wrongly
+    // rejected OAuth-authenticated users holding no API key (same defect
+    // class as C-1). Tests the pure decision contract; the live token fetch
+    // stays at the call site.
+    public func testChatModeGoogleOAuthSatisfiesCheck() async -> RuntimeTestCaseResult {
+        let start = Date()
+        var failures: [String] = []
+        func check(_ providerIsGoogle: Bool, _ mode: String, _ authed: Bool, _ token: Bool, expect: Bool, _ label: String) {
+            let got = AssistManager.googleOAuthSatisfiesChatCheck(
+                providerIsGoogle: providerIsGoogle,
+                authMode: mode,
+                isAuthenticated: authed,
+                tokenAvailable: token
+            )
+            if got != expect {
+                failures.append("\(label): got \(got), expected \(expect)")
+            }
+        }
+        check(true, "google_oauth", true, true, expect: true, "valid OAuth session")
+        check(true, "google_oauth", true, false, expect: false, "authenticated but tokenless")
+        check(true, "google_oauth", false, true, expect: false, "not authenticated")
+        check(true, "api_key", true, true, expect: false, "API-key mode")
+        check(false, "google_oauth", true, true, expect: false, "non-Google provider")
+
+        let passed = failures.isEmpty
+        return RuntimeTestCaseResult(
+            testName: "Chat Mode Google OAuth Credential Check",
+            passed: passed,
+            message: passed ? "OAuth session satisfies the Chat Mode Google check exactly when provider, mode, session, and token all agree." : "Failures: \(failures.joined(separator: "; "))",
             duration: Date().timeIntervalSince(start)
         )
     }

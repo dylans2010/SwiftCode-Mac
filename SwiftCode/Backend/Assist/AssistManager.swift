@@ -186,6 +186,22 @@ public final class AssistManager: ObservableObject {
         return builder.buildContext(sessionId: session.id)
     }
 
+    /// N-1: pure decision contract for the Chat Mode Google credential check.
+    /// A Google OAuth session satisfies the check only when the provider is
+    /// Google, the auth mode is google_oauth, the session is authenticated,
+    /// and a token was actually obtainable. The live fetch result is an
+    /// explicit input so the contract is unit-testable.
+    static func googleOAuthSatisfiesChatCheck(
+        providerIsGoogle: Bool,
+        authMode: String,
+        isAuthenticated: Bool,
+        tokenAvailable: Bool
+    ) -> Bool {
+        guard providerIsGoogle else { return false }
+        guard authMode == "google_oauth", isAuthenticated else { return false }
+        return tokenAvailable
+    }
+
     public func sendMessage(
         _ content: String,
         attachments: [AgentFileContext] = [],
@@ -292,8 +308,31 @@ public final class AssistManager: ObservableObject {
 
         if selectedProvider != .offline && selectedProvider != .codex {
             let key = LLMService.shared.retrieveAPIKey(for: selectedProvider)
-            guard !key.isEmpty else {
-                let errorMsg = "Chat Validation Failed: Missing API key / credentials for provider \(selectedProvider.rawValue). Please configure your key in Assist Settings."
+            // N-1: mirror the M-7 fix in AssistAgentSession — a valid Google
+            // OAuth session satisfies the Google-provider credential check.
+            // The old API-key-only gate rejected OAuth-authenticated users
+            // holding no API key with a "Missing API key" error.
+            let authMode = UserDefaults.standard.string(forKey: "assist_google_auth_mode") ?? AppSettings.shared.assistGoogleAuthMode
+            let authService = GoogleAccountAuthService.shared
+            var oauthTokenAvailable = false
+            if selectedProvider == .google, authMode == "google_oauth", authService.isAuthenticated {
+                oauthTokenAvailable = !((try? await authService.getValidAccessToken()) ?? "").isEmpty
+            }
+            let googleOAuthOK = Self.googleOAuthSatisfiesChatCheck(
+                providerIsGoogle: selectedProvider == .google,
+                authMode: authMode,
+                isAuthenticated: authService.isAuthenticated,
+                tokenAvailable: oauthTokenAvailable
+            )
+            guard !key.isEmpty || googleOAuthOK else {
+                // Authenticated-but-tokenless is a session problem, never a
+                // "provide an API key" problem (same defect class as C-1).
+                let errorMsg: String
+                if selectedProvider == .google, authMode == "google_oauth", authService.isAuthenticated {
+                    errorMsg = "Chat Validation Failed: Your Google session has expired and SwiftCode couldn't obtain a working access token. Please sign in again in Settings → Assist → Google Account."
+                } else {
+                    errorMsg = "Chat Validation Failed: Missing API key / credentials for provider \(selectedProvider.rawValue). Please configure your key in Assist Settings."
+                }
                 await MainActor.run {
                     lastError = errorMsg
                     messages.append(AssistMessage(role: .system, content: errorMsg))

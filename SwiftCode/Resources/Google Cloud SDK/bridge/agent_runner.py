@@ -178,8 +178,8 @@ def _require_custom_endpoint(*, provider: str, model: str, base_url: str) -> Non
     if (provider or "").lower() == "custom" and not (base_url or "").strip():
         raise GeminiAuthConfigError(
             "Custom model '%s' has no endpoint configured, so SwiftCode refuses "
-            "to guess one. Add an endpoint in Settings > Assist > Custom Model "
-            "Setup, or pick a provider for the custom model, then try again." % model
+            "to guess one. Add an endpoint for this model in Settings > Assist "
+            "> Custom Model Setup, then try again." % model
         )
 
 

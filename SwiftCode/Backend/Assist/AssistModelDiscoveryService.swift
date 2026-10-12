@@ -132,7 +132,8 @@ public final class AssistModelDiscoveryService: Sendable {
     ///    launch race where live discovery hasn't populated yet.
     /// 2. The explicit `customModelProviderID` setting (default "google"), so
     ///    a gemini-named custom model with a valid OAuth session keeps its
-    ///    token and routes as the Google provider.
+    ///    token and routes as the Google provider. Non-gemini ids keep
+    ///    providerID "custom" (N-2; H-5 fail-closed).
     /// Internal (not private) so the contract is unit-testable.
     func providerResolutionForCustomModel(id trimmedCustom: String) -> (providerID: String, providerName: String, source: ModelSource) {
         let catalog = AntigravitySDKModelFetcher.shared.models + AntigravitySDKModelFetcher.seedModels
@@ -148,11 +149,20 @@ public final class AssistModelDiscoveryService: Sendable {
                 break
             }
         }
+        // N-2: the "google" default applies to gemini-named ids only — that
+        // preserves the C-2 fix (a gemini-named custom model keeps its OAuth
+        // token and routes as the Google provider). A non-gemini free-text id
+        // (e.g. llama3) keeps providerID "custom" and fails closed without an
+        // explicit endpoint (H-5): it must never be silently routed to Google,
+        // nor to a localhost default.
         switch AppSettings.shared.customModelProviderID.lowercased() {
         case "ollama", "local", "lmstudio":
             return ("ollama", "Local / Ollama", .local)
         default:
-            return ("gemini", "Gemini", .gemini)
+            if trimmedCustom.lowercased().hasPrefix("gemini") {
+                return ("gemini", "Gemini", .gemini)
+            }
+            return ("custom", "Custom Models", .custom)
         }
     }
 
