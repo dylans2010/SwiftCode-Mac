@@ -114,6 +114,16 @@ public struct SDKStudioAPIKeysView: View {
                     scopeChip(scope.rawValue)
                 }
             }
+            if !key.entitlements.isEmpty {
+                HStack(spacing: 6) {
+                    Text("Entitlements:")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    ForEach(key.entitlements.sorted(by: { $0.rawValue < $1.rawValue }), id: \.self) { entitlement in
+                        entitlementChip(entitlement.rawValue)
+                    }
+                }
+            }
             Text("Created \(key.createdAt.formatted(date: .abbreviated, time: .shortened))")
                 .font(.caption)
                 .foregroundStyle(.secondary)
@@ -163,6 +173,17 @@ public struct SDKStudioAPIKeysView: View {
             .padding(.horizontal, 8)
             .padding(.vertical, 3)
             .background(.quaternary, in: Capsule())
+    }
+
+    /// Granted Assist entitlements (`com.SwiftCode.developer-AI-*`) — only
+    /// ever added through the Assist access approval flow.
+    private func entitlementChip(_ text: String) -> some View {
+        Text(text)
+            .font(.caption.monospaced())
+            .padding(.horizontal, 8)
+            .padding(.vertical, 3)
+            .background(Color.purple.opacity(0.15), in: Capsule())
+            .foregroundStyle(.purple)
     }
 
     // MARK: - Empty state

@@ -57,7 +57,35 @@ public enum SDKBootstrap {
             // `.serviceUnavailable` by design.
             try await SDKViewOpener.shared.registerBuiltInOpeners()
 
+            // Extension/app supervisor (SDKExtensionManager.swift): discovers
+            // installed packages in ~/.swiftcode/extensions, validates each
+            // manifest, and launches + supervises the enabled ones (real
+            // lifecycle: crash retries with backoff, quarantine, cleanup).
+            // Never throws out of bootstrap: one broken extension must not
+            // prevent the rest from starting or break app launch.
+            let summary = await SDKExtensionManager.shared.startAll()
+            if !summary.started.isEmpty {
+                logger.debug("SDKBootstrap: started \(summary.started.count, privacy: .public) extension(s)")
+            }
+            for skipped in summary.skipped {
+                logger.debug("SDKBootstrap: skipped '\(skipped.id, privacy: .public)': \(skipped.reason, privacy: .public)")
+            }
+            for failed in summary.failed {
+                logger.error("SDKBootstrap: failed to start '\(failed.id, privacy: .public)': \(failed.reason, privacy: .public)")
+            }
+
             // Future one-time SDK registrations belong here.
+
+            // Assist main view opener (SDKAssistUIOpener): registers the
+            // real AssistMainView for the agreed viewId "assist.main"
+            // (assist.viewId rule, task B2). Registered here rather than in
+            // SDKViewOpenerBuiltIns so the scopes-sync contract (every
+            // BuiltIns opener needs a kind:"view" ScopesIDLists entry)
+            // stays green while `assist.ui` is an API-kind entry.
+            // Never throws out of bootstrap: a failed registration must
+            // not break app launch; the opener simply stays unregistered
+            // and `open` throws typed `.serviceUnavailable`.
+            await SDKAssistUIOpener.registerAssistViewOpener()
 
             didBootstrap = true
             logger.debug("SDKBootstrap: complete")

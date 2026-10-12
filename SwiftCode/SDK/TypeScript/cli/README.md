@@ -80,7 +80,29 @@ Exit 0 prints `valid`; exit 1 lists every problem found (never just the
 first). This is the fast local check — the Swift host performs the
 authoritative strict validation at install time.
 
-### package — build and package an extension (deterministic)
+### build — compile an extension project (tsc / xcodebuild)
+
+```sh
+swiftcode build [dir] [--json] [--project <path>] [--scheme <name>]
+```
+
+Compiler-like build with live output:
+
+- **TypeScript** (`tsconfig.json` present): runs `tsc -p tsconfig.json`,
+  resolved as `<dir>/node_modules/.bin/tsc`, then a PATH `tsc`, then
+  `npx --no-install tsc` (never a silent download). No compiler anywhere
+  → honest `COMPILER_NOT_FOUND` failure naming every location checked.
+- **Swift** (`*.xcodeproj` / `*.xcworkspace` / `Package.swift` / `*.swift`
+  sources): runs `xcodebuild` (Release; `--project`/`--scheme` select the
+  target, defaulting to the single project and its first scheme). When
+  `xcodebuild` is absent the command fails with `XCODEBUILD_UNAVAILABLE`
+  instead of faking a build — Swift builds require macOS with Xcode.
+
+Exit 0 when the compiler exits 0; exit 1 carries the real compiler
+diagnostic. In `--json` mode the compiler output is captured in
+`data.output` so stdout stays parseable.
+
+### package — build and package an extension/app (deterministic)
 
 ```sh
 swiftcode package [dir] [--out <dir>] [--json]
@@ -88,16 +110,27 @@ swiftcode package [dir] [--out <dir>] [--json]
 
 1. Validates first (`validate`); any failure aborts with exit 1 and no
    package is produced.
-2. Requires `node_modules/` in the extension dir (`npm install` first).
-3. Builds `dist/` with `npx tsc -p tsconfig.json` when it is missing.
-4. Zips `swiftcode.json`, `dist/**`, `schemas/**`, `README.md`,
+2. Requires `node_modules/` in the project dir (`npm install` first).
+3. Builds `dist/` with the shared TypeScript build (same resolution as
+   `swiftcode build`) when it is missing.
+4. Stages `swiftcode.json`, `dist/**`, `schemas/**`, `README.md`,
    `package.json` — never `node_modules/`, `.env` files,
    `*.tsbuildinfo`, or version-control droppings.
-5. The archive is deterministic: entries sorted by name, fixed mtime
-   (`2000-01-01T00:00:00Z`), fixed mode, fixed compression level.
-6. Writes `<id-slug>-<version>.swiftcode-extension` to `--out`
-   (default `<dir>/dist-package/`), then prints the path and its sha256
-   digest — only after the archive closes successfully.
+5. Computes the canonical content digest (SHA-256 over the canonicalized
+   staged contents) and embeds it as `swiftcode-digest.json`, so
+   `swiftcode install` rejects tampered packages with a typed
+   `DIGEST_MISMATCH` error.
+6. The archive is deterministic: entries sorted by name, fixed mtime
+   (`2000-01-01T00:00:00Z`), fixed mode, fixed compression level —
+   packaging the same tree twice yields byte-identical output.
+7. Writes `<id-slug>-<version>.swiftcode-extension` to `--out`
+   (default `<dir>/dist-package/`), then prints the path, its sha256
+   digest, and the content digest — only after the archive closes
+   successfully.
+
+Full format specification (fields, digest algorithm + canonicalization
+rules, extension vs. app handling, error taxonomy):
+`SwiftCode/SDK/Documentation/Package-Format.md`.
 
 ### dev — local development loop
 
@@ -118,10 +151,45 @@ No host attachment in v1: dev rebuilds, revalidates, and retests on change —
 it never activates an extension. Run against the live host from SwiftCode
 Studio. SIGINT/SIGTERM shut down cleanly (exit 0).
 
-### install — (implemented; docs pending)
+### install — install a packaged extension/app (digest-verified)
 
-Installs a local package (`swiftcode install <file>`); never prints
-"installed" until the host confirms that state (spec §13.2).
+```sh
+swiftcode install <file.swiftcode-extension> [--update] [--json]
+```
+
+Installs extensions **and** apps — both use the identical
+`.swiftcode-extension` format (the manifest `type` field selects the kind);
+both land in the controlled extensions directory
+(`~/Library/Application Support/SwiftCode/Extensions/<id>/<version>/`,
+or `$SWIFTCODE_EXTENSIONS_DIR`).
+
+Before touching the controlled directory, in order:
+
+1. Extracts to a private temp dir (zip traversal / unsafe symlinks /
+   encrypted / zip64 entries rejected).
+2. Verifies the embedded `swiftcode-digest.json` integrity record: the
+   canonical digest recomputed over the extracted tree must equal the
+   embedded `contentDigest`. Any post-packaging modification fails here
+   with a typed `DIGEST_MISMATCH` error — never silently.
+3. Validates the staged tree with the canonical `validate` checks
+   (manifest schema, entrypoint, symlinks) — schema violations fail with
+   typed `MANIFEST_INVALID` (full problem list in `--json`
+   `data.error.details.problems`).
+4. Checks the digest record describes the same id/version/kind as the
+   manifest (`DIGEST_IDENTITY_MISMATCH`).
+
+Then: already installed without `--update` → `ALREADY_INSTALLED`;
+`--update` backs up, replaces, re-validates the installed tree, and rolls
+back on any failure. Writes `.sdk-install.json` (exact host record
+fields, atomic, mode 0600). "Installed"/"Updated" plus the requested
+capabilities print only after full verification — and the CLI never
+grants capabilities; approval happens in SwiftCode Studio.
+
+Typed errors (also as `--json` `data.error.code`): `DIGEST_RECORD_MISSING`,
+`DIGEST_RECORD_MALFORMED`, `DIGEST_MISMATCH`, `DIGEST_IDENTITY_MISMATCH`,
+`MANIFEST_INVALID`, `MANIFEST_UNREADABLE`, `ARCHIVE_UNREADABLE`,
+`ARCHIVE_UNSAFE_ENTRY`, `ALREADY_INSTALLED`. See `Package-Format.md` §7
+for the full taxonomy.
 
 ## Exit codes
 

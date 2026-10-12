@@ -65,6 +65,10 @@ public struct SDKAPIKeyScope: Sendable, Hashable, RawRepresentable, Codable {
 // key once `expiresAt` has passed (as `.apiKeyInvalid` — an expired key is
 // an invalid key). The property is `Optional`, so metadata written before
 // this field existed decodes with `expiresAt == nil` (backwards compatible).
+//
+// `entitlements` defaults to the empty set, and metadata written before
+// this field existed decodes with no entitlements (backwards compatible —
+// see the custom `init(from:)` at the end of this file).
 
 public struct SDKAPIKey: Sendable, Codable {
     public let id: UUID
@@ -73,6 +77,12 @@ public struct SDKAPIKey: Sendable, Codable {
     /// Human-readable label from Studio → Settings → Developer API Keys.
     public let label: String
     public let scopes: Set<SDKAPIKeyScope>
+    /// Key-bound entitlements granted through the Assist access application
+    /// flow (Docs/Intro-to-SDK.md §12). Never in the manifest, never
+    /// self-asserted — the manifest field can never grant these; only
+    /// `SDKAPIKeyStore.grantEntitlement` can add them, and only the API key
+    /// token presented at call time counts.
+    public var entitlements: Set<SDKEntitlement>
     public let createdAt: Date
     public var lastUsedAt: Date?
     public var revokedAt: Date?
@@ -85,6 +95,7 @@ public struct SDKAPIKey: Sendable, Codable {
         keyPrefix: String,
         label: String,
         scopes: Set<SDKAPIKeyScope>,
+        entitlements: Set<SDKEntitlement> = [],
         createdAt: Date = Date(),
         lastUsedAt: Date? = nil,
         revokedAt: Date? = nil,
@@ -94,6 +105,7 @@ public struct SDKAPIKey: Sendable, Codable {
         self.keyPrefix = keyPrefix
         self.label = label
         self.scopes = scopes
+        self.entitlements = entitlements
         self.createdAt = createdAt
         self.lastUsedAt = lastUsedAt
         self.revokedAt = revokedAt
@@ -310,5 +322,54 @@ public enum SDKAPIKeyCodec {
             diff |= x ^ y
         }
         return diff == 0
+    }
+}
+
+// MARK: - SDKAPIKey Codable (backward-compatible `entitlements`)
+//
+// The memberwise initializers above carry `entitlements` with a default of
+// `[]`, but default member values do not help *decoding*: metadata written
+// before the `entitlements` field existed has no `entitlements` key, so the
+// synthesized `init(from:)` would throw. This hand-written pair decodes
+// `entitlements` with `decodeIfPresent(_:forKey:)`, defaulting to the empty
+// set — old keys keep working, with no entitlements.
+
+extension SDKAPIKey {
+    private enum CodingKeys: String, CodingKey {
+        case id
+        case keyPrefix
+        case label
+        case scopes
+        case entitlements
+        case createdAt
+        case lastUsedAt
+        case revokedAt
+        case expiresAt
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(UUID.self, forKey: .id)
+        keyPrefix = try container.decode(String.self, forKey: .keyPrefix)
+        label = try container.decode(String.self, forKey: .label)
+        scopes = try container.decode(Set<SDKAPIKeyScope>.self, forKey: .scopes)
+        entitlements = try container.decodeIfPresent(Set<SDKEntitlement>.self, forKey: .entitlements) ?? []
+        createdAt = try container.decode(Date.self, forKey: .createdAt)
+        lastUsedAt = try container.decodeIfPresent(Date.self, forKey: .lastUsedAt)
+        revokedAt = try container.decodeIfPresent(Date.self, forKey: .revokedAt)
+        expiresAt = try container.decodeIfPresent(Date.self, forKey: .expiresAt)
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(id, forKey: .id)
+        try container.encode(keyPrefix, forKey: .keyPrefix)
+        try container.encode(label, forKey: .label)
+        try container.encode(scopes, forKey: .scopes)
+        try container.encode(entitlements, forKey: .entitlements)
+        try container.encode(createdAt, forKey: .createdAt)
+        try container.encodeIfPresent(lastUsedAt, forKey: .lastUsedAt)
+        try container.encodeIfPresent(revokedAt, forKey: .revokedAt)
+        try container.encodeIfPresent(expiresAt, forKey: .expiresAt)
     }
 }

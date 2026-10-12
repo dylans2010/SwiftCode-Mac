@@ -13,6 +13,9 @@
  *   build.cancel              payload {"handleId"}
  *   cloudModel.complete       payload {"prompt","history?","systemPrompt?","modelIdentifier?"}
  *                             → {"response"}
+ *   assist.invoke             payload {"op", ...} — the entitled headless
+ *                             Assist route (see assist.ts); handled by
+ *                             createAssistAPI, not by the context object
  *   terminalSandbox.run       payload {"command","args","workingDirectory?","timeout?"}
  *                             → TerminalSandboxResult
  *   commands.register         payload {"id","title"}
@@ -44,6 +47,8 @@
 
 import { randomUUID } from "node:crypto";
 import type {
+  AssistAPI,
+  AssistUIAPI,
   BuildDiagnostic,
   BuildHandle,
   BuildOutputEvent,
@@ -73,7 +78,10 @@ import type {
   UIAPI,
 } from "./types.js";
 import { SDKError, type HostConnection, type HostEvent } from "./ipc.js";
+import { SDKCloudModelAccessError } from "./types.js";
 import { createSecurityAPI } from "./security.js";
+import { createAssistAPI } from "./assist.js";
+import { createAssistUIAPI } from "./assistUI.js";
 
 /** Client-side mirror of the host's command-ID rule (SDKCommandRegistry). */
 const COMMAND_ID_PATTERN = /^[a-z][a-z0-9-]{0,63}$/;
@@ -518,7 +526,22 @@ export function createContext(
       if (request.systemPrompt !== undefined) payload["systemPrompt"] = request.systemPrompt;
       if (request.modelIdentifier !== undefined) payload["modelIdentifier"] = request.modelIdentifier;
       // Exact method string: matches the Swift dispatcher's "cloudModel.complete" route.
-      const response = await connection.request<{ response: string }>("cloudModel.complete", payload);
+      // ENTITLEMENT HONESTY (mirrors assist.ts's mapAssistDenial): the TS
+      // layer cannot know entitlement state itself and never fabricates
+      // it. Only the host's typed CLOUD_MODEL_DENIED denial is translated
+      // into SDKCloudModelAccessError (carrying the verbatim §13 user
+      // message — proposed wording until Dylan finalizes it). Every other
+      // rejection — including PERMISSION_DENIED from unrelated checks and
+      // RESOURCE_LIMIT_EXCEEDED for quota — propagates untouched.
+      let response: { response: string };
+      try {
+        response = await connection.request<{ response: string }>("cloudModel.complete", payload);
+      } catch (error) {
+        if (error instanceof SDKError && error.code === "CLOUD_MODEL_DENIED") {
+          throw new SDKCloudModelAccessError(error.correlationId);
+        }
+        throw error;
+      }
       if (typeof response?.response !== "string") {
         throw new SDKError(
           "IPC_MALFORMED",
@@ -675,6 +698,12 @@ export function createContext(
   // connection for the standalone security.* helpers in security.ts.
   const security: SecurityAPI = createSecurityAPI(connection);
 
+  // Assist SDK variants (task B2) over the same IPC connection. Both are
+  // entitlement-gated host-side; the TS layer translates only the host's
+  // typed ASSIST_DENIED denial and never fabricates entitlement state.
+  const assist: AssistAPI = createAssistAPI(connection);
+  const assistUI: AssistUIAPI = createAssistUIAPI(connection);
+
   const context: SwiftCodeContext = {
     extension: extensionInfo,
     project,
@@ -687,6 +716,8 @@ export function createContext(
     log,
     ui,
     security,
+    assist,
+    assistUI,
     subscriptions,
   };
 

@@ -158,6 +158,11 @@ public actor SDKAPIKeyStore {
     /// malformed secrets, and signature mismatches all surface as
     /// `.apiKeyInvalid` — deliberately indistinguishable.
     ///
+    /// The returned metadata includes the key's CURRENT entitlements
+    /// (`SDKAPIKey.entitlements`): metadata is re-read on every call, so
+    /// entitlement grants and revocations take effect at the authorization
+    /// boundary immediately.
+    ///
     /// Keychain failures fail closed (`.serviceUnavailable`): when the host
     /// cannot establish key validity, the action is denied.
     public func verify(secret: String) throws -> SDKAPIKey {
@@ -312,13 +317,19 @@ public actor SDKAPIKeyStore {
 
     /// Revokes the key with `id`, effective immediately: `verify(secret:)`
     /// checks `revokedAt` on every call, so no session can outlive this.
-    /// Revoking an already-revoked key succeeds (idempotent).
-    /// Revoking an unknown key ID throws `.apiKeyInvalid`.
+    /// In-flight Assist sessions owned by the key are closed as well
+    /// (Docs/Intro-to-SDK.md §14). Revoking an already-revoked key
+    /// succeeds (idempotent). Revoking an unknown key ID throws
+    /// `.apiKeyInvalid`.
     public func revoke(id: UUID) throws {
         var key = try loadMetadata(id: id)
         guard key.revokedAt == nil else { return }
         key.revokedAt = Date()
         try persist(key)
+        // A revoked key fails `verify(secret:)` on the next call, so
+        // subsequent calls are denied at the boundary; close the sessions
+        // the key had open too (host-owned cleanup, never extension-facing).
+        _ = await SDKAssistService.shared.closeSessions(forKeyID: id)
     }
 
     // MARK: - Listing
@@ -341,6 +352,64 @@ public actor SDKAPIKeyStore {
             }
         }
         return keys.sorted { $0.createdAt > $1.createdAt }
+    }
+
+    // MARK: - Entitlement grant/revoke (Assist authorization, Docs/Intro-to-SDK.md §12)
+    //
+    // Entitlements are stored ON the API key record (`SDKAPIKey.entitlements`),
+    // never in the manifest, never self-asserted. The ONLY writer of these
+    // methods is `SDKAssistApplicationStore.approve(_:)` — the Assist access
+    // application approval step IS the entitlement grant path. Every
+    // grant/revoke is recorded in the audit log with the key ID and the
+    // entitlement ID — never secret material.
+    //
+    // Because entitlements live on the persisted metadata record,
+    // `verify(secret:)` returns the key WITH its current entitlements: it
+    // re-reads metadata on every call, so an entitlement revocation takes
+    // effect at the authorization boundary exactly like key revocation.
+
+    /// Grants `entitlement` to the key with `id`. Idempotent: granting an
+    /// entitlement the key already carries succeeds without duplicating it.
+    /// Throws `.apiKeyInvalid` for an unknown key ID; `.apiKeyRevoked` for
+    /// a revoked key (entitlements are never granted to revoked keys).
+    public func grantEntitlement(_ entitlement: SDKEntitlement, to id: UUID) throws {
+        var key = try loadMetadata(id: id)
+        if key.revokedAt != nil {
+            throw SDKError(
+                code: .apiKeyRevoked,
+                message: "This developer API key was revoked.",
+                suggestion: "Generate a new key in Studio → Settings → Developer API Keys."
+            )
+        }
+        guard !key.entitlements.contains(entitlement) else { return }
+        key.entitlements.insert(entitlement)
+        try persist(key)
+        await SDKAuditLog.shared.record(
+            type: .entitlementGranted,
+            detail: "keyId=\(id.uuidString); entitlement=\(entitlement.rawValue)"
+        )
+    }
+
+    /// Revokes `entitlement` from the key with `id`, effective immediately:
+    /// `verify(secret:)` re-reads metadata on every call, so the next
+    /// authorization-boundary check sees the revocation. In-flight Assist
+    /// sessions owned by this key are closed as well
+    /// (Docs/Intro-to-SDK.md §14): the metadata removal above is already
+    /// effective at the boundary, and closing the open sessions is pure
+    /// host-side bookkeeping (no backend work is in flight at the
+    /// unwired backend boundary), so it is always safe. Idempotent:
+    /// revoking an entitlement the key does not carry succeeds silently.
+    /// Throws `.apiKeyInvalid` for an unknown key ID.
+    public func revokeEntitlement(_ entitlement: SDKEntitlement, from id: UUID) throws {
+        var key = try loadMetadata(id: id)
+        guard key.entitlements.contains(entitlement) else { return }
+        key.entitlements.remove(entitlement)
+        try persist(key)
+        let closedSessions = await SDKAssistService.shared.closeSessions(forKeyID: id)
+        await SDKAuditLog.shared.record(
+            type: .entitlementRevoked,
+            detail: "keyId=\(id.uuidString); entitlement=\(entitlement.rawValue); closedSessions=\(closedSessions)"
+        )
     }
 
     // MARK: - Scope enforcement
@@ -367,6 +436,34 @@ public actor SDKAPIKeyStore {
                 message: "This developer API key does not include the \"\(scope.rawValue)\" scope.",
                 suggestion: "Create a key with the \"\(scope.rawValue)\" scope in Studio → Settings → Developer API Keys.",
                 diagnostics: ["keyId": key.id.uuidString, "missingScope": scope.rawValue]
+            )
+        }
+    }
+
+    // MARK: - Entitlement enforcement
+
+    /// Requires `entitlement` on an already-verified `key` (mirror of
+    /// `requireScope`). Throws `.apiKeyScopeInsufficient` naming the
+    /// missing entitlement, `.apiKeyRevoked` if the key was revoked after
+    /// verification, or `.apiKeyInvalid` if the key expired after
+    /// verification (belt-and-braces: `verify` is the primary check).
+    public func requireEntitlement(_ entitlement: SDKEntitlement, for key: SDKAPIKey) throws {
+        if key.revokedAt != nil {
+            throw SDKError(
+                code: .apiKeyRevoked,
+                message: "This developer API key was revoked.",
+                suggestion: "Generate a new key in Studio → Settings → Developer API Keys."
+            )
+        }
+        if key.isExpired {
+            throw apiKeyExpiredError()
+        }
+        guard key.entitlements.contains(entitlement) else {
+            throw SDKError(
+                code: .apiKeyScopeInsufficient,
+                message: "This developer API key does not carry the \"\(entitlement.rawValue)\" entitlement.",
+                suggestion: "Apply for Assist access in Studio → Settings → Developer API Keys → Assist Access; the entitlement is granted when the application is approved.",
+                diagnostics: ["keyId": key.id.uuidString, "missingEntitlement": entitlement.rawValue]
             )
         }
     }

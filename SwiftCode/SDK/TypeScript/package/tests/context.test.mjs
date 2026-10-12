@@ -184,11 +184,16 @@ describe("context wire contract", () => {
     });
   });
 
-  it('"assist" in context is false (Assist boundary, spec §9)', () => {
+  it("context exposes the entitled Assist variants only (task B2 boundary, replaces the §9 deny-by-default assertion)", () => {
     const host = createFakeHost();
     const { context } = createContext(host, EXTENSION);
-    assert.equal("assist" in context, false);
-    assert.equal(context.assist, undefined);
+    // Part B opens Assist deliberately through two entitled variants.
+    assert.equal(typeof context.assist.createSession, "function");
+    assert.equal(typeof context.assistUI.openAssistView, "function");
+    // Variant isolation: the headless variant has no view-opening path,
+    // the UI variant has no headless session APIs.
+    assert.equal(context.assist.openAssistView, undefined);
+    assert.equal(context.assistUI.createSession, undefined);
   });
 });
 

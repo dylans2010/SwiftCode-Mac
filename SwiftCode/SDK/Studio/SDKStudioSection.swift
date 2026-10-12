@@ -19,6 +19,8 @@ public enum SDKStudioSection: String, CaseIterable, Identifiable {
     case security = "Security"
     case logs = "Logs"
     case codeEditor = "Code Editor"
+    case installedExtensions = "Installed"
+    case assistAccess = "Assist Access"
 
     public var id: String { rawValue }
 
@@ -37,6 +39,10 @@ public enum SDKStudioSection: String, CaseIterable, Identifiable {
             return "doc.text"
         case .codeEditor:
             return "chevron.left.forwardslash.chevron.right"
+        case .installedExtensions:
+            return "app.badge"
+        case .assistAccess:
+            return "person.badge.key"
         }
     }
 }

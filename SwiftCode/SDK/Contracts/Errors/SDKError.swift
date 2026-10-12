@@ -72,6 +72,10 @@ public enum SDKErrorCode: String, Sendable, Codable, CaseIterable {
 
     // Assist gate (deny-by-default; never grantable in this release)
     case assistDenied = "ASSIST_DENIED"
+    /// Cloud-model entitlement denial: the caller key lacks
+    /// `com.SwiftCode.developer-AI-Allows-Cloud` (Docs/Intro-to-SDK.md §12).
+    /// Carries the (proposed) verbatim cloud-model user message.
+    case cloudModelDenied = "CLOUD_MODEL_DENIED"
 }
 
 // MARK: - SDKError
@@ -171,6 +175,7 @@ extension SDKErrorCode {
         case .apiKeyRevoked: return "Developer API key was revoked"
         case .apiKeyRateLimited: return "Developer API key verification is temporarily rate limited"
         case .assistDenied: return "Assist is not available to extensions"
+        case .cloudModelDenied: return "SwiftCode Cloud Model is not available to this app"
         }
     }
 }

@@ -24,6 +24,7 @@
  */
 
 import { UsageError } from "../errors.mjs";
+import { PACKAGE_KINDS } from "./_package-format.mjs";
 import { lstat, readdir, readFile, readlink, stat } from "node:fs/promises";
 import path from "node:path";
 
@@ -201,8 +202,8 @@ function validateStructure(manifest, c) {
     patternHint: "must be semver 2.0.0",
   });
 
-  if (manifest.type !== undefined && manifest.type !== "extension") {
-    c.error("type", `must be "extension"`);
+  if (manifest.type !== undefined && !PACKAGE_KINDS.includes(manifest.type)) {
+    c.error("type", `must be one of ${PACKAGE_KINDS.join(", ")}, got ${JSON.stringify(manifest.type)}`);
   }
 
   if (manifest.description !== undefined) {

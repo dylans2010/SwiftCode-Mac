@@ -37,7 +37,7 @@ missing file is rejected at install time (CLI) per spec §7.1.
 | `name` | string | yes | Non-blank, ≤128 chars |
 | `version` | string | yes | Full semver, ≤32 chars at host validation (schema allows ≤64) |
 | `description` | string | no | ≤1000 chars (host semantic limit is 1024) |
-| `type` | string | yes | const `"extension"` (reserved for future package kinds) |
+| `type` | string | yes | enum `"extension"` / `"app"` — the package kind. Both ship in the identical `.swiftcode-extension` format (same layout, digest, install directory); see `Package-Format.md` §5 |
 | `runtime.language` | string | yes | `"typescript"` only — Python is deferred (ADR §12) |
 | `runtime.entrypoint` | string | yes | Relative path to the built JS entry file, e.g. `"dist/index.js"`. Must not be absolute, must not contain `..` or empty segments (schema regex + host lexical checks); existence inside the package is checked by the package validator |
 | `runtime.minimumSwiftCodeVersion` | string | yes | Semver floor of the host SwiftCode version the extension needs, e.g. `"1.0.0"`. Well-formedness is validated; the actual comparison is covered in `Compatibility.md` |
