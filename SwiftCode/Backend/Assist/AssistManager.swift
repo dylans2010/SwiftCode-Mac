@@ -972,13 +972,34 @@ public final class AssistManager: ObservableObject {
         }
         metrics?.mark(.modelResolved)
 
+        // SystemIndex instruction retrieval for SwiftCode Cloud Model
+        setRequestPhase(.retrievingInstructions)
+        metrics?.mark(.systemIndexRetrievalStarted)
+        let instructionQuery = InstructionQueryContext(
+            userText: content,
+            taskCategory: SystemIndexService.classifyCategory(for: content),
+            stage: .preparation,
+            modelID: SCCloudConfiguration.modelID,
+            maxTokens: 3000,
+            excludingChunkIDs: activeRetrievalLedger?.retrievedChunkIDs ?? []
+        )
+        let instructionRetrieval = await SystemIndexService.shared.retrieve(for: instructionQuery)
+        metrics?.mark(.systemIndexRetrievalCompleted)
+        var cloudLedger = activeRetrievalLedger ?? SystemIndexRequestLedger()
+        cloudLedger.record(instructionRetrieval)
+        activeRetrievalLedger = cloudLedger
+        let retrievedInstructionsBlock = instructionRetrieval.formattedForPrompt()
+
         // Recent conversation as context (excluding the placeholder just appended).
         let history: [(role: String, content: String)] = await MainActor.run {
             self.messages.dropLast().suffix(12).map { ($0.role.rawValue, $0.content) }
         }
 
-        // Fold decodable text attachments into the prompt.
+        // Fold decodable text attachments and retrieved instructions into the prompt.
         var prompt = content
+        if !retrievedInstructionsBlock.isEmpty {
+            prompt = retrievedInstructionsBlock + "\n\n" + prompt
+        }
         let attachmentTexts = attachments.compactMap { file -> String? in
             guard let data = Data(base64Encoded: file.base64Content),
                   data.count < 200_000,
