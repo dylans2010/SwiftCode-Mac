@@ -402,4 +402,21 @@ public struct GoogleCloudSDKConfiguration: Codable, @unchecked Sendable {
 
         return dict
     }
+
+    /// Session-reuse contract (C-3): a live bridge session may only be reused
+    /// when every credential-bearing field matches. The bridge bakes the
+    /// bearer into session headers once and the vendored SDK never refreshes
+    /// it, so a token rotation or quota-project change must force a new
+    /// session rather than 401ing persistently on a dead bearer.
+    public func canReuseSession(for newConfig: GoogleCloudSDKConfiguration) -> Bool {
+        return model == newConfig.model &&
+            provider == newConfig.provider &&
+            baseURL == newConfig.baseURL &&
+            apiKey == newConfig.apiKey &&
+            oauthToken == newConfig.oauthToken &&
+            userProject == newConfig.userProject &&
+            systemInstructions == newConfig.systemInstructions &&
+            workspaces == newConfig.workspaces &&
+            toolkit == newConfig.toolkit
+    }
 }

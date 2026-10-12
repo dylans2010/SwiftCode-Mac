@@ -267,6 +267,19 @@ public final class LLMService: Sendable {
         return key
     }
 
+    /// Effective credential for a request. The provider's API key (or explicit
+    /// override) wins; for the Google provider a valid OAuth session supplies the
+    /// bearer token instead. Returns "" when the user holds neither — never
+    /// invents a credential and never mixes credential kinds.
+    private func resolveEffectiveCredential(for provider: LLMProvider, keyOverride: String? = nil) async -> String {
+        let key = retrieveAPIKey(for: provider, from: keyOverride)
+        if !key.isEmpty { return key }
+        guard provider == .google else { return "" }
+        let mode = UserDefaults.standard.string(forKey: "assist_google_auth_mode") ?? AppSettings.shared.assistGoogleAuthMode
+        guard mode == "google_oauth", GoogleAccountAuthService.shared.isAuthenticated else { return "" }
+        return (try? await GoogleAccountAuthService.shared.getValidAccessToken()) ?? ""
+    }
+
     private func findCustomEndpoint(for model: String) -> SavedCustomEndpoint? {
         let trimmedModel = model.trimmingCharacters(in: .whitespacesAndNewlines)
         return CustomEndpointManager.shared.endpoints.first { endpoint in
@@ -681,9 +694,13 @@ public final class LLMService: Sendable {
             return try await runOfflineResponse(messages: messages)
         }
 
-        let actualKey = retrieveAPIKey(for: provider, from: key)
+        // OAuth-aware credential resolution (mirrors the streaming path): the API
+        // key (or explicit override) wins, otherwise a valid Google OAuth session
+        // supplies the bearer token — setupHeaders already transports ya29.
+        // tokens correctly. Never an API-key error while a valid session exists.
+        let actualKey = await resolveEffectiveCredential(for: provider, keyOverride: key)
         guard !actualKey.isEmpty else {
-            logError("[sendChatRequest] Missing API key for \(provider.rawValue).")
+            logError("[sendChatRequest] Missing API key / credentials for \(provider.rawValue).")
             throw LLMError.invalidKey
         }
 
@@ -914,9 +931,16 @@ public final class LLMService: Sendable {
                 return
             }
 
-            let key = retrieveAPIKey(for: provider)
+            // N-1: the effective credential is the API key first, then a valid
+            // Google OAuth session for the Google provider. The Chat Mode
+            // validator now permits OAuth-only users, so this gate must honor
+            // the session too — otherwise validation passes and the request
+            // still dies with an auth-flavored invalidKey error. setupHeaders
+            // already transports ya29. Bearer tokens correctly (Authorization
+            // header + x-goog-user-project).
+            let key = await resolveEffectiveCredential(for: provider)
             guard !key.isEmpty else {
-                logError("[streamChat] Missing API key for stream.")
+                logError("[streamChat] Missing API key / credentials for stream.")
                 throw LLMError.invalidKey
             }
 
@@ -1185,6 +1209,13 @@ public final class LLMService: Sendable {
         case .google:
             if key.hasPrefix("ya29.") || (key.contains(".") && !key.starts(with: "AIza")) {
                 request.setValue("Bearer \(key)", forHTTPHeaderField: "Authorization")
+                // H-4: the Developer API's OAuth contract requires the quota
+                // project on every request. Without it, Settings > Assist >
+                // Available Models deterministically 403s on a valid session.
+                let quotaProject = AppSettings.shared.assistGoogleCloudProject.trimmingCharacters(in: .whitespacesAndNewlines)
+                if !quotaProject.isEmpty {
+                    request.setValue(quotaProject, forHTTPHeaderField: "x-goog-user-project")
+                }
             } else {
                 request.url = request.url?.appending(queryItems: [URLQueryItem(name: "key", value: key)])
             }
