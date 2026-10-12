@@ -67,11 +67,6 @@ public enum SDKAssistUIOpener {
         }
     }
 
-    /// The exact user-facing denial (Docs/Intro-to-SDK.md §13). Verbatim —
-    /// do not reword.
-    private static let entitlementDeniedMessage =
-        "This app is not allowed to use Assist because access has not yet been verified. Please check with the app developer for further information."
-
     /// Presents the host's real Assist main view for an entitled caller.
     ///
     /// Pipeline: entitlement (key-bound record only) → open the
@@ -85,7 +80,7 @@ public enum SDKAssistUIOpener {
         guard key?.entitlements.contains(.developerAIAssist) ?? false else {
             let error = SDKError(
                 code: .assistDenied,
-                message: Self.entitlementDeniedMessage,
+                message: SDKAssistGate.assistDeniedUserMessage,
                 suggestion: "The app developer can apply for Assist access in SwiftCode Studio; only a verified entitlement on the developer's API key unlocks Assist.",
                 diagnostics: [
                     "route": "ui:openAssistView",

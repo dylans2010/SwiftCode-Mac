@@ -31,7 +31,9 @@ SwiftCode/SDK/
 ├── TypeScript/      # package/, cli/, runtime-adapter/, templates/ (node sources, not compiled into the app)
 ├── Testing/         # test harness sources (pending — directory not yet created)
 └── Documentation/   # SDK-Architecture.md (this file), Extension-Manifest.md, Capabilities-and-Permissions.md,
-                     # TypeScript-Extensions.md, Runtime-and-Security.md, Compatibility.md
+                     # TypeScript-Extensions.md, Runtime-and-Security.md, Compatibility.md, Security-Keychain.md,
+                     # Assist-Access.md (Part B: third-party Assist authorization — form, variants, entitlements,
+                     # enforcement, revocation, approval policy)
 ```
 
 New Swift files are registered in `SwiftCode.xcodeproj` by the coordinator (pbxproj lessons: accept 20–32 char

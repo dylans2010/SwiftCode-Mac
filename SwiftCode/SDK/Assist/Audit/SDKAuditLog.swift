@@ -36,6 +36,11 @@ public enum SDKAuditEventType: String, Sendable, Codable, CaseIterable {
 
     // Assist gate (deny-by-default)
     case assistDenied
+    /// A cloud-model call was denied because the caller key lacks the
+    /// `com.SwiftCode.developer-AI-Allows-Cloud` entitlement
+    /// (Docs/Intro-to-SDK.md §12). `detail`: the capability + key ID —
+    /// never secrets.
+    case cloudModelDenied
 
     // Developer API keys
     case apiKeyCreated

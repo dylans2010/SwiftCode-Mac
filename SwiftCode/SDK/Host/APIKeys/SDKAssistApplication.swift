@@ -384,6 +384,52 @@ public actor SDKAssistApplicationStore {
         return application
     }
 
+    // MARK: - Uninstall revocation (Docs/Intro-to-SDK.md §14)
+
+    /// Revokes every Assist entitlement bound to APPROVED applications for
+    /// `extensionID`, returning how many entitlement revocations were
+    /// performed.
+    ///
+    /// THE uninstall hook: called from `SDKExtensionManager.uninstall`.
+    /// Uninstalling the app removes its entitlement bindings — each
+    /// revocation goes through `SDKAPIKeyStore.revokeEntitlement`, so it
+    /// takes effect immediately at the authorization boundary, closes the
+    /// key's in-flight Assist sessions, and is audit-recorded (key ID +
+    /// entitlement ID, never secrets).
+    ///
+    /// Application records themselves are kept as historical attestation:
+    /// the ENTITLEMENT is the binding, and removing it is what revokes the
+    /// approval's effect. A revoked key ID (or a key whose metadata is
+    /// gone) is skipped — the binding is already dead — and the method
+    /// continues with the rest rather than failing the uninstall.
+    public func revokeEntitlementsForExtension(_ extensionID: String) async -> Int {
+        let approved = list().filter {
+            $0.extensionID == extensionID && $0.status == .approved
+        }
+        var revoked = 0
+        for application in approved {
+            // Only revoke entitlements the key actually carries, so the
+            // returned count is honest (revokeEntitlement is idempotent and
+            // would otherwise count no-ops).
+            guard let key = await SDKAPIKeyStore.shared.list().first(where: { $0.id == application.apiKeyID }) else {
+                continue // Key metadata is gone — the binding is already dead.
+            }
+            for entitlement in [SDKEntitlement.developerAIAssist, .developerAIAllowsCloud]
+                where key.entitlements.contains(entitlement) {
+                do {
+                    try await SDKAPIKeyStore.shared.revokeEntitlement(entitlement, from: application.apiKeyID)
+                    revoked += 1
+                } catch {
+                    // The binding died between the list() read and the
+                    // revoke — nothing left to revoke. Never fail the
+                    // uninstall over it.
+                    continue
+                }
+            }
+        }
+        return revoked
+    }
+
     // MARK: - Reading
 
     /// Returns all application records, newest first.

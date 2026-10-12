@@ -17,9 +17,16 @@ import path from "node:path";
 const distUrl = pathToFileURL(
   path.join(path.dirname(fileURLToPath(import.meta.url)), "..", "dist", "index.js"),
 ).href;
-const { createContext, SDKError } = await import(distUrl);
+const { createContext, SDKError, SDKCloudModelAccessError, CLOUD_MODEL_ACCESS_DENIED_MESSAGE } = await import(distUrl);
 
 const EXTENSION = { id: "test.ext", name: "Test Extension", version: "1.0.0" };
+
+// The §13 cloud-model denial, verbatim — do not reword. Duplicated here
+// (not imported) so the test independently pins the exact user-facing
+// text. PROPOSED WORDING — Dylan finalizes it; when he does, this literal
+// and the exported constant must change together.
+const VERBATIM_CLOUD_DENIAL =
+  "This app is not allowed to use the SwiftCode Cloud Model because access has not yet been verified. Please check with the app developer for further information.";
 
 /**
  * Scripted fake host implementing the HostConnection shape. `handlers`
@@ -164,5 +171,50 @@ describe("cloudModel.complete wire contract", () => {
       assert.equal(error.code, "IPC_MALFORMED");
       return true;
     });
+  });
+});
+
+describe("cloudModel.complete entitlement denial (Docs/Intro-to-SDK.md §13, task B4)", () => {
+  it("maps the host's typed CLOUD_MODEL_DENIED to SDKCloudModelAccessError with the verbatim message", async () => {
+    const host = createFakeHost({
+      "cloudModel.complete": () => {
+        throw new SDKError("CLOUD_MODEL_DENIED", "host-side entitlement denial", "corr-123");
+      },
+    });
+    const { context } = createContext(host, EXTENSION);
+    await assert.rejects(context.cloudModel.complete({ prompt: "x" }), (error) => {
+      assert.ok(error instanceof SDKCloudModelAccessError);
+      assert.equal(error.code, "CLOUD_MODEL_DENIED");
+      assert.equal(error.message, VERBATIM_CLOUD_DENIAL);
+      assert.equal(error.correlationId, "corr-123");
+      return true;
+    });
+  });
+
+  it("the exported message constant matches the verbatim §13 text", () => {
+    assert.equal(CLOUD_MODEL_ACCESS_DENIED_MESSAGE, VERBATIM_CLOUD_DENIAL);
+  });
+
+  it("does NOT map unrelated denials — they propagate untouched", async () => {
+    for (const code of ["PERMISSION_DENIED", "API_KEY_SCOPE_INSUFFICIENT", "SERVICE_UNAVAILABLE"]) {
+      const host = createFakeHost({
+        "cloudModel.complete": () => {
+          throw new SDKError(code, "some other denial", "corr-x");
+        },
+      });
+      const { context } = createContext(host, EXTENSION);
+      await assert.rejects(context.cloudModel.complete({ prompt: "x" }), (error) => {
+        assert.ok(error instanceof SDKError);
+        assert.ok(!(error instanceof SDKCloudModelAccessError));
+        assert.equal(error.code, code);
+        return true;
+      });
+    }
+  });
+
+  it("never throws an access error without the host's typed denial", async () => {
+    const host = createFakeHost({ "cloudModel.complete": () => ({ response: "ok" }) });
+    const { context } = createContext(host, EXTENSION);
+    assert.equal(await context.cloudModel.complete({ prompt: "x" }), "ok");
   });
 });

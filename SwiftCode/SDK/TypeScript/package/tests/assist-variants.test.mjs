@@ -188,6 +188,30 @@ describe("assist variants: wire contract", () => {
     for (const req of host.requests) assert.equal(req.method, "assist.invoke");
   });
 
+  it("listSessions routes through assist.invoke with op session.list", async () => {
+    const host = createFakeHost({
+      "assist.invoke": (payload) => {
+        assert.equal(payload.op, "session.list");
+        assert.deepEqual(payload, { op: "session.list" });
+        return {
+          sessions: [
+            { sessionId: "s-1", createdAt: "2026-10-12T00:00:00Z" },
+            { sessionId: "s-2", createdAt: "2026-10-12T00:01:00Z" },
+          ],
+        };
+      },
+    });
+    const assist = createAssistAPI(host);
+    const sessions = await assist.listSessions();
+    assert.deepEqual(sessions, [
+      { sessionId: "s-1", createdAt: "2026-10-12T00:00:00Z" },
+      { sessionId: "s-2", createdAt: "2026-10-12T00:01:00Z" },
+    ]);
+    const req = lastRequest(host);
+    assert.equal(req.method, "assist.invoke");
+    assert.equal(req.payload.op, "session.list");
+  });
+
   it("streamMessage yields assist.stream chunks correlated by requestId, ending on done:true", async () => {
     const host = createFakeHost({
       "assist.invoke": (payload, requestId, h) => {

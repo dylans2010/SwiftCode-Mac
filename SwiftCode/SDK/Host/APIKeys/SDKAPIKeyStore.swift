@@ -317,13 +317,19 @@ public actor SDKAPIKeyStore {
 
     /// Revokes the key with `id`, effective immediately: `verify(secret:)`
     /// checks `revokedAt` on every call, so no session can outlive this.
-    /// Revoking an already-revoked key succeeds (idempotent).
-    /// Revoking an unknown key ID throws `.apiKeyInvalid`.
+    /// In-flight Assist sessions owned by the key are closed as well
+    /// (Docs/Intro-to-SDK.md §14). Revoking an already-revoked key
+    /// succeeds (idempotent). Revoking an unknown key ID throws
+    /// `.apiKeyInvalid`.
     public func revoke(id: UUID) throws {
         var key = try loadMetadata(id: id)
         guard key.revokedAt == nil else { return }
         key.revokedAt = Date()
         try persist(key)
+        // A revoked key fails `verify(secret:)` on the next call, so
+        // subsequent calls are denied at the boundary; close the sessions
+        // the key had open too (host-owned cleanup, never extension-facing).
+        _ = await SDKAssistService.shared.closeSessions(forKeyID: id)
     }
 
     // MARK: - Listing
@@ -386,7 +392,12 @@ public actor SDKAPIKeyStore {
 
     /// Revokes `entitlement` from the key with `id`, effective immediately:
     /// `verify(secret:)` re-reads metadata on every call, so the next
-    /// authorization-boundary check sees the revocation. Idempotent:
+    /// authorization-boundary check sees the revocation. In-flight Assist
+    /// sessions owned by this key are closed as well
+    /// (Docs/Intro-to-SDK.md §14): the metadata removal above is already
+    /// effective at the boundary, and closing the open sessions is pure
+    /// host-side bookkeeping (no backend work is in flight at the
+    /// unwired backend boundary), so it is always safe. Idempotent:
     /// revoking an entitlement the key does not carry succeeds silently.
     /// Throws `.apiKeyInvalid` for an unknown key ID.
     public func revokeEntitlement(_ entitlement: SDKEntitlement, from id: UUID) throws {
@@ -394,9 +405,10 @@ public actor SDKAPIKeyStore {
         guard key.entitlements.contains(entitlement) else { return }
         key.entitlements.remove(entitlement)
         try persist(key)
+        let closedSessions = await SDKAssistService.shared.closeSessions(forKeyID: id)
         await SDKAuditLog.shared.record(
             type: .entitlementRevoked,
-            detail: "keyId=\(id.uuidString); entitlement=\(entitlement.rawValue)"
+            detail: "keyId=\(id.uuidString); entitlement=\(entitlement.rawValue); closedSessions=\(closedSessions)"
         )
     }
 

@@ -309,8 +309,8 @@ private struct AuditLogsPane: View {
         case .permissionGranted:
             name = "checkmark.shield"; color = .green
         case .permissionDenied, .permissionRevoked, .assistDenied,
-             .apiKeyScopeFailure, .apiKeyAuthFailure, .runtimeTerminated,
-             .securityPermissionDenied:
+             .cloudModelDenied, .apiKeyScopeFailure, .apiKeyAuthFailure,
+             .runtimeTerminated, .securityPermissionDenied:
             name = "xmark.shield"; color = .red
         case .apiKeyCreated:
             name = "key.badge.plus"; color = .green

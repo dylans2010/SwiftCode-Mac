@@ -49,12 +49,33 @@ public struct SDKAssistSessionOptions: Sendable {
     /// Optional human-readable label for the session (e.g. shown in host
     /// diagnostics). Bounded to 256 characters; empty becomes nil.
     public let title: String?
+    /// Optional system prompt for the session, stored verbatim on the
+    /// session record (bounded to 16 KiB; empty becomes nil). Accepted
+    /// because the `assist.invoke` wire contract sends it
+    /// (`TypeScript/package/src/assist.ts`); until the per-extension
+    /// backend lands it is recorded, not applied — the service never
+    /// claims otherwise.
+    public let systemPrompt: String?
+    /// Optional model identifier requested for the session, stored
+    /// verbatim (bounded to 256 characters; empty becomes nil). Same
+    /// honesty contract as `systemPrompt`.
+    public let model: String?
 
-    public init(title: String? = nil) {
+    public init(title: String? = nil, systemPrompt: String? = nil, model: String? = nil) {
         if let title, !title.isEmpty {
             self.title = String(title.prefix(256))
         } else {
             self.title = nil
+        }
+        if let systemPrompt, !systemPrompt.isEmpty {
+            self.systemPrompt = String(systemPrompt.prefix(16 * 1024))
+        } else {
+            self.systemPrompt = nil
+        }
+        if let model, !model.isEmpty {
+            self.model = String(model.prefix(256))
+        } else {
+            self.model = nil
         }
     }
 }
@@ -72,6 +93,11 @@ public struct SDKAssistSession: Sendable {
     /// extension ID are denied with `.permissionDenied`.
     public let extensionID: String
     public let title: String?
+    /// System prompt stored verbatim from the create options (see
+    /// `SDKAssistSessionOptions`).
+    public let systemPrompt: String?
+    /// Model identifier stored verbatim from the create options.
+    public let model: String?
     public let createdAt: Date
     /// True after `closeSession`; closed sessions reject new work.
     public let isClosed: Bool
@@ -90,6 +116,8 @@ public struct SDKAssistSession: Sendable {
         id: UUID = UUID(),
         extensionID: String,
         title: String?,
+        systemPrompt: String? = nil,
+        model: String? = nil,
         createdAt: Date = Date(),
         isClosed: Bool = false,
         messages: [SDKAssistMessage] = [],
@@ -98,6 +126,8 @@ public struct SDKAssistSession: Sendable {
         self.id = id
         self.extensionID = extensionID
         self.title = title
+        self.systemPrompt = systemPrompt
+        self.model = model
         self.createdAt = createdAt
         self.isClosed = isClosed
         self.messages = messages

@@ -38,7 +38,16 @@ import Foundation
 //      capability ID (taken from the payload) at the broker before the
 //      opener runs. Each view is gated by exactly the grant the extension's
 //      manifest declared; a denial surfaces as the broker's typed
-//      permission error.
+//      permission error. EXCEPTION: the Assist main view (`assist.main`)
+//      is entitlement-only (never grantable), so it is carved out to
+//      `SDKAssistUIOpener.openAssistView`, which checks the key-bound
+//      `com.SwiftCode.developer-AI-Assist` entitlement and emits the
+//      verbatim §13 denial when absent.
+//    - `assist.invoke`: the Part-B entitled Assist route. The caller key's
+//      `com.SwiftCode.developer-AI-Assist` entitlement is checked HERE,
+//      before any op is dispatched, and `SDKAssistService` re-checks it on
+//      every call. Unentitled callers get the typed `.assistDenied` with
+//      the verbatim §13 message — never passthrough, never a crash.
 //    - `build.wait` / `build.cancel`: these act on handles minted by an
 //      authorized `build.run` in this same session. The handle map is never
 //      exposed to the extension and handle IDs are unguessable UUIDs, so
@@ -50,7 +59,13 @@ import Foundation
 //
 // 3. Assist is deny-by-default (§9). `SDKAssistGate.check` runs FIRST —
 //    before any routing or payload decoding — so no method name, however
-//    spelled, can reach Assist through this dispatcher.
+//    spelled, can reach Assist through this dispatcher. The SOLE exemption
+//    is the exact method `assist.invoke` (Docs/Intro-to-SDK.md §13): the
+//    entitled Part-B route, which is decided by the caller key's
+//    `com.SwiftCode.developer-AI-Assist` entitlement in `route` and
+//    re-checked on every `SDKAssistService` call. Unentitled callers
+//    hitting `assist.invoke` get the typed `.assistDenied` with the
+//    verbatim §13 message.
 //
 // 4. Session API keys (§8.2.1). When the host-created session carries a
 //    presented developer API key (`SDKRuntimeSessionInfo.presentedAPIKey`,
@@ -108,7 +123,9 @@ public actor SDKIPCDispatcher {
     ///      `.ipcMalformed`; also enforces the 1 MiB frame bound).
     ///   2. Decode `SDKRequestEnvelope<SDKJSONValue>`; extract method + requestId.
     ///      FIRST — before any routing or payload decoding — run the Assist
-    ///      deny-list (`SDKAssistGate.check`, §9).
+    ///      deny-list (`SDKAssistGate.check`, §9). The exact method
+    ///      `assist.invoke` is exempted there: it is the entitled Part-B
+    ///      route, decided by the caller-key entitlement in `route`.
     ///   3. Verify the session's presented developer API key, if any
     ///      (`verifySessionAPIKey`, §8.2.1) — fail closed on any failure —
     ///      build the caller identity from the SESSION (never the payload),
@@ -149,7 +166,10 @@ public actor SDKIPCDispatcher {
 
             // --- 3. Assist deny-list FIRST: before routing or payload
             // --- decoding (§9). No method name, however spelled, reaches
-            // --- Assist through this dispatcher.
+            // --- Assist through this dispatcher — except the exact method
+            // --- `assist.invoke`, the entitled Part-B route, which is
+            // --- decided by the caller-key entitlement in `route` and
+            // --- re-checked on every `SDKAssistService` call.
             try await SDKAssistGate.check(ipcMethod: method, callerExtensionID: session.extensionID)
 
             // --- 3b + 4 + 5. Session API-key verification (§8.2.1),
@@ -291,8 +311,11 @@ public actor SDKIPCDispatcher {
     // ADAPTERS (see the file header): the dispatcher does not pre-authorize,
     // except on `commands.register` and `ui.openView`, where the registry
     // has no broker check of its own (the dispatcher authorizes
-    // `.uiContribute` and the view's own capability ID respectively). A
-    // malformed payload for a KNOWN method is `.invalidArgument`;
+    // `.uiContribute` and the view's own capability ID respectively), and
+    // on `assist.invoke`, where the dispatcher checks the caller key's
+    // `com.SwiftCode.developer-AI-Assist` entitlement before dispatching
+    // any op (the service re-checks per call). A malformed payload for a
+    // KNOWN method is `.invalidArgument`;
     // an unknown method is `.ipcMalformed`.
 
     private func route(
@@ -348,6 +371,45 @@ public actor SDKIPCDispatcher {
             return Self.successResponse(
                 requestId: requestId,
                 payload: SDKJSONValue.object(["response": .string(response)])
+            )
+
+        case "assist.invoke":
+            // The Part-B entitled Assist route (Docs/Intro-to-SDK.md §13 —
+            // the wire method the TypeScript `assistSDK` variant uses; see
+            // `TypeScript/package/src/assist.ts`).
+            //
+            // EXACT ORDER OF CHECKS for this route:
+            //   1. `SDKAssistGate.check` already ran in `dispatch` (step 3),
+            //      before routing or payload decoding. The exact method
+            //      `assist.invoke` is exempted from the deny-list there;
+            //      every other `assist`-containing method was already denied.
+            //   2. The session's presented API key was verified per-request
+            //      in `dispatch` (step 3b) — revocation/expiry take effect
+            //      immediately; a forged or invalid key fails the whole
+            //      request closed before this route is reached.
+            //   3. HERE: the caller key's `com.SwiftCode.developer-AI-Assist`
+            //      entitlement is required. Manifest claims, package names,
+            //      and client-code claims are ignored — only
+            //      `caller.apiKey?.entitlements` is read. Absent -> the
+            //      unified denial: typed `.assistDenied` with the verbatim
+            //      §13 message + audit (no conversation content, no
+            //      credentials; the key ID rides in internal diagnostics
+            //      only).
+            //   4. The `op` discriminator is decoded and dispatched to
+            //      `SDKAssistService`, which re-checks the entitlement on
+            //      every call. Malformed ops / forged payload claims ->
+            //      typed `.invalidArgument`: never a crash, never passthrough.
+            let key = caller.apiKey
+            guard key?.entitlements.contains(.developerAIAssist) ?? false else {
+                throw await SDKAssistGate.deny(
+                    callerExtensionID: caller.extensionID,
+                    route: "ipc:assist.invoke"
+                )
+            }
+            return try await self.routeAssistInvoke(
+                payload: payload,
+                requestId: requestId,
+                caller: caller
             )
 
         case "build.cancel":
@@ -438,7 +500,20 @@ public actor SDKIPCDispatcher {
             // own ID from the payload, so each view is gated by exactly the
             // grant the extension's manifest declared; a denial throws the
             // broker's typed permission error.
+            //
+            // CARVE-OUT: the Assist main view (`assist.main`,
+            // `SDKCapabilityID.assistMainView`) is entitlement-only — never
+            // grantable — so it does NOT go through the grant store below.
+            // It goes to `SDKAssistUIOpener.openAssistView`, which requires
+            // the key-bound `com.SwiftCode.developer-AI-Assist` entitlement
+            // and emits the verbatim §13 denial when absent. (Without this
+            // carve-out even an entitled caller would be denied, because no
+            // grant for this capability can exist.)
             let viewID = try Self.viewID(from: payload, method: method)
+            if viewID == .assistMainView {
+                try await SDKAssistUIOpener.openAssistView(caller: caller)
+                return Self.successResponse(requestId: requestId, payload: SDKJSONValue.null)
+            }
             try await SDKCapabilityBroker.authorize(viewID, for: caller)
             try await SDKViewOpener.shared.open(viewID: viewID)
             return Self.successResponse(requestId: requestId, payload: SDKJSONValue.null)
@@ -587,6 +662,295 @@ public actor SDKIPCDispatcher {
         return handle
     }
 
+    // MARK: - Assist invoke routing (Part B)
+    //
+    // Dispatches the `assist.invoke` op discriminator (the exact wire
+    // contract of `TypeScript/package/src/assist.ts`) to
+    // `SDKAssistService`. The entitlement was already checked by the
+    // caller (`route`); the service re-checks it on every call.
+    //
+    // Wire contract (method `assist.invoke`, payload always an object):
+    //   {"op":"session.create","systemPrompt?","model?"} -> {"sessionId","createdAt"}
+    //   {"op":"session.list"} -> {"sessions":[{"sessionId","createdAt"}]}
+    //   {"op":"message.send","sessionId","message"} -> {"reply"}
+    //   {"op":"message.stream","sessionId","message"} -> {"accepted":true}
+    //     + `assist.stream` host events ({"delta","done"} / {"error","done":true})
+    //   {"op":"tool.invoke","sessionId","tool","arguments"} -> {"tool","result"}
+    //   {"op":"session.close","sessionId"} -> null
+    //
+    // Every malformed shape is `.invalidArgument`: the method is known,
+    // the payload is not. Never a crash, never passthrough.
+
+    private func routeAssistInvoke(
+        payload: SDKJSONValue,
+        requestId: String,
+        caller: SDKCallerIdentity
+    ) async throws -> Data {
+        let method = "assist.invoke"
+        guard case .object(let fields) = payload,
+              let rawOp = fields["op"],
+              case .string(let op) = rawOp,
+              !op.isEmpty else {
+            throw SDKError(
+                code: .invalidArgument,
+                message: "The payload for \"\(method)\" must be an object with a non-empty string \"op\" field.",
+                suggestion: "Send one of \"session.create\", \"session.list\", \"message.send\", \"message.stream\", \"tool.invoke\", \"session.close\"."
+            )
+        }
+        switch op {
+        case "session.create":
+            let options = try Self.assistSessionOptions(from: fields, method: method)
+            let session = try await SDKAssistService.shared.createSession(caller: caller, options: options)
+            return Self.successResponse(
+                requestId: requestId,
+                payload: SDKJSONValue.object([
+                    "sessionId": .string(session.id.uuidString),
+                    "createdAt": .string(Self.iso8601(session.createdAt)),
+                ])
+            )
+
+        case "session.list":
+            let sessions = try await SDKAssistService.shared.listSessions(caller: caller)
+            return Self.successResponse(
+                requestId: requestId,
+                payload: SDKJSONValue.object([
+                    "sessions": .array(sessions.map { session in
+                        SDKJSONValue.object([
+                            "sessionId": .string(session.id.uuidString),
+                            "createdAt": .string(Self.iso8601(session.createdAt)),
+                        ])
+                    }),
+                ])
+            )
+
+        case "message.send":
+            let sessionID = try Self.assistSessionID(from: fields, method: method)
+            let message = try Self.assistMessage(from: fields, method: method)
+            let response = try await SDKAssistService.shared.send(
+                sessionID: sessionID,
+                message: message,
+                caller: caller
+            )
+            return Self.successResponse(
+                requestId: requestId,
+                payload: SDKJSONValue.object(["reply": .string(response.text)])
+            )
+
+        case "message.stream":
+            let sessionID = try Self.assistSessionID(from: fields, method: method)
+            let message = try Self.assistMessage(from: fields, method: method)
+            // The entitlement check inside `sendStreaming` throws BEFORE
+            // the stream is created, so calling it here preserves the wire
+            // contract: a denial rejects the request with the typed
+            // `.assistDenied` (it cannot happen in practice — the route
+            // already checked — but the ordering is load-bearing for the
+            // contract). The returned stream is handed to the detached
+            // forwarder below; chunks arrive as `assist.stream` host events
+            // correlated by this requestId, and the request resolves
+            // {"accepted":true} once the host accepts the stream.
+            let stream = try await SDKAssistService.shared.sendStreaming(
+                sessionID: sessionID,
+                message: message,
+                caller: caller
+            )
+            let forwarding = AssistStreamForwarding(stream: stream, requestId: requestId)
+            // Detached: event forwarding must survive the request task and
+            // must not park this actor's executor on the stream's lifetime
+            // (the build.run precedent).
+            Task.detached { [self] in
+                await self.forwardAssistStream(forwarding)
+            }
+            return Self.successResponse(
+                requestId: requestId,
+                payload: SDKJSONValue.object(["accepted": .bool(true)])
+            )
+
+        case "tool.invoke":
+            let sessionID = try Self.assistSessionID(from: fields, method: method)
+            let toolCall = try Self.assistToolCall(from: fields, method: method)
+            let result = try await SDKAssistService.shared.executeTool(
+                sessionID: sessionID,
+                toolCall: toolCall,
+                caller: caller
+            )
+            return Self.successResponse(
+                requestId: requestId,
+                payload: SDKJSONValue.object([
+                    "tool": .string(result.toolName),
+                    "result": .string(result.output),
+                ])
+            )
+
+        case "session.close":
+            let sessionID = try Self.assistSessionID(from: fields, method: method)
+            try await SDKAssistService.shared.closeSession(id: sessionID, caller: caller)
+            return Self.successResponse(requestId: requestId, payload: SDKJSONValue.null)
+
+        default:
+            throw SDKError(
+                code: .invalidArgument,
+                message: "Unknown assist operation \"\(op)\".",
+                suggestion: "Send one of \"session.create\", \"session.list\", \"message.send\", \"message.stream\", \"tool.invoke\", \"session.close\"."
+            )
+        }
+    }
+
+    /// Decodes the `session.create` options from the raw wire fields.
+    /// Unknown extra fields are ignored (wire-tolerant); wrongly typed
+    /// known fields are `.invalidArgument`.
+    private static func assistSessionOptions(
+        from fields: [String: SDKJSONValue],
+        method: String
+    ) throws -> SDKAssistSessionOptions {
+        SDKAssistSessionOptions(
+            systemPrompt: try assistOptionalString("systemPrompt", from: fields, method: method),
+            model: try assistOptionalString("model", from: fields, method: method)
+        )
+    }
+
+    /// Optional non-empty string wire field. Present-but-not-a-string is
+    /// `.invalidArgument`; absent or empty is nil.
+    private static func assistOptionalString(
+        _ name: String,
+        from fields: [String: SDKJSONValue],
+        method: String
+    ) throws -> String? {
+        guard let raw = fields[name] else { return nil }
+        guard case .string(let value) = raw else {
+            throw SDKError(
+                code: .invalidArgument,
+                message: "The \"\(name)\" field of \"\(method)\" must be a string.",
+                suggestion: "Omit \"\(name)\" or send it as a string."
+            )
+        }
+        return value.isEmpty ? nil : value
+    }
+
+    /// Required valid-UUID `sessionId` wire field. Anything else is
+    /// `.invalidArgument` — never a crash on a forged ID.
+    private static func assistSessionID(
+        from fields: [String: SDKJSONValue],
+        method: String
+    ) throws -> UUID {
+        guard let raw = fields["sessionId"],
+              case .string(let value) = raw,
+              !value.isEmpty,
+              let id = UUID(uuidString: value) else {
+            throw SDKError(
+                code: .invalidArgument,
+                message: "The payload for \"\(method)\" must include a valid \"sessionId\" UUID string.",
+                suggestion: "Use the \"sessionId\" returned by \"session.create\"."
+            )
+        }
+        return id
+    }
+
+    /// Required non-empty string `message` wire field. The service
+    /// re-validates and bounds it; this is the wire-shape check.
+    private static func assistMessage(
+        from fields: [String: SDKJSONValue],
+        method: String
+    ) throws -> String {
+        guard let raw = fields["message"],
+              case .string(let value) = raw,
+              !value.isEmpty else {
+            throw SDKError(
+                code: .invalidArgument,
+                message: "The payload for \"\(method)\" must include a non-empty string \"message\" field.",
+                suggestion: "Send {\"op\": \"message.send\", \"sessionId\": \"...\", \"message\": \"...\"}."
+            )
+        }
+        return value
+    }
+
+    /// Decodes the `tool.invoke` tool call. Tool arguments must be an
+    /// object of string values (the service's `SDKAssistToolCall` shape);
+    /// anything else is `.invalidArgument`.
+    private static func assistToolCall(
+        from fields: [String: SDKJSONValue],
+        method: String
+    ) throws -> SDKAssistToolCall {
+        guard let rawTool = fields["tool"],
+              case .string(let tool) = rawTool,
+              !tool.isEmpty else {
+            throw SDKError(
+                code: .invalidArgument,
+                message: "The payload for \"\(method)\" must include a non-empty string \"tool\" field.",
+                suggestion: "Send {\"op\": \"tool.invoke\", \"sessionId\": \"...\", \"tool\": \"...\", \"arguments\": {...}}."
+            )
+        }
+        var arguments: [String: String] = [:]
+        if let rawArguments = fields["arguments"] {
+            guard case .object(let argumentFields) = rawArguments else {
+                throw SDKError(
+                    code: .invalidArgument,
+                    message: "The \"arguments\" field of \"\(method)\" must be an object of string values.",
+                    suggestion: "Send arguments like {\"query\": \"...\"}."
+                )
+            }
+            for (argumentName, argumentValue) in argumentFields {
+                guard case .string(let argumentString) = argumentValue else {
+                    throw SDKError(
+                        code: .invalidArgument,
+                        message: "Tool argument \"\(argumentName)\" must be a string.",
+                        suggestion: "Send arguments like {\"query\": \"...\"}."
+                    )
+                }
+                arguments[argumentName] = argumentString
+            }
+        }
+        return SDKAssistToolCall(toolName: tool, arguments: arguments)
+    }
+
+    private static let assistISO8601Formatter: ISO8601DateFormatter = {
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        return formatter
+    }()
+
+    private static func iso8601(_ date: Date) -> String {
+        assistISO8601Formatter.string(from: date)
+    }
+
+    /// Forwards one `message.stream` response stream as `assist.stream`
+    /// host events, then ends. Runs detached from the request task (see
+    /// the `message.stream` case): the request resolves {"accepted":true}
+    /// as soon as the host accepts the stream, and chunks follow as events
+    /// correlated by the request's requestId.
+    private func forwardAssistStream(_ forwarding: AssistStreamForwarding) async {
+        for await streamEvent in forwarding.stream {
+            switch streamEvent {
+            case .started:
+                break
+            case .delta(let text):
+                await event(
+                    "assist.stream",
+                    payload: SDKJSONValue.object([
+                        "delta": .string(text),
+                        "done": .bool(false),
+                    ]),
+                    requestId: forwarding.requestId
+                )
+            case .completed:
+                await event(
+                    "assist.stream",
+                    payload: SDKJSONValue.object(["done": .bool(true)]),
+                    requestId: forwarding.requestId
+                )
+            case .failed(let streamError):
+                await event(
+                    "assist.stream",
+                    payload: SDKJSONValue.object([
+                        "error": .string(streamError.code.rawValue),
+                        "message": .string(streamError.message),
+                        "done": .bool(true),
+                    ]),
+                    requestId: forwarding.requestId
+                )
+            }
+        }
+    }
+
     // MARK: - Build event forwarding
 
     /// Streams a build's output to the extension as `build.output` events,
@@ -672,6 +1036,30 @@ public actor SDKIPCDispatcher {
             }
             throw error
         }
+    }
+}
+
+// MARK: - AssistStreamForwarding
+
+/// One `message.stream` forwarding job: carries the service's response
+/// stream and the originating request ID across the handoff from the
+/// request task to the detached forwarder
+/// (`SDKIPCDispatcher.forwardAssistStream`).
+///
+/// `AsyncStream` is not `Sendable`, so the stream cannot be captured
+/// directly by the `Task.detached` closure (whose operation is
+/// `@Sendable`). This box carries it across exactly one handoff —
+/// request task → detached forwarder — after which exactly one `for await`
+/// loop consumes it and nothing else touches it. Single producer, single
+/// consumer, no shared mutation: `@unchecked Sendable` is sound here.
+/// `requestId` correlates the emitted `assist.stream` host events.
+private final class AssistStreamForwarding: @unchecked Sendable {
+    let stream: AsyncStream<SDKAssistStreamEvent>
+    let requestId: String
+
+    init(stream: AsyncStream<SDKAssistStreamEvent>, requestId: String) {
+        self.stream = stream
+        self.requestId = requestId
     }
 }
 

@@ -1201,6 +1201,8 @@ public actor SDKExtensionManager {
     ///   2. removes contributed commands,
     ///   3. revokes every capability grant (spec §8.7 — grants die with the
     ///      extension),
+    ///   3b. revokes the app's Assist entitlement bindings and closes its
+    ///      open Assist sessions (Docs/Intro-to-SDK.md §14),
     ///   4. wipes the extension's Security namespace values,
     ///   5. deletes the installed package directory from disk,
     ///   6. drops host state.
@@ -1223,6 +1225,17 @@ public actor SDKExtensionManager {
                 diagnostics: ["underlyingError": String(describing: error)]
             )
         }
+
+        // Docs/Intro-to-SDK.md §14: uninstalling the app removes its
+        // Assist entitlement bindings. Each revocation goes through
+        // `SDKAPIKeyStore.revokeEntitlement` (immediate at the
+        // authorization boundary, in-flight Assist sessions closed,
+        // audit-recorded); the app's own open Assist sessions are closed
+        // too. A failure here must not leave the extension installed with
+        // dead bindings half-removed: `revokeEntitlementsForExtension`
+        // never throws, so the uninstall continues.
+        let revokedEntitlements = await SDKAssistApplicationStore.shared.revokeEntitlementsForExtension(id)
+        let closedAssistSessions = await SDKAssistService.shared.closeSessions(forExtensionID: id)
 
         do {
             let wiped = try await SDKSecurityService.shared.deleteAllValues(securityID: id)
@@ -1262,7 +1275,7 @@ public actor SDKExtensionManager {
         await SDKAuditLog.shared.record(
             type: .extensionUninstalled,
             extensionID: id,
-            detail: "uninstalled; commands removed, grants revoked, security values wiped"
+            detail: "uninstalled; commands removed, grants revoked, security values wiped, assist entitlements revoked (\(revokedEntitlements)), assist sessions closed (\(closedAssistSessions))"
         )
         Self.log.debug("SDKExtensionManager: uninstalled '\(id, privacy: .public)'")
     }

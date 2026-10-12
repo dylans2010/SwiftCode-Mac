@@ -24,6 +24,14 @@ import Foundation
 //
 // ENFORCEMENT ORDER (real checks, no short-circuits):
 //   1. `assist.invoke` -> always deny + `assistDenied` audit event.
+//   1a. `use.SwiftCodeModel` with a verified developer API key -> the
+//       key-bound `com.SwiftCode.developer-AI-Allows-Cloud` entitlement is
+//       the ONLY authorization (Docs/Intro-to-SDK.md §12); the grant store
+//       is not consulted. Absent -> typed `.cloudModelDenied` carrying
+//       the (proposed) verbatim user message + `cloudModelDenied` audit.
+//       Present -> return authorized here; the host quota gate is still
+//       enforced downstream by `SDKCloudModelAdapter` on every call.
+//       Keyless sessions skip this gate and keep the pre-Part-B grant path.
 //   1b. API-key scope gate: when the caller is bound to a verified
 //       developer API key (the session presented one), privileged
 //       capabilities (`SDKCapabilityRegistry.isPrivileged`) additionally
@@ -119,10 +127,42 @@ public enum SDKCapabilityBroker {
             )
             throw SDKError(
                 code: .assistDenied,
-                message: "Assist is not available to extensions.",
-                suggestion: "Remove the assist request from the manifest.",
+                message: SDKAssistGate.assistDeniedUserMessage,
+                suggestion: "The app developer can apply for Assist access in SwiftCode Studio; only a verified entitlement on the developer's API key unlocks Assist.",
                 correlationId: correlationId
             )
+        }
+
+        // --- 1a. Cloud-model entitlement gate (Docs/Intro-to-SDK.md §12).
+        // --- When the caller presents a verified developer API key, the
+        // --- key-bound `com.SwiftCode.developer-AI-Allows-Cloud`
+        // --- entitlement is the ONLY authorization for
+        // --- `use.SwiftCodeModel` — the grant store is not consulted, and a
+        // --- manifest/package-name/client-code claim is ignored (this code
+        // --- reads only `caller.apiKey?.entitlements`). Absent -> typed
+        // --- `.cloudModelDenied` carrying the (proposed) verbatim user
+        // --- message + audit. Present -> return authorized: the host quota
+        // --- gate is still enforced downstream by `SDKCloudModelAdapter`
+        // --- on every call. Keyless sessions keep the pre-Part-B grant
+        // --- path below.
+        if capability == .useSwiftCodeModel, let apiKey = caller.apiKey {
+            guard apiKey.entitlements.contains(.developerAIAllowsCloud) else {
+                let error = SDKError(
+                    code: .cloudModelDenied,
+                    message: SDKAssistGate.cloudModelDeniedUserMessage,
+                    suggestion: "The app developer can apply for cloud-model access in SwiftCode Studio; only a verified entitlement on the developer's API key unlocks the SwiftCode Cloud Model.",
+                    correlationId: correlationId
+                )
+                await SDKAuditLog.shared.record(
+                    type: .cloudModelDenied,
+                    extensionID: caller.extensionID,
+                    capability: capability,
+                    detail: "use.SwiftCodeModel requested: entitlement com.SwiftCode.developer-AI-Allows-Cloud absent on key \(apiKey.id.uuidString)",
+                    correlationId: correlationId
+                )
+                throw error
+            }
+            return
         }
 
         // --- 1b. API-key scope gate (spec §8.2.1). A session that presents

@@ -90,18 +90,22 @@ public actor SDKAssistService {
     private struct SessionState {
         var session: SDKAssistSession
         var closedAt: Date?
+        /// The developer API key bound to the caller's session when this
+        /// session was created (`caller.apiKey?.id`). Recorded so an
+        /// entitlement revocation (Docs/Intro-to-SDK.md §14) can close
+        /// exactly the sessions the revoked key owned. Nil for sessions
+        /// created by keyless callers.
+        var owningKeyID: UUID?
     }
 
     private var sessions: [UUID: SessionState] = [:]
 
     // MARK: - Entitlement boundary
 
-    /// The exact user-facing denial (Docs/Intro-to-SDK.md §13). Verbatim —
-    /// do not reword.
-    private static let entitlementDeniedMessage =
-        "This app is not allowed to use Assist because access has not yet been verified. Please check with the app developer for further information."
-
     /// Requires the key-bound `com.SwiftCode.developer-AI-Assist`
+    /// entitlement before any Assist operation. The denial message is the
+    /// verbatim §13 user error, single-sourced on
+    /// `SDKAssistGate.assistDeniedUserMessage` (do not reword).
     /// entitlement before any Assist operation. Reads ONLY the verified
     /// API key record bound to the caller's host-constructed session
     /// identity (`caller.apiKey`, re-verified per request by
@@ -118,7 +122,7 @@ public actor SDKAssistService {
         guard entitled else {
             let error = SDKError(
                 code: .assistDenied,
-                message: Self.entitlementDeniedMessage,
+                message: SDKAssistGate.assistDeniedUserMessage,
                 suggestion: "The app developer can apply for Assist access in SwiftCode Studio; only a verified entitlement on the developer's API key unlocks Assist.",
                 diagnostics: [
                     "route": route,
@@ -157,10 +161,24 @@ public actor SDKAssistService {
         let session = SDKAssistSession(
             extensionID: caller.extensionID,
             title: options.title,
+            systemPrompt: options.systemPrompt,
+            model: options.model,
             allowedToolIDs: allowedToolIDs
         )
-        sessions[session.id] = SessionState(session: session)
+        sessions[session.id] = SessionState(session: session, owningKeyID: caller.apiKey?.id)
         return session
+    }
+
+    /// Lists the caller's open headless Assist sessions, oldest first.
+    ///
+    /// Pipeline: entitlement → filter to live sessions owned by the
+    /// caller's extension ID. Cross-extension sessions are never listed.
+    public func listSessions(caller: SDKCallerIdentity) async throws -> [SDKAssistSession] {
+        try await requireAssistEntitlement(caller: caller, route: "service:listSessions")
+        return sessions.values
+            .filter { $0.closedAt == nil && $0.session.extensionID == caller.extensionID }
+            .map(\.session)
+            .sorted { $0.createdAt < $1.createdAt }
     }
 
     /// Looks up a live session and verifies the caller owns it.
@@ -348,18 +366,75 @@ public actor SDKAssistService {
     public func closeSession(id: UUID, caller: SDKCallerIdentity) async throws {
         try await requireAssistEntitlement(caller: caller, route: "service:closeSession")
         let state = try liveSession(id: id, caller: caller, route: "service:closeSession")
+        closeSessionState(id: id, state: state)
+    }
+
+    /// Closes every open session created with the developer API key
+    /// `keyID`, returning how many were closed.
+    ///
+    /// THE revocation hook (Docs/Intro-to-SDK.md §14): called from
+    /// `SDKAPIKeyStore.revokeEntitlement` (and `revoke(id:)`) AFTER the
+    /// entitlement is removed from the persisted key record. Revocation is
+    /// already immediate at the authorization boundary (the key metadata is
+    /// re-read on every call), so subsequent calls are denied; this closes
+    /// the in-flight sessions too, "where safe": no network or backend
+    /// work is in flight (the backend boundary is unwired — see the file
+    /// header), so closing is pure host-side bookkeeping and always safe.
+    /// No entitlement check here BY DESIGN: this is host-owned cleanup,
+    /// never an extension-facing operation.
+    public func closeSessions(forKeyID keyID: UUID) -> Int {
+        // Collect IDs first: mutating `sessions` while iterating it is a
+        // runtime trap.
+        let targets = sessions
+            .filter { $0.value.closedAt == nil && $0.value.owningKeyID == keyID }
+            .map(\.key)
+        var closed = 0
+        for id in targets {
+            if let state = sessions[id] {
+                closeSessionState(id: id, state: state)
+                closed += 1
+            }
+        }
+        return closed
+    }
+
+    /// Closes every open session owned by `extensionID`, returning how
+    /// many were closed. Called from `SDKExtensionManager.uninstall`:
+    /// uninstalling the app closes its Assist sessions along with removing
+    /// its entitlement bindings.
+    public func closeSessions(forExtensionID extensionID: String) -> Int {
+        let targets = sessions
+            .filter { $0.value.closedAt == nil && $0.value.session.extensionID == extensionID }
+            .map(\.key)
+        var closed = 0
+        for id in targets {
+            if let state = sessions[id] {
+                closeSessionState(id: id, state: state)
+                closed += 1
+            }
+        }
+        return closed
+    }
+
+    /// Marks one session closed, preserving its record. Shared by
+    /// `closeSession`, `closeSessions(forKeyID:)`, and
+    /// `closeSessions(forExtensionID:)`.
+    private func closeSessionState(id: UUID, state: SessionState) {
         let open = state.session
         sessions[id] = SessionState(
             session: SDKAssistSession(
                 id: open.id,
                 extensionID: open.extensionID,
                 title: open.title,
+                systemPrompt: open.systemPrompt,
+                model: open.model,
                 createdAt: open.createdAt,
                 isClosed: true,
                 messages: open.messages,
                 allowedToolIDs: open.allowedToolIDs
             ),
-            closedAt: Date()
+            closedAt: Date(),
+            owningKeyID: state.owningKeyID
         )
     }
 }

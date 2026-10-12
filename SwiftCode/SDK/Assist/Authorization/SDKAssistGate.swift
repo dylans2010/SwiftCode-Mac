@@ -15,16 +15,21 @@ import Foundation
 //
 // ---------------------------------------------------------------------------
 // What this gate enforces today (the REAL guarantee, this release):
-//   (a) No SDK public API or IPC route exposes Assist. The public
-//       `SwiftCodeContext` object does not include `assist` (spec §9.1), and
-//       there is no general-purpose method that reaches internal Assist
-//       services.
+//   (a) No SDK public API or IPC route exposes Assist without a key-bound
+//       entitlement. The public `SwiftCodeContext` object does not include
+//       `assist` (spec §9.1); the ONLY IPC route that can reach Assist is
+//       the entitled `assist.invoke` route (Docs/Intro-to-SDK.md §13),
+//       decided by the caller key's `com.SwiftCode.developer-AI-Assist`
+//       entitlement at the dispatcher route AND re-checked on every
+//       `SDKAssistService` call.
 //   (b) `assist.invoke` (`SDKCapabilityID.assistInvoke`) is NEVER grantable.
 //       The capability broker denies it first, independently of this gate.
-//   (c) Every attempt that arrives through an SDK surface — public API,
-//       IPC, or a manifest declaring `"assist": {"requested": true}` — is
-//       denied and audited here, without exposing conversation content,
-//       model credentials, or secret data.
+//   (c) Every unentitled attempt that arrives through an SDK surface —
+//       public API, IPC, or a manifest declaring `"assist": {"requested":
+//       true}` — is denied with the verbatim §13 user message and audited
+//       here, without exposing conversation content, model credentials, or
+//       secret data. A manifest claim is descriptive metadata only; it is
+//       never read as authorization.
 //
 // ---------------------------------------------------------------------------
 // What this gate does NOT claim (be honest about the boundary):
@@ -61,6 +66,24 @@ import Foundation
 // approval.
 
 public enum SDKAssistGate {
+    // MARK: - User-facing denial messages (single source of truth)
+    //
+    // Every Swift-side Assist denial — IPC gate, dispatcher route,
+    // `SDKAssistService`, `SDKAssistUIOpener`, capability broker — must
+    // emit EXACTLY these strings (Docs/Intro-to-SDK.md §13). They are
+    // defined once, here, and referenced everywhere else; do not copy the
+    // literals.
+
+    /// The §13 Assist denial. VERBATIM — do not reword.
+    public static let assistDeniedUserMessage =
+        "This app is not allowed to use Assist because access has not yet been verified. Please check with the app developer for further information."
+
+    /// The cloud-model denial. PROPOSED wording — Dylan finalizes the
+    /// exact text. Until he does, this is the string every Swift-side
+    /// cloud denial emits, so the change is a one-line edit here.
+    public static let cloudModelDeniedUserMessage =
+        "This app is not allowed to use the SwiftCode Cloud Model because access has not yet been verified. Please check with the app developer for further information."
+
     // MARK: - Deny-listed IPC method patterns
     //
     // Method-name patterns that must never reach Assist. Matching is
@@ -73,6 +96,27 @@ public enum SDKAssistGate {
         "agent_runner",
         "chat",
         "sendMessage",
+    ]
+
+    // MARK: - Entitled IPC methods
+    //
+    // Method names that PASS the deny-list above and are decided by
+    // key-bound entitlement instead (Docs/Intro-to-SDK.md §13–§14, Part B).
+    //
+    // This set is intentionally minimal — exactly the wire method the
+    // TypeScript `assistSDK` variant uses (`assist.invoke`, see
+    // `TypeScript/package/src/assist.ts`). The exemption is SAFE because
+    // the method can only reach the entitled route:
+    // `SDKIPCDispatcher.route` checks the caller key's
+    // `com.SwiftCode.developer-AI-Assist` entitlement BEFORE any op is
+    // dispatched, and `SDKAssistService` re-checks the entitlement on
+    // every call. An unentitled caller hitting `assist.invoke` gets the
+    // typed `.assistDenied` with the verbatim message — never passthrough.
+    // Every other method containing a denied substring is still denied
+    // here, exactly as before.
+
+    private static let entitledAssistMethods: Set<String> = [
+        "assist.invoke",
     ]
 
     // MARK: - deny
@@ -94,8 +138,8 @@ public enum SDKAssistGate {
     public static func deny(callerExtensionID: String, route: String) async -> SDKError {
         let error = SDKError(
             code: .assistDenied,
-            message: "Assist is not available to extensions.",
-            suggestion: "Build the feature without Assist, or contact the SwiftCode team about the future Assist authorization program."
+            message: Self.assistDeniedUserMessage,
+            suggestion: "The app developer can apply for Assist access in SwiftCode Studio; only a verified entitlement on the developer's API key unlocks Assist."
         )
         await SDKAuditLog.shared.record(
             type: .assistDenied,
@@ -136,17 +180,25 @@ public enum SDKAssistGate {
     /// error. A non-match returns normally — this method does not authorize
     /// anything, it only blocks what it recognizes.
     ///
+    /// EXEMPTION: the exact method `"assist.invoke"` (case-insensitive) is
+    /// the entitled Part-B route and passes through here — the caller-key
+    /// entitlement check in `SDKIPCDispatcher.route` (plus the per-call
+    /// re-check in `SDKAssistService`) decides it, denying unentitled
+    /// callers with the verbatim §13 message. Nothing else containing a
+    /// denied substring passes.
+    ///
     /// - Parameters:
     ///   - ipcMethod: The full IPC method string, e.g. `"assist.sendMessage"`.
     ///   - callerExtensionID: The validated SDK extension ID issuing the call.
     /// - Throws: `SDKError` with code `.assistDenied` on any pattern match.
     public static func check(ipcMethod: String, callerExtensionID: String) async throws {
         let lowered = ipcMethod.lowercased()
+        guard !entitledAssistMethods.contains(lowered) else { return }
         for pattern in deniedIPCPatterns where lowered.contains(pattern) {
             let error = SDKError(
                 code: .assistDenied,
-                message: "Assist is not available to extensions.",
-                suggestion: "Build the feature without Assist, or contact the SwiftCode team about the future Assist authorization program."
+                message: Self.assistDeniedUserMessage,
+                suggestion: "The app developer can apply for Assist access in SwiftCode Studio; only a verified entitlement on the developer's API key unlocks Assist."
             )
             await SDKAuditLog.shared.record(
                 type: .assistDenied,

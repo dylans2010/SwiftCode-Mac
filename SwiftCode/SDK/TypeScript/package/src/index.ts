@@ -59,6 +59,7 @@ export type {
   AssistToolResult,
 } from "./types.js";
 export { SDKAssistAccessError, ASSIST_ACCESS_DENIED_MESSAGE } from "./types.js";
+export { SDKCloudModelAccessError, CLOUD_MODEL_ACCESS_DENIED_MESSAGE } from "./types.js";
 
 export {
   SDKError,

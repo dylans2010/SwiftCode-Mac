@@ -5359,6 +5359,8 @@
 		9BE39BB6CBBA7FAF9F3760B6 /* SDKAPIKeyStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SDKAPIKeyStore.swift; sourceTree = "<group>"; };
 		jeiqvxtbV0Z5Ge9BiJm9PJ32 /* SDKAssistApplication.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SDKAssistApplication.swift; sourceTree = "<group>"; };
 		knbRcqB10JUNVEqm836z0X2B /* SDKEntitlement.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SDKEntitlement.swift; sourceTree = "<group>"; };
+		D0101baf27C157bb72dbeAD3 /* SDKAssistApplicationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SDKAssistApplicationTests.swift; sourceTree = "<group>"; };
+		b42A8dceEd2932CEbA29d109 /* SDKAssistEnforcementTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SDKAssistEnforcementTests.swift; sourceTree = "<group>"; };
 		EFB7467FC11F54C3713CF885 /* SDKSourceControlAdapter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SDKSourceControlAdapter.swift; sourceTree = "<group>"; };
 		DDB91E5267550C18B40615A5 /* SDKBuildService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SDKBuildService.swift; sourceTree = "<group>"; };
 		0BED5DCAF1D65121356CAD9E /* SDKBuildOutputParser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SDKBuildOutputParser.swift; sourceTree = "<group>"; };
@@ -5428,6 +5430,7 @@
 		kWdk7XWkAe8TVMpiQDyLjOzx /* EnterSecuritySDKView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EnterSecuritySDKView.swift; sourceTree = "<group>"; };
 		sbwizh8HgT46lk1WQ3AeqfKV /* SDKSecurityManagerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SDKSecurityManagerView.swift; sourceTree = "<group>"; };
 		99AjgY1lrGunB1oR7RQOyjdo /* Security-Keychain.md */ = {isa = PBXFileReference; lastKnownFileType = text.markdown; path = Security-Keychain.md; sourceTree = "<group>"; };
+		dE6cAF3Dddd17c207cb37d46 /* Assist-Access.md */ = {isa = PBXFileReference; lastKnownFileType = text.markdown; path = Assist-Access.md; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -9862,6 +9865,7 @@
 			children = (
 				36058e4be68e5f37daf861c4 /* SDK-Architecture.md */,
 				99AjgY1lrGunB1oR7RQOyjdo /* Security-Keychain.md */,
+				dE6cAF3Dddd17c207cb37d46 /* Assist-Access.md */,
 			);
 			name = Documentation;
 			path = Documentation;
@@ -9933,6 +9937,8 @@
 				9BE39BB6CBBA7FAF9F3760B6 /* SDKAPIKeyStore.swift */,
 				jeiqvxtbV0Z5Ge9BiJm9PJ32 /* SDKAssistApplication.swift */,
 				knbRcqB10JUNVEqm836z0X2B /* SDKEntitlement.swift */,
+				D0101baf27C157bb72dbeAD3 /* SDKAssistApplicationTests.swift */,
+				b42A8dceEd2932CEbA29d109 /* SDKAssistEnforcementTests.swift */,
 			);
 			name = APIKeys;
 			path = APIKeys;
