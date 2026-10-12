@@ -38,6 +38,8 @@ public final class GoogleCloudSDKTests: Sendable {
         results.append(await testCustomModelProviderResolution())
         results.append(await testResolveAPIKeyNeverFallsBackInOAuthMode())
         results.append(await testChatModeGoogleOAuthSatisfiesCheck())
+        results.append(await testDeveloperAPIScopesAreClientCompatible())
+        results.append(await testDefaultOAuthClientIDIsConfigured())
 
         let routerTests = await AssistModelRouterTests.shared.runAllTests()
         results.append(contentsOf: routerTests)
@@ -641,6 +643,61 @@ public final class GoogleCloudSDKTests: Sendable {
             testName: "Chat Mode Google OAuth Credential Check",
             passed: passed,
             message: passed ? "OAuth session satisfies the Chat Mode Google check exactly when provider, mode, session, and token all agree." : "Failures: \(failures.joined(separator: "; "))",
+            duration: Date().timeIntervalSince(start)
+        )
+    }
+
+    // 13. Developer API Scopes Are Client-Compatible
+    // The sign-in flow must request exactly the documented Developer API
+    // scopes. The Antigravity-IDE-internal scopes (cclog,
+    // experimentsandconfigs, aicode) are not requested: on a user-owned
+    // client they would only widen the consent screen, and Google's own
+    // clients reject the generative-language.* scopes outright
+    // ("Unregistered scope(s)", 403 restricted_client).
+    public func testDeveloperAPIScopesAreClientCompatible() async -> RuntimeTestCaseResult {
+        let start = Date()
+        var failures: [String] = []
+        let scopes = GoogleAccountAuthService.requiredScopes
+        for needed in ["https://www.googleapis.com/auth/cloud-platform",
+                       "https://www.googleapis.com/auth/generative-language.retriever",
+                       "https://www.googleapis.com/auth/userinfo.email",
+                       "https://www.googleapis.com/auth/userinfo.profile",
+                       "openid"] {
+            if !scopes.contains(needed) { failures.append("missing \(needed)") }
+        }
+        for ideOnly in ["cclog", "experimentsandconfigs", "aicode"] {
+            if scopes.contains(where: { $0.contains(ideOnly) }) {
+                failures.append("IDE-internal scope requested: \(ideOnly)")
+            }
+        }
+        let passed = failures.isEmpty
+        return RuntimeTestCaseResult(
+            testName: "Developer API Scopes Are Client-Compatible",
+            passed: passed,
+            message: passed ? "Sign-in requests exactly the documented Developer API scopes." : "Failures: \(failures.joined(separator: "; "))",
+            duration: Date().timeIntervalSince(start)
+        )
+    }
+
+    // 14. Default OAuth Client ID Is SwiftCode's Own
+    // Sign-in must use SwiftCode's own OAuth client by default: Google
+    // rejects the Developer API scopes on clients SwiftCode does not own
+    // ("Unregistered scope(s)", 403 restricted_client). The ID is a public
+    // identifier (PKCE public client, no secret), so it ships in the clear.
+    public func testDefaultOAuthClientIDIsConfigured() async -> RuntimeTestCaseResult {
+        let start = Date()
+        var failures: [String] = []
+        let clientID = GoogleAccountAuthService.swiftCodeClientID
+        if clientID.isEmpty { failures.append("default client ID is empty") }
+        if !clientID.hasSuffix(".apps.googleusercontent.com") {
+            failures.append("default client ID is malformed")
+        }
+        if clientID.contains(" ") { failures.append("default client ID contains whitespace") }
+        let passed = failures.isEmpty
+        return RuntimeTestCaseResult(
+            testName: "Default OAuth Client ID Is Configured",
+            passed: passed,
+            message: passed ? "Sign-in defaults to SwiftCode's own OAuth client ID." : "Failures: \(failures.joined(separator: "; "))",
             duration: Date().timeIntervalSince(start)
         )
     }

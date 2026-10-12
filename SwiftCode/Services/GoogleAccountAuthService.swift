@@ -107,29 +107,31 @@ public final class GoogleAccountAuthService: NSObject, ObservableObject {
     // MARK: - OAuth Configuration
     private let callbackScheme = "swiftcode"
 
-    private static func reconstructToken(_ bytes: [UInt8], key: UInt8 = 0x5A) -> String {
-        let decoded = bytes.map { $0 ^ key }
-        return String(bytes: decoded, encoding: .utf8) ?? ""
-    }
-
-    public static let antigravityClientID = reconstructToken([
-        107, 106, 109, 107, 106, 106, 108, 106, 108, 106, 111, 99, 107, 119, 46, 55, 50, 41, 41, 51,
-        52, 104, 50, 104, 107, 54, 57, 40, 63, 104, 105, 111, 44, 46, 53, 54, 53, 48, 50, 110,
-        61, 110, 106, 105, 63, 42, 116, 59, 42, 42, 41, 116, 61, 53, 53, 61, 54, 63, 47, 41,
-        63, 40, 57, 53, 52, 46, 63, 52, 46, 116, 57, 53, 55
-    ])
+    /// SwiftCode's own Google OAuth client ID (Desktop application type).
+    /// A plain string, not obfuscated: client IDs for PKCE public clients
+    /// are public identifiers by design, not secrets. No client secret is
+    /// used or needed (RFC 7636).
+    public static let swiftCodeClientID = "671720100031-tkph1mke7c5bj3l93t5eemrplti78i77.apps.googleusercontent.com"
+    /// Scopes requested by SwiftCode's own "Sign in with Google" flow, per
+    /// the Gemini Developer API's documented OAuth contract
+    /// (https://ai.google.dev/gemini-api/docs/oauth): an access token without
+    /// generative-language.retriever is rejected with 403
+    /// ACCESS_TOKEN_SCOPE_INSUFFICIENT on generativelanguage.googleapis.com.
+    ///
+    /// These scopes are only requestable with an OAuth client you own.
+    /// Google's first-party clients (including the Antigravity IDE client this
+    /// app previously borrowed) do not have the generative-language.* scopes
+    /// registered, so the authorization server rejects the request outright
+    /// with "Unregistered scope(s) in the request" (Error 403:
+    /// restricted_client). The Antigravity-IDE-internal scopes (cclog,
+    /// experimentsandconfigs, aicode) are intentionally not requested here:
+    /// they belong to Google's IDE, not to Developer API usage, and would only
+    /// widen the consent screen on a personal client.
     public static let requiredScopes = [
         "https://www.googleapis.com/auth/cloud-platform",
-        // Required by the Gemini Developer API's documented OAuth contract:
-        // an OAuth access token without this scope is rejected with
-        // 403 ACCESS_TOKEN_SCOPE_INSUFFICIENT on generativelanguage.googleapis.com.
-        // See https://ai.google.dev/gemini-api/docs/oauth
         "https://www.googleapis.com/auth/generative-language.retriever",
         "https://www.googleapis.com/auth/userinfo.email",
         "https://www.googleapis.com/auth/userinfo.profile",
-        "https://www.googleapis.com/auth/cclog",
-        "https://www.googleapis.com/auth/experimentsandconfigs",
-        "https://www.googleapis.com/auth/aicode",
         "openid"
     ]
     private var scopes: String {
@@ -137,14 +139,15 @@ public final class GoogleAccountAuthService: NSObject, ObservableObject {
     }
 
     private var clientID: String {
+        // Silent overrides for testing or advanced setups; otherwise
+        // SwiftCode's own OAuth client.
         if let env = ProcessInfo.processInfo.environment["GOOGLE_CLIENT_ID"], !env.isEmpty {
             return env
         }
         if let info = Bundle.main.infoDictionary?["GOOGLE_CLIENT_ID"] as? String, !info.isEmpty {
             return info
         }
-        // Public PKCE client ID for Google Antigravity IDE & developer tools
-        return Self.antigravityClientID
+        return Self.swiftCodeClientID
     }
 
     /// Client secret override for a user-configured confidential OAuth client.
@@ -536,9 +539,9 @@ public final class GoogleAccountAuthService: NSObject, ObservableObject {
             let refreshToken = (tokenObj["refresh_token"] as? String) ?? ""
             let accessToken = tokenObj["access_token"] as? String
             if !refreshToken.isEmpty || (accessToken != nil && !accessToken!.isEmpty) {
-                let clientID = (json["client_id"] as? String) ?? Self.antigravityClientID
+                let clientID = (json["client_id"] as? String) ?? Self.swiftCodeClientID
                 let clientSecret = json["client_secret"] as? String
-                let scopes = (json["scopes"] as? [String]) ?? Self.requiredScopes
+                let scopes = (json["scopes"] as? [String]) ?? [] // Unknown: never fabricate granted scopes.
                 return AntigravityCredentials(
                     clientID: clientID,
                     clientSecret: clientSecret,
@@ -551,9 +554,9 @@ public final class GoogleAccountAuthService: NSObject, ObservableObject {
 
         // Structure 2: Flat { "refresh_token": "...", "client_id": "..." }
         if let refreshToken = json["refresh_token"] as? String, !refreshToken.isEmpty {
-            let clientID = (json["client_id"] as? String) ?? Self.antigravityClientID
+            let clientID = (json["client_id"] as? String) ?? Self.swiftCodeClientID
             let clientSecret = json["client_secret"] as? String
-            let scopes = (json["scopes"] as? [String]) ?? Self.requiredScopes
+            let scopes = (json["scopes"] as? [String]) ?? [] // Unknown: never fabricate granted scopes.
             let accessToken = json["access_token"] as? String
             return AntigravityCredentials(
                 clientID: clientID,
