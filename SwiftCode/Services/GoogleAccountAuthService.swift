@@ -645,11 +645,7 @@ public final class GoogleAccountAuthService: NSObject, ObservableObject {
                 try? await GoogleCloudSDKLifecycleManager.shared.restartEngine()
                 await AssistModelDiscoveryService.shared.discoverAllModels(forceRefresh: true)
             }
-            return true
-        } catch {
-            logger.warning("Could not refresh Antigravity tokens: \(error.localizedDescription)")
-            return false
-        }
+        return true
     }
 
     // MARK: - Sign In via agy CLI (Process)
