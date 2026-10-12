@@ -81,7 +81,7 @@ public final class TasksAIPlanner: ObservableObject {
           "steps": [
             { "toolId": "tree_view", "description": "Explore project structure.", "input": { "path": "." } },
             { "toolId": "file_write", "description": "Create LoginView.swift", "input": { "path": "Views/LoginView.swift", "content": "import SwiftUI..." } },
-            { "toolId": "project_build", "description": "Verify build.", "input": { "project": "SwiftCode.xcodeproj" } }
+            { "toolId": "project_build", "description": "Verify build.", "input": {} }
           ]
         }
 

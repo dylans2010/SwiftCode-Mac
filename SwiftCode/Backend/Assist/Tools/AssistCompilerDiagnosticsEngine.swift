@@ -13,10 +13,10 @@ public struct AssistCompilerDiagnosticsEngine: AssistTool {
     public var parametersSchema: JSONSchema {
         JSONSchema(
             type: "object",
-            description: "Runs xcodebuild and parses warnings and errors into structured diagnostics. macOS only.",
+            description: "Runs xcodebuild and parses warnings and errors into structured diagnostics. macOS only. Targets the user's project.",
             properties: [
-                "project": JSONSchema(type: "string", description: "Xcode project file to build. Default: \"SwiftCode.xcodeproj\"."),
-                "scheme": JSONSchema(type: "string", description: "Build scheme. Default: \"SwiftCode\".")
+                "project": JSONSchema(type: "string", description: "Workspace-relative path to the .xcodeproj/.xcworkspace to diagnose. Defaults to the project found in the workspace root."),
+                "scheme": JSONSchema(type: "string", description: "Build scheme. Defaults to the project's first listed scheme.")
             ],
             required: []
         )
@@ -24,9 +24,17 @@ public struct AssistCompilerDiagnosticsEngine: AssistTool {
 
     public func execute(input: [String: Any], context: AssistContext) async throws -> AssistToolResult {
         #if os(macOS)
-        let project = input["project"] as? String ?? "SwiftCode.xcodeproj"
-        let scheme = input["scheme"] as? String ?? "SwiftCode"
-        let cmd = "xcodebuild -project \(project) -scheme \(scheme) -configuration Debug build"
+        let located: AssistXcodeProjectResolver.LocatedProject
+        if let projectPath = input["project"] as? String, !projectPath.isEmpty,
+           let found = AssistXcodeProjectResolver.locate(relativePath: projectPath, in: context.workspaceRoot) {
+            located = found
+        } else if let found = AssistXcodeProjectResolver.locate(in: context.workspaceRoot) {
+            located = found
+        } else {
+            return .failure("No Xcode project (.xcodeproj/.xcworkspace) found in the workspace root.")
+        }
+        let scheme = await AssistXcodeProjectResolver.resolveScheme(for: located, explicit: input["scheme"] as? String)
+        let cmd = "xcodebuild \(located.xcodebuildArgs.joined(separator: " ")) -scheme \(scheme) -configuration Debug build"
         let output = try run(command: cmd, cwd: context.workspaceRoot.path)
         let diagnostics = parseDiagnostics(output)
         return .success("Compiler diagnostics collected.", data: diagnostics)

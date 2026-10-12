@@ -10,9 +10,9 @@ public struct AssistTestRunnerTool: AssistTool {
     public var parametersSchema: JSONSchema {
         JSONSchema(
             type: "object",
-            description: "Runs tests for the current project or a specific scheme.",
+            description: "Runs tests for the user's project with xcodebuild test. Targets the project found in the workspace root.",
             properties: [
-                "scheme": JSONSchema(type: "string", description: "The scheme to test (defaults to active project or 'SwiftCode')."),
+                "scheme": JSONSchema(type: "string", description: "The scheme to test. Defaults to the project's first listed scheme."),
                 "testPlan": JSONSchema(type: "string", description: "Optional name of the test plan to execute.")
             ],
             required: []
@@ -23,13 +23,11 @@ public struct AssistTestRunnerTool: AssistTool {
 
     public func execute(input: [String: Any], context: AssistContext) async throws -> AssistToolResult {
         let scheme = input["scheme"] as? String
-        _ = scheme
         let testPlan = input["testPlan"] as? String
-        _ = testPlan
 
         await context.logger.info("Executing tests via AssistVerificationPipeline", toolId: id)
 
-        let outcome = await AssistVerificationPipeline.shared.verifyTests(context: context)
+        let outcome = await AssistVerificationPipeline.shared.verifyTests(context: context, scheme: scheme, testPlan: testPlan)
 
         let diagStrings = outcome.diagnostics.map { "\($0.filePath):\($0.line): \($0.severity.rawValue): \($0.message)" }
         let resultData: [String: String] = [

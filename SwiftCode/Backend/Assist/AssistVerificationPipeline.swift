@@ -120,7 +120,9 @@ public final class AssistVerificationPipeline: Sendable {
     }
 
     /// Verifies full project compilation using xcodebuild targeting macOS.
-    public func verifyCompilation(context: AssistContext) async -> VerificationOutcome {
+    /// Always targets the user's project resolved from the workspace root —
+    /// never this app's own bundle.
+    public func verifyCompilation(context: AssistContext, scheme explicitScheme: String? = nil) async -> VerificationOutcome {
         let startTime = Date()
         let developerDir = resolveDeveloperDir()
         let xcodebuildURL = URL(fileURLWithPath: "\(developerDir)/usr/bin/xcodebuild")
@@ -128,15 +130,13 @@ public final class AssistVerificationPipeline: Sendable {
         var env = ProcessInfo.processInfo.environment
         env["DEVELOPER_DIR"] = developerDir
 
-        let projPath = context.workspaceRoot.appendingPathComponent("SwiftCode.xcodeproj").path
-
-        guard FileManager.default.fileExists(atPath: projPath) else {
-            return VerificationOutcome(kind: .compilation, isSuccess: false, error: "No Xcode project found at \(projPath); cannot verify compilation.", duration: 0)
+        guard let project = AssistXcodeProjectResolver.locate(in: context.workspaceRoot) else {
+            return VerificationOutcome(kind: .compilation, isSuccess: false, error: "No Xcode project (.xcodeproj/.xcworkspace) found in the workspace; cannot verify compilation.", duration: 0)
         }
+        let scheme = await AssistXcodeProjectResolver.resolveScheme(for: project, explicit: explicitScheme)
 
-        let arguments = [
-            "-project", projPath,
-            "-scheme", "SwiftCode",
+        let arguments = project.xcodebuildArgs + [
+            "-scheme", scheme,
             "-destination", "platform=macOS,arch=arm64",
             "build"
         ]
@@ -174,7 +174,9 @@ public final class AssistVerificationPipeline: Sendable {
     }
 
     /// Runs tests when a test scheme is available.
-    public func verifyTests(context: AssistContext) async -> VerificationOutcome {
+    /// Always targets the user's project resolved from the workspace root —
+    /// never this app's own bundle.
+    public func verifyTests(context: AssistContext, scheme explicitScheme: String? = nil, testPlan: String? = nil) async -> VerificationOutcome {
         let startTime = Date()
         let developerDir = resolveDeveloperDir()
         let xcodebuildURL = URL(fileURLWithPath: "\(developerDir)/usr/bin/xcodebuild")
@@ -182,23 +184,24 @@ public final class AssistVerificationPipeline: Sendable {
         var env = ProcessInfo.processInfo.environment
         env["DEVELOPER_DIR"] = developerDir
 
-        let projPath = context.workspaceRoot.appendingPathComponent("SwiftCode.xcodeproj").path
-
-        guard FileManager.default.fileExists(atPath: projPath) else {
+        guard let project = AssistXcodeProjectResolver.locate(in: context.workspaceRoot) else {
             return VerificationOutcome(
                 kind: .unitTests,
                 isSuccess: false,
-                error: "No Xcode project present; cannot verify tests.",
+                error: "No Xcode project (.xcodeproj/.xcworkspace) found in the workspace; cannot verify tests.",
                 duration: 0
             )
         }
+        let scheme = await AssistXcodeProjectResolver.resolveScheme(for: project, explicit: explicitScheme)
 
-        let arguments = [
-            "-project", projPath,
-            "-scheme", "SwiftCode",
+        var arguments = project.xcodebuildArgs + [
+            "-scheme", scheme,
             "-destination", "platform=macOS,arch=arm64",
-            "test"
         ]
+        if let testPlan, !testPlan.isEmpty {
+            arguments += ["-testPlan", testPlan]
+        }
+        arguments += ["test"]
 
         do {
             let res = try await ProcessRunnerTool.shared.run(

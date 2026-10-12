@@ -21,7 +21,7 @@ public struct TerminalApprovalRequest: Identifiable, Sendable {
 public struct UseTermFunction: AssistTool {
     public let id = "use_terminal"
     public let name = "Use Terminal"
-    public let description = "Executes arbitrary terminal commands on the user's machine after explicit user approval."
+    public let description = "Executes terminal commands on the user's machine. Commands on the user's allow-list (Assist Settings > Terminal Command Approvals), or any command when Full Access is enabled, run without an approval prompt; all other commands require explicit user approval."
 
     public init() {}
 
@@ -69,19 +69,30 @@ public struct UseTermFunction: AssistTool {
             workingDirURL = context.workspaceRoot
         }
 
-        // 2. Request user approval through AssistManager
-        let request = TerminalApprovalRequest(
-            id: UUID(),
-            command: command,
-            workingDirectory: relativeWorkDir.isEmpty ? "." : relativeWorkDir,
-            explanation: explanation,
-            estimatedImpact: estimatedImpact,
-            modifiesRepo: modifiesRepo
-        )
+        // 2. Approval policy: the user's allow-list and Full Access toggle
+        // (Assist Settings > Terminal Command Approvals) decide whether this
+        // command may run without an explicit approval prompt.
+        let bypassesApproval = TerminalApprovalSettings.shared.isApprovalBypassed(for: command)
 
-        await context.logger.info("Requesting terminal approval: \(command)", toolId: id)
+        let approved: Bool
+        if bypassesApproval {
+            await context.logger.info("Terminal command bypasses approval (allow-list / Full Access): \(command)", toolId: id)
+            approved = true
+        } else {
+            // 2a. Request user approval through AssistManager
+            let request = TerminalApprovalRequest(
+                id: UUID(),
+                command: command,
+                workingDirectory: relativeWorkDir.isEmpty ? "." : relativeWorkDir,
+                explanation: explanation,
+                estimatedImpact: estimatedImpact,
+                modifiesRepo: modifiesRepo
+            )
 
-        let approved = await AssistManager.shared.requestTerminalApproval(request)
+            await context.logger.info("Requesting terminal approval: \(command)", toolId: id)
+
+            approved = await AssistManager.shared.requestTerminalApproval(request)
+        }
         if !approved {
             await context.logger.warning("Terminal command rejected by user: \(command)", toolId: id)
             return .failure("Terminal execution rejected by user.")

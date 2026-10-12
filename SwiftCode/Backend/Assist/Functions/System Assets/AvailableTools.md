@@ -55,7 +55,8 @@ Capability-level reference for the tools Assist can actually call. This document
 
 ## Build, Test, and Diagnostics
 
-- `project_build` (execution) — compile active workspace using Xcode/SwiftPM toolchain (`xcodebuild` / `swift build`). The authoritative build check; slow — never speculative.
+- `project_build` (execution) — builds the USER's Xcode project/workspace (resolved from the workspace root — never this app's own bundle) with `/usr/bin/xcodebuild`, run directly via Process in the background. Approval-exempt by design: this is the one terminal operation that never triggers the `use_terminal` approval prompt. The authoritative build check; slow — never speculative.
+- `generate_xcodeproj` (execution) — generates `.xcodeproj` files from an XcodeGen `project.yml` spec via `xcodegen`, run directly via Process in the background. Installs XcodeGen with Homebrew automatically when missing. Approval-exempt by design, like `project_build`.
 - `project_test` (execution) — run test suites for active workspace (optional `testTarget`, `testFilter`) after a green build.
 - `compiler_diagnostics_engine` (execution) — structured compiler warnings/errors without a full xcodebuild flow; a failing build does not fail the tool — parse the diagnostic payload.
 - `automated_repair_engine` (safeMutation) — annotates reported compiler-error lines in file `path` for review (`// AssistAutoRepair: review required`). Annotation-only, not a real fix; follow with real fixes and `project_build`.
@@ -86,7 +87,7 @@ Capability-level reference for the tools Assist can actually call. This document
 
 ## Terminal and External Integrations
 
-- `use_terminal` (execution) — arbitrary shell commands **only after explicit user approval**, and only when no native tool covers the operation. Requires `command`, `workingDirectory` (optional), `explanation`, `estimatedImpact`, `modifiesRepo`. User rejection is final — never retry or reroute. Prefer native tools over shelling out.
+- `use_terminal` (execution) — arbitrary shell commands. Requires explicit user approval UNLESS the command is on the user's allow-list or Full Access is enabled (Assist Settings > Terminal Command Approvals) — those run immediately with no prompt. Only when no native tool covers the operation. Requires `command`, `workingDirectory` (optional), `explanation`, `estimatedImpact`, `modifiesRepo`. User rejection is final — never retry or reroute. Prefer native tools over shelling out. Note: `project_build` and `generate_xcodeproj` never route through this tool and never prompt.
 - `use_mcp` (externalSideEffect) — operate on configured MCP servers (GitHub, databases, developer services). Discover first: `serverName: "list"`, then `toolName: "list_tools"` per server; execute with real names. `arguments` is a JSON-serialized string. An `@`-selected MCP server is mandatory when relevant.
 - `use_composio` (externalSideEffect) — third-party integrations via Composio (GitHub, Slack, Gmail, Calendar, …) by `toolSlug`. Requires Composio configured/authenticated.
 - `external_resource_gateway` (safeRead) — fetch JSON from an external HTTP(S) API `url` (optional `headers`, `method`). Only fetch URLs relevant to the task.

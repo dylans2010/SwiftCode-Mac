@@ -27,7 +27,10 @@ public struct AssistDependencyResolutionEngine: AssistTool {
         }
 
         #if os(macOS)
-        let resolveOutput = try run(command: "xcodebuild -resolvePackageDependencies -project SwiftCode.xcodeproj", cwd: context.workspaceRoot.path)
+        guard let located = AssistXcodeProjectResolver.locate(in: context.workspaceRoot) else {
+            return .failure("No Xcode project (.xcodeproj/.xcworkspace) found in the workspace root; cannot resolve package dependencies.")
+        }
+        let resolveOutput = try run(command: "xcodebuild \(located.xcodebuildArgs.joined(separator: " ")) -resolvePackageDependencies", cwd: context.workspaceRoot.path)
         return .success("Resolved dependencies for \(packageURL)", data: ["output": resolveOutput, "package": packageURL])
         #else
         return .failure("Dependency resolution requires macOS runtime")

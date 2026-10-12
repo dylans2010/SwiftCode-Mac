@@ -7,6 +7,9 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		F93A23B44273677D44A26E42 /* AllowedTerminalCommandsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 534D35D4DB796F5E38B6E47A /* AllowedTerminalCommandsView.swift */; };
+		971FB212C858F955630465AD /* TerminalApprovalSettings.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0FD39B3AB44A8C73FEBBD9E /* TerminalApprovalSettings.swift */; };
+		0F78E0911F88D568BDBB5AA3 /* AssistXcodeProjectResolver.swift in Sources */ = {isa = PBXBuildFile; fileRef = E29470C1E254C1D46E7DB5CF /* AssistXcodeProjectResolver.swift */; };
 		004C550B01654D85AAC1AC9E /* MLXOptimizers in Frameworks */ = {isa = PBXBuildFile; productRef = BBB818A276304EA881DBF6E6 /* MLXOptimizers */; };
 		016298C4F533D83B2A4FB1B0 /* ApplicationDeploymentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CCF38596E6CBBF00108C7D98 /* ApplicationDeploymentView.swift */; };
 		0166E43D0F249661F65BDD62 /* AssistLogCaptureTool.swift in Sources */ = {isa = PBXBuildFile; fileRef = C63871C9F424ED65E6604B87 /* AssistLogCaptureTool.swift */; };
@@ -2636,6 +2639,9 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		534D35D4DB796F5E38B6E47A /* AllowedTerminalCommandsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AllowedTerminalCommandsView.swift; sourceTree = "<group>"; };
+		C0FD39B3AB44A8C73FEBBD9E /* TerminalApprovalSettings.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TerminalApprovalSettings.swift; sourceTree = "<group>"; };
+		E29470C1E254C1D46E7DB5CF /* AssistXcodeProjectResolver.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssistXcodeProjectResolver.swift; sourceTree = "<group>"; };
 		00048987BBB25A712D49051C /* NordThemeExtensionView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NordThemeExtensionView.swift; sourceTree = "<group>"; };
 		00573C77C75B8076494A575A /* _AssistCriticalValidationEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = _AssistCriticalValidationEngine.swift; sourceTree = "<group>"; };
 		0076F070FA7E4422B0FBAAB8 /* ParseMarkdown.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ParseMarkdown.swift; sourceTree = "<group>"; };
@@ -5458,6 +5464,7 @@
 				D9F800020000000000000001 /* ExecutionPlanTool.swift */,
 				D9F800020000000000000002 /* PlanAskUserTool.swift */,
 				A1000003F001000100000003 /* search_skills.swift */,
+				E29470C1E254C1D46E7DB5CF /* AssistXcodeProjectResolver.swift */,
 			);
 			path = Tools;
 			sourceTree = "<group>";
@@ -7156,6 +7163,7 @@
 				1EEFDE66CFF5D1AE17C41B31 /* SystemIndexTestSuite.swift */,
 				A1000001F001000100000001 /* AssistRequestMetrics.swift */,
 				A1000002F001000100000002 /* AssistTaskContext.swift */,
+				C0FD39B3AB44A8C73FEBBD9E /* TerminalApprovalSettings.swift */,
 			);
 			path = Assist;
 			sourceTree = "<group>";
@@ -8420,6 +8428,7 @@
 				F41E7F18C6B47F81E7C1872A /* ModelDownloadProgressView.swift */,
 				C1001017A1001017A1001017 /* ConnectSettingsView.swift */,
 				C1001020A1001020A1001020 /* ConnectPairingApprovalSheet.swift */,
+				534D35D4DB796F5E38B6E47A /* AllowedTerminalCommandsView.swift */,
 			);
 			path = Settings;
 			sourceTree = "<group>";
@@ -12172,6 +12181,9 @@
 				1670ED15D56A1533DD5ED912 /* SystemIndex.swift in Sources */,
 				492AA25405D83C0381A593EB /* AssistRequestState.swift in Sources */,
 				14EDF45A957DE6211992CF5E /* SystemIndexTestSuite.swift in Sources */,
+				0F78E0911F88D568BDBB5AA3 /* AssistXcodeProjectResolver.swift in Sources */,
+				971FB212C858F955630465AD /* TerminalApprovalSettings.swift in Sources */,
+				F93A23B44273677D44A26E42 /* AllowedTerminalCommandsView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

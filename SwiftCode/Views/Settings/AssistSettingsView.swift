@@ -1838,6 +1838,29 @@ struct AssistSettingsView: View {
                 }
                 .groupBoxStyle(ModernGroupBoxStyle())
 
+                // 7. Terminal Command Approvals
+                GroupBox {
+                    VStack(alignment: .leading, spacing: 14) {
+                        HStack {
+                            Label("Terminal Command Approvals", systemImage: "terminal.fill")
+                                .font(.headline)
+                                .foregroundColor(.blue)
+                            Spacer()
+                            NavigationLink(destination: AllowedTerminalCommandsView()) {
+                                Label("Manage", systemImage: "chevron.right")
+                                    .font(.caption)
+                            }
+                            .buttonStyle(.plain)
+                        }
+
+                        Text("Choose which terminal commands Assist may run without asking for approval, or enable Full Access to skip approval for every command.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                    .padding(14)
+                }
+                .groupBoxStyle(ModernGroupBoxStyle())
+
                 // 5. About Section
                 GroupBox {
                     VStack(alignment: .leading, spacing: 14) {

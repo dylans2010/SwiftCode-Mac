@@ -18,7 +18,7 @@ A build or test run succeeded **strictly and solely when the underlying process 
 
 ## 2. Target SDK Destination Resolution (`BuildDestinationResolver`)
 
-In native Xcode projects, `project_build` invokes `/usr/bin/xcodebuild` or `swift build`:
+In native Xcode projects, `project_build` invokes `/usr/bin/xcodebuild` against the user's project (never this app's own bundle):
 
 - **Dynamic Destination Detection:** `BuildDestinationResolver` checks user-configured destinations on the active project (`Project.destinations`).
 - **Target SDK Parameter Passing:**
