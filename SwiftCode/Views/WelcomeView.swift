@@ -384,15 +384,6 @@ struct SwiftCodeWelcomeView: View {
                         }
 
                         ModernActionCard(
-                            title: "SwiftCode Studio",
-                            subtitle: "Build extensions, install the SDK & ship",
-                            iconName: "hammer.fill",
-                            color: .accentColor
-                        ) {
-                            SDKStudioWindowManager.shared.openStudio(section: .projects)
-                        }
-
-                        ModernActionCard(
                             title: "Settings",
                             subtitle: "Configure accounts, themes & AI",
                             iconName: "gearshape.fill",
@@ -407,6 +398,38 @@ struct SwiftCodeWelcomeView: View {
                 }
             }
             .scrollIndicators(.never)
+
+            // Keep Studio available even when the welcome content is taller than the window.
+            Divider()
+
+            Button {
+                SDKStudioWindowManager.shared.openStudio(section: .projects)
+            } label: {
+                Label {
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text("SwiftCode Studio")
+                            .font(.headline)
+                        Text("Build extensions, install the SDK & ship")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                    Spacer(minLength: 8)
+                    Image(systemName: "arrow.up.right.square")
+                        .foregroundStyle(Color.accentColor)
+                }
+                .padding(12)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(Color(NSColor.controlBackgroundColor).opacity(0.65), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+                .overlay {
+                    RoundedRectangle(cornerRadius: 12, style: .continuous)
+                        .stroke(Color.primary.opacity(0.08), lineWidth: 1)
+                }
+                .contentShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+            }
+            .buttonStyle(.plain)
+            .help("Open SwiftCode Studio and SDK tools")
+            .padding(.horizontal, 20)
+            .padding(.vertical, 12)
 
             // Dynamic stats bar at the bottom
             HStack(spacing: 12) {
