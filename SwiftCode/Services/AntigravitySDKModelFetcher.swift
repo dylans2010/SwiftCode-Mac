@@ -116,12 +116,8 @@ public final class AntigravitySDKModelFetcher: ObservableObject {
     }
 
     public static let seedModels: [AntigravitySDKModel] = [
-        AntigravitySDKModel(id: "gemini-3.8-flash-high", displayName: "Gemini 3.8 Flash (High)", thinkingLevel: "High", contextWindow: 1_048_576, category: "Google"),
-        AntigravitySDKModel(id: "gemini-3.8-flash-medium", displayName: "Gemini 3.8 Flash (Medium)", thinkingLevel: "Medium", contextWindow: 1_048_576, category: "Google"),
-        AntigravitySDKModel(id: "gemini-3.8-flash-low", displayName: "Gemini 3.8 Flash (Low)", thinkingLevel: "Low", contextWindow: 1_048_576, category: "Google"),
-        AntigravitySDKModel(id: "gemini-3.1-pro-high", displayName: "Gemini 3.1 Pro (High)", thinkingLevel: "High", contextWindow: 2_097_152, category: "Google"),
-        AntigravitySDKModel(id: "gemini-3.1-pro-medium", displayName: "Gemini 3.1 Pro (Medium)", thinkingLevel: "Medium", contextWindow: 2_097_152, category: "Google"),
-        AntigravitySDKModel(id: "gemini-3.1-pro-low", displayName: "Gemini 3.1 Pro (Low)", thinkingLevel: "Low", contextWindow: 2_097_152, category: "Google"),
+        AntigravitySDKModel(id: "gemini-3.8-flash", displayName: "Gemini 3.8 Flash", thinkingLevel: "High", contextWindow: 1_048_576, category: "Google"),
+        AntigravitySDKModel(id: "gemini-3.1-pro", displayName: "Gemini 3.1 Pro", thinkingLevel: "High", contextWindow: 2_097_152, category: "Google"),
         AntigravitySDKModel(id: "claude-sonnet-4-6", displayName: "Claude Sonnet 4.6", thinkingLevel: "Medium", contextWindow: 200_000, category: "Anthropic")
     ]
 
