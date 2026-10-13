@@ -418,9 +418,13 @@ public enum SDKInstaller {
     /// The app-bundled SDK copy, when one is shipped inside the app
     /// bundle by Distribution/bundle-sdk.sh; absence is reported honestly.
     static func defaultBundledFallbackURL() -> URL? {
+        let currentDir = FileManager.default.currentDirectoryPath
         let candidates = [
             Bundle.main.resourceURL?.appendingPathComponent("SwiftCodeSDK/Distribution/swiftcode-sdk-1.0.0.tgz"),
-            Bundle.main.url(forResource: "swiftcode-sdk-1.0.0", withExtension: "tgz")
+            Bundle.main.resourceURL?.appendingPathComponent("SwiftCode/SDK/Distribution/swiftcode-sdk-1.0.0.tgz"),
+            Bundle.main.url(forResource: "swiftcode-sdk-1.0.0", withExtension: "tgz"),
+            URL(fileURLWithPath: "\(currentDir)/SwiftCode/SDK/Distribution/swiftcode-sdk-1.0.0.tgz"),
+            URL(fileURLWithPath: "\(currentDir)/SDK/Distribution/swiftcode-sdk-1.0.0.tgz")
         ]
         return candidates.compactMap { $0 }.first { FileManager.default.fileExists(atPath: $0.path) }
     }

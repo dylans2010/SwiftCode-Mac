@@ -286,6 +286,17 @@ class ModelAdapterServer:
         client = await self.get_client()
 
         if target.provider in ("anthropic", "claude"):
+            if not target.api_key:
+                err_msg = (
+                    f"Anthropic API key is required to use model '{model_name}'. "
+                    "Note: Google account authentication authorizes Gemini models without an API key. "
+                    "Please select a Gemini model or configure your Anthropic API key in Settings > Assist."
+                )
+                err_bytes = json.dumps({"error": {"message": err_msg, "type": "authentication_error"}}).encode("utf-8")
+                writer.write(f"HTTP/1.1 401 Unauthorized\r\nContent-Type: application/json\r\nContent-Length: {len(err_bytes)}\r\n\r\n".encode("utf-8") + err_bytes)
+                await writer.drain()
+                writer.close()
+                return
             await self._forward_to_anthropic(payload, target, stream, writer, client)
         elif target.provider == "openrouter":
             await self._forward_to_openrouter(payload, target, stream, writer, client)
