@@ -258,6 +258,7 @@
 		28B4687B9F17EF3D38C274C4 /* SimulatorDeviceInformationView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4FBE2FFDE65993F1F847B5DD /* SimulatorDeviceInformationView.swift */; };
 		2955B19BEC2E405BACC893C8 /* GitTag.swift in Sources */ = {isa = PBXBuildFile; fileRef = 78BC6D7D1BCB4CABA2495D9D /* GitTag.swift */; };
 		295AF524503C9506F8DCFFCC /* SDKStudioProjectsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7261E59682DCF7B1D22C4197 /* SDKStudioProjectsView.swift */; };
+		295AF524503C9506F8DCFFCE /* SDKExampleManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7261E59682DCF7B1D22C4199 /* SDKExampleManager.swift */; };
 		29629307488876FB67F7E46A /* AssistMemoryConsistencyValidator.swift in Sources */ = {isa = PBXBuildFile; fileRef = C2D27BD943FCEE2AACD106C6 /* AssistMemoryConsistencyValidator.swift */; };
 		2975408e67e0bafba5799bc1 /* SDKVirtualizationViewOpener.swift in Sources */ = {isa = PBXBuildFile; fileRef = c6ab3c26da4e2240f96aa4d1 /* SDKVirtualizationViewOpener.swift */; };
 		29838114E66C4C0CA9A7BBE5 /* TaskPlanner.swift in Sources */ = {isa = PBXBuildFile; fileRef = A7783E4BFD8A437286C1E429 /* TaskPlanner.swift */; };
@@ -3391,6 +3392,7 @@
 		721C5D75E060E2E2DB7DD5E6 /* ToolbarItem.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ToolbarItem.swift; sourceTree = "<group>"; };
 		722FD53A2C6A67CFB5DBE973 /* ProjectOpenError.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProjectOpenError.swift; sourceTree = "<group>"; };
 		7261E59682DCF7B1D22C4197 /* SDKStudioProjectsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SDKStudioProjectsView.swift; sourceTree = "<group>"; };
+		7261E59682DCF7B1D22C4199 /* SDKExampleManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SDKExampleManager.swift; sourceTree = "<group>"; };
 		726DF8A6FC0C5A0CC4B7CEEC /* GitBranchesView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GitBranchesView.swift; sourceTree = "<group>"; };
 		72B31D7E5E884EA15B23CB97 /* XMLToJSONView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = XMLToJSONView.swift; sourceTree = "<group>"; };
 		72C0C80C785A06322885C35C /* EditExtensionView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EditExtensionView.swift; sourceTree = "<group>"; };
@@ -5846,6 +5848,7 @@
 				d28a34f03dc988bb60d35229 /* SDKCodeBuildRunView.swift */,
 				69AE14E8B3C5EB654226CFB4 /* SDKStudioView.swift */,
 				7261E59682DCF7B1D22C4197 /* SDKStudioProjectsView.swift */,
+				7261E59682DCF7B1D22C4199 /* SDKExampleManager.swift */,
 				3B93C640CF6B39CE3F3E30E6 /* SDKStudioExtensionsView.swift */,
 				bbm2W4vJXnuF2pBX2wBDq0In /* AvailableExtensionsView.swift */,
 				7BCF10B52B99A2D7CBA5AE03 /* SDKManifestInspectorView.swift */,
@@ -12034,6 +12037,7 @@
 				8ABA27CF5F591FCB9C28070F /* SDKStudioWindowManager.swift in Sources */,
 				1453F323EBD11910FF0FE3A6 /* SDKStudioView.swift in Sources */,
 				295AF524503C9506F8DCFFCC /* SDKStudioProjectsView.swift in Sources */,
+				295AF524503C9506F8DCFFCE /* SDKExampleManager.swift in Sources */,
 				AEE33FB94E639286094319E9 /* SDKFirstLaunchInstallerView.swift in Sources */,
 				AB2798D29AEE3C1468AD4AB9 /* SDKStudioExtensionsView.swift in Sources */,
 				5662FD594A477660993757B3 /* SDKManifestInspectorView.swift in Sources */,

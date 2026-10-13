@@ -13,20 +13,19 @@ import SwiftUI
 // the only presenter, and it is called from host-owned code (the IPC layer
 // or Studio).
 //
-// WHAT THE USER SEES: which app is asking (display name + Security ID —
-// the exact Keychain namespace the secret lands in) and which value (label
-// + value ID, e.g. "MyApp wants to store 'openai-key'"), an optional
+// WHAT THE USER SEES: which app is asking (display name) and the user-facing
+// Label (if provided; never exposing Value ID or Security ID), an optional
 // context line, a SecureField, and Cancel / Store.
 //
-// SECRECY CONTRACT:
+// SECRECY CONTRACT & STRICT IDENTIFIER BOUNDARY:
+// - Displays ONLY the human-facing Label (or "Secret Value" fallback).
+// - Strictly prohibits displaying Value ID or Security ID anywhere in the
+//   visible UI, metadata rows, tooltips, accessibility labels, or inline messages.
 // - The typed text lives in `@State private var secret` and NEVER leaves
 //   this view except into `KeychainSDK.addValue(...)` — the host's own
 //   same-process Keychain write, called from the Store action.
 //   `onStored` / `onCancelled` carry no payload: no binding, no value, and
 //   no text escapes to extension-facing code.
-// - Typed `SDKError`s shown inline never contain secret bytes:
-//   `KeychainSDK`'s diagnostics carry only operation / osstatus / reason by
-//   construction, and this view never interpolates the secret into text.
 // - The field is cleared before `onStored` / `onCancelled` fire, so no
 //   plaintext lingers in view state after the prompt resolves.
 
@@ -34,14 +33,11 @@ public struct EnterSecuritySDKView: View {
 
     // MARK: - Request (host-supplied)
 
-    /// The app's Security ID: the Keychain namespace the secret is stored
-    /// under (`com.swiftcode.sdk.security.<securityID>`). Shown verbatim so
-    /// the user sees exactly where the secret lands. Assigned by the host
-    /// from the verified extension identity — never from extension input.
+    /// The app's Security ID (used internally for Keychain partitioning; never displayed).
     private let securityID: String
     /// Host-known display name of the requesting app.
     private let appDisplayName: String
-    /// The Security Value ID being stored (e.g. "openai-key").
+    /// The Security Value ID being stored (used internally for Keychain key; never displayed).
     private let valueID: String
     /// Human label stored on the Keychain item; shown as the field label.
     private let label: String?
@@ -89,21 +85,25 @@ public struct EnterSecuritySDKView: View {
         secret.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 
-    private var fieldLabel: String {
-        label ?? valueID
+    /// Visible label for the sensitive value. Never falls back to valueID.
+    private var displayLabel: String {
+        if let label = label?.trimmingCharacters(in: .whitespacesAndNewlines), !label.isEmpty {
+            return label
+        }
+        return "Secret Value"
     }
 
     // MARK: - Body
 
     public var body: some View {
-        VStack(alignment: .leading, spacing: 14) {
+        VStack(alignment: .leading, spacing: 16) {
             header
 
             Divider()
 
             requestingApp
 
-            if let prompt, !prompt.isEmpty {
+            if let prompt, !prompt.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                 Text(prompt)
                     .font(.callout)
                     .foregroundStyle(.secondary)
@@ -114,7 +114,7 @@ public struct EnterSecuritySDKView: View {
 
             if replacesExistingValue {
                 Label(
-                    "A value is already stored for “\(valueID)” — storing replaces it.",
+                    label != nil ? "A value is already stored for “\(displayLabel)” — storing replaces it." : "A secret value is already stored for this item — storing replaces it.",
                     systemImage: "exclamationmark.triangle.fill"
                 )
                 .font(.caption)
@@ -125,14 +125,14 @@ public struct EnterSecuritySDKView: View {
                 inlineError(storeError)
             }
 
-            Spacer(minLength: 4)
+            Spacer(minLength: 8)
 
             Divider()
 
             buttons
         }
-        .padding(24)
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+        .padding(28)
+        .frame(minWidth: 520, minHeight: 480, alignment: .top)
         .onAppear {
             secretFieldFocused = true
             replacesExistingValue =
@@ -143,15 +143,15 @@ public struct EnterSecuritySDKView: View {
     // MARK: - Sections
 
     private var header: some View {
-        HStack(spacing: 12) {
+        HStack(spacing: 14) {
             Image(systemName: "key.fill")
-                .font(.system(size: 30))
+                .font(.system(size: 32))
                 .foregroundColor(.accentColor)
-            VStack(alignment: .leading, spacing: 3) {
+            VStack(alignment: .leading, spacing: 4) {
                 Text("Store a Secret")
                     .font(.title2)
                     .bold()
-                Text("\(appDisplayName) wants to store “\(valueID)”")
+                Text(label != nil ? "\(appDisplayName) wants to store “\(displayLabel)”" : "\(appDisplayName) wants to store a secret")
                     .font(.headline)
                     .foregroundStyle(.secondary)
             }
@@ -159,7 +159,7 @@ public struct EnterSecuritySDKView: View {
     }
 
     private var requestingApp: some View {
-        VStack(alignment: .leading, spacing: 5) {
+        VStack(alignment: .leading, spacing: 6) {
             Text("Requesting app")
                 .font(.caption)
                 .bold()
@@ -167,15 +167,6 @@ public struct EnterSecuritySDKView: View {
                 .textCase(.uppercase)
             Text(appDisplayName)
                 .font(.headline)
-            HStack(spacing: 6) {
-                Text("Security ID:")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                Text(securityID)
-                    .font(.caption)
-                    .monospaced()
-                    .textSelection(.enabled)
-            }
             Text("The extension will never see this value — SwiftCode stores it in the Mac’s Keychain under this app’s private namespace, and only uses it for the operations you approve.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
@@ -184,12 +175,12 @@ public struct EnterSecuritySDKView: View {
 
     private var secretField: some View {
         VStack(alignment: .leading, spacing: 6) {
-            Text(fieldLabel)
+            Text(displayLabel)
                 .font(.headline)
             SecureField("Type or paste the secret", text: $secret)
                 .focused($secretFieldFocused)
                 .disabled(isStoring)
-                .accessibilityLabel(Text(fieldLabel))
+                .accessibilityLabel(Text(displayLabel))
         }
     }
 
@@ -250,24 +241,15 @@ public struct EnterSecuritySDKView: View {
         defer { isStoring = false }
 
         do {
-            // The ONLY place the typed secret goes: straight into the
-            // Keychain under the app's namespaced partition. No callback,
-            // binding, or log ever receives it.
             try KeychainSDK.addValue(
                 securityID: securityID,
                 valueID: valueID,
                 data: Data(secret.utf8),
                 label: label
             )
-            // Drop the plaintext before reporting success: the @State
-            // buffer is released with the view, and nothing but the
-            // Keychain write ever held it.
             secret = ""
             onStored()
         } catch let sdkError as SDKError {
-            // Typed SDK errors are safe to show verbatim: KeychainSDK's
-            // diagnostics carry only operation / osstatus / reason — never
-            // secret material.
             storeError = sdkError
         } catch {
             storeError = SDKError(
@@ -279,7 +261,6 @@ public struct EnterSecuritySDKView: View {
     }
 
     private func cancel() {
-        // Drop any typed plaintext before reporting the cancellation.
         secret = ""
         onCancelled()
     }

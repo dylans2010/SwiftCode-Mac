@@ -1,1 +1,18 @@
-{"dependencies":{"@swiftcode/sdk":"file:///home/hatch/workspace/repos/SwiftCode-Mac/SwiftCode/SDK/TypeScript/package"},"devDependencies":{"@types/node":"26.6.5","typescript":"7.0.2"},"name":"repository-build-extension","private":true,"scripts":{"build":"tsc -p tsconfig.json","test":"node --test","typecheck":"tsc --noEmit -p tsconfig.json"},"type":"module","version":"0.1.0"}
+{
+  "name": "repository-build-extension",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "test": "node --test"
+  },
+  "dependencies": {
+    "@swiftcode/sdk": "file:../../TypeScript/package"
+  },
+  "devDependencies": {
+    "@types/node": "26.6.5",
+    "typescript": "7.0.2"
+  }
+}
