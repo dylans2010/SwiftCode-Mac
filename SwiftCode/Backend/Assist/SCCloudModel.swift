@@ -42,7 +42,14 @@ private let logger = Logger(subsystem: "com.swiftcode.Assist", category: "SCClou
 public enum SCCloudConfiguration {
 
     /// Base URL of the cloud endpoint (Cloudflare tunnel fronting the model host).
-    public static let baseURLString = "https://hawk-leaving-converter-federation.trycloudflare.com"
+    public static let defaultBaseURLString = "https://hawk-leaving-converter-federation.trycloudflare.com"
+
+    public static var baseURLString: String {
+        if let custom = UserDefaults.standard.string(forKey: "swiftcode_cloud_endpoint_url")?.trimmingCharacters(in: .whitespacesAndNewlines), !custom.isEmpty {
+            return custom
+        }
+        return defaultBaseURLString
+    }
 
     /// Wire format used for chat requests and model discovery.
     ///
@@ -724,6 +731,9 @@ public enum SCCloudError: LocalizedError, Sendable {
             }
             return "Couldn't reach the SwiftCode Cloud endpoint: \(underlying.localizedDescription)"
         case .server(let statusCode, let message):
+            if statusCode == 530 || message.contains("Cloudflare Tunnel error") || message.contains("1033") || message.contains("<!doctype html>") || message.contains("<html") {
+                return "The SwiftCode Cloud model server is currently offline or unreachable (Cloudflare Tunnel Error 530/1033). Please try again later or select another model in Assist Settings."
+            }
             // The chat line shows a preview; the full body lives in the
             // Server Error dialog via rawResponseBody.
             let preview = message.count > 300 ? String(message.prefix(300)) + "…" : message

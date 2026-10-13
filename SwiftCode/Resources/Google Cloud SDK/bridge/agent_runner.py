@@ -121,16 +121,6 @@ def resolve_gemini_auth(*, api_key, oauth_token, vertex, project, location,
             )
         return ("vertex", project, location)
     if oauth_token:
-        if not user_project:
-            raise GeminiAuthConfigError(
-                "Google account authentication needs a quota project: the Gemini "
-                "Developer API requires the 'x-goog-user-project' header on "
-                "OAuth requests so usage can be attributed to a Google Cloud "
-                "project. Set your Google Cloud project ID in SwiftCode Settings "
-                "> Assist > Google Account (or the GOOGLE_CLOUD_PROJECT "
-                "environment variable). API-key authentication remains available "
-                "as an explicit alternative in Settings."
-            )
         return ("oauth", user_project, location)
 
     if api_key:
@@ -1024,10 +1014,8 @@ class AgentRunner:
                     config_kwargs["project"] = auth_project
                     config_kwargs["location"] = auth_location
                 elif auth_mode == "oauth":
-                    # The Developer API attributes OAuth usage to a quota
-                    # project; ensure the header is present even when the
-                    # project came from params/env rather than headers.
-                    http_headers[USER_PROJECT_HEADER] = auth_project
+                    if auth_project:
+                        http_headers[USER_PROJECT_HEADER] = auth_project
                     config_kwargs["http_headers"] = http_headers
 
                 # Build the explicit model endpoint for the resolved auth mode.

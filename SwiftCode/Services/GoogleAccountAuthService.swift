@@ -899,13 +899,13 @@ public final class GoogleAccountAuthService: NSObject, ObservableObject {
     /// a dead token to the API. (C-4)
     public func getValidAccessToken() async throws -> String? {
         // 1. Check stored OAuth access token in Keychain
-        if let token = KeychainService.shared.get(forKey: Self.accessTokenKey) {
+        if let token = KeychainService.shared.get(forKey: Self.accessTokenKey), !token.isEmpty {
             let expiresAtStr = KeychainService.shared.get(forKey: Self.expiresAtKey)
             let expiresAt = Double(expiresAtStr ?? "0") ?? 0
             let now = Date().timeIntervalSince1970
 
-            // If token is valid for at least 60 seconds, use it
-            if expiresAt > (now + 60) {
+            // If token is valid or no expiration was recorded (expiresAt == 0), use it directly
+            if expiresAt == 0 || expiresAt > (now + 60) {
                 return token
             }
 
@@ -917,18 +917,17 @@ public final class GoogleAccountAuthService: NSObject, ObservableObject {
                     return refreshedToken
                 } catch {
                     self.lastTokenRefreshError = error.localizedDescription
-                    logger.warning("OAuth token refresh failed: \(error.localizedDescription). Falling back to ambient ADC...")
+                    logger.warning("OAuth token refresh failed: \(error.localizedDescription).")
                 }
             }
 
-            // Refresh failed (or no refresh token): actually attempt ambient
-            // ADC before giving up — the old code logged "Trying ADC..." here
-            // but never did it.
             if let adcToken = checkAmbientADC() {
                 return adcToken
             }
-            // Do not hand out a known-stale credential.
-            if expiresAt > 0 { return nil }
+            // Do not return a known-expired token
+            if expiresAt > 0 && expiresAt <= now {
+                return nil
+            }
             return token
         }
 
@@ -945,30 +944,26 @@ public final class GoogleAccountAuthService: NSObject, ObservableObject {
     /// and refresh fails, this returns nil so callers surface a clear
     /// re-authentication prompt instead of sending a dead token to the API.
     public func getValidAccessToken() -> String? {
-        if let token = KeychainService.shared.get(forKey: Self.accessTokenKey) {
+        if let token = KeychainService.shared.get(forKey: Self.accessTokenKey), !token.isEmpty {
             let expiresAtStr = KeychainService.shared.get(forKey: Self.expiresAtKey)
             let expiresAt = Double(expiresAtStr ?? "0") ?? 0
             let now = Date().timeIntervalSince1970
 
-            if expiresAt > (now + 60) {
+            if expiresAt == 0 || expiresAt > (now + 60) {
                 return token
             }
 
-            if expiresAt > 0 {
-                if let refreshToken = KeychainService.shared.get(forKey: Self.refreshTokenKey),
-                   let refreshed = refreshAccessTokenSync(refreshToken: refreshToken, clientID: clientID, clientSecret: clientSecret) {
-                    self.lastTokenRefreshError = nil
-                    return refreshed
-                }
-                // Token is expired and refresh failed (or no refresh token is
-                // stored): record why, and do not hand out a stale credential.
-                // Callers surface this reason instead of blaming a missing API
-                // key. (C-1)
-                if KeychainService.shared.get(forKey: Self.refreshTokenKey) != nil {
-                    self.lastTokenRefreshError = "the saved sign-in expired and the token refresh failed (network unreachable or refresh token revoked)"
-                } else {
-                    self.lastTokenRefreshError = "the saved sign-in expired and no refresh token is stored"
-                }
+            if let refreshToken = KeychainService.shared.get(forKey: Self.refreshTokenKey),
+               let refreshed = refreshAccessTokenSync(refreshToken: refreshToken, clientID: clientID, clientSecret: clientSecret) {
+                self.lastTokenRefreshError = nil
+                return refreshed
+            }
+
+            if let adcToken = checkAmbientADC() {
+                return adcToken
+            }
+            // Do not return a known-expired token
+            if expiresAt > 0 && expiresAt <= now {
                 return nil
             }
             return token
