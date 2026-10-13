@@ -278,7 +278,8 @@ public struct GoogleCloudSDKConfiguration: Codable, @unchecked Sendable {
         var oauthToken: String? = nil
         let googleAuthMode = UserDefaults.standard.string(forKey: "assist_google_auth_mode") ?? AppSettings.shared.assistGoogleAuthMode
         let isOAuthMode = googleAuthMode == "google_oauth"
-        if isOAuthMode && GoogleAccountAuthService.shared.isAuthenticated && !AppSettings.shared.alternativeKeysEnabled {
+        let isGoogleProvider = provider == "google" || provider == "gemini"
+        if isGoogleProvider && isOAuthMode && GoogleAccountAuthService.shared.isAuthenticated && !AppSettings.shared.alternativeKeysEnabled {
             oauthToken = GoogleAccountAuthService.shared.getValidAccessToken()
             apiKey = nil // Strictly zero API key reliance in account mode: the
                          // OAuth Bearer token is the only credential.
@@ -347,11 +348,14 @@ public struct GoogleCloudSDKConfiguration: Codable, @unchecked Sendable {
             "enableSpeculativeDecoding": enableSpeculativeDecoding
         ]
 
-        if let oauthToken = oauthToken, !oauthToken.isEmpty {
-            dict["oauthToken"] = oauthToken
+        let isGoogleProvider = provider == "google" || provider == "gemini"
+            || (provider == nil && model.lowercased().hasPrefix("gemini-"))
+        let accountToken = isGoogleProvider ? oauthToken?.trimmingCharacters(in: .whitespacesAndNewlines) : nil
+        if let accountToken, !accountToken.isEmpty {
+            dict["oauthToken"] = accountToken
         }
 
-        if let userProject = userProject?.trimmingCharacters(in: .whitespacesAndNewlines), !userProject.isEmpty {
+        if isGoogleProvider, let userProject = userProject?.trimmingCharacters(in: .whitespacesAndNewlines), !userProject.isEmpty {
             dict["headers"] = ["x-goog-user-project": userProject]
         }
 
@@ -368,7 +372,7 @@ public struct GoogleCloudSDKConfiguration: Codable, @unchecked Sendable {
                 dict["baseURL"] = "https://\(trimmed)"
             }
         }
-        if let apiKey = apiKey, !apiKey.isEmpty {
+        if (accountToken ?? "").isEmpty, let apiKey = apiKey, !apiKey.isEmpty {
             dict["apiKey"] = apiKey
         }
         if let project = project, !project.isEmpty {

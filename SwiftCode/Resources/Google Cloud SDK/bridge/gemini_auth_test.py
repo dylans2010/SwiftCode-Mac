@@ -35,6 +35,7 @@ import ast
 import os
 import sys
 import unittest
+from unittest.mock import patch
 
 BRIDGE_DIR = os.path.dirname(os.path.abspath(__file__))
 AGENT_RUNNER = os.path.join(BRIDGE_DIR, "agent_runner.py")
@@ -43,6 +44,7 @@ _WANTED = {
     "USER_PROJECT_HEADER",
     "GeminiAuthConfigError",
     "resolve_gemini_auth",
+    "resolve_session_credentials",
     "_wrap_turn_error",
     "_require_custom_endpoint",
 }
@@ -85,6 +87,37 @@ GeminiAuthConfigError = _AUTH["GeminiAuthConfigError"]
 resolve_gemini_auth = _AUTH["resolve_gemini_auth"]
 _wrap_turn_error = _AUTH["_wrap_turn_error"]
 _require_custom_endpoint = _AUTH["_require_custom_endpoint"]
+resolve_session_credentials = _AUTH["resolve_session_credentials"]
+
+
+class SessionCredentialTests(unittest.TestCase):
+    def test_google_account_never_clears_anthropic_key(self):
+        with patch.dict(os.environ, {"GOOGLE_OAUTH_ACCESS_TOKEN": "google-token", "GEMINI_API_KEY": "google-key"}):
+            key, token, headers = resolve_session_credentials({"apiKey": "anthropic-key"}, is_gemini=False)
+        self.assertEqual(key, "anthropic-key")
+        self.assertIsNone(token)
+        self.assertNotIn("Authorization", headers)
+
+    def test_non_google_never_inherits_google_credentials(self):
+        with patch.dict(os.environ, {"GOOGLE_OAUTH_ACCESS_TOKEN": "google-token", "GEMINI_API_KEY": "google-key"}):
+            self.assertEqual(resolve_session_credentials({}, is_gemini=False), (None, None, {}))
+
+    def test_account_wins_without_mutating_environment(self):
+        with patch.dict(os.environ, {"GEMINI_API_KEY": "ambient-key"}):
+            key, token, headers = resolve_session_credentials({
+                "oauthToken": "account-token", "apiKey": "stale-key",
+                "headers": {"authorization": "Bearer stale", "X-Goog-Api-Key": "stale"},
+            }, is_gemini=True)
+            self.assertEqual(os.environ["GEMINI_API_KEY"], "ambient-key")
+        self.assertIsNone(key)
+        self.assertEqual(token, "account-token")
+        self.assertEqual(headers, {"Authorization": "Bearer account-token"})
+
+    def test_explicit_google_key_not_hijacked_by_ambient_oauth(self):
+        with patch.dict(os.environ, {"GOOGLE_OAUTH_ACCESS_TOKEN": "ambient-token"}):
+            key, token, _ = resolve_session_credentials({"apiKey": "explicit-key"}, is_gemini=True)
+        self.assertEqual(key, "explicit-key")
+        self.assertIsNone(token)
 
 
 class ResolveGeminiAuthTests(unittest.TestCase):
@@ -120,7 +153,7 @@ class ResolveGeminiAuthTests(unittest.TestCase):
             vertex=False,
             project=None,
             location=None,
-            http_headers={USER_PROJECT_HEADER: "header-project"},
+            http_headers={"X-Goog-User-Project": "header-project"},
         )
         self.assertEqual(mode, "oauth")
         self.assertEqual(project, "header-project")

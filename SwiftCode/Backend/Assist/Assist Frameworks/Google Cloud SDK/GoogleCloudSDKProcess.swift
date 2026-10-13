@@ -111,14 +111,16 @@ public actor GoogleCloudSDKProcess {
         let mode = UserDefaults.standard.string(forKey: "antigravity_execution_mode") ?? "resources"
         let directBinaryPath = findDownloadedAntigravityBinary(sdkDir: sdkDir)
 
-        if mode == "resources", let binPath = directBinaryPath {
+        if mode == "resources", FileManager.default.isExecutableFile(atPath: launcherURL.path) {
+            // Use the runtime's version-checked interpreter, not an arbitrary
+            // host Python incompatible with the bundled native extensions.
+            proc.executableURL = launcherURL
+            proc.arguments = ["-m", "google.antigravity", "--socket-path", tempSocket]
+            logger.info("Launching bundled Antigravity package via its Python launcher")
+        } else if mode == "resources", let binPath = directBinaryPath {
             proc.executableURL = URL(fileURLWithPath: binPath)
             proc.arguments = ["--socket-path", tempSocket]
-            logger.info("Launching direct downloaded Antigravity binary: \(binPath)")
-        } else if mode == "resources", let hostPython = findHostPython() {
-            proc.executableURL = URL(fileURLWithPath: hostPython)
-            proc.arguments = ["-m", "google.antigravity", "--socket-path", tempSocket]
-            logger.info("Launching downloaded Antigravity python package directly via \(hostPython)")
+            logger.info("Launching downloaded Antigravity binary: \(binPath)")
         } else {
             // Bridge mode
             if FileManager.default.isExecutableFile(atPath: launcherURL.path) {
@@ -166,6 +168,9 @@ public actor GoogleCloudSDKProcess {
         // API-key mode a lingering valid OAuth token in the process
         // environment would otherwise hijack sessions Swift explicitly
         // configured for API-key auth (credential-kind separation).
+        env.removeValue(forKey: "GOOGLE_OAUTH_ACCESS_TOKEN")
+        env.removeValue(forKey: "GEMINI_API_KEY")
+        env.removeValue(forKey: "GOOGLE_API_KEY")
         if isOAuthMode, let oauthToken = try await GoogleAccountAuthService.shared.getValidAccessToken(), !oauthToken.isEmpty {
             env["GOOGLE_OAUTH_ACCESS_TOKEN"] = oauthToken
         } else if !isOAuthMode, let apiKey = KeychainService.shared.get(forKey: LLMProvider.google.keychainKey), !apiKey.isEmpty {

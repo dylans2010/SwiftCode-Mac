@@ -460,7 +460,7 @@ public final class GoogleCloudSDKTests: Sendable {
         var withProject = GoogleCloudSDKConfiguration(model: "gemini-3.8-flash")
         withProject.userProject = "my-quota-project"
         withProject.oauthToken = "ya29.test"
-        withProject.apiKey = nil
+        withProject.apiKey = "stale-key-must-not-serialize"
         let dict = withProject.toDictionary()
         let headers = dict["headers"] as? [String: String]
         if headers?["x-goog-user-project"] != "my-quota-project" {
@@ -477,6 +477,17 @@ public final class GoogleCloudSDKTests: Sendable {
             failures.append("headers fabricated when no project configured")
         }
 
+        var claude = withProject
+        claude.provider = "anthropic"
+        claude.model = "claude-sonnet-test"
+        claude.apiKey = "anthropic-key"
+        let claudeDict = claude.toDictionary()
+        if claudeDict["oauthToken"] != nil || claudeDict["headers"] != nil {
+            failures.append("Google account credentials leaked into Anthropic config")
+        }
+        if claudeDict["apiKey"] as? String != "anthropic-key" {
+            failures.append("Anthropic key was dropped by Google account state")
+        }
         let passed = failures.isEmpty
         return RuntimeTestCaseResult(
             testName: "OAuth Quota Project Header Serialization",

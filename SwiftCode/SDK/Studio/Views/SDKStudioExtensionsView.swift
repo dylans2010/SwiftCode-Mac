@@ -23,17 +23,9 @@ import SwiftUI
 // SwiftCode CLI through a child node process. Errors are shown inline and
 // are never swallowed.
 //
-// CLI REACHABILITY DECISION (documented per the task brief):
-// The CLI (SwiftCode/SDK/TypeScript/cli/swiftcode.mjs) is a repository
-// source artifact; no build phase in this codebase copies it into the app
-// bundle, so there is no bundle path this view can honestly assume. The
-// view resolves the CLI ONLY from the explicit UserDefaults override
-// `com.swiftcode.sdk.cliPath` (full path to swiftcode.mjs). When the
-// override is absent, or names a file that does not exist, or when Node.js
-// itself cannot be resolved via SDKNodeLauncher.resolveNodeURL(), the
-// Package & Install / Update / Validate actions do NOT pretend to run:
-// they present a sheet with the exact terminal commands (pre-filled with
-// the chosen directory) for the user to run manually.
+// CLI resolution uses the explicit com.swiftcode.sdk.cliPath developer
+// override when set; otherwise it uses the app-bundled toolkit. Missing
+// Node or CLI is reported with manual commands, never fake success.
 
 @MainActor
 public struct SDKStudioExtensionsView: View {
@@ -526,13 +518,7 @@ public struct SDKStudioExtensionsView: View {
     }
 
     private func resolveCLIURL() -> URL? {
-        guard let raw = configuredCLIPath(), !raw.isEmpty else { return nil }
-        let url = URL(fileURLWithPath: (raw as NSString).expandingTildeInPath)
-        var isDirectory: ObjCBool = false
-        guard FileManager.default.fileExists(atPath: url.path, isDirectory: &isDirectory),
-              !isDirectory.boolValue
-        else { return nil }
-        return url
+        SDKInstaller.resolveCLIURL()
     }
 
     /// Runs `node <cli> <arguments>` as a child process off the main actor

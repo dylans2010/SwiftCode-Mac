@@ -1,3 +1,4 @@
+import AppKit
 import SwiftUI
 
 // MARK: - SDKStudioView
@@ -47,6 +48,7 @@ import SwiftUI
 public struct SDKStudioView: View {
     @State private var selection: SDKStudioSection
     @State private var showSDKFirstLaunchInstaller = false
+    @State private var resourceError: String?
 
     public init(initialSection: SDKStudioSection = .projects) {
         _selection = State(initialValue: initialSection)
@@ -56,13 +58,30 @@ public struct SDKStudioView: View {
         NavigationSplitView {
             List(SDKStudioSection.allCases, selection: $selection) { section in
                 Label(section.rawValue, systemImage: section.systemImage)
+                    .tag(section)
             }
             .navigationSplitViewColumnWidth(min: 180, ideal: 220)
             .navigationTitle("Studio")
         } detail: {
-            studioDetailView(for: selection)
+            NavigationStack {
+                studioDetailView(for: selection)
+            }
+            .id(selection)
         }
         .navigationTitle("SwiftCode Studio")
+        .toolbar {
+            Button("Install SDK", systemImage: "arrow.down.circle") {
+                showSDKFirstLaunchInstaller = true
+            }
+        }
+        .alert("SDK Resource Unavailable", isPresented: Binding(
+            get: { resourceError != nil },
+            set: { if !$0 { resourceError = nil } }
+        )) {
+            Button("OK", role: .cancel) { resourceError = nil }
+        } message: {
+            Text(resourceError ?? "")
+        }
         // First-launch SDK installer (spec §5): prompts once per the
         // persisted choice in `SDKStudioFirstLaunchChoice`. Declining
         // leaves Studio fully usable — nothing here is gated on install.
@@ -95,6 +114,53 @@ public struct SDKStudioView: View {
             AvailableExtensionsView()
         case .assistAccess:
             AssistAccessFormView()
+        case .sdk:
+            sdkResourcesView
+        case .shipExport:
+            SDKShipExportView()
+        }
+    }
+
+    private var sdkResourcesView: some View {
+        Form {
+            Section("SwiftCode SDK \(SDKInstaller.expectedVersion)") {
+                Text("Install the SDK to build extensions, or save the bundled npm package for an offline installation. Node.js is required.")
+                Text(SDKInstaller.defaultPrefix.path)
+                    .font(.callout.monospaced())
+                    .textSelection(.enabled)
+                Button("Install or Repair SDK…") { showSDKFirstLaunchInstaller = true }
+                Button("Save SDK Package…") { saveSDKPackage() }
+                Text("The installer checks the pinned GitHub release and falls back to the bundled package if the remote download is unavailable or incomplete.")
+                    .foregroundStyle(.secondary)
+            }
+            Section("Documentation & Tools") {
+                Button("Open SDK Documentation") {
+                    guard let docs = Bundle.main.resourceURL?.appendingPathComponent("SwiftCodeSDK/Documentation"),
+                          FileManager.default.fileExists(atPath: docs.path) else {
+                        resourceError = "SDK documentation is missing from this app build."
+                        return
+                    }
+                    NSWorkspace.shared.open(docs)
+                }
+                Text("Projects creates apps and extensions. Extensions includes Manifest and Grants inspectors. Code Editor includes snippets, build/run and the console. Ship & Export packages your extension for distribution.")
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .formStyle(.grouped)
+    }
+
+    private func saveSDKPackage() {
+        guard let source = SDKInstaller.defaultBundledFallbackURL() else {
+            resourceError = "The bundled SDK package is missing. Use the GitHub download or install a complete SwiftCode build."
+            return
+        }
+        let panel = NSSavePanel()
+        panel.nameFieldStringValue = "swiftcode-sdk-\(SDKInstaller.expectedVersion).tgz"
+        guard panel.runModal() == .OK, let destination = panel.url else { return }
+        do {
+            try Data(contentsOf: source).write(to: destination, options: .atomic)
+        } catch {
+            resourceError = error.localizedDescription
         }
     }
 }

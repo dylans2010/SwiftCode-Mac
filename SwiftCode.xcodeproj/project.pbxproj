@@ -11167,8 +11167,8 @@
 			outputPaths = (
 			);
 			runOnlyForDeploymentPostprocessing = 0;
-			shellPath = /bin/sh;
-			shellScript = "#!/bin/bash\nset -euo pipefail\n\n# Sync Google Cloud SDK runtime into application bundle Resources\nSDK_SRC=\"${SRCROOT}/SwiftCode/Resources/Google Cloud SDK\"\nSDK_DEST=\"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/Google Cloud SDK\"\nif [ -d \"$SDK_SRC\" ]; then\n    echo \"Syncing Google Cloud SDK to ${SDK_DEST}...\"\n    mkdir -p \"$SDK_DEST\"\n    rsync -a --delete \"$SDK_SRC/\" \"$SDK_DEST/\"\nfi\n\nDEST=\"/Applications/${WRAPPER_NAME}\"\n\necho \"Installing ${WRAPPER_NAME}...\"\n\nrm -rf \"$DEST\"\nditto \"${TARGET_BUILD_DIR}/${WRAPPER_NAME}\" \"$DEST\"\n\necho \"Installed successfully.\"\n";
+			shellPath = /bin/bash;
+			shellScript = "#!/bin/bash\nset -euo pipefail\n\n# Sync Google Cloud SDK runtime into application bundle Resources\nSDK_SRC=\"${SRCROOT}/SwiftCode/Resources/Google Cloud SDK\"\nSDK_DEST=\"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/Google Cloud SDK\"\nif [ -d \"$SDK_SRC\" ]; then\n    echo \"Syncing Google Cloud SDK to ${SDK_DEST}...\"\n    mkdir -p \"$SDK_DEST\"\n    rsync -a --delete \"$SDK_SRC/\" \"$SDK_DEST/\"\nfi\n\nbash \"${SRCROOT}/SwiftCode/SDK/Distribution/bundle-sdk.sh\"\n\n# Building must not replace a user's installed app. Installation is explicit.\nif [ \"${SWIFTCODE_INSTALL_APP:-NO}\" = \"YES\" ]; then\n    DEST=\"/Applications/${WRAPPER_NAME}\"\n    echo \"Installing ${WRAPPER_NAME}...\"\n    ditto \"${TARGET_BUILD_DIR}/${WRAPPER_NAME}\" \"$DEST\"\nfi\n";
 		};
 		0821DA7E44C0452A35D12D18 /* Collect System Assets */ = {
 			isa = PBXShellScriptBuildPhase;
@@ -11186,7 +11186,7 @@
 				"$(TARGET_BUILD_DIR)/$(UNLOCALIZED_RESOURCES_FOLDER_PATH)/System Assets",
 			);
 			runOnlyForDeploymentPostprocessing = 0;
-			shellPath = /bin/sh;
+			shellPath = /bin/bash;
 			shellScript = "#!/bin/bash\nset -euo pipefail\n\n# Collect Assist System Assets Markdown into the app bundle.\n# New .md files under System Assets/ are picked up automatically —\n# no per-file build entries are required.\nSRC=\"${SRCROOT}/SwiftCode/Backend/Assist/Functions/System Assets\"\nDST=\"${TARGET_BUILD_DIR}/${UNLOCALIZED_RESOURCES_FOLDER_PATH}/System Assets\"\nif [ ! -d \"$SRC\" ]; then\n  echo \"warning: System Assets source directory not found: $SRC\"\n  exit 0\nfi\nmkdir -p \"$DST\"\n# Remove stale copies so deleted sources do not linger in the bundle.\nfind \"$DST\" -name '*.md' -delete 2>/dev/null || true\ncd \"$SRC\"\nfind . -name '*.md' -print0 | LC_ALL=C sort -z | while IFS= read -r -d '' f; do\n  rel=\"${f#./}\"\n  mkdir -p \"$DST/$(dirname \"$rel\")\"\n  cp -p \"$f\" \"$DST/$rel\"\ndone\necho \"Collected System Assets -> $DST\"\n";
 		};
 /* End PBXShellScriptBuildPhase section */

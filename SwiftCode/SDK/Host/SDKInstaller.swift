@@ -25,9 +25,8 @@ import os.log
 // and the fallback source are all injectable via `InstallOptions`, so
 // tests can point at a stub home directory and a stub `npm` script.
 //
-// macOS 15, Swift 6. No Swift toolchain was available where this was
-// written: statically verified only — `xcodebuild` on Dylan's Mac is
-// required before this ships.
+// macOS 15, Swift 6. Verification and remaining release gates are
+// documented in SDK/Documentation/Release-Readiness.md.
 
 public enum SDKInstaller {
 
@@ -36,8 +35,8 @@ public enum SDKInstaller {
     /// The npm package installed.
     public static let packageName = "@swiftcode/sdk"
 
-    /// The pinned, verified distribution tarball (spec §4 — distribution
-    /// is live; this URL was verified with stock node, no registry/auth).
+    /// Pinned remote distribution. The exact archive is probed and verified;
+    /// unavailable or incomplete remote releases fall back to the bundled SDK.
     public static let downloadURL = URL(string: "https://raw.githubusercontent.com/dylans2010/SwiftCode-Mac/sdk-v1.0.0/SwiftCode/SDK/Distribution/swiftcode-sdk-1.0.0.tgz")!
 
     /// The version the pinned tarball is expected to contain.
@@ -96,8 +95,8 @@ public enum SDKInstaller {
         guard let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
             return .corrupt(reason: "package.json at \(packageJSON.path) is not valid JSON.")
         }
-        if let name = json["name"] as? String, !name.isEmpty, name != packageName {
-            return .corrupt(reason: "package.json at \(packageJSON.path) belongs to '\(name)', expected '\(packageName)'.")
+        if (json["name"] as? String) != packageName {
+            return .corrupt(reason: "package.json at \(packageJSON.path) must name '\(packageName)'.")
         }
         guard
             let version = (json["version"] as? String)?
@@ -108,6 +107,12 @@ public enum SDKInstaller {
         }
         if version != expectedVersion {
             return .versionMismatch(actual: version)
+        }
+        let packageRoot = packageJSON.deletingLastPathComponent()
+        for entry in ["dist/index.js", "dist/index.d.ts", "dist/assist.js", "dist/assistUI.js"] {
+            guard fileManager.fileExists(atPath: packageRoot.appendingPathComponent(entry).path) else {
+                return .corrupt(reason: "SDK entry point \(entry) is missing at \(packageRoot.path).")
+            }
         }
         return .ok(version: version)
     }
@@ -240,6 +245,7 @@ public enum SDKInstaller {
         let fallbackExists = fallbackURL.map { FileManager.default.fileExists(atPath: $0.path) } ?? false
 
         var usedFallback = false
+        var installExitedSuccessfully = false
         var attemptErrors: [String] = []
 
         if githubReachable {
@@ -252,14 +258,30 @@ public enum SDKInstaller {
                     timeout: options.timeout,
                     onLine: record
                 )
+                installExitedSuccessfully = exitCode == 0
                 if exitCode != 0 {
                     attemptErrors.append("npm install from GitHub exited with code \(exitCode).")
                 }
             } catch {
                 attemptErrors.append("npm install from GitHub failed: \(error.localizedDescription)")
             }
-            // A failed GitHub attempt falls through to the fallback when
-            // one exists; otherwise the failure is reported below.
+            if installExitedSuccessfully {
+                switch inspect(prefix: options.prefix, expectedVersion: options.expectedVersion) {
+                case .ok:
+                    break
+                case .missing:
+                    installExitedSuccessfully = false
+                    attemptErrors.append("The remote package is missing after installation.")
+                case .corrupt(let reason):
+                    installExitedSuccessfully = false
+                    attemptErrors.append("The remote package failed verification: \(reason)")
+                case .versionMismatch(let actual):
+                    installExitedSuccessfully = false
+                    attemptErrors.append("The remote package version \(actual) does not match \(options.expectedVersion).")
+                }
+            }
+            // A failed download or incomplete package falls through to the
+            // bundled release, including stale archives sharing a version.
             if !attemptErrors.isEmpty, fallbackExists, let fallbackURL {
                 usedFallback = true
                 attemptErrors.append("Retrying with the SDK copy bundled with SwiftCode.")
@@ -272,6 +294,7 @@ public enum SDKInstaller {
                         timeout: options.timeout,
                         onLine: record
                     )
+                    installExitedSuccessfully = exitCode == 0
                     if exitCode != 0 {
                         attemptErrors.append("npm install from the bundled copy exited with code \(exitCode).")
                     }
@@ -291,6 +314,7 @@ public enum SDKInstaller {
                     timeout: options.timeout,
                     onLine: record
                 )
+                installExitedSuccessfully = exitCode == 0
                 if exitCode != 0 {
                     attemptErrors.append("npm install from the bundled copy exited with code \(exitCode).")
                 }
@@ -303,12 +327,17 @@ public enum SDKInstaller {
             return InstallResult(success: false, installedVersion: nil, usedFallback: false, message: message, log: transcript.lines)
         }
 
+        guard installExitedSuccessfully else {
+            return InstallResult(success: false, installedVersion: nil, usedFallback: usedFallback,
+                message: (attemptErrors + transcript.lastLines(12)).joined(separator: "\n"), log: transcript.lines)
+        }
+
         // 4. Verify: resolve package.json and require a non-empty version.
         //    Success is reported ONLY here.
         switch inspect(prefix: options.prefix, expectedVersion: options.expectedVersion) {
         case .ok(let version):
             let sourceDescription = usedFallback
-                ? "the SDK copy bundled with SwiftCode (GitHub was unreachable)"
+                ? "the SDK copy bundled with SwiftCode (remote download unavailable)"
                 : "GitHub"
             let message = "SwiftCode SDK \(version) installed at \(options.prefix.path) from \(sourceDescription)."
             logger.info("SDKInstaller: \(message, privacy: .public)")
@@ -370,15 +399,14 @@ public enum SDKInstaller {
     // MARK: - Reachability
 
     /// Real reachability probe: a HEAD request to raw.githubusercontent.com.
-    /// Any HTTP response counts as reachable; any transport error does not.
+    /// Only a successful response for the exact archive is usable.
     static func defaultReachabilityProbe(_ url: URL) async -> Bool {
-        _ = url // the probe always targets the GitHub host itself
-        var request = URLRequest(url: URL(string: "https://raw.githubusercontent.com/")!, timeoutInterval: 8)
+        var request = URLRequest(url: url, timeoutInterval: 8)
         request.httpMethod = "HEAD"
         do {
             let (_, response) = try await URLSession.shared.data(for: request)
             if let http = response as? HTTPURLResponse {
-                return (200..<600).contains(http.statusCode)
+                return (200..<300).contains(http.statusCode)
             }
             return false
         } catch {
@@ -388,10 +416,26 @@ public enum SDKInstaller {
     }
 
     /// The app-bundled SDK copy, when one is shipped inside the app
-    /// bundle as a resource (packaging step; absent today, so this
-    /// returns nil and the installer says so honestly).
+    /// bundle by Distribution/bundle-sdk.sh; absence is reported honestly.
     static func defaultBundledFallbackURL() -> URL? {
-        Bundle.main.url(forResource: "swiftcode-sdk-1.0.0", withExtension: "tgz")
+        let candidates = [
+            Bundle.main.resourceURL?.appendingPathComponent("SwiftCodeSDK/Distribution/swiftcode-sdk-1.0.0.tgz"),
+            Bundle.main.url(forResource: "swiftcode-sdk-1.0.0", withExtension: "tgz")
+        ]
+        return candidates.compactMap { $0 }.first { FileManager.default.fileExists(atPath: $0.path) }
+    }
+
+    /// Explicit developer override first; otherwise use the shipped toolkit.
+    static func resolveCLIURL() -> URL? {
+        if let path = UserDefaults.standard.string(forKey: "com.swiftcode.sdk.cliPath"),
+           !path.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            let url = URL(fileURLWithPath: (path as NSString).expandingTildeInPath)
+            var isDirectory: ObjCBool = false
+            return FileManager.default.fileExists(atPath: url.path, isDirectory: &isDirectory) && !isDirectory.boolValue ? url : nil
+        }
+        guard let url = Bundle.main.resourceURL?.appendingPathComponent("SwiftCodeSDK/TypeScript/cli/swiftcode.mjs"),
+              FileManager.default.fileExists(atPath: url.path) else { return nil }
+        return url
     }
 
     // MARK: - Process
@@ -408,7 +452,7 @@ public enum SDKInstaller {
     ) async throws -> Int32 {
         try await runProcess(
             executable: npm,
-            arguments: ["install", source, "--prefix", prefix.path],
+            arguments: ["install", source, "--prefix", prefix.path, "--ignore-scripts", "--no-audit", "--no-fund"],
             timeout: timeout,
             onLine: onLine
         )
@@ -429,6 +473,11 @@ public enum SDKInstaller {
                 let process = Process()
                 process.executableURL = executable
                 process.arguments = arguments
+                var environment = ProcessInfo.processInfo.environment
+                // npm commonly uses /usr/bin/env node; GUI launches have a
+                // minimal PATH even when npm was found in Homebrew.
+                environment["PATH"] = executable.deletingLastPathComponent().path + ":/opt/homebrew/bin:/usr/local/bin:" + (environment["PATH"] ?? "/usr/bin:/bin")
+                process.environment = environment
                 // Closed stdin: a spawned installer must never block
                 // waiting for interactive input.
                 process.standardInput = FileHandle.nullDevice

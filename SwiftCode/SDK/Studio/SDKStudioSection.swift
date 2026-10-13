@@ -21,6 +21,8 @@ public enum SDKStudioSection: String, CaseIterable, Identifiable {
     case codeEditor = "Code Editor"
     case installedExtensions = "Installed"
     case assistAccess = "Assist Access"
+    case sdk = "SDK & Downloads"
+    case shipExport = "Ship & Export"
 
     public var id: String { rawValue }
 
@@ -43,6 +45,10 @@ public enum SDKStudioSection: String, CaseIterable, Identifiable {
             return "app.badge"
         case .assistAccess:
             return "person.badge.key"
+        case .sdk:
+            return "shippingbox"
+        case .shipExport:
+            return "square.and.arrow.up"
         }
     }
 }

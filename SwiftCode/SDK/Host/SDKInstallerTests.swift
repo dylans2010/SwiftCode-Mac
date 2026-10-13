@@ -1,11 +1,5 @@
-// NOTE (2026-10-12): No Swift toolchain exists in this environment, so
-// these tests have NOT been compiled or run — statically verified only.
-// They also require a real XCTest test target: this project currently
-// has none (the app target is the only target), so this file is
-// registered in the xcodeproj as a source reference only and is NOT in
-// any target's Sources build phase — `import XCTest` would not compile
-// in the app target. On Dylan's Mac: create an XCTest target for the
-// project, add this file to it, then run the suite with xcodebuild.
+// These tests can run against SDKInstaller.swift in an isolated SwiftPM
+// target named SwiftCode; the app itself has no XCTest target.
 
 import XCTest
 @testable import SwiftCode
@@ -24,6 +18,21 @@ import XCTest
 //   - otherwise it materializes node_modules/@swiftcode/sdk/package.json
 //     (honoring STUB_WRITE_CORRUPT=1 to write a version-less package.json,
 //     exercising the "npm exited 0 but verification failed" path)
+
+private final class InstallerTestLines: @unchecked Sendable {
+    private let lock = NSLock()
+    private var entries: [SDKInstaller.LogLine] = []
+    func append(_ line: SDKInstaller.LogLine) {
+        lock.lock()
+        defer { lock.unlock() }
+        entries.append(line)
+    }
+    var lines: [SDKInstaller.LogLine] {
+        lock.lock()
+        defer { lock.unlock() }
+        return entries
+    }
+}
 
 final class SDKInstallerTests: XCTestCase {
 
@@ -57,6 +66,10 @@ final class SDKInstallerTests: XCTestCase {
         if let version { json["version"] = version }
         let data = try JSONSerialization.data(withJSONObject: json)
         try data.write(to: dir.appendingPathComponent("package.json"))
+        try FileManager.default.createDirectory(at: dir.appendingPathComponent("dist"), withIntermediateDirectories: true)
+        for file in ["index.js", "index.d.ts", "assist.js", "assistUI.js"] {
+            try "export {};".write(to: dir.appendingPathComponent("dist/\(file)"), atomically: true, encoding: .utf8)
+        }
     }
 
     /// Writes the stub `npm` script and returns its URL.
@@ -81,7 +94,11 @@ final class SDKInstallerTests: XCTestCase {
             ;;
         esac
         TARGET="$PREFIX/node_modules/@swiftcode/sdk"
-        mkdir -p "$TARGET"
+        mkdir -p "$TARGET/dist"
+        printf 'export {};' > "$TARGET/dist/index.js"
+        printf 'export {};' > "$TARGET/dist/index.d.ts"
+        printf 'export {};' > "$TARGET/dist/assist.js"
+        printf 'export {};' > "$TARGET/dist/assistUI.js"
         if [ -d "$SOURCE" ] && [ -f "$SOURCE/package.json" ]; then
           cp "$SOURCE/package.json" "$TARGET/package.json"
         elif [ "$STUB_WRITE_CORRUPT" = "1" ]; then
@@ -143,6 +160,66 @@ final class SDKInstallerTests: XCTestCase {
         )
     }
 
+    func testInspectRejectsMissingEntrypoint() throws {
+        try installedPackageJSON(version: "1.0.0")
+        try FileManager.default.removeItem(at: prefix.appendingPathComponent("node_modules/@swiftcode/sdk/dist/index.js"))
+        guard case .corrupt = SDKInstaller.inspect(prefix: prefix) else {
+            return XCTFail("A package.json without runtime code must not count as installed")
+        }
+    }
+
+    func testInspectRejectsMissingName() throws {
+        try installedPackageJSON(version: "1.0.0")
+        try Data("{\"version\":\"1.0.0\"}".utf8).write(to: prefix.appendingPathComponent("node_modules/@swiftcode/sdk/package.json"))
+        guard case .corrupt = SDKInstaller.inspect(prefix: prefix) else {
+            return XCTFail("A version alone must not count as the SDK")
+        }
+    }
+
+    func testFailedNpmCannotReportSuccessEvenIfItWroteFiles() async throws {
+        var options = try baseOptions()
+        let script = try XCTUnwrap(options.npmExecutable)
+        let body = try String(contentsOf: script, encoding: .utf8)
+        try body.replacingOccurrences(of: "exit 0", with: "exit 1").write(to: script, atomically: true, encoding: .utf8)
+        try FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: script.path)
+        options.reachabilityProbe = { _ in true }
+        options.bundledFallbackURL = tempDir.appendingPathComponent("absent")
+        let result = await SDKInstaller.install(options: options)
+        XCTAssertFalse(result.success)
+    }
+
+    func testRealBundledTarballInstallsAndImports() async throws {
+        guard let source = ProcessInfo.processInfo.environment["SWIFTCODE_TEST_SDK_TARBALL"] else {
+            throw NSError(domain: "SDKInstallerTests", code: 1, userInfo: [NSLocalizedDescriptionKey: "Set SWIFTCODE_TEST_SDK_TARBALL to the release archive"])
+        }
+        var options = SDKInstaller.InstallOptions()
+        options.prefix = prefix
+        options.reachabilityProbe = { _ in false }
+        options.bundledFallbackURL = URL(fileURLWithPath: source)
+        let result = await SDKInstaller.install(options: options)
+        XCTAssertTrue(result.success, result.message)
+        XCTAssertTrue(result.usedFallback)
+        let node = Process()
+        node.executableURL = URL(fileURLWithPath: "/usr/bin/env")
+        node.arguments = ["node", "--input-type=module", "-e", "import { createContext, createAssistAPI, createAssistUIAPI } from '@swiftcode/sdk'; if (![createContext, createAssistAPI, createAssistUIAPI].every(x => typeof x === 'function')) process.exit(1)"]
+        node.currentDirectoryURL = prefix
+        try node.run()
+        node.waitUntilExit()
+        XCTAssertEqual(node.terminationStatus, 0, "The installed SDK must import, not just have a package.json")
+    }
+
+    func testRealRemoteDownloadOrBundledFallbackImports() async throws {
+        let source = try XCTUnwrap(ProcessInfo.processInfo.environment["SWIFTCODE_TEST_SDK_TARBALL"])
+        var options = SDKInstaller.InstallOptions()
+        options.prefix = prefix
+        options.bundledFallbackURL = URL(fileURLWithPath: source)
+        options.timeout = 60
+        let result = await SDKInstaller.install(options: options)
+        XCTAssertTrue(result.success, result.message)
+        XCTAssertEqual(SDKInstaller.inspect(prefix: prefix), .ok(version: "1.0.0"))
+        print("Live SDK download verification: \(result.message)")
+    }
+
     // MARK: - install: success
 
     func testInstallSuccess() async throws {
@@ -150,13 +227,13 @@ final class SDKInstallerTests: XCTestCase {
         options.downloadURL = URL(string: "https://example.invalid/sdk.tgz")!
         options.reachabilityProbe = { _ in true }
 
-        var streamed: [SDKInstaller.LogLine] = []
+        let streamed = InstallerTestLines()
         let result = await SDKInstaller.install(options: options) { streamed.append($0) }
 
         XCTAssertTrue(result.success, "install should succeed; message: \(result.message)")
         XCTAssertEqual(result.installedVersion, "1.0.0")
         XCTAssertFalse(result.usedFallback)
-        XCTAssertFalse(streamed.isEmpty, "live stdout should have been streamed")
+        XCTAssertFalse(streamed.lines.isEmpty, "live stdout should have been streamed")
         XCTAssertEqual(SDKInstaller.inspect(prefix: prefix), .ok(version: "1.0.0"))
     }
 

@@ -52,6 +52,7 @@ public final class SDKStudioWindowManager: NSObject, ObservableObject, NSWindowD
             backing: .buffered,
             defer: false
         )
+        window.isReleasedWhenClosed = false
         window.title = "SwiftCode Studio"
         window.minSize = NSSize(width: 900, height: 600)
         window.setFrameAutosaveName("SwiftCodeStudioWindow")

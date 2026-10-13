@@ -91,11 +91,8 @@ def resolve_gemini_auth(*, api_key, oauth_token, vertex, project, location,
     Returns (mode, resolved_project, resolved_location).
     """
     headers = dict(http_headers or {})
-    header_project = (
-        headers.get(USER_PROJECT_HEADER)
-        or headers.get(USER_PROJECT_HEADER.lower())
-        or headers.get(USER_PROJECT_HEADER.upper())
-    )
+    header_project = next((value for key, value in headers.items()
+                           if key.lower() == USER_PROJECT_HEADER), None)
 
     def _clean(value):
         if value is None:
@@ -144,6 +141,26 @@ def resolve_gemini_auth(*, api_key, oauth_token, vertex, project, location,
         "account authentication) nor an API key. Sign in with Google or enter a "
         "Gemini API key in SwiftCode Settings > Assist."
     )
+
+
+def resolve_session_credentials(params, *, is_gemini):
+    """Resolve credentials only for their intended provider; never mutate os.environ."""
+    api_key = (params.get("apiKey") or params.get("api_key") or "").strip() or None
+    headers = dict(params.get("headers") or {})
+    oauth_token = None
+    if is_gemini:
+        oauth_token = (params.get("oauthToken") or params.get("oauth_token") or "").strip() or None
+        if not oauth_token and not api_key:
+            oauth_token = (os.environ.get("GOOGLE_OAUTH_ACCESS_TOKEN") or "").strip() or None
+        if oauth_token:
+            # Remove stale key/bearer headers regardless of their casing.
+            headers = {k: v for k, v in headers.items()
+                       if k.lower() not in ("authorization", "x-goog-api-key", "x-api-key")}
+            headers["Authorization"] = f"Bearer {oauth_token}"
+            api_key = None
+        elif not api_key:
+            api_key = (os.environ.get("GEMINI_API_KEY") or "").strip() or None
+    return api_key, oauth_token, headers
 
 
 def _wrap_turn_error(err_msg: str) -> str:
@@ -811,7 +828,6 @@ class AgentRunner:
                     self.sessions.pop(session_id, None)
 
             model = params.get("model", "gemini-3.8-flash")
-            api_key = params.get("apiKey") or os.environ.get("GEMINI_API_KEY")
             system_instructions = params.get("systemInstructions", "")
             skills_paths = params.get("skillsPaths", [])
             workspaces = params.get("workspaces", [])
@@ -889,27 +905,6 @@ class AgentRunner:
             model_path_param = str(params.get("modelPath") or params.get("model_path") or params.get("litertModelPath") or "")
             base_url = params.get("baseURL") or ""
 
-            # Extract optional OAuth token and headers
-            oauth_token = params.get("oauthToken") or params.get("oauth_token")
-            if not oauth_token and not (params.get("apiKey") or params.get("api_key")):
-                # Ambient fallback, last resort only: a stale
-                # GOOGLE_OAUTH_ACCESS_TOKEN must never override an API key
-                # Swift explicitly configured for this session. (M-10)
-                oauth_token = os.environ.get("GOOGLE_OAUTH_ACCESS_TOKEN")
-            http_headers = dict(params.get("headers") or {})
-            # Remember an ambient GEMINI_API_KEY across the OAuth cleanup below:
-            # the deletion is process-global, and a later api_key session in
-            # this same bridge process may legitimately rely on the ambient
-            # key. (M-9)
-            restored_ambient_gemini_key = None
-            if oauth_token:
-                http_headers["Authorization"] = f"Bearer {oauth_token}"
-                # If authenticated with OAuth, do NOT expect or require an API key
-                api_key = None
-                if "GEMINI_API_KEY" in os.environ:
-                    # Clean up any ambient dummy or stale GEMINI_API_KEY when OAuth is used
-                    restored_ambient_gemini_key = os.environ.pop("GEMINI_API_KEY")
-
             is_litert = (
                 provider == "litert"
                 or model_lower.endswith(".litertlm")
@@ -918,6 +913,15 @@ class AgentRunner:
                 or bool(params.get("litertModelPath"))
             )
             is_gemini = not is_litert and ((provider in ("gemini", "google")) or (not provider and ("gemini" in model_lower)))
+
+            api_key, oauth_token, http_headers = resolve_session_credentials(params, is_gemini=is_gemini)
+            if provider in ("anthropic", "claude", "openai", "openrouter", "mistral", "qwen") and not api_key:
+                raise GeminiAuthConfigError(
+                    "Provider '%s' is not configured for model '%s'. Google account "
+                    "authentication only authorizes Gemini requests; choose a Gemini "
+                    "model or configure this provider separately in Settings > Assist."
+                    % (provider, model)
+                )
 
             if is_litert:
                 if LiteRTAgentConfig is None:
@@ -985,6 +989,9 @@ class AgentRunner:
                     "capabilities": cap_config,
                     "policies": session_policies,
                     "hooks": self._create_hooks(session_id),
+                    # Empty overrides prevent the harness from inheriting stale
+                    # credential kinds without changing the bridge environment.
+                    "env": {"GEMINI_API_KEY": "", "GOOGLE_API_KEY": "", "GOOGLE_OAUTH_ACCESS_TOKEN": ""},
                 }
 
                 if dynamic_tools:
@@ -1114,13 +1121,7 @@ class AgentRunner:
             agent = Agent(config=agent_config)
 
             # Enter agent async context
-            try:
-                await agent.__aenter__()
-            finally:
-                # M-9: restore the ambient key removed above; the spawned
-                # harness process already inherited the cleaned environment.
-                if restored_ambient_gemini_key is not None:
-                    os.environ["GEMINI_API_KEY"] = restored_ambient_gemini_key
+            await agent.__aenter__()
 
             session = ActiveSession(session_id, agent, self.emit_fn)
             self.sessions[session_id] = session

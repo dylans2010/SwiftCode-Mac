@@ -680,7 +680,8 @@ public actor SDKExtensionManager {
             }
             return URL(fileURLWithPath: expanded)
         }
-        if let bundled = Bundle.main.url(forResource: "adapter", withExtension: "js") {
+        if let bundled = Bundle.main.resourceURL?.appendingPathComponent("SwiftCodeSDK/TypeScript/runtime-adapter/dist/adapter.js"),
+           fileManager.fileExists(atPath: bundled.path) {
             return bundled
         }
         throw SDKError(

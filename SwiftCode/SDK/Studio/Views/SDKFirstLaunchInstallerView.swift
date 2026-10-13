@@ -18,9 +18,8 @@ import SwiftUI
 //   is persisted in UserDefaults and the sheet simply dismisses. Nothing
 //   in Studio is gated on the SDK being installed.
 //
-// macOS 15, Swift 6. No Swift toolchain was available where this was
-// written: statically verified only — `xcodebuild` + a live run on
-// Dylan's Mac are required before this ships.
+// macOS 15, Swift 6. Installer and shell checks are documented in
+// SDK/Documentation/Release-Readiness.md; full-app QA remains a release gate.
 
 @MainActor
 public struct SDKFirstLaunchInstallerView: View {
@@ -247,7 +246,7 @@ final class SDKFirstLaunchInstallerModel: ObservableObject {
         phase = .installing
         logLines = []
 
-        Task {
+        Task { [weak self] in
             let result = await SDKInstaller.install { [weak self] line in
                 Task { @MainActor [weak self] in
                     self?.append(line: line)

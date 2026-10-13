@@ -201,7 +201,9 @@ public final class AssistModelRouter: Sendable {
             // picker UI, not to re-validate an already-confirmed SDK model,
             // and its cold-cache cost is the dominant "Preparing request…"
             // delay.
-            let validIds = Self.sdkDefaultModelIDs
+            let validIds = Self.sdkDefaultModelIDs.filter {
+                createSyntheticSDKModel(modelID: $0).isConfigured
+            }
             let effectiveModelID: String
             if validIds.contains(selectedId) {
                 effectiveModelID = selectedId
@@ -316,7 +318,7 @@ public final class AssistModelRouter: Sendable {
         // Filter: must support agentic use and tool calling, must be configured, must not be quarantined
         let eligible = baseModels.filter { model in
             guard model.supportsAgenticUse && model.supportsToolCalling else { return false }
-            guard model.isConfigured else { return false }
+            guard model.isConfigured, hasCredentials(for: model.providerID) else { return false }
 
             // Check quarantine
             if let unquarantine = quarantinedModels[model.id], Date() < unquarantine {
@@ -401,8 +403,8 @@ public final class AssistModelRouter: Sendable {
                 modelIdentifier: sdkModel.id,
                 capabilities: [.streaming, .toolCalling, .vision, .structuredOutput, .subagents],
                 source: .gemini,
-                isConfigured: true,
-                isAvailable: true,
+                isConfigured: hasCredentials(for: sdkModel.category),
+                isAvailable: hasCredentials(for: sdkModel.category),
                 supportsStreaming: true,
                 supportsToolCalling: true,
                 supportsVision: true,
@@ -433,8 +435,8 @@ public final class AssistModelRouter: Sendable {
             modelIdentifier: modelID,
             capabilities: [.streaming, .toolCalling, .vision, .structuredOutput, .subagents],
             source: .gemini,
-            isConfigured: true,
-            isAvailable: true,
+            isConfigured: hasCredentials(for: category),
+            isAvailable: hasCredentials(for: category),
             supportsStreaming: true,
             supportsToolCalling: true,
             supportsVision: true,
@@ -748,7 +750,7 @@ public final class AssistModelRouter: Sendable {
                 ?? baseConfig.apiKey
             oauthToken = nil
         } else {
-            apiKey = resolveAPIKey(for: provider) ?? baseConfig.apiKey
+            apiKey = resolveAPIKey(for: provider)
             oauthToken = isGoogleProvider ? baseConfig.oauthToken : nil
         }
 
@@ -756,7 +758,7 @@ public final class AssistModelRouter: Sendable {
             model: model.modelIdentifier,
             apiKey: apiKey,
             oauthToken: oauthToken,
-            userProject: baseConfig.userProject,
+            userProject: isGoogleProvider ? baseConfig.userProject : nil,
             vertex: false,
             project: nil,
             location: nil,
@@ -771,12 +773,29 @@ public final class AssistModelRouter: Sendable {
             serviceTier: baseConfig.serviceTier,
             tools: baseConfig.tools,
             provider: provider,
-            baseURL: model.endpointURL ?? baseConfig.baseURL,
+            baseURL: model.endpointURL,
             useSavedModels: AppSettings.shared.useSavedModels,
             toolkit: AppSettings.shared.assistToolkit,
             litertModelPath: baseConfig.litertModelPath,
             litertBackend: baseConfig.litertBackend
         )
+    }
+
+    /// Catalog membership is metadata, not authorization. In particular,
+    /// a Google sign-in never authorizes direct Anthropic/OpenAI requests.
+    public func hasCredentials(for provider: String) -> Bool {
+        let p = provider.lowercased()
+        if p == "google" || p == "gemini" {
+            if AppSettings.shared.alternativeKeysEnabled {
+                return AlternativeKeyManager.shared.getActiveOrNextKey() != nil
+            }
+            let mode = UserDefaults.standard.string(forKey: "assist_google_auth_mode") ?? AppSettings.shared.assistGoogleAuthMode
+            if mode == "google_oauth" {
+                return GoogleAccountAuthService.shared.isAuthenticated
+            }
+        }
+        if ["ollama", "lmstudio", "local", "litert", "apple", "custom"].contains(p) { return true }
+        return !(resolveAPIKey(for: p) ?? "").trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 
     /// Resolves an API key for the given provider. This returns *only* API keys.

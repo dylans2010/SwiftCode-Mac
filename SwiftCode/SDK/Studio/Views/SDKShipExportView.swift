@@ -24,10 +24,9 @@ import UniformTypeIdentifiers
 //   then moves the produced archive to the save-panel URL. The reported
 //   sha256 and content digests come from the CLI's verified output, never
 //   invented here.
-// - CLI reachability follows the Studio convention documented in
-//   `SDKStudioExtensionsView`: the CLI resolves ONLY from the UserDefaults
-//   override `com.swiftcode.sdk.cliPath` (full path to `swiftcode.mjs`),
-//   and Node.js via `SDKNodeLauncher.resolveNodeURL()`. When either is
+// - CLI resolution uses the explicit `com.swiftcode.sdk.cliPath` override
+//   when set, otherwise the app-bundled toolkit; Node.js resolves via
+//   `SDKNodeLauncher.resolveNodeURL()`. When either is
 //   missing, the view does NOT pretend to export: it presents a sheet with
 //   the exact terminal command for the user to run manually.
 // - Every control performs its real action; failures surface the real
@@ -389,16 +388,7 @@ public struct SDKShipExportView: View {
     }
 
     private func resolveCLIURL() -> URL? {
-        guard let raw = UserDefaults.standard.string(forKey: Self.cliPathDefaultsKey)?
-            .trimmingCharacters(in: .whitespacesAndNewlines),
-            !raw.isEmpty
-        else { return nil }
-        let url = URL(fileURLWithPath: (raw as NSString).expandingTildeInPath)
-        var isDirectory: ObjCBool = false
-        guard FileManager.default.fileExists(atPath: url.path, isDirectory: &isDirectory),
-              !isDirectory.boolValue
-        else { return nil }
-        return url
+        SDKInstaller.resolveCLIURL()
     }
 
     // MARK: - CLI plumbing

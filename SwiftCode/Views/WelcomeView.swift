@@ -132,6 +132,13 @@ struct SwiftCodeWelcomeView: View {
             .toolbar {
                 ToolbarItemGroup(placement: .primaryAction) {
                     Button {
+                        SDKStudioWindowManager.shared.openStudio(section: .projects)
+                    } label: {
+                        Label("Open Studio", systemImage: "hammer.fill")
+                    }
+                    .help("Open SwiftCode Studio and SDK tools")
+
+                    Button {
                         showCreateFolderSheet = true
                     } label: {
                         Label("Create Folder", systemImage: "folder.badge.plus")
@@ -374,6 +381,15 @@ struct SwiftCodeWelcomeView: View {
                             color: .accentColor
                         ) {
                             importFolder()
+                        }
+
+                        ModernActionCard(
+                            title: "SwiftCode Studio",
+                            subtitle: "Build extensions, install the SDK & ship",
+                            iconName: "hammer.fill",
+                            color: .accentColor
+                        ) {
+                            SDKStudioWindowManager.shared.openStudio(section: .projects)
                         }
 
                         ModernActionCard(

@@ -912,7 +912,7 @@ private enum ScaffoldEngine {
     /// package.json.
     static func defaultSDKPackageDir() -> String {
         let fm = FileManager.default
-        if let resource = Bundle.main.url(forResource: "swiftcode-sdk", withExtension: nil),
+        if let resource = Bundle.main.resourceURL?.appendingPathComponent("SwiftCodeSDK/TypeScript/package"),
            fm.fileExists(atPath: resource.appendingPathComponent("package.json").path) {
             return resource.path
         }
@@ -923,6 +923,8 @@ private enum ScaffoldEngine {
                 return expanded
             }
         }
+        let installed = SDKInstaller.defaultPrefix.appendingPathComponent("node_modules/@swiftcode/sdk")
+        if case .ok = SDKInstaller.inspect() { return installed.path }
         return ""
     }
 
