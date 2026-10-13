@@ -226,7 +226,7 @@ public struct AntigravityLimitsModelsUI: View {
 
     // MARK: - Clean Model Row
     private func modelRow(_ model: AntigravitySDKModel) -> some View {
-        let isSelected = selectedModelID == model.id || (selectedModelID.isEmpty && model.id == "gemini-3.8-flash-high")
+        let isSelected = selectedModelID == model.id || (selectedModelID.isEmpty && model.id == "gemini-3.8-flash")
         let isHovered = hoveredModelID == model.id
         let blurb = cloudBlurb(for: model)
 

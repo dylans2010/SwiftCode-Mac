@@ -495,13 +495,14 @@ public final class AssistModelDiscoveryService: Sendable {
                 : (live, false)
         }
         var list: [AssistAvailableModel] = []
-        for sdk in models where sdk.category.lowercased() == "google" {
+        for sdk in models {
+            let providerName = sdk.category == "Google" ? "Gemini" : sdk.category
             list.append(
                 AssistAvailableModel(
                     id: sdk.id,
                     displayName: sdk.displayName,
                     providerID: "gemini",
-                    providerName: "Gemini",
+                    providerName: providerName,
                     modelIdentifier: sdk.id,
                     capabilities: .advancedReasoning,
                     source: .gemini,

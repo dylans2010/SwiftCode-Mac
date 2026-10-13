@@ -731,7 +731,9 @@ public final class AssistModelRouter: Sendable {
         baseConfig.enableSubagents = model.supportsSubagents
 
         let provider = model.providerID.lowercased()
-        let isGoogleProvider = (provider == "google" || provider == "gemini")
+        let strategy = AppSettings.shared.assistModelRoutingStrategy
+        let isSDKStrategy = (strategy == "default" || strategy == "rotation")
+        let isGoogleProvider = (provider == "google" || provider == "gemini" || isSDKStrategy)
         let apiKey: String?
         let oauthToken: String?
 
@@ -754,6 +756,9 @@ public final class AssistModelRouter: Sendable {
             oauthToken = isGoogleProvider ? baseConfig.oauthToken : nil
         }
 
+        let sdkModelInfo = AntigravitySDKModelFetcher.shared.getModel(byID: model.modelIdentifier)
+        let level = sdkModelInfo?.thinkingLevel ?? AntigravitySDKModelFetcher.deriveThinkingLevel(modelID: model.modelIdentifier, displayName: model.displayName)
+
         return GoogleCloudSDKConfiguration(
             model: model.modelIdentifier,
             apiKey: apiKey,
@@ -774,6 +779,7 @@ public final class AssistModelRouter: Sendable {
             tools: baseConfig.tools,
             provider: provider,
             baseURL: model.endpointURL,
+            thinkingLevel: level,
             useSavedModels: AppSettings.shared.useSavedModels,
             toolkit: AppSettings.shared.assistToolkit,
             litertModelPath: baseConfig.litertModelPath,
