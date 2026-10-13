@@ -51,9 +51,11 @@ public struct BackupsView: View {
                     HStack {
                         Image(systemName: statusColor == .green ? "checkmark.circle.fill" : "exclamationmark.triangle.fill")
                             .foregroundColor(statusColor)
+
                         Text(message)
                             .font(.subheadline.bold())
                             .foregroundColor(statusColor)
+
                         Spacer()
                     }
                     .padding()
@@ -69,7 +71,9 @@ public struct BackupsView: View {
                             Label("Saved Backups (\(manifests.count))", systemImage: "tray.full.fill")
                                 .font(.headline)
                                 .foregroundColor(.indigo)
+
                             Spacer()
+
                             Button {
                                 loadBackups()
                             } label: {
@@ -97,6 +101,7 @@ public struct BackupsView: View {
                                                     Text(manifest.createdAt.formatted(date: .long, time: .shortened))
                                                         .font(.headline)
                                                         .foregroundColor(.primary)
+
                                                     Text("ID: \(manifest.backupID)")
                                                         .font(.system(.caption2, design: .monospaced))
                                                         .foregroundStyle(.secondary)
@@ -111,15 +116,21 @@ public struct BackupsView: View {
                                             Divider()
 
                                             HStack {
-                                                Label("\(Double(manifest.sizeInBytes) / 1024.0 / 1024.0, specifier: "%.2f") MB", systemImage: "doc.zipper")
-                                                    .font(.caption)
-                                                    .foregroundStyle(.secondary)
+                                                Label(
+                                                    "\(Double(manifest.sizeInBytes) / 1024.0 / 1024.0, specifier: "%.2f") MB",
+                                                    systemImage: "doc.zipper"
+                                                )
+                                                .font(.caption)
+                                                .foregroundStyle(.secondary)
 
                                                 Spacer()
 
-                                                Label(manifest.isCloudStored ? "Cloud Bucket" : "Local Disk Only", systemImage: manifest.isCloudStored ? "icloud.fill" : "laptopcomputer")
-                                                    .font(.caption)
-                                                    .foregroundStyle(.secondary)
+                                                Label(
+                                                    manifest.isCloudStored ? "Cloud Bucket" : "Local Disk Only",
+                                                    systemImage: manifest.isCloudStored ? "icloud.fill" : "laptopcomputer"
+                                                )
+                                                .font(.caption)
+                                                .foregroundStyle(.secondary)
                                             }
                                         }
                                         .padding()
@@ -160,16 +171,6 @@ public struct BackupsView: View {
     private func loadBackups() {
         Task {
             BackupEngine.shared.loadLocalBackups()
-
-            // If authenticated, also try to fetch remote cloud backups
-            if AuthManager.shared.isAuthenticated {
-                let provider = SupabaseCloudProvider(
-                    url: URL(string: "https://secctbuzkfbketdihzui.supabase.co")!,
-                    apiKey: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNlY2N0YnV6a2Zia2V0ZGloenVpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3MDcxMDUwMDAsImV4cCI6MjAyNjg2MTAwMH0.mock-key-signature"
-                )
-                try? await BackupEngine.shared.fetchCloudBackups(cloudProvider: provider)
-            }
-
             manifests = BackupEngine.shared.backups
         }
     }

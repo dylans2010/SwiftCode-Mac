@@ -2,16 +2,20 @@ import Foundation
 import Appwrite
 import JSONCodable
 import CryptoKit
+import Security
 import os
 
-private let logger = Logger(subsystem: "com.swiftcode.Auth", category: "AuthManager")
+private let logger = Logger(
+    subsystem: "com.swiftcode.Auth",
+    category: "AuthManager"
+)
 
 @MainActor
 @Observable
 public final class AuthManager {
     public static let shared = AuthManager()
 
-    // Thread-safe observable state
+    // Observable authentication state
     public private(set) var currentUser: Appwrite.User<[String: AnyCodable]>?
     public private(set) var currentSession: Appwrite.Session?
     public private(set) var swiftCodeID: String?
@@ -19,7 +23,7 @@ public final class AuthManager {
     public private(set) var isLoading = false
     public private(set) var authError: String?
 
-    // Access to Client and Account instances
+    // Appwrite client and account
     public let client: Client
     public let account: Account
 
@@ -28,50 +32,56 @@ public final class AuthManager {
         self.account = SwiftCode.account
     }
 
-    /// Restore the active session on application launch if one exists.
+    // MARK: - Session Restoration
+
+    /// Restores the active Appwrite session when one exists.
     public func restoreSession() async {
         isLoading = true
         authError = nil
         logger.info("Starting session restoration from Appwrite...")
 
+        defer { isLoading = false }
+
         do {
             let user = try await account.get()
-            self.currentUser = user
+            currentUser = user
 
-            // Retrieve existing SwiftCode ID or generate a new one if it doesn't exist yet
-            if let existingID = user.prefs.data["swiftcode_id"]?.value as? String {
-                self.swiftCodeID = existingID
-                logger.info("Successfully retrieved existing SwiftCode ID: \(existingID)")
+            if let existingID = user.prefs.data["swiftcode_id"]?.value as? String,
+               !existingID.isEmpty {
+                swiftCodeID = existingID
+                logger.info("Retrieved the existing SwiftCode ID.")
             } else {
                 let newID = generateSwiftCodeID()
-                self.swiftCodeID = newID
-                logger.info("No SwiftCode ID found. Generated new secure ID: \(newID)")
+                swiftCodeID = newID
+
                 do {
-                    _ = try await account.updatePrefs(prefs: ["swiftcode_id": newID])
-                    logger.info("Successfully stored new SwiftCode ID to Appwrite preferences.")
+                    _ = try await account.updatePrefs(
+                        prefs: ["swiftcode_id": newID]
+                    )
+                    logger.info("Stored a new SwiftCode ID in Appwrite preferences.")
                 } catch {
-                    logger.error("Failed to store SwiftCode ID to Appwrite preferences: \(error.localizedDescription)")
+                    logger.error(
+                        "Failed to store SwiftCode ID in Appwrite preferences: \(error.localizedDescription)"
+                    )
                 }
             }
 
-            self.isAuthenticated = true
+            isAuthenticated = true
             logger.info("Session restoration succeeded for user: \(user.email)")
-
-            /// Synchronize the profile deterministically in Supabase
-            Task {
-                await self.syncUserProfile()
-            }
         } catch {
-            self.currentUser = nil
-            self.swiftCodeID = nil
-            self.isAuthenticated = false
-            logger.debug("No active Appwrite session restored: \(error.localizedDescription)")
+            currentUser = nil
+            currentSession = nil
+            swiftCodeID = nil
+            isAuthenticated = false
+            logger.debug(
+                "No active Appwrite session restored: \(error.localizedDescription)"
+            )
         }
-
-        isLoading = false
     }
 
-    /// Sign in using an email and password.
+    // MARK: - Email and Password Authentication
+
+    /// Signs in with an email address and password.
     public func login(email: String, password: SecureString) async throws {
         isLoading = true
         authError = nil
@@ -82,18 +92,20 @@ public final class AuthManager {
                 email: email,
                 password: password.value()
             )
-            self.currentSession = session
+            currentSession = session
             await restoreSession()
             logger.info("Email/password sign-in succeeded.")
         } catch {
             authError = error.localizedDescription
-            logger.error("Email/password sign-in failed: \(error.localizedDescription)")
             isLoading = false
+            logger.error(
+                "Email/password sign-in failed: \(error.localizedDescription)"
+            )
             throw error
         }
     }
 
-    /// Create a new account with email and password.
+    /// Creates an account and signs in immediately afterward.
     public func createAccount(email: String, password: SecureString) async throws {
         isLoading = true
         authError = nil
@@ -105,19 +117,22 @@ public final class AuthManager {
                 email: email,
                 password: password.value()
             )
-            logger.info("Account creation succeeded. Initiating session sign-in...")
 
-            // Log in immediately after registration
+            logger.info("Account creation succeeded. Signing in...")
             try await login(email: email, password: password)
         } catch {
             authError = error.localizedDescription
-            logger.error("Account creation or initial login failed: \(error.localizedDescription)")
             isLoading = false
+            logger.error(
+                "Account creation or initial sign-in failed: \(error.localizedDescription)"
+            )
             throw error
         }
     }
 
-    /// Initiate Google OAuth flow.
+    // MARK: - OAuth
+
+    /// Starts Google OAuth authentication.
     public func loginWithGoogle() async throws {
         isLoading = true
         authError = nil
@@ -131,16 +146,16 @@ public final class AuthManager {
                 failure: callbackScheme
             )
             await restoreSession()
-            logger.info("Google OAuth login session completed.")
+            logger.info("Google OAuth flow completed.")
         } catch {
             authError = error.localizedDescription
-            logger.error("Google OAuth flow failed: \(error.localizedDescription)")
             isLoading = false
+            logger.error("Google OAuth flow failed: \(error.localizedDescription)")
             throw error
         }
     }
 
-    /// Initiate GitHub OAuth flow.
+    /// Starts GitHub OAuth authentication.
     public func loginWithGitHub() async throws {
         isLoading = true
         authError = nil
@@ -154,42 +169,49 @@ public final class AuthManager {
                 failure: callbackScheme
             )
             await restoreSession()
-            logger.info("GitHub OAuth login session completed.")
+            logger.info("GitHub OAuth flow completed.")
         } catch {
             authError = error.localizedDescription
-            logger.error("GitHub OAuth flow failed: \(error.localizedDescription)")
             isLoading = false
+            logger.error("GitHub OAuth flow failed: \(error.localizedDescription)")
             throw error
         }
     }
 
-    /// Request a password reset link.
+    // MARK: - Password Recovery
+
+    /// Requests a password reset email.
     public func forgotPassword(email: String) async throws {
         isLoading = true
         authError = nil
-        logger.info("Requesting password reset for: \(email)")
 
         do {
-            let redirectURL = "appwrite-callback-6a670d0b0022e5f964b4://reset-password"
+            let redirectURL =
+                "appwrite-callback-6a670d0b0022e5f964b4://reset-password"
             _ = try await account.createRecovery(
                 email: email,
                 url: redirectURL
             )
-            logger.info("Password reset request submitted successfully.")
+            logger.info("Password reset request submitted.")
             isLoading = false
         } catch {
             authError = error.localizedDescription
-            logger.error("Password reset request failed: \(error.localizedDescription)")
             isLoading = false
+            logger.error(
+                "Password reset request failed: \(error.localizedDescription)"
+            )
             throw error
         }
     }
 
-    /// Complete a password reset using the token/secret sent by email.
-    public func resetPassword(userId: String, secret: String, password: SecureString) async throws {
+    /// Completes a password reset using the emailed recovery token.
+    public func resetPassword(
+        userId: String,
+        secret: String,
+        password: SecureString
+    ) async throws {
         isLoading = true
         authError = nil
-        logger.info("Resetting password for userId: \(userId)")
 
         do {
             _ = try await account.updateRecovery(
@@ -197,175 +219,197 @@ public final class AuthManager {
                 secret: secret,
                 password: password.value()
             )
-            logger.info("Password reset successfully completed.")
+            logger.info("Password reset completed.")
             isLoading = false
         } catch {
             authError = error.localizedDescription
-            logger.error("Password reset failed: \(error.localizedDescription)")
             isLoading = false
+            logger.error("Password reset failed: \(error.localizedDescription)")
             throw error
         }
     }
 
-    /// Send a verification email to the user.
+    // MARK: - Email Verification
+
+    /// Sends a verification email to the current user.
     public func sendVerificationEmail() async throws {
         logger.info("Requesting verification email...")
+
         do {
             let redirectURL = "appwrite-callback-6a670d0b0022e5f964b4://verify"
             _ = try await account.createVerification(url: redirectURL)
-            logger.info("Verification email sent successfully.")
+            logger.info("Verification email sent.")
         } catch {
-            logger.error("Failed to send verification email: \(error.localizedDescription)")
+            logger.error(
+                "Failed to send verification email: \(error.localizedDescription)"
+            )
             throw error
         }
     }
 
-    /// Complete email verification.
+    /// Completes email verification.
     public func verifyEmail(userId: String, secret: String) async throws {
-        logger.info("Verifying email with secret...")
+        logger.info("Verifying email...")
+
         do {
-            _ = try await account.updateVerification(userId: userId, secret: secret)
-            logger.info("Email verification successfully completed.")
+            _ = try await account.updateVerification(
+                userId: userId,
+                secret: secret
+            )
+            logger.info("Email verification completed.")
             await restoreSession()
         } catch {
-            logger.error("Failed to complete email verification: \(error.localizedDescription)")
+            logger.error(
+                "Email verification failed: \(error.localizedDescription)"
+            )
             throw error
         }
     }
 
-    /// Change email address of the current authenticated user.
-    public func changeEmail(newEmail: String, password: SecureString) async throws {
-        logger.info("Updating email address to: \(newEmail)")
+    // MARK: - Account Management
+
+    /// Changes the authenticated user's email address.
+    public func changeEmail(
+        newEmail: String,
+        password: SecureString
+    ) async throws {
+        logger.info("Updating email address...")
+
         do {
-            _ = try await account.updateEmail(email: newEmail, password: password.value())
-            logger.info("Email address updated successfully.")
+            _ = try await account.updateEmail(
+                email: newEmail,
+                password: password.value()
+            )
+            logger.info("Email address updated.")
             await restoreSession()
         } catch {
-            logger.error("Failed to update email address: \(error.localizedDescription)")
+            logger.error("Email update failed: \(error.localizedDescription)")
             throw error
         }
     }
 
-    /// Change password of the current authenticated user.
-    public func changePassword(oldPassword: SecureString, newPassword: SecureString) async throws {
+    /// Changes the authenticated user's password.
+    public func changePassword(
+        oldPassword: SecureString,
+        newPassword: SecureString
+    ) async throws {
         logger.info("Updating user password...")
+
         do {
-            _ = try await account.updatePassword(password: newPassword.value(), oldPassword: oldPassword.value())
-            logger.info("Password updated successfully.")
+            _ = try await account.updatePassword(
+                password: newPassword.value(),
+                oldPassword: oldPassword.value()
+            )
+            logger.info("Password updated.")
         } catch {
-            logger.error("Failed to update password: \(error.localizedDescription)")
+            logger.error("Password update failed: \(error.localizedDescription)")
             throw error
         }
     }
 
-    /// Delete the current authenticated account from the server.
+    /// Appwrite's client SDK does not expose account self-deletion.
     public func deleteAccount() async throws {
-        logger.warning("Account self-deletion is not supported from client applications in the Appwrite Apple SDK.")
+        logger.warning(
+            "Account self-deletion is not supported by the Appwrite Apple SDK."
+        )
         throw NSError(
             domain: "AuthManager",
             code: 405,
-            userInfo: [NSLocalizedDescriptionKey: "Account deletion is not supported from client applications. Please contact support or delete your account via the developer console."]
+            userInfo: [
+                NSLocalizedDescriptionKey:
+                    "Account deletion is not supported in the client app. Contact support or use the account-management process."
+            ]
         )
     }
 
-    /// Securely log out the active user session.
+    /// Ends the active Appwrite session and clears local authentication state.
     public func logout() async {
         isLoading = true
         authError = nil
-        logger.info("Logging out active session...")
+        logger.info("Logging out of the active session...")
 
         do {
             _ = try await account.deleteSession(sessionId: "current")
-            logger.info("Appwrite active session successfully terminated.")
+            logger.info("Appwrite session terminated.")
         } catch {
-            logger.error("Failed to terminate active Appwrite session: \(error.localizedDescription)")
+            logger.error(
+                "Failed to terminate Appwrite session: \(error.localizedDescription)"
+            )
         }
 
-        self.currentUser = nil
-        self.currentSession = nil
-        self.swiftCodeID = nil
-        self.isAuthenticated = false
-        self.isLoading = false
-
-        // Sign out from Supabase Auth as well
-        Task {
-            try? await SupabaseProvider.shared.signOutFromSupabase()
-        }
+        currentUser = nil
+        currentSession = nil
+        swiftCodeID = nil
+        isAuthenticated = false
+        isLoading = false
     }
 
-    /// Generates a deterministic UUID from any String (such as Appwrite user ID) using SHA256.
+    // MARK: - Stable Database User ID
+
+    /// Generates a deterministic UUID from a string using SHA-256.
     public func deterministicUUID(from string: String) -> UUID {
         let hash = SHA256.hash(data: Data(string.utf8))
         let bytes = Array(hash)
+
         let uuidBytes = (
             bytes[0], bytes[1], bytes[2], bytes[3],
             bytes[4], bytes[5], bytes[6], bytes[7],
             bytes[8], bytes[9], bytes[10], bytes[11],
             bytes[12], bytes[13], bytes[14], bytes[15]
         )
+
         return UUID(uuid: uuidBytes)
     }
 
-    /// Returns the deterministic UUID representing the current user's DB key.
+    /// Returns a deterministic UUID representing the current user's database key.
     public func dbUserID(from swiftCodeID: String) -> UUID {
-        let cleanID = swiftCodeID.replacingOccurrences(of: "sc_id=", with: "")
-                                 .replacingOccurrences(of: "sc_id_", with: "")
+        let cleanID = swiftCodeID
+            .replacingOccurrences(of: "sc_id=", with: "")
+            .replacingOccurrences(of: "sc_id_", with: "")
+
         return deterministicUUID(from: cleanID)
     }
 
-    /// Synchronizes the user's backend profile in Supabase with the latest authentication details.
+    /// Compatibility entry point for existing callers.
+    ///
+    /// Remote profile synchronization was removed with the external cloud-profile
+    /// integration. The authoritative authentication profile remains in Appwrite.
+    @available(*, deprecated, message: "Remote profile synchronization is not configured.")
     public func syncUserProfile() async {
-        guard let user = currentUser, let swiftCodeID = swiftCodeID else { return }
-
-        let dbUserID = dbUserID(from: swiftCodeID)
-
-        logger.info("Synchronizing user profile to Supabase...")
-
-        do {
-            try await SupabaseProvider.shared.registerShadowUser(id: dbUserID, email: user.email)
-            try await SupabaseProvider.shared.signInToSupabase(id: dbUserID, email: user.email)
-        } catch {
-            logger.error("Failed to register/sign-in shadow user: \(error.localizedDescription)")
+        guard currentUser != nil, swiftCodeID != nil else {
+            logger.debug("Skipping profile sync because no authenticated user is available.")
             return
         }
 
-        let profileUpdate: [String: AnyCodable] = [
-            "display_name": AnyCodable(user.name),
-            "avatar_url": AnyCodable(""),
-            "auth_provider": AnyCodable("appwrite"),
-            "last_sign_in": AnyCodable(ISO8601DateFormatter().string(from: Date())),
-            "last_active": AnyCodable(ISO8601DateFormatter().string(from: Date())),
-            "account_status": AnyCodable("active"),
-            "email_verified": AnyCodable(user.emailVerification),
-            "cloud_enabled": AnyCodable(true),
-            "backup_enabled": AnyCodable(true),
-            "ai_enabled": AnyCodable(true),
-            "sync_statistics": AnyCodable("{}")
-        ]
-
-        do {
-            try await SupabaseProvider.shared.updateProfile(id: dbUserID, values: profileUpdate)
-            logger.info("Successfully updated user profile in Supabase.")
-        } catch {
-            logger.error("Failed to update user profile in Supabase: \(error.localizedDescription)")
-        }
+        logger.info("Using the Appwrite user profile; no external profile sync is configured.")
     }
 
     // MARK: - SwiftCode ID Generator
 
-    /// Generates a cryptographically secure, unpredictable, globally unique SwiftCode ID.
+    /// Generates a cryptographically secure SwiftCode ID.
     private func generateSwiftCodeID() -> String {
         var bytes = [UInt8](repeating: 0, count: 16)
-        let status = SecRandomCopyBytes(kSecRandomDefault, bytes.count, &bytes)
+        let status = SecRandomCopyBytes(
+            kSecRandomDefault,
+            bytes.count,
+            &bytes
+        )
+
         let hexString: String
+
         if status == errSecSuccess {
             hexString = bytes.map { String(format: "%02X", $0) }.joined()
         } else {
-            // Secure fallback using CryptoKit SHA256 of a random UUID & system uptime
-            let fallbackUUID = UUID().uuidString + "\(ProcessInfo.processInfo.systemUptime)"
-            let hash = SHA256.hash(data: Data(fallbackUUID.utf8))
-            hexString = hash.compactMap { String(format: "%02X", $0) }.prefix(32).joined()
+            // CryptoKit fallback if the system random-byte API fails.
+            let fallbackValue = UUID().uuidString
+                + "\(ProcessInfo.processInfo.systemUptime)"
+            let hash = SHA256.hash(data: Data(fallbackValue.utf8))
+            hexString = hash
+                .compactMap { String(format: "%02X", $0) }
+                .prefix(32)
+                .joined()
         }
+
         return "sc_id=\(hexString)"
     }
 }

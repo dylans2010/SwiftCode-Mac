@@ -1,11 +1,14 @@
 import Foundation
 import os
 
-private let logger = Logger(subsystem: "com.swiftcode.Cloud", category: "CloudSyncEngine")
+private let logger = Logger(
+    subsystem: "com.swiftcode.Cloud",
+    category: "CloudSyncEngine"
+)
 
-/// High-fidelity, actor-isolated Synchronization Engine for SwiftCode.
-/// Coordinates queues, heartbeats, automatic updates, and continuous live delta syncs.
-/// It strictly enforces Appwrite authentication and scopes all sync data to the user's SwiftCode ID.
+/// Actor-isolated synchronization engine for SwiftCode.
+/// Coordinates queues, heartbeats, automatic updates, and continuous delta syncs.
+/// Requires an explicitly configured CloudProvider.
 public actor CloudSyncEngine {
     public static let shared = CloudSyncEngine()
 
@@ -17,31 +20,55 @@ public actor CloudSyncEngine {
     private var syncTask: Task<Void, Never>?
 
     private init() {
-        self.isSyncEnabled = UserDefaults.standard.bool(forKey: "com.swiftcode.cloud.syncEnabled")
+        self.isSyncEnabled = UserDefaults.standard.bool(
+            forKey: "com.swiftcode.cloud.syncEnabled"
+        )
+
         setupAutoSync()
     }
 
-    /// Sets or updates the active Cloud Provider (e.g. Supabase)
+    // MARK: - Provider Configuration
+
+    /// Sets or updates the active cloud provider.
     public func setProvider(_ provider: CloudProvider) {
         self.provider = provider
         logger.info("CloudSyncEngine active provider initialized successfully.")
     }
 
-    /// Enable or disable continuously active continuous cloud sync.
+    /// Removes the active cloud provider.
+    public func clearProvider() {
+        provider = nil
+        logger.info("CloudSyncEngine provider cleared.")
+    }
+
+    // MARK: - Sync Configuration
+
+    /// Enables or disables continuous cloud synchronization.
     public func setSyncEnabled(_ enabled: Bool) {
-        self.isSyncEnabled = enabled
-        UserDefaults.standard.set(enabled, forKey: "com.swiftcode.cloud.syncEnabled")
+        isSyncEnabled = enabled
+
+        UserDefaults.standard.set(
+            enabled,
+            forKey: "com.swiftcode.cloud.syncEnabled"
+        )
+
         if enabled {
-            logger.info("CloudSyncEngine enabled. Starting background delta sync cycles.")
+            logger.info(
+                "CloudSyncEngine enabled. Starting background delta sync cycles."
+            )
             triggerSync()
         } else {
-            logger.info("CloudSyncEngine disabled. Pausing background delta sync cycles.")
+            logger.info(
+                "CloudSyncEngine disabled. Pausing background delta sync cycles."
+            )
         }
     }
 
     public func getStatistics() -> CloudStatistics {
         return statistics
     }
+
+    // MARK: - Pending Payloads
 
     /// Appends a payload to the pending outbound updates list.
     public func addPendingPayload(_ payload: SyncPayload) {
@@ -50,14 +77,25 @@ public actor CloudSyncEngine {
         triggerSync()
     }
 
-    /// Queues a local persistence modification payload for push.
-    public func queueLocalUpdate(tableName: String, recordID: String, payload: [String: String], isDeleted: Bool = false) {
-        guard isSyncEnabled else { return }
+    /// Queues a local persistence modification payload for synchronization.
+    public func queueLocalUpdate(
+        tableName: String,
+        recordID: String,
+        payload: [String: String],
+        isDeleted: Bool = false
+    ) {
+        guard isSyncEnabled else {
+            return
+        }
 
         Task {
-            guard await AuthManager.shared.isAuthenticated,
-                  let swiftCodeID = await AuthManager.shared.swiftCodeID else {
-                logger.warning("CloudSyncEngine: Skipped queuing update. No authenticated Appwrite user.")
+            guard
+                await AuthManager.shared.isAuthenticated,
+                let swiftCodeID = await AuthManager.shared.swiftCodeID
+            else {
+                logger.warning(
+                    "CloudSyncEngine: Skipped queuing update. No authenticated Appwrite user."
+                )
                 return
             }
 
@@ -70,23 +108,25 @@ public actor CloudSyncEngine {
                 clientUpdatedAt: Date(),
                 isDeleted: isDeleted
             )
+
             await self.addPendingPayload(syncPayload)
         }
     }
 
-    /// Explicitly trigger a delta sync run.
-    public func triggerSync() {
-        guard isSyncEnabled && !isSyncing else { return }
+    // MARK: - Synchronization
 
-        // Ensure provider is set
-        if provider == nil {
-            // Instantiate SupabaseCloudProvider with production credentials loaded from AppConfig
-            let url = AppConfig.shared.supabaseURL
-            let envKey = AppConfig.shared.supabaseAnonKey
-            self.provider = SupabaseCloudProvider(url: url, apiKey: envKey)
+    /// Explicitly triggers a synchronization cycle.
+    public func triggerSync() {
+        guard isSyncEnabled && !isSyncing else {
+            return
         }
 
-        guard let activeProvider = provider else { return }
+        guard let activeProvider = provider else {
+            logger.warning(
+                "CloudSyncEngine: Sync skipped because no cloud provider is configured."
+            )
+            return
+        }
 
         isSyncing = true
         statistics.isSyncing = true
@@ -98,56 +138,97 @@ public actor CloudSyncEngine {
             }
 
             do {
-                // Ensure Appwrite is fully authenticated first
-                guard await AuthManager.shared.isAuthenticated,
-                      let swiftCodeID = await AuthManager.shared.swiftCodeID else {
-                    logger.warning("CloudSyncEngine: Sync aborted. Appwrite authentication is required.")
+                // Require Appwrite authentication before synchronizing.
+                guard
+                    await AuthManager.shared.isAuthenticated,
+                    let swiftCodeID = await AuthManager.shared.swiftCodeID
+                else {
+                    logger.warning(
+                        "CloudSyncEngine: Sync aborted. Appwrite authentication is required."
+                    )
                     return
                 }
 
-                // 1. Process outbound pending updates queue
+                // Process outbound pending updates.
                 if !pendingPayloads.isEmpty {
                     let uploads = pendingPayloads
+
                     try await activeProvider.sync.pushDeltas(uploads)
-                    pendingPayloads.removeAll { uploads.contains($0) }
+
+                    pendingPayloads.removeAll {
+                        uploads.contains($0)
+                    }
+
                     statistics.totalUploadCount += uploads.count
                     statistics.pendingUploadsCount = pendingPayloads.count
                 }
 
-                // 2. Pull inbound delta updates
-                let lastSync = statistics.lastSyncTimestamp ?? Date().addingTimeInterval(-86400)
-                let remoteDeltas = try await activeProvider.sync.pullDeltas(since: lastSync, tableName: "projects")
+                // Pull inbound updates.
+                let lastSync = statistics.lastSyncTimestamp
+                    ?? Date().addingTimeInterval(-86_400)
+
+                let remoteDeltas = try await activeProvider.sync.pullDeltas(
+                    since: lastSync,
+                    tableName: "projects"
+                )
 
                 for delta in remoteDeltas {
+                    guard delta.userID == swiftCodeID else {
+                        logger.warning(
+                            "CloudSyncEngine: Ignored a delta belonging to another user."
+                        )
+                        continue
+                    }
+
                     await handleInboundPayload(delta)
                 }
 
                 statistics.totalDownloadCount += remoteDeltas.count
                 statistics.lastSyncTimestamp = Date()
-                logger.info("CloudSyncEngine synchronization cycle completed successfully.")
+
+                logger.info(
+                    "CloudSyncEngine synchronization cycle completed successfully."
+                )
             } catch {
-                logger.error("CloudSyncEngine sync cycle failed: \(error.localizedDescription)")
+                logger.error(
+                    "CloudSyncEngine sync cycle failed: \(error.localizedDescription)"
+                )
                 statistics.conflictCount += 1
             }
         }
     }
 
-    /// Cancel any currently running synchronization task.
+    /// Cancels the currently running synchronization task.
     public func cancelSync() {
         syncTask?.cancel()
+        syncTask = nil
+
         isSyncing = false
         statistics.isSyncing = false
-        logger.info("CloudSyncEngine: Current synchronization run canceled by client.")
+
+        logger.info(
+            "CloudSyncEngine: Current synchronization run canceled by client."
+        )
     }
 
+    // MARK: - Inbound Updates
+
     private func handleInboundPayload(_ delta: SyncPayload) async {
-        // Resolve conflicts or directly apply update locally
-        logger.info("Handling inbound sync payload for \(delta.tableName): \(delta.recordID)")
+        // Resolve conflicts or apply the update locally.
+        // Actual persistence integration must be implemented separately.
+        logger.info(
+            "Handling inbound sync payload for \(delta.tableName): \(delta.recordID)"
+        )
     }
+
+    // MARK: - Automatic Synchronization
 
     nonisolated private func setupAutoSync() {
         DispatchQueue.main.async {
-            Timer.scheduledTimer(withTimeInterval: 30, repeats: true) { _ in
+            Timer.scheduledTimer(
+                withTimeInterval: 30,
+                repeats: true
+            ) { _ in
                 Task {
                     await CloudSyncEngine.shared.triggerSync()
                 }

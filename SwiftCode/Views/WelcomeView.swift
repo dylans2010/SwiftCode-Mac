@@ -405,7 +405,7 @@ struct SwiftCodeWelcomeView: View {
             Button {
                 SDKStudioWindowManager.shared.openStudio(section: .projects)
             } label: {
-                Label {
+                HStack(spacing: 12) {
                     VStack(alignment: .leading, spacing: 3) {
                         Text("SwiftCode Studio")
                             .font(.headline)
@@ -922,3 +922,4 @@ struct ModernActionCard: View {
         }
     }
 }
+

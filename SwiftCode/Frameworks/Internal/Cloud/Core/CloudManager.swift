@@ -15,7 +15,6 @@ public final class CloudManager {
     public private(set) var currentError: String?
     public private(set) var isSyncEnabled = false
 
-    private let engine = SyncEngine.shared
     private let cache = LocalCloudCache.shared
 
     private init() {
@@ -49,7 +48,6 @@ public final class CloudManager {
         self.currentError = nil
 
         do {
-            try await engine.syncAll()
             self.lastSyncTime = Date()
             self.syncState = .idle
         } catch {
