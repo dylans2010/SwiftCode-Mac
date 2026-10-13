@@ -35,6 +35,7 @@ public struct GoogleCloudSDKConfiguration: Codable, @unchecked Sendable {
     public var tools: [[String: Any]]?
     public var provider: String?
     public var baseURL: String?
+    public var thinkingLevel: String?
     public var useSavedModels: Bool
     public var toolkit: String
     public var litertModelPath: String?
@@ -62,6 +63,7 @@ public struct GoogleCloudSDKConfiguration: Codable, @unchecked Sendable {
         tools: [[String: Any]]? = nil,
         provider: String? = nil,
         baseURL: String? = nil,
+        thinkingLevel: String? = nil,
         useSavedModels: Bool = false,
         toolkit: String = "System",
         litertModelPath: String? = nil,
@@ -88,6 +90,7 @@ public struct GoogleCloudSDKConfiguration: Codable, @unchecked Sendable {
         self.tools = tools
         self.provider = provider
         self.baseURL = baseURL
+        self.thinkingLevel = thinkingLevel
         self.useSavedModels = useSavedModels
         self.toolkit = toolkit
         self.litertModelPath = litertModelPath
@@ -97,7 +100,7 @@ public struct GoogleCloudSDKConfiguration: Codable, @unchecked Sendable {
     }
 
     public enum CodingKeys: String, CodingKey {
-        case model, apiKey, oauthToken, userProject, vertex, project, location, systemInstructions, skillsPaths, workspaces, appDataDir, saveDir, enableSubagents, maxSubagentDepth, allowedSubagents, serviceTier, provider, baseURL, useSavedModels, toolkit
+        case model, apiKey, oauthToken, userProject, vertex, project, location, systemInstructions, skillsPaths, workspaces, appDataDir, saveDir, enableSubagents, maxSubagentDepth, allowedSubagents, serviceTier, provider, baseURL, thinkingLevel, useSavedModels, toolkit
         case litertModelPath, litertBackend, downloadIfMissing, enableSpeculativeDecoding
     }
 
@@ -121,6 +124,7 @@ public struct GoogleCloudSDKConfiguration: Codable, @unchecked Sendable {
         self.serviceTier = try container.decode(GoogleCloudSDKServiceTier.self, forKey: .serviceTier)
         self.provider = try container.decodeIfPresent(String.self, forKey: .provider)
         self.baseURL = try container.decodeIfPresent(String.self, forKey: .baseURL)
+        self.thinkingLevel = try container.decodeIfPresent(String.self, forKey: .thinkingLevel)
         self.useSavedModels = try container.decodeIfPresent(Bool.self, forKey: .useSavedModels) ?? false
         self.toolkit = try container.decodeIfPresent(String.self, forKey: .toolkit) ?? "System"
         self.litertModelPath = try container.decodeIfPresent(String.self, forKey: .litertModelPath)
@@ -150,6 +154,7 @@ public struct GoogleCloudSDKConfiguration: Codable, @unchecked Sendable {
         try container.encode(serviceTier, forKey: .serviceTier)
         try container.encodeIfPresent(provider, forKey: .provider)
         try container.encodeIfPresent(baseURL, forKey: .baseURL)
+        try container.encodeIfPresent(thinkingLevel, forKey: .thinkingLevel)
         try container.encode(useSavedModels, forKey: .useSavedModels)
         try container.encode(toolkit, forKey: .toolkit)
         try container.encodeIfPresent(litertModelPath, forKey: .litertModelPath)
@@ -362,6 +367,9 @@ public struct GoogleCloudSDKConfiguration: Codable, @unchecked Sendable {
         if let provider = provider, !provider.isEmpty {
             dict["provider"] = provider
         }
+        if let thinkingLevel = thinkingLevel, !thinkingLevel.isEmpty {
+            dict["thinkingLevel"] = thinkingLevel
+        }
         if let baseURL = baseURL, !baseURL.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             let trimmed = baseURL.trimmingCharacters(in: .whitespacesAndNewlines)
             if trimmed.hasPrefix("http://") || trimmed.hasPrefix("https://") {
@@ -416,6 +424,7 @@ public struct GoogleCloudSDKConfiguration: Codable, @unchecked Sendable {
         return model == newConfig.model &&
             provider == newConfig.provider &&
             baseURL == newConfig.baseURL &&
+            thinkingLevel == newConfig.thinkingLevel &&
             apiKey == newConfig.apiKey &&
             oauthToken == newConfig.oauthToken &&
             userProject == newConfig.userProject &&

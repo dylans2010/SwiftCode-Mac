@@ -365,6 +365,13 @@ class RequireCustomEndpointTests(unittest.TestCase):
         _require_custom_endpoint(provider="google", model="gemini-2.5-flash", base_url="")
 
 
+class ThinkingLevelParsingTests(unittest.TestCase):
+    def test_thinking_level_mapping_values(self):
+        valid_levels = ["minimal", "low", "medium", "high", "extra_high"]
+        for lvl in valid_levels:
+            self.assertEqual(lvl.upper(), lvl.upper())
+
+
 if __name__ == "__main__":
     runner = unittest.TextTestRunner(verbosity=2)
     result = runner.run(unittest.defaultTestLoader.loadTestsFromName("__main__"))

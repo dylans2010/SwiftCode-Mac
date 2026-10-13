@@ -121,6 +121,12 @@ def resolve_gemini_auth(*, api_key, oauth_token, vertex, project, location,
             )
         return ("vertex", project, location)
     if oauth_token:
+        if not user_project:
+            raise GeminiAuthConfigError(
+                "Google account authentication requires a Google Cloud quota project "
+                "(x-goog-user-project), but none was configured. Set your Google Cloud "
+                "project in SwiftCode Settings > Assist > Google Account."
+            )
         return ("oauth", user_project, location)
 
     if api_key:
@@ -902,7 +908,12 @@ class AgentRunner:
                 or model_path_param.lower().endswith(".litertlm")
                 or bool(params.get("litertModelPath"))
             )
-            is_gemini = not is_litert and ((provider in ("gemini", "google")) or (not provider and ("gemini" in model_lower)))
+            has_oauth = bool(params.get("oauthToken") or params.get("oauth_token"))
+            is_gemini = not is_litert and (
+                (provider in ("gemini", "google", "antigravity"))
+                or has_oauth
+                or (not provider and ("gemini" in model_lower or "claude" in model_lower))
+            )
 
             api_key, oauth_token, http_headers = resolve_session_credentials(params, is_gemini=is_gemini)
             if provider in ("anthropic", "claude", "openai", "openrouter", "mistral", "qwen") and not api_key:
@@ -1018,6 +1029,17 @@ class AgentRunner:
                         http_headers[USER_PROJECT_HEADER] = auth_project
                     config_kwargs["http_headers"] = http_headers
 
+                # Resolve Gemini thinking level options if specified
+                thinking_level_param = params.get("thinkingLevel") or params.get("thinking_level")
+                gemini_options = None
+                if thinking_level_param:
+                    tl_str = str(thinking_level_param).strip().lower()
+                    enum_level = None
+                    if tl_str in ("minimal", "low", "medium", "high", "extra_high"):
+                        enum_level = getattr(types.ThinkingLevel, tl_str.upper(), None)
+                    if enum_level is not None and hasattr(types, "GeminiModelOptions"):
+                        gemini_options = types.GeminiModelOptions(thinking_level=enum_level)
+
                 # Build the explicit model endpoint for the resolved auth mode.
                 endpoint = None
                 if auth_mode == "vertex" and VertexEndpoint is not None:
@@ -1026,17 +1048,21 @@ class AgentRunner:
                             project=auth_project,
                             location=auth_location,
                             http_headers=http_headers,
+                            options=gemini_options,
                         )
                     else:
                         # Vertex Express mode: API key authentication.
                         endpoint = VertexEndpoint(
                             api_key=api_key,
                             http_headers=http_headers,
+                            options=gemini_options,
                         )
                 elif GeminiAPIEndpoint is not None:
                     endpoint_kwargs: Dict[str, Any] = {"http_headers": http_headers}
                     if auth_mode == "api_key":
                         endpoint_kwargs["api_key"] = api_key
+                    if gemini_options is not None:
+                        endpoint_kwargs["options"] = gemini_options
                     endpoint = GeminiAPIEndpoint(**endpoint_kwargs)
 
                 if endpoint is not None:

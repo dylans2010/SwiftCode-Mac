@@ -43,6 +43,7 @@ public final class GoogleCloudSDKTests: Sendable {
         results.append(await testMissingClientSecretClassification())
         results.append(await testActionableSignInErrorForMissingSecret())
         results.append(await testClientSecretKeychainStorage())
+        results.append(await testCanonicalSDKModelRoutingAndThinkingLevel())
 
         let routerTests = await AssistModelRouterTests.shared.runAllTests()
         results.append(contentsOf: routerTests)
@@ -813,6 +814,53 @@ public final class GoogleCloudSDKTests: Sendable {
             testName: "Client Secret Keychain Storage",
             passed: passed,
             message: passed ? "Client secret round-trips through Keychain." : "Failures: \(failures.joined(separator: "; "))",
+            duration: Date().timeIntervalSince(start)
+        )
+    }
+
+    // 18. Canonical SDK Model Routing & Thinking Level
+    public func testCanonicalSDKModelRoutingAndThinkingLevel() async -> RuntimeTestCaseResult {
+        let start = Date()
+        var failures: [String] = []
+
+        // Verify seed models use canonical base IDs without suffixes
+        let seedIDs = AntigravitySDKModelFetcher.seedModels.map { $0.id }
+        if seedIDs.contains("gemini-3.8-flash-low") || seedIDs.contains("gemini-3.8-flash-high") {
+            failures.append("Seed models still contain hardcoded thinking level suffixes")
+        }
+        if !seedIDs.contains("gemini-3.8-flash") {
+            failures.append("Seed models missing canonical 'gemini-3.8-flash'")
+        }
+
+        // Verify buildSDKConfiguration preserves canonical ID and attaches thinkingLevel
+        let model = AssistAvailableModel(
+            id: "gemini-3.8-flash",
+            displayName: "Gemini 3.8 Flash (Low)",
+            providerID: "google",
+            providerName: "Google",
+            modelIdentifier: "gemini-3.8-flash",
+            capabilities: .advancedReasoning,
+            source: .gemini
+        )
+
+        let config = AssistModelRouter.shared.buildSDKConfiguration(for: model)
+        if config.model != "gemini-3.8-flash" {
+            failures.append("Configuration model ID was mutated: got '\(config.model)', expected 'gemini-3.8-flash'")
+        }
+        if config.thinkingLevel.lowercased() != "low" {
+            failures.append("thinkingLevel mismatch in config: got '\(config.thinkingLevel ?? "nil")', expected 'low'")
+        }
+
+        let dict = config.toDictionary()
+        if (dict["thinkingLevel"] as? String)?.lowercased() != "low" {
+            failures.append("thinkingLevel missing or incorrect in serialized IPC dictionary")
+        }
+
+        let passed = failures.isEmpty
+        return RuntimeTestCaseResult(
+            testName: "Canonical SDK Model Routing & Thinking Level",
+            passed: passed,
+            message: passed ? "Canonical model IDs preserved and thinkingLevel correctly attached to IPC payloads." : "Failures: \(failures.joined(separator: "; "))",
             duration: Date().timeIntervalSince(start)
         )
     }
