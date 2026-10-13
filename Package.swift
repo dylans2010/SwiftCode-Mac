@@ -10,10 +10,10 @@ let package = Package(
         .library(name: "SwiftCode", targets: ["SwiftCode"])
     ],
     dependencies: [
-        .package(url: "https://github.com/weichsel/ZIPFoundation.git", upToNextMajorVersion: "0.9.0"),
-        .package(url: "https://github.com/JohnSundell/Splash.git", upToNextMajorVersion: "0.16.0"),
-        .package(url: "https://github.com/ml-explore/mlx-swift.git", upToNextMajorVersion: "0.31.0"),
-        .package(url: "https://github.com/apple/swift-markdown.git", upToNextMajorVersion: "0.2.0"),
+        .package(url: "https://github.com/weichsel/ZIPFoundation.git", from: "0.9.0"),
+        .package(url: "https://github.com/JohnSundell/Splash.git", from: "0.16.0"),
+        .package(url: "https://github.com/ml-explore/mlx-swift.git", from: "0.31.0"),
+        .package(url: "https://github.com/apple/swift-markdown.git", from: "0.2.0"),
         .package(url: "https://github.com/timi2506/WelcomeView.git", from: "2.0.0"),
         .package(url: "https://github.com/appwrite/sdk-for-apple.git", from: "15.0.0"),
         .package(url: "https://github.com/supabase/supabase-swift.git", from: "2.0.0")
