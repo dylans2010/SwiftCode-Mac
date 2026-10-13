@@ -498,7 +498,7 @@ struct MinimapView: View {
 
             ScrollView(.vertical, showsIndicators: false) {
                 VStack(alignment: .leading, spacing: 0) {
-                    ForEach(Array(lines.prefix(2000).enumerated()), id: \.offset) { _, line in
+                    ForEach(Array(lines.enumerated()), id: \.offset) { _, line in
                         let width = min(CGFloat(line.count) * 0.5, minimapWidth - 4)
                         RoundedRectangle(cornerRadius: 0.5)
                             .fill(minimapColor(for: line))
@@ -611,7 +611,7 @@ struct TextEditorRepresentable: NSViewRepresentable {
             let highlighted = SyntaxHighlighter.shared.highlight(text, fileExtension: fileExtension)
             let savedRange = textView.selectedRange
             textView.textStorage?.setAttributedString(highlighted)
-            let clampedLocation = min(savedRange.location, max(0, text.count))
+            let clampedLocation = min(savedRange.location, max(0, (text as NSString).length))
             textView.selectedRange = NSRange(location: clampedLocation, length: 0)
         }
 
@@ -674,7 +674,7 @@ struct TextEditorRepresentable: NSViewRepresentable {
             let highlighted = SyntaxHighlighter.shared.highlight(textView.string, fileExtension: fileExtension)
             let savedRange = textView.selectedRange
             textView.textStorage?.setAttributedString(highlighted)
-            let clampedLocation = min(savedRange.location, max(0, textView.string.count))
+            let clampedLocation = min(savedRange.location, max(0, (textView.string as NSString).length))
             textView.selectedRange = NSRange(location: clampedLocation, length: 0)
             updateLayout()
         }
@@ -687,13 +687,14 @@ struct TextEditorRepresentable: NSViewRepresentable {
 
             let lines = textView.string.components(separatedBy: "\n").count
             let font = textView.font ?? TextLayoutEngine.editorFont()
-            // Try to get line height from layoutManager if possible
             let lineHeightFromLayout = textView.layoutManager?.defaultLineHeight(for: font)
             let lineHeight = lineHeightFromLayout ?? TextLayoutEngine.lineHeight()
             let topInset = TextLayoutEngine.textContainerInset().height
 
+            textView.sizeToFit()
+            let usedRectHeight = textView.layoutManager?.usedRect(for: textView.textContainer!).height ?? 0
+            let contentHeight = max(max(usedRectHeight + topInset * 2, CGFloat(lines) * lineHeight + topInset * 2), scrollView.bounds.height)
             let contentWidth = max(scrollView.bounds.width, availableWidth + gutterWidth)
-            let contentHeight = max(CGFloat(lines) * lineHeight + topInset * 2, scrollView.bounds.height)
 
             lineNumbers.frame = CGRect(x: 0, y: 0, width: gutterWidth, height: contentHeight)
             textView.frame = CGRect(x: gutterWidth, y: 0,

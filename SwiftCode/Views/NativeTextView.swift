@@ -36,8 +36,9 @@ struct NativeTextView: NSViewRepresentable {
             let selectedRange = textView.selectedRange()
             textView.string = doc.content
 
-            // Restore selection if it's within bounds
-            if selectedRange.location + selectedRange.length <= textView.string.count {
+            // Restore selection if it's within bounds (measured in UTF-16 code units)
+            let nsLength = (textView.string as NSString).length
+            if selectedRange.location + selectedRange.length <= nsLength {
                 textView.setSelectedRange(selectedRange)
             }
         }

@@ -476,12 +476,49 @@ final class ProjectSessionStore {
         return newProject
     }
 
+    func ensureSwiftCodeJSON(for project: Project, at directoryURL: URL) {
+        let manifestURL = directoryURL.appendingPathComponent("swiftcode.json")
+        let fm = FileManager.default
+
+        if fm.fileExists(atPath: manifestURL.path) {
+            if let data = try? Data(contentsOf: manifestURL),
+               var json = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any] {
+                json["name"] = project.name
+                if let updatedData = try? JSONSerialization.data(withJSONObject: json, options: [.prettyPrinted, .sortedKeys]) {
+                    try? updatedData.write(to: manifestURL, options: .atomic)
+                }
+            }
+            return
+        }
+
+        let rawSlug = project.name.lowercased().replacingOccurrences(of: " ", with: "-")
+        let sanitizedID = "com.swiftcode.project.\(rawSlug)"
+        let manifest = SDKManifest(
+            manifestVersion: 1,
+            id: sanitizedID,
+            name: project.name,
+            version: "0.1.0",
+            description: project.description ?? "SwiftCode Platform Project",
+            type: "app",
+            runtime: SDKManifestRuntime(language: "typescript", entrypoint: "dist/index.js", minimumSwiftCodeVersion: "1.0.0"),
+            sdk: SDKManifestSDKRef(name: "@swiftcode/sdk", versionRange: "^1.0.0", protocolVersion: 1),
+            capabilities: []
+        )
+
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+        if let data = try? encoder.encode(manifest) {
+            try? data.write(to: manifestURL, options: .atomic)
+        }
+    }
+
     func saveMetadataInPlace(_ project: Project) throws {
         let encoder = JSONEncoder()
         encoder.dateEncodingStrategy = .iso8601
         let data = try encoder.encode(project)
         let metaURL = project.directoryURL.appendingPathComponent("project.json")
         try data.write(to: metaURL, options: .atomic)
+        ensureSwiftCodeJSON(for: project, at: project.directoryURL)
     }
 
     func importProject(from url: URL, name customName: String? = nil) async throws -> Project {
@@ -626,56 +663,19 @@ final class ProjectSessionStore {
         }
     }
 
-    private func readFileContent(at url: URL, maxBytes: Int = 5_242_880) async throws -> String {
+    private func readFileContent(at url: URL) async throws -> String {
         try await Task.detached(priority: .userInitiated) {
-            // Verify regular file and obtain size if available
             let values = try? url.resourceValues(forKeys: [.isRegularFileKey, .fileSizeKey])
             guard values?.isRegularFile == true else {
                 throw NSError(domain: "SwiftCode.FileRead", code: 1, userInfo: [NSLocalizedDescriptionKey: "Not a regular file"])
             }
 
-            let fileSize = values?.fileSize ?? 0
-            let hardLimit = maxBytes
-            let limit = fileSize > 0 ? min(fileSize, hardLimit) : hardLimit
-
-            // Fast path for small files
-            if fileSize > 0 && fileSize <= hardLimit {
-                let data = try Data(contentsOf: url, options: [.mappedIfSafe])
-                if let text = await await self.decodeText(from: data) {
-                    return text
-                } else {
-                    let sizeDesc = ByteCountFormatter.string(fromByteCount: Int64(data.count), countStyle: .file)
-                    return "Binary file (\(sizeDesc)) — not previewable."
-                }
-            }
-
-            // Stream read up to limit for large files
-            let handle = try FileHandle(forReadingFrom: url)
-            defer { try? handle.close() }
-
-            var buffer = Data()
-            buffer.reserveCapacity(min(limit, hardLimit))
-
-            while !Task.isCancelled {
-                let remaining = limit - buffer.count
-                if remaining <= 0 { break }
-                let chunk = try handle.read(upToCount: min(64 * 1024, remaining)) ?? Data()
-                if chunk.isEmpty { break }
-                buffer.append(chunk)
-            }
-
-            if Task.isCancelled { throw CancellationError() }
-
-            if let text = await self.decodeText(from: buffer) {
-                if fileSize > hardLimit && fileSize > 0 {
-                    let total = ByteCountFormatter.string(fromByteCount: Int64(fileSize), countStyle: .file)
-                    let shown = ByteCountFormatter.string(fromByteCount: Int64(buffer.count), countStyle: .file)
-                    return text + "\n\n// Preview truncated — showing \(shown) of \(total)."
-                }
+            let data = try Data(contentsOf: url, options: [.mappedIfSafe])
+            if let text = await self.decodeText(from: data) {
                 return text
             } else {
-                let shown = ByteCountFormatter.string(fromByteCount: Int64(buffer.count), countStyle: .file)
-                return "Binary file — showing first \(shown)."
+                let sizeDesc = ByteCountFormatter.string(fromByteCount: Int64(data.count), countStyle: .file)
+                return "Binary file (\(sizeDesc)) — not previewable."
             }
         }.value
     }
