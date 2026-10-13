@@ -1,0 +1,1 @@
+{"bin":{"swiftcode":"./swiftcode.mjs"},"name":"swiftcode-cli","private":true,"type":"module","dependencies":{"archiver":"8.0.0"}}

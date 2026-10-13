@@ -1,0 +1,7 @@
+{
+  "sdkVersion": "1.0.0",
+  "minMacOSVersion": "14.0",
+  "defaultToolchain": "apple-swift-6.0",
+  "isolatedExecution": true,
+  "sandboxedBuilds": true
+}

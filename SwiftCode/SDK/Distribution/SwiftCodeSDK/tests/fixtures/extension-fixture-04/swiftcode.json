@@ -1,0 +1,31 @@
+{
+  "manifestVersion": 1,
+  "id": "com.example.fixture4",
+  "name": "Fixture Extension 4",
+  "version": "1.4.0",
+  "type": "extension",
+  "runtime": {
+    "language": "typescript",
+    "entrypoint": "dist/index.js",
+    "minimumSwiftCodeVersion": "1.0.0"
+  },
+  "sdk": {
+    "name": "@swiftcode/sdk",
+    "versionRange": "^1.0.0",
+    "protocolVersion": 1
+  },
+  "capabilities": [
+    {
+      "id": "project.read",
+      "reason": "Reads project metadata in test suite"
+    },
+    {
+      "id": "source-control.read",
+      "reason": "Reads git status in test suite"
+    },
+    {
+      "id": "build.execute",
+      "reason": "Executes builds in test suite"
+    }
+  ]
+}
