@@ -277,7 +277,7 @@ public struct AssistAccessFormView: View {
         } label: {
             HStack(spacing: 6) {
                 Image(systemName: selection.wrappedValue == value ? "largecircle.fill.circle" : "circle")
-                    .foregroundStyle(selection.wrappedValue == value ? .accentColor : .secondary)
+                    .foregroundStyle(selection.wrappedValue == value ? AnyShapeStyle(.tint) : AnyShapeStyle(Color.secondary))
                 Text(label)
             }
         }

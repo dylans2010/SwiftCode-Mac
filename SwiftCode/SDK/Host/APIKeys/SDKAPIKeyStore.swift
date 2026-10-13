@@ -321,7 +321,7 @@ public actor SDKAPIKeyStore {
     /// (Docs/Intro-to-SDK.md §14). Revoking an already-revoked key
     /// succeeds (idempotent). Revoking an unknown key ID throws
     /// `.apiKeyInvalid`.
-    public func revoke(id: UUID) throws {
+    public func revoke(id: UUID) async throws {
         var key = try loadMetadata(id: id)
         guard key.revokedAt == nil else { return }
         key.revokedAt = Date()
@@ -344,8 +344,7 @@ public actor SDKAPIKeyStore {
         }
         var keys: [SDKAPIKey] = []
         for account in accounts {
-            if let json = try? SDKKeychain.get(forKey: account),
-               let value = json,
+            if let value = try? SDKKeychain.get(forKey: account),
                let key = try? decodeMetadata(value)
             {
                 keys.append(key)
@@ -372,7 +371,7 @@ public actor SDKAPIKeyStore {
     /// entitlement the key already carries succeeds without duplicating it.
     /// Throws `.apiKeyInvalid` for an unknown key ID; `.apiKeyRevoked` for
     /// a revoked key (entitlements are never granted to revoked keys).
-    public func grantEntitlement(_ entitlement: SDKEntitlement, to id: UUID) throws {
+    public func grantEntitlement(_ entitlement: SDKEntitlement, to id: UUID) async throws {
         var key = try loadMetadata(id: id)
         if key.revokedAt != nil {
             throw SDKError(
@@ -400,7 +399,7 @@ public actor SDKAPIKeyStore {
     /// unwired backend boundary), so it is always safe. Idempotent:
     /// revoking an entitlement the key does not carry succeeds silently.
     /// Throws `.apiKeyInvalid` for an unknown key ID.
-    public func revokeEntitlement(_ entitlement: SDKEntitlement, from id: UUID) throws {
+    public func revokeEntitlement(_ entitlement: SDKEntitlement, from id: UUID) async throws {
         var key = try loadMetadata(id: id)
         guard key.entitlements.contains(entitlement) else { return }
         key.entitlements.remove(entitlement)

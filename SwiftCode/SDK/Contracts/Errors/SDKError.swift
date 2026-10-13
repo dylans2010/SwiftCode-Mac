@@ -41,6 +41,7 @@ public enum SDKErrorCode: String, Sendable, Codable, CaseIterable {
     case runtimeCrash = "RUNTIME_CRASH"
     case runtimeUnavailable = "RUNTIME_UNAVAILABLE"
     case activationFailed = "ACTIVATION_FAILED"
+    case activationTimeout = "ACTIVATION_TIMEOUT"
     case deactivationFailed = "DEACTIVATION_FAILED"
 
     // IPC
@@ -158,6 +159,7 @@ extension SDKErrorCode {
         case .runtimeCrash: return "Extension runtime crashed"
         case .runtimeUnavailable: return "Extension runtime is unavailable"
         case .activationFailed: return "Extension failed to activate"
+        case .activationTimeout: return "Extension activation timed out"
         case .deactivationFailed: return "Extension failed to deactivate"
         case .ipcMalformed: return "Extension sent a malformed message"
         case .ipcProtocolMismatch: return "Extension protocol mismatch"

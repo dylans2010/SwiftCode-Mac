@@ -205,7 +205,7 @@ public struct SDKGrantManagerView: View {
 
     // MARK: - Helpers
 
-    private static let dateFormatter: DateFormatter = {
+    @MainActor private static let dateFormatter: DateFormatter = {
         let formatter = DateFormatter()
         formatter.dateStyle = .medium
         formatter.timeStyle = .short

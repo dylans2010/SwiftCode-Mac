@@ -314,8 +314,8 @@ public actor SDKIPCTransport {
     public func close() {
         guard !isClosed else { return }
         isClosed = true
-        readHandle.close()
-        writeHandle.close()
+        try? readHandle.close()
+        try? writeHandle.close()
     }
 
     // MARK: - Private

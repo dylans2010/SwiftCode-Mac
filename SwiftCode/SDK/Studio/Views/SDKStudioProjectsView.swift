@@ -799,7 +799,7 @@ private enum ScaffoldError: Error {
 /// values so quotes and newlines in names/descriptions cannot break the
 /// generated JSON (a deliberate hardening over the .mjs generator, which
 /// substitutes raw).
-private struct TemplateFile {
+private struct SDKTemplateFile {
     let path: String
     let content: String
     let isJSON: Bool
@@ -943,7 +943,7 @@ private enum ScaffoldEngine {
     // MARK: File writing
 
     static func writeFiles(
-        _ files: [TemplateFile],
+        _ files: [SDKTemplateFile],
         substitutions: [(String, String)],
         jsonSubstitutions: [(String, String)],
         to target: URL,
@@ -1038,17 +1038,17 @@ private enum ScaffoldEngine {
     /// (the generator copies it from SwiftCode/SDK/Contracts/Manifest/).
     /// Template bodies are expanded from the real files at authoring time —
     /// see agent_notes.md.
-    static let extensionTemplateFiles: [TemplateFile] = [
-        TemplateFile(path: "swiftcode.json", content: #"""
+    static let extensionTemplateFiles: [SDKTemplateFile] = [
+        SDKTemplateFile(path: "swiftcode.json", content: #"""
 {"$schema":"./schemas/swiftcode-extension-v1.schema.json","assist":{"requested":false},"capabilities":[{"id":"source-control.read","reason":"Display repository status and diffs."},{"id":"build.execute","reason":"Run builds through SwiftCode's managed build service."}],"contributes":{"commands":[{"id":"inspect-repository","title":"Inspect Repository"},{"id":"run-build","title":"Build Current Project"}]},"description":"__EXTENSION_DESCRIPTION__","id":"__EXTENSION_ID__","manifestVersion":1,"name":"__EXTENSION_NAME__","runtime":{"entrypoint":"dist/index.js","language":"typescript","minimumSwiftCodeVersion":"1.0.0"},"sdk":{"name":"@swiftcode/sdk","protocolVersion":1,"versionRange":"^1.0.0"},"type":"extension","version":"__EXTENSION_VERSION__"}
 """#, isJSON: true),
-        TemplateFile(path: "package.json", content: #"""
+        SDKTemplateFile(path: "package.json", content: #"""
 {"dependencies":{"@swiftcode/sdk":"__SDK_FILE_URL__"},"devDependencies":{"@types/node":"26.6.5","typescript":"7.0.2"},"name":"__ID_SLUG__","private":true,"scripts":{"build":"tsc -p tsconfig.json","test":"node --test","typecheck":"tsc --noEmit -p tsconfig.json"},"type":"module","version":"__EXTENSION_VERSION__"}
 """#, isJSON: true),
-        TemplateFile(path: "tsconfig.json", content: #"""
+        SDKTemplateFile(path: "tsconfig.json", content: #"""
 {"compilerOptions":{"declaration":true,"exactOptionalPropertyTypes":true,"module":"NodeNext","moduleResolution":"NodeNext","noUncheckedIndexedAccess":true,"outDir":"dist","rootDir":"src","skipLibCheck":true,"sourceMap":true,"strict":true,"target":"ES2022"},"exclude":["tests","dist","node_modules"],"include":["src/**/*.ts"]}
 """#, isJSON: true),
-        TemplateFile(path: "README.md", content: #"""
+        SDKTemplateFile(path: "README.md", content: #"""
 # __EXTENSION_NAME__
 
 A SwiftCode TypeScript extension built with `@swiftcode/sdk`.
@@ -1109,7 +1109,7 @@ open SwiftCode project. The extension never hardcodes a target name that
 might not exist in the user's project.
 
 """#, isJSON: false),
-        TemplateFile(path: "src/extension.ts", content: #"""
+        SDKTemplateFile(path: "src/extension.ts", content: #"""
 import type { SwiftCodeContext } from "@swiftcode/sdk";
 import { createInspectRepositoryCommand } from "./commands/inspect-repository.js";
 import { createRunBuildCommand } from "./commands/run-build.js";
@@ -1141,7 +1141,7 @@ export async function deactivate(): Promise<void> {
 }
 
 """#, isJSON: false),
-        TemplateFile(path: "src/index.ts", content: #"""
+        SDKTemplateFile(path: "src/index.ts", content: #"""
 import type { SwiftCodeExtension } from "@swiftcode/sdk";
 import { activate, deactivate } from "./extension.js";
 
@@ -1154,7 +1154,7 @@ const extension: SwiftCodeExtension = {
 export default extension;
 
 """#, isJSON: false),
-        TemplateFile(path: "src/commands/inspect-repository.ts", content: #"""
+        SDKTemplateFile(path: "src/commands/inspect-repository.ts", content: #"""
 import type { SwiftCodeContext } from "@swiftcode/sdk";
 
 /**
@@ -1179,7 +1179,7 @@ export function createInspectRepositoryCommand(context: SwiftCodeContext) {
 }
 
 """#, isJSON: false),
-        TemplateFile(path: "src/commands/run-build.ts", content: #"""
+        SDKTemplateFile(path: "src/commands/run-build.ts", content: #"""
 import type { SwiftCodeContext } from "@swiftcode/sdk";
 
 /**
@@ -1213,7 +1213,7 @@ export function createRunBuildCommand(context: SwiftCodeContext) {
 }
 
 """#, isJSON: false),
-        TemplateFile(path: "tests/extension.test.mjs", content: #"""
+        SDKTemplateFile(path: "tests/extension.test.mjs", content: #"""
 // Extension lifecycle tests — run with `node --test tests/` AFTER `npm run build`.
 // Loads the real compiled dist/index.js and exercises activate/deactivate
 // through a recording test harness (test double at the unit-test boundary,
@@ -1412,7 +1412,7 @@ describe("command handlers", () => {
 });
 
 """#, isJSON: false),
-        TemplateFile(path: "tests/manifest.test.mjs", content: #"""
+        SDKTemplateFile(path: "tests/manifest.test.mjs", content: #"""
 // Manifest contract tests — run with `node --test tests/` AFTER `npm run build`.
 // Reads the real swiftcode.json and asserts the Phase-1 capability set and
 // Assist posture required of every generated extension.
@@ -1469,20 +1469,20 @@ describe("manifest", () => {
 });
 
 """#, isJSON: false),
-        TemplateFile(path: "schemas/swiftcode-extension-v1.schema.json", content: #"""
+        SDKTemplateFile(path: "schemas/swiftcode-extension-v1.schema.json", content: #"""
 {"$schema":"https://json-schema.org/draft/2020-12/schema","additionalProperties":false,"description":"JSON Schema for swiftcode.json (manifestVersion 1). This schema is the formalization of Docs/Intro-to-SDK.md §7 and the fixed Phase 1 decisions in SwiftCode/SDK/Documentation/SDK-Architecture.md (capability IDs ADR §7, error codes ADR §8). Forward compatibility is handled by explicit new schema versions (manifestVersion 2, new file), NOT by silent extra fields: additionalProperties is false at the top level and on capability/command objects. Constraints that cannot be expressed in draft 2020-12 (duplicate capability/command ids, entrypoint file existence, package-level checks from spec §7.2) are enforced by the strict manifest/package validator (Phase 1 work item P1b), not by this schema.","properties":{"$schema":{"description":"Pointer to the schema this manifest was authored against. In a packaged extension this MUST point to the schema file shipped with the SDK inside the extension package (e.g. \"./schemas/swiftcode-extension-v1.schema.json\") or a verified official URL. Dead URLs are rejected at install time per spec §7.1.","type":"string"},"assist":{"additionalProperties":false,"description":"Assist-related declaration. DESCRIPTIVE METADATA ONLY in this release: a manifest \"assist\": {\"requested\": true} does NOT grant Assist access. Assist is unavailable to extensions, period (ADR §9): any assist.invoke request -> typed ASSIST_DENIED + audit event. The future Assist authorization flow is not implemented and no dormant bypass is added.","properties":{"requested":{"description":"Whether the extension declares interest in Assist capabilities. False for the first extension.","type":"boolean"}},"required":["requested"],"type":"object"},"capabilities":{"description":"Capability grant requests. A valid manifest is a request, not an authorization token: each id still requires an explicit user grant via the CapabilityBroker, and unknown ids are rejected with UNKNOWN_CAPABILITY (never silently reinterpreted). Duplicate ids are rejected by the host validator; this schema cannot express per-property uniqueness inside arrays.","items":{"additionalProperties":false,"properties":{"id":{"description":"Capability IDs fixed for Phase 1+ (ADR §7; semantics per spec §8.1). No other ids may appear. Note: \"assist.invoke\" is never grantable in this release (any request -> ASSIST_DENIED + audit event).","enum":["project.read","workspace.read","workspace.write","source-control.read","source-control.write","build.execute","task.execute","network.request","ui.contribute","credentials.use","assist.invoke"],"type":"string"},"reason":{"description":"Non-empty, plain-language justification shown to the user in the grant approval UI.","maxLength":500,"minLength":1,"type":"string"}},"required":["id","reason"],"type":"object"},"maxItems":32,"minItems":1,"type":"array"},"contributes":{"additionalProperties":false,"description":"UI contributions. In this release only the command model is supported (no arbitrary native UI injection). Today's CommandPaletteView.CommandAction enum is closed, so command contributions need a new open registry on the host side.","properties":{"commands":{"description":"Contributed commands. Command ids must be unique within the array; uniqueness is enforced by the host validator (not expressible per-property in this draft).","items":{"additionalProperties":false,"properties":{"id":{"description":"Machine identifier for the command, lowercase alphanumeric plus hyphens.","maxLength":64,"pattern":"^[a-z0-9-]+$","type":"string"},"title":{"description":"Human-readable command title shown in the UI.","maxLength":128,"minLength":1,"type":"string"}},"required":["id","title"],"type":"object"},"maxItems":64,"minItems":1,"type":"array"}},"required":["commands"],"type":"object"},"description":{"maxLength":1000,"type":"string"},"id":{"description":"Reverse-DNS extension identifier, e.g. \"com.example.repository-build-extension\". Used as the install-directory name and the identity bound to the runtime session; extension-supplied identity is never trusted beyond this validated value.","maxLength":128,"pattern":"^[A-Za-z][A-Za-z0-9-]*(\\.[A-Za-z][A-Za-z0-9-]*)+$","type":"string"},"manifestVersion":{"const":1,"description":"Manifest schema generation. This file defines generation 1. Unsupported generations are rejected with MANIFEST_UNSUPPORTED_VERSION.","type":"integer"},"name":{"maxLength":128,"minLength":1,"type":"string"},"runtime":{"additionalProperties":false,"properties":{"entrypoint":{"description":"Path of the entrypoint file RELATIVE to the package root. Must not be absolute and must not contain \"..\" segments; escaping the package root is rejected with PATH_TRAVERSAL. Existence inside the validated package is checked at install time (schema cannot check the filesystem).","maxLength":256,"pattern":"^(?![/\\\\])(?!.*\\.\\.)[^\\x00]+$","type":"string"},"language":{"description":"Only TypeScript extensions are supported in this release (Python deferred per ADR §12).","enum":["typescript"],"type":"string"},"minimumSwiftCodeVersion":{"description":"Minimum host SwiftCode version this extension requires (semver).","maxLength":64,"pattern":"^(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)(-((0|[1-9]\\d*|\\d*[a-zA-Z-][0-9a-zA-Z-]*)(\\.(0|[1-9]\\d*|\\d*[a-zA-Z-][0-9a-zA-Z-]*))*))?(\\+([0-9a-zA-Z-]+(\\.[0-9a-zA-Z-]+)*))?$","type":"string"}},"required":["language","entrypoint","minimumSwiftCodeVersion"],"type":"object"},"sdk":{"additionalProperties":false,"properties":{"name":{"const":"@swiftcode/sdk","description":"The SDK package name this extension is built against.","type":"string"},"protocolVersion":{"const":1,"description":"Host/runtime IPC contract version. Mismatches are rejected with IPC_PROTOCOL_MISMATCH.","type":"integer"},"versionRange":{"description":"npm-style semver range for the SDK version, e.g. \"^1.0.0\". Incompatible ranges are rejected with INCOMPATIBLE_SDK_VERSION. This schema checks the character set only; real range satisfaction is evaluated by the host validator.","maxLength":64,"minLength":1,"pattern":"^[\\^~>=<\\d\\.\\-xX\\*\\|\\s,]+$","type":"string"}},"required":["name","versionRange","protocolVersion"],"type":"object"},"type":{"const":"extension","description":"Reserved for future package kinds (themes, plugins, ...). Only \"extension\" exists in v1.","type":"string"},"version":{"description":"Full semver 2.0.0 of the extension package.","maxLength":64,"pattern":"^(0|[1-9]\\d*)\\.(0|[1-9]\\d*)\\.(0|[1-9]\\d*)(-((0|[1-9]\\d*|\\d*[a-zA-Z-][0-9a-zA-Z-]*)(\\.(0|[1-9]\\d*|\\d*[a-zA-Z-][0-9a-zA-Z-]*))*))?(\\+([0-9a-zA-Z-]+(\\.[0-9a-zA-Z-]+)*))?$","type":"string"}},"required":["manifestVersion","id","name","version","type","runtime","sdk","capabilities"],"title":"SwiftCode Extension Manifest","type":"object"}
 """#, isJSON: false),
     ]
 
     /// Faithful copies of SwiftCode/SDK/TypeScript/templates/project-typescript/.
-    static let typeScriptProjectTemplateFiles: [TemplateFile] = [
-        TemplateFile(path: "package.json", content: #"""
+    static let typeScriptProjectTemplateFiles: [SDKTemplateFile] = [
+        SDKTemplateFile(path: "package.json", content: #"""
 {"dependencies":{},"description":"__PROJECT_DESCRIPTION__","devDependencies":{"@types/node":"26.6.5","typescript":"7.0.2"},"name":"__PACKAGE_SLUG__","private":true,"scripts":{"build":"tsc -p tsconfig.json","test":"node --test","typecheck":"tsc --noEmit -p tsconfig.json"},"type":"module","version":"__PROJECT_VERSION__"}
 """#, isJSON: true),
-        TemplateFile(path: "tsconfig.json", content: #"""
+        SDKTemplateFile(path: "tsconfig.json", content: #"""
 {"compilerOptions":{"declaration":true,"exactOptionalPropertyTypes":true,"module":"NodeNext","moduleResolution":"NodeNext","noUncheckedIndexedAccess":true,"outDir":"dist","rootDir":"src","skipLibCheck":true,"sourceMap":true,"strict":true,"target":"ES2022","types":["node"]},"exclude":["tests","dist","node_modules"],"include":["src/**/*.ts"]}
 """#, isJSON: true),
-        TemplateFile(path: "README.md", content: #"""
+        SDKTemplateFile(path: "README.md", content: #"""
 # __PROJECT_NAME__
 
 SwiftCode standalone TypeScript project (spec §14.1). User-owned code using
@@ -1503,7 +1503,7 @@ node dist/index.js
 TypeScript `7.0.2` and `@types/node` `26.6.5` are pinned in `package.json`.
 
 """#, isJSON: false),
-        TemplateFile(path: "src/index.ts", content: #"""
+        SDKTemplateFile(path: "src/index.ts", content: #"""
 /**
  * __PROJECT_NAME__ — SwiftCode standalone TypeScript project.
  *
@@ -1537,7 +1537,7 @@ if (process.argv[1] !== undefined) {
 }
 
 """#, isJSON: false),
-        TemplateFile(path: "tests/hello.test.mjs", content: #"""
+        SDKTemplateFile(path: "tests/hello.test.mjs", content: #"""
 /**
  * hello.test.mjs — smoke test for the generated standalone project.
  *
@@ -1582,8 +1582,8 @@ describe("standalone project", () => {
     /// Token contract (see SwiftCode/SDK/Templates/agent_notes.md): __APP_NAME__,
     /// __BUNDLE_ID__, __ORGANIZATION__ — literal substitution across every file;
     /// template.json is wizard metadata and is NOT copied into the project.
-    static let swiftProjectTemplateFiles: [TemplateFile] = [
-        TemplateFile(path: "App.swift", content: #"""
+    static let swiftProjectTemplateFiles: [SDKTemplateFile] = [
+        SDKTemplateFile(path: "App.swift", content: #"""
 import SwiftUI
 
 @main
@@ -1596,7 +1596,7 @@ struct __APP_NAME__App: App {
 }
 
 """#, isJSON: false),
-        TemplateFile(path: "ContentView.swift", content: #"""
+        SDKTemplateFile(path: "ContentView.swift", content: #"""
 import SwiftUI
 
 struct ContentView: View {
@@ -1622,7 +1622,7 @@ struct ContentView: View {
 }
 
 """#, isJSON: false),
-        TemplateFile(path: "README.md", content: #"""
+        SDKTemplateFile(path: "README.md", content: #"""
 # __APP_NAME__
 
 A standalone macOS app scaffold created with the SwiftCode SDK (SwiftCode SDK §14.1).
@@ -1673,7 +1673,7 @@ open "build/Debug/__APP_NAME__.app"
   entitlements. Add Swift packages, menus, or persistence the way you normally would.
 
 """#, isJSON: false),
-        TemplateFile(path: ".gitignore", content: #"""
+        SDKTemplateFile(path: ".gitignore", content: #"""
 # macOS / Xcode
 
 build/

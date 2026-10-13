@@ -340,10 +340,10 @@ public actor SDKGrantStore {
     public func recordGrants(
         _ records: [SDKGrantRecord],
         authorizedByAPIKey apiKey: SDKAPIKey? = nil
-    ) throws {
+    ) async throws {
         try ensureLoaded()
         if let apiKey {
-            try enforceKeyScopeForIssuance(records: records, apiKey: apiKey)
+            try await enforceKeyScopeForIssuance(records: records, apiKey: apiKey)
         }
         for record in records {
             cache[record.id] = record
@@ -355,7 +355,7 @@ public actor SDKGrantStore {
     /// session whose key lacks the scope cannot be granted privileged
     /// capabilities. Emits an `apiKeyScopeFailure` audit event on denial
     /// (key ID only — never secret material).
-    private func enforceKeyScopeForIssuance(records: [SDKGrantRecord], apiKey: SDKAPIKey) throws {
+    private func enforceKeyScopeForIssuance(records: [SDKGrantRecord], apiKey: SDKAPIKey) async throws {
         if apiKey.revokedAt != nil {
             throw SDKError(
                 code: .apiKeyRevoked,

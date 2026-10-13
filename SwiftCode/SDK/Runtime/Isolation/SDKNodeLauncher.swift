@@ -343,7 +343,7 @@ public actor SDKLaunchedRuntime {
 /// Exactly-once gate protecting a `CheckedContinuation` against the race
 /// between a firing `terminationHandler` and the post-install `isRunning`
 /// recheck. Lock-guarded because the handler runs on an arbitrary thread.
-private final class TerminationGate {
+private final class TerminationGate: @unchecked Sendable {
     private let lock = NSLock()
     private var claimed = false
 

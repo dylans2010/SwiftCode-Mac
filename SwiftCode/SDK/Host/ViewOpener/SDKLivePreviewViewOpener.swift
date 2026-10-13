@@ -46,7 +46,7 @@ import SwiftUI
 @MainActor
 public struct SDKLivePreviewViewOpener {
     /// Capability this opener serves: `preview.live`.
-    public static let capabilityID: SDKCapabilityID = .previewLive
+    nonisolated public static let capabilityID: SDKCapabilityID = .previewLive
 
     private static let window = SDKHostedWindow<ArtboardSimulator>()
 

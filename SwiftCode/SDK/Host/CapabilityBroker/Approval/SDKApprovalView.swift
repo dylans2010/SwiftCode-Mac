@@ -301,7 +301,7 @@ public struct SDKCapabilityRow: View {
 // MARK: - Risk presentation helpers
 
 extension SDKCapabilityRisk {
-    private var displayName: String {
+    var displayName: String {
         switch self {
         case .low: return "Low risk"
         case .medium: return "Medium risk"
@@ -310,7 +310,7 @@ extension SDKCapabilityRisk {
         }
     }
 
-    private var badgeForeground: Color {
+    var badgeForeground: Color {
         switch self {
         case .low: return .green
         case .medium: return .orange
@@ -319,7 +319,7 @@ extension SDKCapabilityRisk {
         }
     }
 
-    private var badgeBackground: Color {
+    var badgeBackground: Color {
         switch self {
         case .low: return .green.opacity(0.12)
         case .medium: return .orange.opacity(0.12)

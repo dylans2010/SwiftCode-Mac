@@ -35,7 +35,7 @@ import SwiftUI
 @MainActor
 public struct SDKVirtualizationViewOpener {
     /// Capability this opener serves: `virtualization.view`.
-    public static let capabilityID: SDKCapabilityID = .virtualizationView
+    nonisolated public static let capabilityID: SDKCapabilityID = .virtualizationView
 
     /// Opens the Virtualization Console window for the active project.
     /// - Throws: `SDKError` with code `.projectNotOpen` when no project is

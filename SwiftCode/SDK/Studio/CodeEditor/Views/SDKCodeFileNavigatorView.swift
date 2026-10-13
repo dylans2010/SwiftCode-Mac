@@ -499,7 +499,7 @@ private final class SDKFileTreeModel: ObservableObject {
     private func collectExpanded(_ node: SDKCodeFileNode, into ids: inout [String]) {
         guard node.isDirectory, node.isExpanded else { return }
         ids.append(node.id)
-        for child in node.children ?? {
+        for child in node.children ?? [] {
             collectExpanded(child, into: &ids)
         }
     }

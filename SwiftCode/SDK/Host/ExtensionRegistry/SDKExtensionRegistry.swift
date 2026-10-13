@@ -421,7 +421,7 @@ public actor SDKExtensionRegistry {
             try data.write(to: temporaryURL, options: .atomic)
             try FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: temporaryURL.path)
             if FileManager.default.fileExists(atPath: recordURL.path) {
-                _ = try FileManager.default.replaceItem(at: recordURL, withItemAt: temporaryURL, backupItemName: nil)
+                _ = try FileManager.default.replaceItem(at: recordURL, withItemAt: temporaryURL, backupItemName: nil, options: [], resultingItemURL: nil)
             } else {
                 try FileManager.default.moveItem(at: temporaryURL, to: recordURL)
                 try FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: recordURL.path)
@@ -627,7 +627,7 @@ public actor SDKExtensionRegistry {
             let temporaryURL = url.deletingLastPathComponent().appendingPathComponent(UUID().uuidString + ".tmp")
             try data.write(to: temporaryURL, options: .atomic)
             try FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: temporaryURL.path)
-            _ = try FileManager.default.replaceItem(at: url, withItemAt: temporaryURL, backupItemName: nil)
+            _ = try FileManager.default.replaceItem(at: url, withItemAt: temporaryURL, backupItemName: nil, options: [], resultingItemURL: nil)
         } catch {
             throw registryError(
                 code: .updateFailed,

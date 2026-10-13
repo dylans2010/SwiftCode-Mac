@@ -39,7 +39,7 @@ public enum SDKKeychain {
     /// Keychain service partition for all SDK host secrets.
     public static let service = "com.swiftcode.sdk"
 
-    private static let accessibility = kSecAttrAccessibleWhenUnlockedThisDeviceOnly
+    private static nonisolated(unsafe) let accessibility: CFString = kSecAttrAccessibleWhenUnlockedThisDeviceOnly
 
     // MARK: - Write
 

@@ -81,11 +81,15 @@ public actor SDKSecurityService {
     /// silent in code review — see `useValue`).
     private static let maxBodyBytes = 1024 * 1024
 
-    private static let iso8601: ISO8601DateFormatter = {
+    private static nonisolated(unsafe) let iso8601: ISO8601DateFormatter = {
         let formatter = ISO8601DateFormatter()
         formatter.formatOptions = [.withInternetDateTime]
         return formatter
     }()
+
+    static func formattedISO8601(from date: Date) -> String {
+        iso8601.string(from: date)
+    }
 
     // MARK: - addValue
 
@@ -191,10 +195,8 @@ public actor SDKSecurityService {
         let values = metadata.map { entry in
             SDKSecurityStoredValue(
                 valueID: entry.valueID,
-                // The wire contract requires a string label; an absent
-                // label is an empty string, never a leaked secret.
                 label: entry.label ?? "",
-                createdAt: Self.iso8601.string(from: entry.created)
+                createdAt: Self.formattedISO8601(from: entry.created)
             )
         }
         return SDKSecurityValueList(values: values)

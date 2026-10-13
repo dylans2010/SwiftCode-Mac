@@ -287,7 +287,7 @@ public actor SDKAssistApplicationStore {
     /// All failures — field-level, registry, and API-key — are reported as
     /// `SDKAssistApplicationValidationError` keyed by field so Studio can
     /// render them inline.
-    public func submit(_ application: SDKAssistApplication) throws -> SDKAssistApplication {
+    public func submit(_ application: SDKAssistApplication) async throws -> SDKAssistApplication {
         var errors = application.validate()
 
         let trimmedExtensionID = application.extensionID.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -346,7 +346,7 @@ public actor SDKAssistApplicationStore {
     /// BEFORE the approved record is persisted: if the grant fails (e.g.
     /// the key was revoked between submit and approve), the application
     /// stays pending and the failure surfaces to the approver.
-    public func approve(id: UUID) throws -> SDKAssistApplication {
+    public func approve(id: UUID) async throws -> SDKAssistApplication {
         var application = try load(id: id)
         guard application.status == .pending else {
             throw SDKError(
@@ -369,7 +369,7 @@ public actor SDKAssistApplicationStore {
 
     /// Denies a pending application: flips it to `denied`, records
     /// `decidedAt`, and grants nothing.
-    public func deny(id: UUID) throws -> SDKAssistApplication {
+    public func deny(id: UUID) async throws -> SDKAssistApplication {
         var application = try load(id: id)
         guard application.status == .pending else {
             throw SDKError(
@@ -439,8 +439,7 @@ public actor SDKAssistApplicationStore {
         }
         var applications: [SDKAssistApplication] = []
         for account in accounts {
-            if let json = try? SDKKeychain.get(forKey: account),
-               let value = json,
+            if let value = try? SDKKeychain.get(forKey: account),
                let data = value.data(using: .utf8),
                let application = try? JSONDecoder().decode(SDKAssistApplication.self, from: data)
             {

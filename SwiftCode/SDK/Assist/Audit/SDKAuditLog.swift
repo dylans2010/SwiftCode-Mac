@@ -347,7 +347,7 @@ public actor SDKAuditLog {
         }
         if fileHandle == nil {
             let handle = try FileHandle(forWritingTo: logFileURL)
-            _ = handle.seekToEnd()
+            try? handle.seekToEnd()
             fileHandle = handle
         }
     }

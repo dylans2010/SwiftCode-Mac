@@ -138,7 +138,6 @@ public actor SDKIPCDispatcher {
         // even be JSON, so fall back to a fresh ID for the error envelope.
         var requestId = UUID().uuidString
         do {
-            // --- 1. Version, then type — before any payload work.
             let header = try Self.peekHeader(from: data)
             if let peeked = header.requestId, !peeked.isEmpty {
                 requestId = peeked
@@ -181,6 +180,7 @@ public actor SDKIPCDispatcher {
             // --- 3b. Verified on EVERY request: revocation and expiry take
             // --- effect immediately, and no "still valid" verdict is cached.
             // --- Fail closed: any verification failure fails the request.
+            let captureRequestId = requestId
             return try await withPerRequestTimeout {
                 let apiKey = try await self.verifySessionAPIKey()
 
@@ -197,9 +197,9 @@ public actor SDKIPCDispatcher {
                 )
 
                 // --- 5. Route.
-                try await self.route(
+                return try await self.route(
                     method: method,
-                    requestId: requestId,
+                    requestId: captureRequestId,
                     payload: envelope.payload,
                     caller: caller
                 )
@@ -902,7 +902,7 @@ public actor SDKIPCDispatcher {
         return SDKAssistToolCall(toolName: tool, arguments: arguments)
     }
 
-    private static let assistISO8601Formatter: ISO8601DateFormatter = {
+    private static nonisolated(unsafe) let assistISO8601Formatter: ISO8601DateFormatter = {
         let formatter = ISO8601DateFormatter()
         formatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
         return formatter

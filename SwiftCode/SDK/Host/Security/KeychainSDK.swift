@@ -79,7 +79,7 @@ public enum KeychainSDK {
     /// `namespacedService(for:)` first.
     public static let servicePrefix = "com.swiftcode.sdk.security"
 
-    private static let accessibility = kSecAttrAccessibleWhenUnlockedThisDeviceOnly
+    private static nonisolated(unsafe) let accessibility: CFString = kSecAttrAccessibleWhenUnlockedThisDeviceOnly
 
     private static let maxIDLength = 128
     private static let maxLabelLength = 256

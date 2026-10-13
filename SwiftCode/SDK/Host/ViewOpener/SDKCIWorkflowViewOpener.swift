@@ -40,7 +40,7 @@ import SwiftUI
 @MainActor
 public struct SDKCIWorkflowViewOpener {
     /// Capability this opener serves: `ci.VisualWF`.
-    public static let capabilityID: SDKCapabilityID = .ciVisualWF
+    nonisolated public static let capabilityID: SDKCapabilityID = .ciVisualWF
 
     private static let window = SDKHostedWindow<WorkflowDashboardView>()
 

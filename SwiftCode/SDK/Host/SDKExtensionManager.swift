@@ -638,7 +638,7 @@ public actor SDKExtensionManager {
                     await self?.failActivation(
                         id,
                         error: SDKError(
-                            code: .timedOut,
+                            code: .activationTimeout,
                             message: "“\(manifest.name)” did not report ready within 30 seconds.",
                             suggestion: "Check the extension's activate() implementation for hangs, then try again."
                         )
@@ -990,8 +990,8 @@ public actor SDKExtensionManager {
     /// quarantine — never an infinite crash/restart loop.
     private func handleTermination(extensionID id: String, exitCode: Int32) async {
         guard let handle = handles[id] else { return } // intentional stop
-        let state = await handle.session.state
-        switch state {
+        let sessionState = await handle.session.state
+        switch sessionState {
         case .stopping, .stopped:
             // Graceful stop completed; finish the teardown.
             await teardownHandle(id: id, terminateProcess: false)
@@ -1012,7 +1012,7 @@ public actor SDKExtensionManager {
         // Clean up contributions immediately: a dead extension leaves no
         // stale commands behind (spec §10.5).
         await SDKCommandRegistry.shared.unregisterAll(extensionID: id)
-        handle.transport.close()
+        await handle.transport.close()
 
         let history = await handle.session.stateHistory
             .map { "\($0.state.rawValue)" }.joined(separator: "→")
@@ -1150,7 +1150,7 @@ public actor SDKExtensionManager {
         if terminateProcess {
             await handle.launched.terminate()
         }
-        handle.transport.close()
+        await handle.transport.close()
     }
 
     /// Gracefully stops one extension if it is running.

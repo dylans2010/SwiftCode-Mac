@@ -452,7 +452,7 @@ struct SDKCodeEditorTextView: NSViewRepresentable {
 final class SDKCodeEditorLineNumberRuler: NSRulerView {
     weak var codeTextView: NSTextView?
 
-    override init(scrollView: NSScrollView, orientation: NSRulerView.Orientation) {
+    override init(scrollView: NSScrollView?, orientation: NSRulerView.Orientation) {
         super.init(scrollView: scrollView, orientation: orientation)
         ruleThickness = 48
     }

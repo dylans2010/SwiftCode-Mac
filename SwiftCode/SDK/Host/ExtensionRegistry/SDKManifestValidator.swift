@@ -364,7 +364,7 @@ public enum SDKManifestValidator {
               let lower = parseSemverCore(String(parts[0].dropFirst(2))),
               let upper = parseSemverCore(String(parts[1].dropFirst(1))),
               lower.prerelease == nil, upper.prerelease == nil else { return false }
-        return compareSemver(lower, host) <= 0 && compareSemver(host, upper) < 0
+        return compareSemver(lower, host) <= 0 && compareSemver(upper, host) < 0
     }
 
     private struct SemverCore {
