@@ -11,15 +11,6 @@ import SwiftUI
 // first time they expand (spinner while loading, per the node's
 // `needsLoading` contract), and collapsing preserves loaded children so
 // re-expanding is free.
-//
-// - Tapping a folder toggles `isExpanded` via `toggledExpanded()`
-//   semantics, kicking off a background enumeration when needed.
-// - Tapping a file calls `SDKCodeEditorState.openFile(_:)`, which reads
-//   the file as real UTF-8. A read failure surfaces as an alert AND a
-//   console `.system` entry — never a silent empty tab.
-// - Toolbar buttons all do real work: New File / New Folder write to
-//   disk with `FileManager`, Reveal in Finder uses `NSWorkspace`, and
-//   Refresh re-enumerates every expanded directory.
 
 @MainActor
 public struct SDKCodeFileNavigatorView: View {
@@ -36,7 +27,8 @@ public struct SDKCodeFileNavigatorView: View {
 
     public var body: some View {
         VStack(spacing: 0) {
-            SDKCodeProjectRootView(rootURL: model.root?.url) { url in
+            SDKCodeProjectRootView(rootURL: model.root?.url ?? editorState.projectRootURL) { url in
+                editorState.setProjectRoot(url)
                 model.setRoot(url)
             }
             Divider()
@@ -48,6 +40,16 @@ public struct SDKCodeFileNavigatorView: View {
                         .tag(row.node.id)
                 }
                 .listStyle(.sidebar)
+            }
+        }
+        .onAppear {
+            if let rootURL = editorState.projectRootURL, model.root?.url != rootURL {
+                model.setRoot(rootURL)
+            }
+        }
+        .onChange(of: editorState.projectRootURL) { _, newURL in
+            if let newURL, model.root?.url != newURL {
+                model.setRoot(newURL)
             }
         }
         .toolbar { navigatorToolbar }
@@ -70,9 +72,6 @@ public struct SDKCodeFileNavigatorView: View {
         let node = row.node
         HStack(spacing: 5) {
             if node.isDirectory {
-                // Plain image, not a Button: the row-level tap gesture below
-                // performs the toggle, and a nested Button would double-fire
-                // the toggle on the same tap.
                 Image(systemName: "chevron.right")
                     .font(.system(size: 10, weight: .semibold))
                     .rotationEffect(.degrees(node.isExpanded ? 90 : 0))
@@ -156,9 +155,6 @@ public struct SDKCodeFileNavigatorView: View {
 
     // MARK: - Actions
 
-    /// Opens a file through `SDKCodeEditorState.openFile(_:)`, which
-    /// performs the real UTF-8 read. Failures surface as an alert and a
-    /// console entry; no tab is created on failure.
     private func openFile(_ node: SDKCodeFileNode) {
         guard !node.isDirectory else { return }
         model.selectionID = node.id
@@ -179,16 +175,11 @@ public struct SDKCodeFileNavigatorView: View {
         }
     }
 
-    /// Reveals the selected tree item in Finder with a real
-    /// `NSWorkspace` call.
     private func revealSelectedInFinder() {
         guard let selectionID = model.selectionID else { return }
         NSWorkspace.shared.activateFileViewerSelecting([URL(fileURLWithPath: selectionID)])
     }
 
-    /// Creates a real file or folder on disk inside the selected
-    /// directory (or the project root), then refreshes the tree, selects
-    /// the new item, and opens it immediately when it is a file.
     private func createEntry(kind: SDKCodeEntryKind) {
         let name = newEntryName.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !name.isEmpty, !name.contains("/"), let dir = model.selectedDirectoryURL() else { return }
@@ -259,9 +250,6 @@ public struct SDKCodeFileNavigatorView: View {
         .onAppear { newEntryName = "" }
     }
 
-    /// SF Symbol for a node. Folders get filled/folder variants by
-    /// expansion state; files are mapped through `SDKCodeLanguage` so the
-    /// icon matches the language the editor would use.
     private func systemImage(for node: SDKCodeFileNode) -> String {
         if node.isDirectory {
             return node.isExpanded ? "folder.fill" : "folder"
@@ -283,29 +271,24 @@ public struct SDKCodeFileNavigatorView: View {
 
 // MARK: - Supporting types
 
-/// One flattened tree row: the node plus its visual depth.
 private struct SDKFileTreeRow: Identifiable {
     let node: SDKCodeFileNode
     let depth: Int
     var id: String { node.id }
 }
 
-/// New-file/new-folder sheet kind.
 private enum SDKCodeEntryKind: String, Identifiable {
     case file
     case folder
     var id: String { rawValue }
 }
 
-/// Alert payload for navigator failures.
 private struct SDKFileNavigatorAlert: Identifiable {
     let id = UUID()
     let title: String
     let message: String
 }
 
-/// Local error for a failed `createFile` (which reports failure as a
-/// `Bool`, not a throw).
 private enum SDKFileNavigatorError: LocalizedError {
     case creationFailed(url: URL)
     var errorDescription: String? {
@@ -317,14 +300,6 @@ private enum SDKFileNavigatorError: LocalizedError {
 }
 
 // MARK: - SDKFileTreeModel
-//
-// @MainActor tree owner for the navigator. Holds the `SDKCodeFileNode`
-// root and the set of in-flight enumeration IDs; all tree surgery is
-// pure value-type mapping so the view layer never touches FileManager.
-//
-// Enumeration runs off the main thread (`Task.detached`) and hands the
-// resulting children back via `MainActor.run`, which swaps them in with
-// `withChildren(_)` — exactly the lazy-loading contract on the node.
 
 @MainActor
 private final class SDKFileTreeModel: ObservableObject {
@@ -332,7 +307,6 @@ private final class SDKFileTreeModel: ObservableObject {
     @Published var loadingIDs: Set<String> = []
     @Published var selectionID: String?
 
-    /// Sets a new project root and immediately starts loading it.
     func setRoot(_ url: URL) {
         loadingIDs.removeAll()
         root = SDKCodeFileNode(url: url, isDirectory: true, isExpanded: true)
@@ -340,8 +314,6 @@ private final class SDKFileTreeModel: ObservableObject {
         loadChildrenIfNeeded(forID: url.path)
     }
 
-    /// Toggles a directory's expansion state, preserving loaded children.
-    /// Expanding a never-enumerated directory starts a background load.
     func toggle(_ node: SDKCodeFileNode) {
         guard node.isDirectory,
               let root,
@@ -356,7 +328,6 @@ private final class SDKFileTreeModel: ObservableObject {
         }
     }
 
-    /// Expands a directory and loads its children when not yet loaded.
     func expand(id: String) {
         updateNode(id: id) {
             SDKCodeFileNode(url: $0.url, isDirectory: true, children: $0.children, isExpanded: true)
@@ -364,8 +335,6 @@ private final class SDKFileTreeModel: ObservableObject {
         loadChildrenIfNeeded(forID: id)
     }
 
-    /// Drops a directory's children and re-enumerates it from disk when
-    /// it is expanded.
     func refresh(id: String) {
         updateNode(id: id) {
             SDKCodeFileNode(url: $0.url, isDirectory: true, children: nil, isExpanded: $0.isExpanded)
@@ -376,7 +345,6 @@ private final class SDKFileTreeModel: ObservableObject {
         }
     }
 
-    /// Re-enumerates the root and every expanded directory from disk.
     func refreshAll() {
         guard let root else { return }
         for id in expandedDirectoryIDs(in: root) {
@@ -384,9 +352,6 @@ private final class SDKFileTreeModel: ObservableObject {
         }
     }
 
-    /// The directory new files/folders land in: the selected directory,
-    /// the selected file's parent, or the project root when nothing is
-    /// selected.
     func selectedDirectoryURL() -> URL? {
         if let selectionID, let root, let node = find(id: selectionID, in: root) {
             return node.isDirectory ? node.url : node.url.deletingLastPathComponent()
@@ -394,7 +359,6 @@ private final class SDKFileTreeModel: ObservableObject {
         return root?.url
     }
 
-    /// Flattens the expanded tree into rows for the `List`.
     func visibleRows() -> [SDKFileTreeRow] {
         guard let root, let children = root.children else { return [] }
         var rows: [SDKFileTreeRow] = []
@@ -426,8 +390,6 @@ private final class SDKFileTreeModel: ObservableObject {
         }
     }
 
-    /// Directory enumeration. `nonisolated` so it runs off the main
-    /// actor; directories sort before files, each group by localized name.
     private nonisolated static func enumerateChildren(of url: URL) -> [SDKCodeFileNode] {
         let keys: [URLResourceKey] = [.isDirectoryKey]
         let listing: [URL]
@@ -459,7 +421,7 @@ private final class SDKFileTreeModel: ObservableObject {
         return directories + files
     }
 
-    // MARK: - Tree surgery (pure value-type mapping)
+    // MARK: - Tree surgery
 
     private func updateNode(id: String, transform: (SDKCodeFileNode) -> SDKCodeFileNode) {
         guard let root else { return }

@@ -3,50 +3,13 @@ import SwiftUI
 
 // MARK: - SDKStudioView
 //
-// SwiftCode Studio root view — the EXCLUSIVE creation hub for SwiftCode
-// platform/SDK projects and extensions (spec §13.3 "Exclusive Project
-// Creation Boundary").
-//
-// Per the spec, Studio is the ONLY UI surface where users may create
-// projects targeting the SwiftCode platform and extensions using the
-// SwiftCode SDK. The main code-editor UI is restricted to editing,
-// navigating, and viewing existing files; creation templates, new-project
-// wizards, and platform scaffolding MUST NOT appear in the main editor's
-// file/menu interfaces. Selecting "New SwiftCode Project" or "New
-// Extension" in the main editor is required to redirect here via
-// `SDKStudioWindowManager.shared.openStudio(section: .projects)` (or
-// `.extensions`).
-//
-// IMPORTANT APP-SURGERY NOTE: rerouting the main editor's menus to
-// `SDKStudioWindowManager` is a separate task and is NOT part of this
-// file. Tracked in `SwiftCode/SDK/Studio/agent_notes.md`.
-//
-// Shell only: the six detail panes are built in parallel and referenced
-// here, never redefined:
-//   - `SDKStudioProjectsView`   (project & extension generation wizards)
-//   - `SDKStudioExtensionsView` (lifecycle console + manifest inspector)
-//   - `SDKStudioAPIKeysView`    (developer API key management)
-//   - `SDKSecurityManagerView`  (use.Security sensitive-value manager)
-//   - `SDKStudioLogsView`       (dual logging inspector: user + developer)
-//   - `SDKCodeEditorShellView`  (Studio code editor: navigator, tabs,
-//                                console, find bar, snippet browser)
-//   - `AvailableExtensionsView`  (installed extensions/apps browser: run
-//                                contributed commands, enable/disable,
-//                                uninstall — spec §7)
-//   - `AssistAccessFormView`     (Assist access application form + pending
-//                                queue: approve/deny grants the key-bound
-//                                Assist entitlement — spec §10)
-//
-// Native macOS SwiftUI (`NavigationSplitView`), macOS 15, Swift 6.
-//
-// `SDKStudioView` is explicitly `@MainActor`: Swift 6 removed the old
-// implicit `@MainActor` inference from `@StateObject`, so views that own
-// `@MainActor`-isolated state (like `SDKCodeEditorShellView`) must be
-// `@MainActor` themselves, and this view constructs them.
+// SwiftCode Studio root view — the EXCLUSIVE creation and development hub
+// for SwiftCode platform/SDK projects and extensions (spec §13.3).
 
 @MainActor
 public struct SDKStudioView: View {
     @State private var selection: SDKStudioSection
+    @StateObject private var codeEditorState = SDKCodeEditorState()
     @State private var showSDKFirstLaunchInstaller = false
     @State private var resourceError: String?
 
@@ -82,9 +45,6 @@ public struct SDKStudioView: View {
         } message: {
             Text(resourceError ?? "")
         }
-        // First-launch SDK installer (spec §5): prompts once per the
-        // persisted choice in `SDKStudioFirstLaunchChoice`. Declining
-        // leaves Studio fully usable — nothing here is gated on install.
         .sheet(isPresented: $showSDKFirstLaunchInstaller) {
             SDKFirstLaunchInstallerView()
         }
@@ -99,7 +59,22 @@ public struct SDKStudioView: View {
     private func studioDetailView(for section: SDKStudioSection) -> some View {
         switch section {
         case .projects:
-            SDKStudioProjectsView()
+            SDKStudioProjectsView(
+                editorState: codeEditorState,
+                onOpenInCodeEditor: { projectURL in
+                    openProjectInEditor(projectURL, targetSection: .codeEditor)
+                },
+                onOpenInManifestEditor: { projectURL in
+                    openProjectInEditor(projectURL, targetSection: .manifestEditor)
+                }
+            )
+        case .codeEditor:
+            SDKCodeEditorShellView(editorState: codeEditorState)
+        case .manifestEditor:
+            SDKManifestEditorView(
+                editorState: codeEditorState,
+                initialManifestURL: codeEditorState.projectRootURL?.appendingPathComponent("swiftcode.json")
+            )
         case .extensions:
             SDKStudioExtensionsView()
         case .apiKeys:
@@ -108,8 +83,6 @@ public struct SDKStudioView: View {
             SDKSecurityManagerView()
         case .logs:
             SDKStudioLogsView()
-        case .codeEditor:
-            SDKCodeEditorShellView()
         case .installedExtensions:
             AvailableExtensionsView()
         case .assistAccess:
@@ -119,6 +92,37 @@ public struct SDKStudioView: View {
         case .shipExport:
             SDKShipExportView()
         }
+    }
+
+    private func openProjectInEditor(_ projectURL: URL, targetSection: SDKStudioSection) {
+        let root = projectURL.standardizedFileURL
+        codeEditorState.setProjectRoot(root)
+        let fm = FileManager.default
+        let candidates = [
+            root.appendingPathComponent("swiftcode.json"),
+            root.appendingPathComponent("src/index.ts"),
+            root.appendingPathComponent("App.swift"),
+            root.appendingPathComponent("ContentView.swift"),
+            root.appendingPathComponent("README.md")
+        ]
+        for candidate in candidates where fm.fileExists(atPath: candidate.path) {
+            _ = try? codeEditorState.openFile(candidate)
+        }
+        if targetSection == .codeEditor {
+            let preferredSource = root.appendingPathComponent("src/index.ts")
+            let swiftSource = root.appendingPathComponent("ContentView.swift")
+            if fm.fileExists(atPath: preferredSource.path) {
+                _ = try? codeEditorState.openFile(preferredSource)
+            } else if fm.fileExists(atPath: swiftSource.path) {
+                _ = try? codeEditorState.openFile(swiftSource)
+            }
+        } else if targetSection == .manifestEditor {
+            let manifestURL = root.appendingPathComponent("swiftcode.json")
+            if fm.fileExists(atPath: manifestURL.path) {
+                _ = try? codeEditorState.openFile(manifestURL)
+            }
+        }
+        selection = targetSection
     }
 
     private var sdkResourcesView: some View {
@@ -142,7 +146,7 @@ public struct SDKStudioView: View {
                     }
                     NSWorkspace.shared.open(docs)
                 }
-                Text("Projects creates apps and extensions. Extensions includes Manifest and Grants inspectors. Code Editor includes snippets, build/run and the console. Ship & Export packages your extension for distribution.")
+                Text("Projects creates and opens apps and extensions. Manifest Editor provides visual and raw editing of swiftcode.json. Code Editor includes snippets, validation, build/run, and diagnostics. Ship & Export packages your extension for distribution.")
                     .foregroundStyle(.secondary)
             }
         }

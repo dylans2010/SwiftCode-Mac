@@ -29,13 +29,22 @@ public struct SDKCodeDocument: Identifiable, Sendable, Hashable {
     /// treated as authoritative across text mutations.
     public let cursorOffset: Int?
 
+    /// Last known modification timestamp on disk when read or saved.
+    public let lastKnownModificationDate: Date?
+
+    /// True when the backing file on disk has been modified externally since
+    /// this document was opened or last saved.
+    public let hasExternalModification: Bool
+
     public init(
         id: UUID = UUID(),
         fileURL: URL?,
         language: SDKCodeLanguage,
         text: String,
         isDirty: Bool = false,
-        cursorOffset: Int? = nil
+        cursorOffset: Int? = nil,
+        lastKnownModificationDate: Date? = nil,
+        hasExternalModification: Bool = false
     ) {
         self.id = id
         self.fileURL = fileURL
@@ -43,37 +52,62 @@ public struct SDKCodeDocument: Identifiable, Sendable, Hashable {
         self.text = text
         self.isDirty = isDirty
         self.cursorOffset = cursorOffset
+        self.lastKnownModificationDate = lastKnownModificationDate
+        self.hasExternalModification = hasExternalModification
     }
 
     /// Display name for tabs and titles: the filename, or "Untitled".
     public var displayName: String {
-        guard let fileURL else { return "Untitled" }
+        guard let fileURL else { return "Untitled.ts" }
         let name = fileURL.lastPathComponent
-        return name.isEmpty ? "Untitled" : name
+        return name.isEmpty ? "Untitled.ts" : name
     }
 
     /// Returns a copy with new text and `isDirty` set to `true`.
     /// The standard way to apply an edit.
-    public func withText(_ newText: String) -> SDKCodeDocument {
+    public func withText(_ newText: String, cursorOffset: Int? = nil) -> SDKCodeDocument {
         SDKCodeDocument(
             id: id,
             fileURL: fileURL,
             language: language,
             text: newText,
             isDirty: true,
-            cursorOffset: cursorOffset
+            cursorOffset: cursorOffset ?? self.cursorOffset,
+            lastKnownModificationDate: lastKnownModificationDate,
+            hasExternalModification: hasExternalModification
         )
     }
 
     /// Returns a copy with the dirty flag cleared (after a successful save).
-    public func saved() -> SDKCodeDocument {
+    public func saved(
+        fileURL newURL: URL? = nil,
+        modificationDate: Date? = nil
+    ) -> SDKCodeDocument {
+        let resolvedURL = newURL ?? fileURL
+        let resolvedLang = resolvedURL.map { SDKCodeLanguage.infer(fromFileURL: $0) } ?? language
+        return SDKCodeDocument(
+            id: id,
+            fileURL: resolvedURL,
+            language: resolvedLang,
+            text: text,
+            isDirty: false,
+            cursorOffset: cursorOffset,
+            lastKnownModificationDate: modificationDate ?? lastKnownModificationDate,
+            hasExternalModification: false
+        )
+    }
+
+    /// Returns a copy marking whether an external modification was detected on disk.
+    public func withExternalModification(_ flag: Bool) -> SDKCodeDocument {
         SDKCodeDocument(
             id: id,
             fileURL: fileURL,
             language: language,
             text: text,
-            isDirty: false,
-            cursorOffset: cursorOffset
+            isDirty: isDirty,
+            cursorOffset: cursorOffset,
+            lastKnownModificationDate: lastKnownModificationDate,
+            hasExternalModification: flag
         )
     }
 }

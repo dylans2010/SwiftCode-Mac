@@ -348,7 +348,7 @@ public final class AssistModelDiscoveryService: Sendable {
         agentCompatibleModels.count
     }
 
-    // MARK: - Gemini Discovery (Dynamic API Call)
+    // MARK: - Gemini & Antigravity Catalog Discovery
 
     private func discoverGeminiModels() async -> [AssistAvailableModel] {
         var apiKey = KeychainService.shared.get(forKey: LLMProvider.google.keychainKey)
@@ -364,36 +364,20 @@ public final class AssistModelDiscoveryService: Sendable {
         }
 
         let trimmedKey = apiKey.trimmingCharacters(in: .whitespacesAndNewlines)
-        let oauthToken = try? await GoogleAccountAuthService.shared.getValidAccessToken()
-        let isOauthActive = GoogleAccountAuthService.shared.isAuthenticated
+        let googleAuthMode = UserDefaults.standard.string(forKey: "assist_google_auth_mode") ?? AppSettings.shared.assistGoogleAuthMode
+        let isOauthActive = (googleAuthMode == "google_oauth") && GoogleAccountAuthService.shared.isAuthenticated && !AppSettings.shared.alternativeKeysEnabled
 
-        guard !trimmedKey.isEmpty || (isOauthActive && oauthToken != nil) else {
+        // In Google-authenticated Antigravity mode (or when no explicit Gemini API key is configured),
+        // use the Antigravity SDK catalog directly instead of calling the Developer API
+        // (`generativelanguage.googleapis.com/v1beta/models`) with an OAuth Bearer token.
+        if isOauthActive || trimmedKey.isEmpty {
             return await fallbackAntigravityModels()
         }
 
-        var request: URLRequest
-        if !trimmedKey.isEmpty {
-            guard let url = URL(string: "https://generativelanguage.googleapis.com/v1beta/models?pageSize=1000&key=\(trimmedKey)") else {
-                return await fallbackAntigravityModels()
-            }
-            request = URLRequest(url: url)
-        } else if let token = oauthToken {
-            guard let url = URL(string: "https://generativelanguage.googleapis.com/v1beta/models?pageSize=1000") else {
-                return await fallbackAntigravityModels()
-            }
-            request = URLRequest(url: url)
-            request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
-            // The Developer API's OAuth contract requires the quota project on
-            // every request; without it this call fails with 403 and discovery
-            // silently falls back to the bundled catalog.
-            let quotaProject = AppSettings.shared.assistGoogleCloudProject.trimmingCharacters(in: .whitespacesAndNewlines)
-            if !quotaProject.isEmpty {
-                request.setValue(quotaProject, forHTTPHeaderField: "x-goog-user-project")
-            }
-        } else {
+        guard let url = URL(string: "https://generativelanguage.googleapis.com/v1beta/models?pageSize=1000&key=\(trimmedKey)") else {
             return await fallbackAntigravityModels()
         }
-
+        var request = URLRequest(url: url)
         request.httpMethod = "GET"
         request.timeoutInterval = 8.0
 
@@ -402,14 +386,7 @@ public final class AssistModelDiscoveryService: Sendable {
             guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
                 let status = (response as? HTTPURLResponse).map { String($0.statusCode) } ?? "unknown"
                 logger.warning("Gemini model discovery returned HTTP \(status)")
-                // H-6: surface the failure in the picker instead of silently
-                // degrading to the bundled catalog. A missing quota project is
-                // the most common OAuth 403 cause — name the fix.
-                let quotaProject = AppSettings.shared.assistGoogleCloudProject.trimmingCharacters(in: .whitespacesAndNewlines)
-                let quotaHint = (quotaProject.isEmpty && oauthToken != nil)
-                    ? " Set your Google Cloud quota project in Settings → Assist → Google Account."
-                    : ""
-                lastDiscoveryErrors["Gemini"] = "Live discovery failed (HTTP \(status)). Showing bundled catalog.\(quotaHint)"
+                lastDiscoveryErrors["Gemini"] = "Live discovery failed (HTTP \(status)). Showing bundled catalog."
                 return await fallbackAntigravityModels()
             }
 
@@ -471,8 +448,6 @@ public final class AssistModelDiscoveryService: Sendable {
             }
 
             if results.isEmpty {
-                // H-6: an empty live result is a discovery failure, not a
-                // silent success — say so in the picker.
                 lastDiscoveryErrors["Gemini"] = "Live discovery returned no models. Showing bundled catalog."
                 return await fallbackAntigravityModels()
             }
@@ -485,38 +460,42 @@ public final class AssistModelDiscoveryService: Sendable {
     }
 
     private func fallbackAntigravityModels() async -> [AssistAvailableModel] {
-        let (models, isSeedCatalog): ([AntigravitySDKModel], Bool) = await MainActor.run {
+        let (models, isSeedCatalog, isOAuthAuthed): ([AntigravitySDKModel], Bool, Bool) = await MainActor.run {
             let live = AntigravitySDKModelFetcher.shared.models
-            // H-6: distinguish live SDK-runtime models from the bundled seed
-            // catalog so the picker never presents the seed list as verified
-            // availability.
+            let authed = GoogleAccountAuthService.shared.isAuthenticated
             return live.isEmpty
-                ? (AntigravitySDKModelFetcher.seedModels, true)
-                : (live, false)
+                ? (AntigravitySDKModelFetcher.seedModels, true, authed)
+                : (live, false, authed)
         }
         var list: [AssistAvailableModel] = []
         for sdk in models {
+            let isAnthropic = sdk.category.lowercased() == "anthropic"
+            let providerID = isAnthropic ? "anthropic" : "gemini"
             let providerName = sdk.category == "Google" ? "Gemini" : sdk.category
+            let source: AssistModelSource = isAnthropic ? .claude : .gemini
+            let configured = await MainActor.run {
+                AssistModelRouter.shared.hasCredentials(forModelID: sdk.id, provider: sdk.category) || isOAuthAuthed
+            }
             list.append(
                 AssistAvailableModel(
                     id: sdk.id,
                     displayName: sdk.displayName,
-                    providerID: "gemini",
+                    providerID: providerID,
                     providerName: providerName,
                     modelIdentifier: sdk.id,
                     capabilities: .advancedReasoning,
-                    source: .gemini,
-                    isConfigured: true,
-                    isAvailable: true,
+                    source: source,
+                    isConfigured: configured,
+                    isAvailable: configured,
                     supportsStreaming: true,
                     supportsToolCalling: true,
                     supportsVision: true,
                     supportsStructuredOutput: true,
                     supportsAgenticUse: true,
-                    supportsSubagents: true,
+                    supportsSubagents: !sdk.isImageModel,
                     priority: sdk.thinkingLevel.lowercased() == "low" ? 10 : 20,
                     statusDescription: isSeedCatalog
-                        ? "Available via Google Account · bundled catalog (not live-verified)"
+                        ? "Available via Google Account · Antigravity catalog"
                         : "Available via Google Account",
                     status: .available,
                     contextWindow: sdk.contextWindow

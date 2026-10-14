@@ -11,7 +11,7 @@
  * relative to this script); the generated package.json depends on it via a
  * file: URL, so npm install resolves @swiftcode/sdk from local source.
  */
-import { copyFile, mkdir, readdir, readFile, stat, writeFile } from "node:fs/promises";
+import { copyFile, mkdir, readdir, readFile, stat, symlink, writeFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
@@ -124,6 +124,27 @@ async function main() {
   // schema with every generated project so the pointer is live.
   await mkdir(path.join(target, "schemas"), { recursive: true });
   await copyFile(SCHEMA_SOURCE, path.join(target, "schemas", "swiftcode-extension-v1.schema.json"));
+
+  // Pre-seed node_modules from the local @swiftcode/sdk package when available
+  // so generated projects can build and typecheck immediately, including offline.
+  const sdkNodeModules = path.join(sdkDir, "node_modules");
+  if (existsSync(sdkNodeModules)) {
+    const targetNodeModules = path.join(target, "node_modules");
+    const targetScopeDir = path.join(targetNodeModules, "@swiftcode");
+    await mkdir(targetScopeDir, { recursive: true });
+    const sdkLinkPath = path.join(targetScopeDir, "sdk");
+    if (!existsSync(sdkLinkPath)) {
+      await symlink(sdkDir, sdkLinkPath);
+    }
+    for (const entry of await readdir(sdkNodeModules)) {
+      if (entry.startsWith(".package-lock")) continue;
+      const srcEntry = path.join(sdkNodeModules, entry);
+      const destEntry = path.join(targetNodeModules, entry);
+      if (!existsSync(destEntry)) {
+        await symlink(srcEntry, destEntry);
+      }
+    }
+  }
 
   process.stdout.write(`Created SwiftCode extension "${name}" (${id}) in ${target}\n`);
   process.stdout.write(`  SDK: @swiftcode/sdk ${sdkPackage.version ?? "?"} via ${sdkFileUrl}\n`);

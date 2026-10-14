@@ -6,34 +6,9 @@ import UniformTypeIdentifiers
 // MARK: - SDKShipExportView
 //
 // Studio Ship/Export surface (Docs/Intro-to-SDK.md §8, Task A4): pick an
-// extension/app project directory, then export a deterministic
-// `.swiftcode-extension` package through an `NSSavePanel`.
-//
-// The package format is documented in
-// `SwiftCode/SDK/Documentation/Package-Format.md`: a deterministic ZIP
-// (sorted entries, fixed mtime/mode) carrying `swiftcode.json`,
-// `dist/**`, and an embedded `swiftcode-digest.json` integrity record.
-//
-// REAL behaviors, no placeholders:
-// - The project summary (id, name, version, kind) is read from the
-//   project's real `swiftcode.json`, decoded with `JSONDecoder` into the
-//   shared `SDKManifest` contract. A missing or undecodable manifest is
-//   reported, never guessed.
-// - Export runs the real CLI — `node <swiftcode.mjs> package <projectDir>
-//   --out <tmp> --json` — as a child `Process`, parses the JSON envelope,
-//   then moves the produced archive to the save-panel URL. The reported
-//   sha256 and content digests come from the CLI's verified output, never
-//   invented here.
-// - CLI resolution uses the explicit `com.swiftcode.sdk.cliPath` override
-//   when set, otherwise the app-bundled toolkit; Node.js resolves via
-//   `SDKNodeLauncher.resolveNodeURL()`. When either is
-//   missing, the view does NOT pretend to export: it presents a sheet with
-//   the exact terminal command for the user to run manually.
-// - Every control performs its real action; failures surface the real
-//   error inline.
-//
-// Hosting: this view is a standalone surface with `init()`; the Studio
-// shell presents it (e.g. from the SDK section) like the other Studio views.
+// extension/app project directory, validate its `swiftcode.json` manifest
+// and runtime entrypoint, then export a deterministic `.swiftcode-extension`
+// package through an `NSSavePanel`.
 
 @MainActor
 public struct SDKShipExportView: View {
@@ -96,8 +71,6 @@ public struct SDKShipExportView: View {
 
     // MARK: - Constants
 
-    /// UserDefaults key holding the full path to `swiftcode.mjs`.
-    /// Owned/documented by SDKStudioExtensionsView; read here only.
     private static let cliPathDefaultsKey = "com.swiftcode.sdk.cliPath"
 
     // MARK: - State
@@ -146,7 +119,7 @@ public struct SDKShipExportView: View {
             Text("Ship / Export")
                 .font(.title2)
                 .bold()
-            Text("Package an extension or app into a deterministic `.swiftcode-extension` file you can share or install elsewhere.")
+            Text("Validate and package an extension or app into a deterministic `.swiftcode-extension` file you can share or install elsewhere.")
                 .foregroundStyle(.secondary)
         }
     }
@@ -282,14 +255,22 @@ public struct SDKShipExportView: View {
         } catch {
             throw ExportError(message: "No swiftcode.json found in \(directory.path). Choose an extension or app project directory.")
         }
-        let manifest: SDKManifest
-        do {
-            manifest = try JSONDecoder().decode(SDKManifest.self, from: data)
-        } catch {
-            throw ExportError(message: "swiftcode.json could not be decoded: \(error.localizedDescription)")
+        let validator = SDKManifestValidator()
+        let (decodedManifest, diagnostics) = validator.validateWithDiagnostics(
+            data: data,
+            projectRoot: directory,
+            grantedCapabilities: nil
+        )
+        let errors = diagnostics.filter { $0.severity == .error }
+        if !errors.isEmpty {
+            let formatted = errors.map { diag in
+                let loc = diag.line.map { "line \($0)" } ?? "manifest"
+                return "• [\(diag.code.rawValue)] (\(loc)) \(diag.message)"
+            }.joined(separator: "\n")
+            throw ExportError(message: "swiftcode.json validation failed:\n\(formatted)")
         }
-        guard manifest.manifestVersion == 1 else {
-            throw ExportError(message: "Unsupported manifestVersion \(manifest.manifestVersion) — this Studio ships the v1 packager.")
+        guard let manifest = decodedManifest else {
+            throw ExportError(message: "swiftcode.json could not be decoded.")
         }
         return ProjectSummary(
             directory: directory,
@@ -319,8 +300,13 @@ public struct SDKShipExportView: View {
     private func export(project: ProjectSummary, destination: URL) async {
         phase = .exporting(project, "Packaging \(project.name)…")
 
-        // Resolve node + CLI. When either is missing we do not pretend:
-        // show the exact manual command instead.
+        do {
+            _ = try readProjectSummary(directory: project.directory)
+        } catch {
+            phase = .failed(project, error.localizedDescription)
+            return
+        }
+
         let nodeURL: URL
         let cliURL: URL
         do {
@@ -358,8 +344,6 @@ public struct SDKShipExportView: View {
             }
             let producedURL = URL(fileURLWithPath: producedPath)
 
-            // Move the finished archive to the save-panel destination,
-            // replacing any file already there (the user's explicit choice).
             if FileManager.default.fileExists(atPath: destination.path) {
                 _ = try FileManager.default.replaceItemAt(destination, withItemAt: producedURL)
             } else {
@@ -393,8 +377,6 @@ public struct SDKShipExportView: View {
 
     // MARK: - CLI plumbing
 
-    /// Runs `node <cli> <arguments>` off the main actor; output is captured
-    /// after the process exits (bounded), like the sibling extensions view.
     private func runCLI(nodeURL: URL, cliURL: URL, arguments: [String]) async throws -> CLIProcessResult {
         try await Task.detached(priority: .utility) {
             let process = Process()

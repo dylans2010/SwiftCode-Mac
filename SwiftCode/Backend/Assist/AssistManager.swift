@@ -375,9 +375,13 @@ public final class AssistManager: ObservableObject {
         let isAgentMode = UserDefaults.standard.bool(forKey: "com.swiftcode.assist.mode")
         let isLightweightConversation = attachments.isEmpty && envelope == nil && Self.isLightweightConversation(trimmed)
         let isAntigravityAvailable = GoogleCloudSDKRuntime.shared.isAvailable
+        let googleAuthMode = UserDefaults.standard.string(forKey: "assist_google_auth_mode") ?? AppSettings.shared.assistGoogleAuthMode
+        let isGoogleOAuthSession = (googleAuthMode == "google_oauth") && GoogleAccountAuthService.shared.isAuthenticated && !AppSettings.shared.alternativeKeysEnabled
 
-        // Always prioritize Antigravity in Agent Mode or when explicitly enabled
-        if !isLightweightConversation && (AppSettings.shared.isGoogleCloudAssist || (isAgentMode && isAntigravityAvailable)) {
+        // Always route through the Antigravity SDK runtime when Google Cloud Assist,
+        // Agent Mode, or a Google Sign-In Antigravity session is active (including
+        // lightweight greetings so they never bypass Antigravity and hit raw provider HTTP).
+        if isAntigravityAvailable && (AppSettings.shared.isGoogleCloudAssist || isAgentMode || isGoogleOAuthSession) {
             await sendGoogleCloudSDKMessage(trimmed, attachments: attachments, envelope: envelope, metrics: metrics, generation: generation)
             return
         }

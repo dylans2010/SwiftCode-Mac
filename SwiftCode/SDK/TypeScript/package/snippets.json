@@ -9,7 +9,8 @@
       "vm",
       "console",
       "window"
-    ]
+    ],
+    "code": "import type { SwiftCodeContext } from \"@swiftcode/sdk\";\n\nexport async function runExample(context: SwiftCodeContext): Promise<void> {\n  await context.ui.openView(\"virtualization.view\");\n  context.log.info(\"Virtualization console opened\");\n}\n"
   },
   {
     "id": "open-terminal",
@@ -23,7 +24,8 @@
       "ssh",
       "window",
       "sandbox"
-    ]
+    ],
+    "code": "import type { SwiftCodeContext } from \"@swiftcode/sdk\";\n\nexport async function runExample(context: SwiftCodeContext): Promise<void> {\n  await context.ui.openView(\"sandbox.view\");\n  context.log.info(\"Terminal opened\");\n}\n"
   },
   {
     "id": "open-deployments-console",
@@ -37,7 +39,8 @@
       "vercel",
       "console",
       "window"
-    ]
+    ],
+    "code": "import type { SwiftCodeContext } from \"@swiftcode/sdk\";\n\nexport async function runExample(context: SwiftCodeContext): Promise<void> {\n  await context.ui.openView(\"deployConsole.view\");\n  context.log.info(\"Deployments console opened\");\n}\n"
   },
   {
     "id": "open-database-explorer",
@@ -50,7 +53,8 @@
       "explorer",
       "sql",
       "window"
-    ]
+    ],
+    "code": "import type { SwiftCodeContext } from \"@swiftcode/sdk\";\n\nexport async function runExample(context: SwiftCodeContext): Promise<void> {\n  await context.ui.openView(\"db.ExploreView\");\n  context.log.info(\"Database Explorer opened\");\n}\n"
   },
   {
     "id": "ask-cloud-model",
@@ -64,7 +68,8 @@
       "llm",
       "completion",
       "quota"
-    ]
+    ],
+    "code": "import type { SwiftCodeContext } from \"@swiftcode/sdk\";\n\nexport async function runExample(context: SwiftCodeContext): Promise<void> {\n  const answer = await context.cloudModel.complete({\n    prompt: \"Summarize the current working-tree changes as a one-line commit message.\",\n    systemPrompt: \"You are a concise technical writer.\",\n  });\n  context.log.info(\"Cloud model answer received\", { answer });\n}\n"
   },
   {
     "id": "run-sandboxed-command",
@@ -78,7 +83,8 @@
       "shell",
       "git",
       "execute"
-    ]
+    ],
+    "code": "import type { SwiftCodeContext } from \"@swiftcode/sdk\";\n\nexport async function runExample(context: SwiftCodeContext): Promise<void> {\n  const result = await context.terminalSandbox.run({\n    command: \"git\",\n    args: [\"status\", \"--short\"],\n    timeout: 30,\n  });\n  if (result.exitCode !== 0) {\n    context.log.error(\"Sandboxed git status failed\", {\n      exitCode: result.exitCode,\n      stderr: result.stderr,\n    });\n    return;\n  }\n  if (result.stdoutTruncated) {\n    context.log.warn(\"Output was truncated by the host byte limit\", {\n      totalBytes: result.stdoutTotalBytes,\n      byteLimit: result.byteLimit,\n    });\n  }\n  context.log.info(\"Sandboxed git status\", { stdout: result.stdout });\n}\n"
   },
   {
     "id": "open-ci-workflows",
@@ -91,7 +97,8 @@
       "pipeline",
       "dashboard",
       "window"
-    ]
+    ],
+    "code": "import type { SwiftCodeContext } from \"@swiftcode/sdk\";\n\nexport async function runExample(context: SwiftCodeContext): Promise<void> {\n  await context.ui.openView(\"ci.VisualWF\");\n  context.log.info(\"CI workflow dashboard opened\");\n}\n"
   },
   {
     "id": "inspect-repository-status",
@@ -106,7 +113,8 @@
       "diff",
       "repository",
       "branch"
-    ]
+    ],
+    "code": "import type { SwiftCodeContext } from \"@swiftcode/sdk\";\n\nexport async function runExample(context: SwiftCodeContext): Promise<void> {\n  const status = await context.sourceControl.getStatus();\n  if (!status.isRepository) {\n    context.log.warn(\"The open project is not a Git repository\");\n    return;\n  }\n  const branch = status.branchName ?? \"(detached HEAD)\";\n  context.log.info(\"Repository status\", {\n    branch,\n    ahead: status.ahead,\n    behind: status.behind,\n    staged: status.stagedCount,\n    unstaged: status.unstagedCount,\n    untracked: status.untrackedCount,\n  });\n  const diff = await context.sourceControl.getDiff({ maxBytes: 65536 });\n  for (const file of diff.files) {\n    context.log.info(\"Changed file: \" + file.path, {\n      hunks: file.hunks.length,\n      truncated: file.truncated,\n    });\n  }\n  if (diff.truncated) {\n    context.log.warn(\"Diff was truncated by the byte limit\", {\n      totalBytes: diff.totalBytes,\n      byteLimit: diff.byteLimit,\n    });\n  }\n}\n"
   },
   {
     "id": "run-project-build",
@@ -119,7 +127,8 @@
       "compile",
       "target",
       "diagnostics"
-    ]
+    ],
+    "code": "import type { SwiftCodeContext, BuildResult } from \"@swiftcode/sdk\";\n\nexport async function runExample(context: SwiftCodeContext): Promise<void> {\n  const handle = await context.build.run({\n    target: \"SwiftCode\",\n    configuration: \"Debug\",\n  });\n  context.log.info(\"Build started\", { handleId: handle.id });\n  for await (const event of handle.output) {\n    context.log.info(\"[\" + event.kind + \"] \" + event.text);\n  }\n  const result: BuildResult = await handle.wait();\n  context.log.info(\"Build finished\", {\n    status: result.status,\n    exitCode: result.exitCode,\n    errors: result.errorCount,\n    warnings: result.warningCount,\n    durationSeconds: result.durationSeconds,\n  });\n  for (const diagnostic of result.diagnostics) {\n    context.log.warn(diagnostic.message, {\n      file: diagnostic.file,\n      line: diagnostic.line,\n    });\n  }\n}\n"
   },
   {
     "id": "open-simulator-workspace",
@@ -132,7 +141,8 @@
       "workspace",
       "window",
       "device"
-    ]
+    ],
+    "code": "import type { SwiftCodeContext } from \"@swiftcode/sdk\";\n\nexport async function runExample(context: SwiftCodeContext): Promise<void> {\n  await context.ui.openView(\"simulator.view\");\n  context.log.info(\"Simulator workspace opened\");\n}\n"
   },
   {
     "id": "open-live-preview",
@@ -145,7 +155,8 @@
       "live",
       "window",
       "render"
-    ]
+    ],
+    "code": "import type { SwiftCodeContext } from \"@swiftcode/sdk\";\n\nexport async function runExample(context: SwiftCodeContext): Promise<void> {\n  await context.ui.openView(\"preview.live\");\n  context.log.info(\"Live preview opened\");\n}\n"
   },
   {
     "id": "open-ui-builder",
@@ -158,7 +169,8 @@
       "visual",
       "interface",
       "window"
-    ]
+    ],
+    "code": "import type { SwiftCodeContext } from \"@swiftcode/sdk\";\n\nexport async function runExample(context: SwiftCodeContext): Promise<void> {\n  await context.ui.openView(\"uibuilder.open\");\n  context.log.info(\"Visual UI Builder opened\");\n}\n"
   },
   {
     "id": "browse-sf-symbols",
@@ -171,7 +183,8 @@
       "icon",
       "picker",
       "browse"
-    ]
+    ],
+    "code": "import type { SwiftCodeContext } from \"@swiftcode/sdk\";\n\nexport async function runExample(context: SwiftCodeContext): Promise<void> {\n  await context.ui.openView(\"symbols.browse\");\n  context.log.info(\"SF Symbol picker opened\");\n}\n"
   },
   {
     "id": "search-documentation",
@@ -184,7 +197,8 @@
       "search",
       "reference",
       "help"
-    ]
+    ],
+    "code": "import type { SwiftCodeContext } from \"@swiftcode/sdk\";\n\nexport async function runExample(context: SwiftCodeContext): Promise<void> {\n  await context.ui.openView(\"docs.search\");\n  context.log.info(\"Documentation browser opened\");\n}\n"
   },
   {
     "id": "open-coding-dictionary",
@@ -197,7 +211,8 @@
       "api",
       "terms",
       "glossary"
-    ]
+    ],
+    "code": "import type { SwiftCodeContext } from \"@swiftcode/sdk\";\n\nexport async function runExample(context: SwiftCodeContext): Promise<void> {\n  await context.ui.openView(\"dictionary.open\");\n  context.log.info(\"Coding dictionary opened\");\n}\n"
   },
   {
     "id": "open-device-connect",
@@ -211,7 +226,8 @@
       "ipad",
       "paired",
       "window"
-    ]
+    ],
+    "code": "import type { SwiftCodeContext } from \"@swiftcode/sdk\";\n\nexport async function runExample(context: SwiftCodeContext): Promise<void> {\n  await context.ui.openView(\"deviceconnect.open\");\n  context.log.info(\"Device Connect opened\");\n}\n"
   },
   {
     "id": "register-extension-command",
@@ -224,7 +240,8 @@
       "contribute",
       "register",
       "palette"
-    ]
+    ],
+    "code": "import type { SwiftCodeContext } from \"@swiftcode/sdk\";\n\nexport async function runExample(context: SwiftCodeContext): Promise<void> {\n  context.commands.register({\n    id: \"say-hello\",\n    title: \"Say Hello\",\n    execute: async () => {\n      context.log.info(\"Hello from the snippet library!\");\n      return \"hello\";\n    },\n  });\n  context.log.info(\"Command registered\");\n}\n"
   },
   {
     "id": "read-current-project",
@@ -236,7 +253,8 @@
       "metadata",
       "current",
       "info"
-    ]
+    ],
+    "code": "import type { SwiftCodeContext } from \"@swiftcode/sdk\";\n\nexport async function runExample(context: SwiftCodeContext): Promise<void> {\n  const project = await context.project.getCurrent();\n  if (project === null) {\n    context.log.warn(\"No project is open\");\n    return;\n  }\n  context.log.info(\"Current project: \" + project.name, {\n    id: project.id,\n    rootPath: project.rootPath,\n  });\n}\n"
   },
   {
     "id": "store-security-secret",
@@ -250,7 +268,8 @@
       "store",
       "token",
       "password"
-    ]
+    ],
+    "code": "import type { SwiftCodeContext } from \"@swiftcode/sdk\";\n\nexport async function runExample(context: SwiftCodeContext): Promise<void> {\n  const result = await context.security.addValue(\"api-keys\", \"github-token\", {\n    label: \"GitHub personal access token\",\n    prompt: \"Enter the token this extension may use as an Authorization header.\",\n  });\n  context.log.info(\"Secret stored\", {\n    valueID: result.valueID,\n    created: result.created,\n  });\n  const exists = await context.security.hasValue(\"api-keys\", \"github-token\");\n  context.log.info(\"Secret present in Keychain\", { exists });\n}\n"
   },
   {
     "id": "use-security-secret-for-api-call",
@@ -264,6 +283,105 @@
       "api",
       "http",
       "authorization"
-    ]
+    ],
+    "code": "import type { SwiftCodeContext } from \"@swiftcode/sdk\";\n\nexport async function runExample(context: SwiftCodeContext): Promise<void> {\n  const response = await context.security.useValue(\"api-keys\", \"github-token\", {\n    kind: \"httpAuthorization\",\n    request: {\n      method: \"GET\",\n      url: \"https://api.github.com/user\",\n      headers: { Accept: \"application/vnd.github+json\" },\n    },\n  });\n  context.log.info(\"API response\", {\n    status: response.status,\n    body: response.body,\n  });\n}\n"
+  },
+  {
+    "id": "read-workspace-files",
+    "title": "Read Workspace Tree Snapshot",
+    "description": "Reads the open workspace root metadata and changed file list within the active project boundary. Gated by the workspace.read capability grant.",
+    "capabilityId": "workspace.read",
+    "tags": [
+      "workspace",
+      "read",
+      "files",
+      "project",
+      "directory"
+    ],
+    "code": "import type { SwiftCodeContext } from \"@swiftcode/sdk\";\n\nexport async function runExample(context: SwiftCodeContext): Promise<void> {\n  const project = await context.project.getCurrent();\n  if (!project) {\n    context.log.warn(\"No workspace is currently open\");\n    return;\n  }\n  const status = await context.sourceControl.getStatus();\n  context.log.info(\"Workspace snapshot\", {\n    name: project.name,\n    rootPath: project.rootPath,\n    changedFiles: status.files.map((f) => f.path),\n  });\n}\n"
+  },
+  {
+    "id": "write-workspace-artifact",
+    "title": "Format Workspace Sources",
+    "description": "Runs a project-scoped formatter inside the workspace directory through the host's mediation layer. Requires the workspace.write capability grant.",
+    "capabilityId": "workspace.write",
+    "tags": [
+      "workspace",
+      "write",
+      "format",
+      "files",
+      "edit"
+    ],
+    "code": "import type { SwiftCodeContext } from \"@swiftcode/sdk\";\n\nexport async function runExample(context: SwiftCodeContext): Promise<void> {\n  const result = await context.terminalSandbox.run({\n    command: \"swift\",\n    args: [\"package\", \"describe\"],\n    timeout: 30,\n  });\n  context.log.info(\"Workspace command completed\", {\n    exitCode: result.exitCode,\n    bytes: result.stdoutTotalBytes,\n  });\n}\n"
+  },
+  {
+    "id": "stage-source-control-changes",
+    "title": "Stage Source Control Changes",
+    "description": "Stages modified files in the active Git repository through the host's sandboxed execution channel. Requires the source-control.write capability grant.",
+    "capabilityId": "source-control.write",
+    "tags": [
+      "git",
+      "stage",
+      "commit",
+      "source-control",
+      "write"
+    ],
+    "code": "import type { SwiftCodeContext } from \"@swiftcode/sdk\";\n\nexport async function runExample(context: SwiftCodeContext): Promise<void> {\n  const result = await context.terminalSandbox.run({\n    command: \"git\",\n    args: [\"add\", \"--update\"],\n    timeout: 15,\n  });\n  context.log.info(\"Staged tracked changes\", { exitCode: result.exitCode });\n}\n"
+  },
+  {
+    "id": "execute-project-task",
+    "title": "Execute Project Task",
+    "description": "Runs a project verification task and streams completion status to the extension logger. Requires the task.execute capability grant.",
+    "capabilityId": "task.execute",
+    "tags": [
+      "task",
+      "execute",
+      "test",
+      "verify",
+      "runner"
+    ],
+    "code": "import type { SwiftCodeContext } from \"@swiftcode/sdk\";\n\nexport async function runExample(context: SwiftCodeContext): Promise<void> {\n  const result = await context.terminalSandbox.run({\n    command: \"swift\",\n    args: [\"--version\"],\n    timeout: 20,\n  });\n  context.log.info(\"Project task finished\", {\n    exitCode: result.exitCode,\n    output: result.stdout.trim(),\n  });\n}\n"
+  },
+  {
+    "id": "perform-authenticated-network-request",
+    "title": "Perform Host-Mediated HTTPS Request",
+    "description": "Executes an outbound HTTPS request using a host-stored credential without exposing the secret to the extension process. Requires the network.request capability grant.",
+    "capabilityId": "network.request",
+    "tags": [
+      "network",
+      "https",
+      "request",
+      "fetch",
+      "api"
+    ],
+    "code": "import type { SwiftCodeContext } from \"@swiftcode/sdk\";\n\nexport async function runExample(context: SwiftCodeContext): Promise<void> {\n  const response = await context.security.useValue(\"service-tokens\", \"api-endpoint-key\", {\n    kind: \"httpAuthorization\",\n    request: {\n      method: \"GET\",\n      url: \"https://api.github.com/rate_limit\",\n      headers: { Accept: \"application/vnd.github+json\" },\n    },\n  });\n  context.log.info(\"Network response received\", { status: response.status });\n}\n"
+  },
+  {
+    "id": "inspect-stored-credentials",
+    "title": "List Stored Credential Metadata",
+    "description": "Lists metadata (value IDs, labels, creation timestamps) for credentials stored under a Security ID without exposing plaintext values. Requires the credentials.use capability grant.",
+    "capabilityId": "credentials.use",
+    "tags": [
+      "credentials",
+      "keychain",
+      "tokens",
+      "metadata",
+      "security"
+    ],
+    "code": "import type { SwiftCodeContext } from \"@swiftcode/sdk\";\n\nexport async function runExample(context: SwiftCodeContext): Promise<void> {\n  const entries = await context.security.listValueIDs(\"api-keys\");\n  for (const item of entries) {\n    context.log.info(\"Credential metadata\", {\n      valueID: item.valueID,\n      label: item.label,\n      createdAt: item.createdAt,\n    });\n  }\n}\n"
+  },
+  {
+    "id": "invoke-headless-assist-session",
+    "title": "Invoke Headless Assist Session",
+    "description": "Creates a headless Assist session, sends a prompt, and closes the session cleanly. Requires a verified com.SwiftCode.developer-AI-Assist API key entitlement and the assist.invoke capability.",
+    "capabilityId": "assist.invoke",
+    "tags": [
+      "assist",
+      "ai",
+      "agent",
+      "session",
+      "stream"
+    ],
+    "code": "import type { SwiftCodeContext } from \"@swiftcode/sdk\";\n\nexport async function runExample(context: SwiftCodeContext): Promise<void> {\n  const session = await context.assist.createSession({\n    systemPrompt: \"You are a concise Swift architecture assistant.\",\n  });\n  try {\n    const reply = await context.assist.sendMessage(\n      session.sessionId,\n      \"List three best practices for Swift 6 actor isolation.\"\n    );\n    context.log.info(\"Assist reply received\", { reply });\n  } finally {\n    await context.assist.closeSession(session.sessionId);\n  }\n}\n"
   }
 ]

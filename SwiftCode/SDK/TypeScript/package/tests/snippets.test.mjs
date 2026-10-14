@@ -9,7 +9,8 @@
 // (b) `searchSnippets` finds "virtualization" -> the sandbox snippet.
 // (c) Every snippet's `capabilityId` is a real registry wire ID
 //     (SwiftCode/SDK/Contracts/Capability/SDKCapability.swift).
-// (d) `snippets.json` is in sync with the compiled `src/snippets.ts`.
+// (d) `snippets.json` is in sync with the compiled `src/snippets.ts` and
+//     carries the full executable `code` for every snippet.
 //
 // Run: `npm run build && npm test` (npm test = `node --test "tests/*.test.mjs"`).
 import { describe, it, before, after } from "node:test";
@@ -37,6 +38,12 @@ const REGISTRY_IDS = new Set([
   "ui.contribute",
   "credentials.use",
   "use.Security",
+  "use.Security.keychain",
+  "use.Security.audit",
+  "use.Security.crypto",
+  "use.Security.securePrompt",
+  "use.Security.redaction",
+  "use.Security.policy",
   "assist.invoke",
   "db.ExploreView",
   "ci.VisualWF",
@@ -56,7 +63,7 @@ const REGISTRY_IDS = new Set([
 
 describe("snippet library shape", () => {
   it("has one snippet per capability with a real TS API, with unique ids and wire IDs", () => {
-    assert.ok(SNIPPETS.length >= 7, `expected >= 7 snippets, got ${SNIPPETS.length}`);
+    assert.ok(SNIPPETS.length >= 26, `expected >= 26 snippets, got ${SNIPPETS.length}`);
     const ids = new Set();
     for (const snippet of SNIPPETS) {
       assert.match(snippet.id, /^[a-z][a-z0-9-]*$/, `bad snippet id ${snippet.id}`);
@@ -124,7 +131,7 @@ describe("searchSnippets / getSnippet", () => {
 });
 
 describe("snippets.json manifest", () => {
-  it("is in sync with the compiled snippets.ts (light fields only, no code)", () => {
+  it("is in sync with the compiled snippets.ts (including executable code)", () => {
     const manifestPath = path.join(packageDir, "snippets.json");
     const manifest = JSON.parse(readFileSync(manifestPath, "utf8"));
     const expected = SNIPPETS.map((s) => ({
@@ -133,14 +140,16 @@ describe("snippets.json manifest", () => {
       description: s.description,
       capabilityId: s.capabilityId,
       tags: [...s.tags],
+      code: s.code,
     }));
     assert.deepEqual(manifest, expected, "snippets.json is out of sync — run `npm run build:snippets`");
     for (const entry of manifest) {
       assert.deepEqual(
         Object.keys(entry).sort(),
-        ["capabilityId", "description", "id", "tags", "title"],
-        `${entry.id}: manifest must carry only the light fields (no code)`,
+        ["capabilityId", "code", "description", "id", "tags", "title"],
+        `${entry.id}: manifest must carry all fields including executable code`,
       );
+      assert.ok(typeof entry.code === "string" && entry.code.includes("runExample"), `${entry.id}: missing executable code`);
     }
   });
 });

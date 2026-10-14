@@ -1,10 +1,11 @@
 // Generates the Studio snippet-browser manifest.
 //
 // `npm run build:snippets` (run automatically by `npm run build` after
-// `tsc`) reads the compiled `dist/snippets.js` and writes the light
+// `tsc`) reads the compiled `dist/snippets.js` and writes the full
 // manifest `snippets.json` at the package root: id, title, description,
-// capabilityId, tags — NOT the snippet code, so the manifest stays small
-// and the Studio browser can read it without loading source.
+// capabilityId, tags, and the runnable `code` snippet so the Studio
+// Capability & Snippet Library can display, copy, and insert real executable
+// code directly.
 //
 // The manifest is a build product: regenerate it after editing
 // `src/snippets.ts` by running `npm run build` (or `npm run build:snippets`
@@ -24,6 +25,7 @@ const manifest = SNIPPETS.map((snippet) => ({
   description: snippet.description,
   capabilityId: snippet.capabilityId,
   tags: [...snippet.tags],
+  code: snippet.code,
 }));
 
 const outPath = path.join(packageDir, "snippets.json");

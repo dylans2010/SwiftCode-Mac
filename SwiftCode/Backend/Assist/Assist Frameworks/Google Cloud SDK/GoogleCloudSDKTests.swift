@@ -847,7 +847,7 @@ public final class GoogleCloudSDKTests: Sendable {
         if config.model != "gemini-3.8-flash" {
             failures.append("Configuration model ID was mutated: got '\(config.model)', expected 'gemini-3.8-flash'")
         }
-        if config.thinkingLevel.lowercased() != "low" {
+        if config.thinkingLevel?.lowercased() != "low" {
             failures.append("thinkingLevel mismatch in config: got '\(config.thinkingLevel ?? "nil")', expected 'low'")
         }
 

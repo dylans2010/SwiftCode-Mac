@@ -16,9 +16,13 @@ public struct GoogleCloudSDKConfiguration: Codable, @unchecked Sendable {
     public var model: String
     public var apiKey: String?
     public var oauthToken: String?
+    /// Explicit execution mode separating Google Sign-In Antigravity execution
+    /// ("antigravity") from direct provider API-key execution ("api_key"),
+    /// Vertex AI ("vertex"), or local runtimes ("local").
+    public var executionMode: String?
     /// Google Cloud project ID used as the quota project (x-goog-user-project)
     /// for OAuth account authentication. Never fabricated: nil means "not
-    /// configured", and the bridge raises an actionable error instead.
+    /// configured".
     public var userProject: String?
     public var vertex: Bool
     public var project: String?
@@ -47,6 +51,7 @@ public struct GoogleCloudSDKConfiguration: Codable, @unchecked Sendable {
         model: String = "gemini-3.8-flash",
         apiKey: String? = nil,
         oauthToken: String? = nil,
+        executionMode: String? = nil,
         userProject: String? = nil,
         vertex: Bool = false,
         project: String? = nil,
@@ -74,6 +79,7 @@ public struct GoogleCloudSDKConfiguration: Codable, @unchecked Sendable {
         self.model = model
         self.apiKey = apiKey
         self.oauthToken = oauthToken
+        self.executionMode = executionMode
         self.userProject = userProject
         self.vertex = vertex
         self.project = project
@@ -100,7 +106,7 @@ public struct GoogleCloudSDKConfiguration: Codable, @unchecked Sendable {
     }
 
     public enum CodingKeys: String, CodingKey {
-        case model, apiKey, oauthToken, userProject, vertex, project, location, systemInstructions, skillsPaths, workspaces, appDataDir, saveDir, enableSubagents, maxSubagentDepth, allowedSubagents, serviceTier, provider, baseURL, thinkingLevel, useSavedModels, toolkit
+        case model, apiKey, oauthToken, executionMode, userProject, vertex, project, location, systemInstructions, skillsPaths, workspaces, appDataDir, saveDir, enableSubagents, maxSubagentDepth, allowedSubagents, serviceTier, provider, baseURL, thinkingLevel, useSavedModels, toolkit
         case litertModelPath, litertBackend, downloadIfMissing, enableSpeculativeDecoding
     }
 
@@ -109,6 +115,7 @@ public struct GoogleCloudSDKConfiguration: Codable, @unchecked Sendable {
         self.model = try container.decode(String.self, forKey: .model)
         self.apiKey = try container.decodeIfPresent(String.self, forKey: .apiKey)
         self.oauthToken = try container.decodeIfPresent(String.self, forKey: .oauthToken)
+        self.executionMode = try container.decodeIfPresent(String.self, forKey: .executionMode)
         self.userProject = try container.decodeIfPresent(String.self, forKey: .userProject)
         self.vertex = try container.decode(Bool.self, forKey: .vertex)
         self.project = try container.decodeIfPresent(String.self, forKey: .project)
@@ -139,6 +146,7 @@ public struct GoogleCloudSDKConfiguration: Codable, @unchecked Sendable {
         try container.encode(model, forKey: .model)
         try container.encodeIfPresent(apiKey, forKey: .apiKey)
         try container.encodeIfPresent(oauthToken, forKey: .oauthToken)
+        try container.encodeIfPresent(executionMode, forKey: .executionMode)
         try container.encodeIfPresent(userProject, forKey: .userProject)
         try container.encode(vertex, forKey: .vertex)
         try container.encodeIfPresent(project, forKey: .project)
@@ -227,9 +235,6 @@ public struct GoogleCloudSDKConfiguration: Codable, @unchecked Sendable {
             let rootPath = rootURL.path
             workspaces.append(rootPath)
 
-            // Read repository guidance once, then include only task-relevant
-            // sections in the session prompt. Sending the entire file on every
-            // new session can add tens of thousands of unnecessary tokens.
             let candidates = ["AGENTS.md", "Agents.md", "Agent.md"]
             for name in candidates {
                 let candidateURL = rootURL.appendingPathComponent(name)
@@ -241,7 +246,6 @@ public struct GoogleCloudSDKConfiguration: Codable, @unchecked Sendable {
                 }
             }
 
-            // Discover repository skills
             let repoSkills = rootURL.appendingPathComponent(".agents/skills")
             if FileManager.default.fileExists(atPath: repoSkills.path) {
                 skillsPaths.append(repoSkills.path)
@@ -256,14 +260,12 @@ public struct GoogleCloudSDKConfiguration: Codable, @unchecked Sendable {
             objective: objective
         )
 
-        // Add bundled skills if available
         if let bundledResource = Bundle.main.resourceURL?.appendingPathComponent("Google Cloud SDK/skills") {
             if FileManager.default.fileExists(atPath: bundledResource.path) {
                 skillsPaths.append(bundledResource.path)
             }
         }
 
-        // Isolate persistent state in Application Support
         let fm = FileManager.default
         let appSupport = fm.urls(for: .applicationSupportDirectory, in: .userDomainMask).first ?? fm.temporaryDirectory
         let sdkStorage = appSupport.appendingPathComponent("SwiftCode/GoogleCloudSDK", isDirectory: true)
@@ -273,26 +275,35 @@ public struct GoogleCloudSDKConfiguration: Codable, @unchecked Sendable {
         try? fm.createDirectory(atPath: appDataDir, withIntermediateDirectories: true)
         try? fm.createDirectory(atPath: saveDir, withIntermediateDirectories: true)
 
-        // Cloud mode supplies only the SDK's built-in schemas; generating and
-        // serializing the unrelated native-tool catalog wastes setup time.
         let toolkit = AppSettings.shared.assistToolkit
         let toolSchemas = toolkit.caseInsensitiveCompare("cloud") == .orderedSame
             ? nil
             : AssistManager.shared.registry.getToolSchemas()
 
         var oauthToken: String? = nil
+        var executionMode: String? = nil
         let googleAuthMode = UserDefaults.standard.string(forKey: "assist_google_auth_mode") ?? AppSettings.shared.assistGoogleAuthMode
         let isOAuthMode = googleAuthMode == "google_oauth"
         let isGoogleProvider = provider == "google" || provider == "gemini"
-        if isGoogleProvider && isOAuthMode && GoogleAccountAuthService.shared.isAuthenticated && !AppSettings.shared.alternativeKeysEnabled {
-            oauthToken = GoogleAccountAuthService.shared.getValidAccessToken()
-            apiKey = nil // Strictly zero API key reliance in account mode: the
-                         // OAuth Bearer token is the only credential.
+        let isAntigravityCatalogModel = AntigravitySDKModelFetcher.shared.getModel(byID: selectedModel) != nil
+            || AntigravitySDKModelFetcher.seedModels.contains(where: { $0.id == selectedModel })
+
+        if isOAuthMode && GoogleAccountAuthService.shared.isAuthenticated && !AppSettings.shared.alternativeKeysEnabled {
+            if isGoogleProvider || (isAntigravityCatalogModel && (apiKey ?? "").trimmingCharacters(in: .whitespacesAndNewlines).isEmpty) {
+                oauthToken = GoogleAccountAuthService.shared.getValidAccessToken()
+                apiKey = nil
+                executionMode = "antigravity"
+            }
         }
 
-        // Quota project for OAuth account authentication (x-goog-user-project).
-        // Never fabricated here: nil means "not configured" and the bridge
-        // raises an actionable error naming the missing setting.
+        if executionMode == nil {
+            if !(apiKey ?? "").trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                executionMode = "api_key"
+            } else if ["ollama", "lmstudio", "local", "litert"].contains((provider ?? "").lowercased()) {
+                executionMode = "local"
+            }
+        }
+
         let userProject: String? = {
             let configured = AppSettings.shared.assistGoogleCloudProject.trimmingCharacters(in: .whitespacesAndNewlines)
             if !configured.isEmpty { return configured }
@@ -300,10 +311,6 @@ public struct GoogleCloudSDKConfiguration: Codable, @unchecked Sendable {
             return nil
         }()
 
-        // Credential-kind invariant: an OAuth token must never travel in the
-        // apiKey slot (it would be sent to the Developer API as an API key and
-        // fail). If both are somehow set, the account credential wins and the
-        // key is dropped rather than silently mixing modes.
         if oauthToken != nil {
             apiKey = nil
         }
@@ -312,6 +319,7 @@ public struct GoogleCloudSDKConfiguration: Codable, @unchecked Sendable {
             model: selectedModel,
             apiKey: apiKey,
             oauthToken: oauthToken,
+            executionMode: executionMode,
             userProject: userProject,
             vertex: false,
             project: nil,
@@ -353,15 +361,26 @@ public struct GoogleCloudSDKConfiguration: Codable, @unchecked Sendable {
             "enableSpeculativeDecoding": enableSpeculativeDecoding
         ]
 
+        let trimmedApiKey = apiKey?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        let isAntigravityMode = (executionMode == "antigravity" || provider == "antigravity") && trimmedApiKey.isEmpty
         let isGoogleProvider = provider == "google" || provider == "gemini"
             || (provider == nil && model.lowercased().hasPrefix("gemini-"))
-        let accountToken = isGoogleProvider ? oauthToken?.trimmingCharacters(in: .whitespacesAndNewlines) : nil
+
+        let accountToken = (isGoogleProvider || isAntigravityMode)
+            ? oauthToken?.trimmingCharacters(in: .whitespacesAndNewlines)
+            : nil
         if let accountToken, !accountToken.isEmpty {
             dict["oauthToken"] = accountToken
         }
 
-        if isGoogleProvider, let userProject = userProject?.trimmingCharacters(in: .whitespacesAndNewlines), !userProject.isEmpty {
+        if (isGoogleProvider || isAntigravityMode),
+           let userProject = userProject?.trimmingCharacters(in: .whitespacesAndNewlines),
+           !userProject.isEmpty {
             dict["headers"] = ["x-goog-user-project": userProject]
+        }
+
+        if let executionMode = executionMode, !executionMode.isEmpty, trimmedApiKey.isEmpty || executionMode == "api_key" {
+            dict["executionMode"] = executionMode
         }
 
         if let provider = provider, !provider.isEmpty {
@@ -380,8 +399,8 @@ public struct GoogleCloudSDKConfiguration: Codable, @unchecked Sendable {
                 dict["baseURL"] = "https://\(trimmed)"
             }
         }
-        if (accountToken ?? "").isEmpty, let apiKey = apiKey, !apiKey.isEmpty {
-            dict["apiKey"] = apiKey
+        if (accountToken ?? "").isEmpty, !trimmedApiKey.isEmpty {
+            dict["apiKey"] = trimmedApiKey
         }
         if let project = project, !project.isEmpty {
             dict["project"] = project
@@ -416,13 +435,11 @@ public struct GoogleCloudSDKConfiguration: Codable, @unchecked Sendable {
     }
 
     /// Session-reuse contract (C-3): a live bridge session may only be reused
-    /// when every credential-bearing field matches. The bridge bakes the
-    /// bearer into session headers once and the vendored SDK never refreshes
-    /// it, so a token rotation or quota-project change must force a new
-    /// session rather than 401ing persistently on a dead bearer.
+    /// when every credential-bearing field matches.
     public func canReuseSession(for newConfig: GoogleCloudSDKConfiguration) -> Bool {
         return model == newConfig.model &&
             provider == newConfig.provider &&
+            executionMode == newConfig.executionMode &&
             baseURL == newConfig.baseURL &&
             thinkingLevel == newConfig.thinkingLevel &&
             apiKey == newConfig.apiKey &&

@@ -175,10 +175,15 @@ before(async () => {
     genDir,
   ]);
   assert.equal(created.code, 0, `generator failed:\n${created.stderr}`);
-  const installed = await runCommand("npm", ["install", "--no-audit", "--no-fund"], {
-    cwd: genDir,
-  });
-  assert.equal(installed.code, 0, `npm install failed:\n${installed.stderr}`);
+  const hasSeededDeps =
+    (await stat(path.join(genDir, "node_modules", "@swiftcode", "sdk")).catch(() => null)) !== null &&
+    (await stat(path.join(genDir, "node_modules", "typescript")).catch(() => null)) !== null;
+  if (!hasSeededDeps) {
+    const installed = await runCommand("npm", ["install", "--prefer-offline", "--no-audit", "--no-fund"], {
+      cwd: genDir,
+    });
+    assert.equal(installed.code, 0, `npm install failed:\n${installed.stderr}`);
+  }
 });
 
 describe("swiftcode build -> package -> install -> run round-trip", () => {

@@ -18,9 +18,9 @@ import Testing
     }
 
     @Test func workspacePathTraversal() {
-        let root = WorkspacePath("/Users/dylan/Downloads/SwiftCode-Debug/SwiftCode/SDK")
-        let safe = WorkspacePath("/Users/dylan/Downloads/SwiftCode-Debug/SwiftCode/SDK/Sources")
-        let malicious = WorkspacePath("/Users/dylan/Downloads/SwiftCode-Debug/SwiftCode/SDK/../../etc/passwd")
+        let root = WorkspacePath("/Users/dylan/SwiftCode-Mac/SwiftCode/SDK")
+        let safe = WorkspacePath("/Users/dylan/SwiftCode-Mac/SwiftCode/SDK/Sources")
+        let malicious = WorkspacePath("/Users/dylan/SwiftCode-Mac/SwiftCode/SDK/../../etc/passwd")
 
         #expect(safe.isWithin(root: root))
         #expect(!malicious.isWithin(root: root))

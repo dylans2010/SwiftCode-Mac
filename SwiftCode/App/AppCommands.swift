@@ -245,6 +245,12 @@ struct AppCommands: Commands {
             .keyboardShortcut("t", modifiers: [.command, .shift])
         }
 
+        EditorViewHelpCommands()
+    }
+}
+
+private struct EditorViewHelpCommands: Commands {
+    var body: some Commands {
         CommandGroup(after: .textEditing) {
             Button("Go to Line...") {
                 NotificationCenter.default.post(name: .toolbarToolActivated, object: nil, userInfo: ["toolID": "go_to_line"])

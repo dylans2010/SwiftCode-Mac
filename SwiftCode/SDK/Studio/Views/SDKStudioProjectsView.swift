@@ -30,10 +30,26 @@ import SwiftUI
 ///
 /// This view is the exclusive creation surface for SwiftCode platform
 /// projects and SDK extensions. Each card opens a wizard that really
-/// creates the project on disk — there are no placeholder flows.
+/// creates the project on disk, and users can also open existing or
+/// recent Studio projects directly into the Studio Code Editor or
+/// Visual Manifest Editor.
 public struct SDKStudioProjectsView: View {
 
-    public init() {}
+    private static let recentProjectsKey = "com.swiftcode.sdk.studio.recentProjects"
+
+    private let editorState: SDKCodeEditorState?
+    private let onOpenInCodeEditor: ((URL) -> Void)?
+    private let onOpenInManifestEditor: ((URL) -> Void)?
+
+    public init(
+        editorState: SDKCodeEditorState? = nil,
+        onOpenInCodeEditor: ((URL) -> Void)? = nil,
+        onOpenInManifestEditor: ((URL) -> Void)? = nil
+    ) {
+        self.editorState = editorState
+        self.onOpenInCodeEditor = onOpenInCodeEditor
+        self.onOpenInManifestEditor = onOpenInManifestEditor
+    }
 
     private enum SheetKind: String, Identifiable {
         case newExtension
@@ -44,36 +60,65 @@ public struct SDKStudioProjectsView: View {
     }
 
     @State private var activeSheet: SheetKind?
+    @State private var recentProjectPaths: [String] = []
 
     public var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 24) {
                 header
                 cards
+                existingAndRecentProjectsSection
             }
             .padding(28)
             .frame(maxWidth: .infinity, alignment: .leading)
         }
+        .onAppear {
+            loadRecentProjects()
+        }
         .sheet(item: $activeSheet) { kind in
             switch kind {
             case .newExtension:
-                ScaffoldWizardView(config: .newExtension)
+                ScaffoldWizardView(
+                    config: .newExtension,
+                    onCreated: { url in recordRecentProject(url) },
+                    onOpenInCodeEditor: onOpenInCodeEditor,
+                    onOpenInManifestEditor: onOpenInManifestEditor
+                )
             case .newTypeScriptProject:
-                ScaffoldWizardView(config: .newTypeScriptProject)
+                ScaffoldWizardView(
+                    config: .newTypeScriptProject,
+                    onCreated: { url in recordRecentProject(url) },
+                    onOpenInCodeEditor: onOpenInCodeEditor,
+                    onOpenInManifestEditor: nil
+                )
             case .newSwiftProject:
-                ScaffoldWizardView(config: .newSwiftProject)
+                ScaffoldWizardView(
+                    config: .newSwiftProject,
+                    onCreated: { url in recordRecentProject(url) },
+                    onOpenInCodeEditor: onOpenInCodeEditor,
+                    onOpenInManifestEditor: nil
+                )
             }
         }
     }
 
     private var header: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text("Platform Projects")
-                .font(.largeTitle)
-                .fontWeight(.bold)
-            Text("Studio is the only place in SwiftCode where platform projects and extensions can be created (spec §13.3). The main editor is for editing code — its New Project commands redirect here, so every platform project starts life under the SDK's manifest, capability, and packaging rules.")
-                .foregroundStyle(.secondary)
-                .frame(maxWidth: 680, alignment: .leading)
+        HStack(alignment: .top) {
+            VStack(alignment: .leading, spacing: 8) {
+                Text("Platform Projects")
+                    .font(.largeTitle)
+                    .fontWeight(.bold)
+                Text("Studio is the exclusive hub where SwiftCode platform projects and SDK extensions are created, opened, edited, validated, built, and packaged (spec §13.3).")
+                    .foregroundStyle(.secondary)
+                    .frame(maxWidth: 680, alignment: .leading)
+            }
+            Spacer()
+            Button {
+                openExistingProjectPanel()
+            } label: {
+                Label("Open Existing Project…", systemImage: "folder.badge.gearshape")
+            }
+            .buttonStyle(.bordered)
         }
     }
 
@@ -100,6 +145,119 @@ public struct SDKStudioProjectsView: View {
                 buttonTitle: "Create Swift Project…"
             ) { activeSheet = .newSwiftProject }
         }
+    }
+
+    private var existingAndRecentProjectsSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                Text("Recent & Active Studio Projects")
+                    .font(.title3)
+                    .fontWeight(.semibold)
+                Spacer()
+                if !recentProjectPaths.isEmpty {
+                    Button("Clear Recent") {
+                        recentProjectPaths.removeAll()
+                        UserDefaults.standard.removeObject(forKey: Self.recentProjectsKey)
+                    }
+                    .controlSize(.small)
+                }
+            }
+            if recentProjectPaths.isEmpty {
+                HStack(spacing: 10) {
+                    Image(systemName: "clock.arrow.circlepath")
+                        .foregroundStyle(.secondary)
+                    Text("No recent Studio projects yet. Create a project above or click “Open Existing Project…” to open a folder in the Code Editor or Manifest Editor.")
+                        .font(.callout)
+                        .foregroundStyle(.secondary)
+                }
+                .padding(14)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(Color(nsColor: .controlBackgroundColor))
+                .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+            } else {
+                VStack(spacing: 8) {
+                    ForEach(recentProjectPaths, id: \.self) { path in
+                        let url = URL(fileURLWithPath: path)
+                        let hasManifest = FileManager.default.fileExists(
+                            atPath: url.appendingPathComponent("swiftcode.json").path
+                        )
+                        HStack(spacing: 12) {
+                            Image(systemName: hasManifest ? "puzzlepiece.extension.fill" : "folder.fill")
+                                .foregroundStyle(.tint)
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(url.lastPathComponent)
+                                    .font(.subheadline)
+                                    .fontWeight(.medium)
+                                Text(url.path)
+                                    .font(.caption.monospaced())
+                                    .foregroundStyle(.secondary)
+                                    .lineLimit(1)
+                                    .truncationMode(.middle)
+                            }
+                            Spacer()
+                            if hasManifest, let onOpenInManifestEditor {
+                                Button("Edit Manifest") {
+                                    recordRecentProject(url)
+                                    onOpenInManifestEditor(url)
+                                }
+                                .controlSize(.small)
+                            }
+                            if let onOpenInCodeEditor {
+                                Button("Open in Code Editor") {
+                                    recordRecentProject(url)
+                                    onOpenInCodeEditor(url)
+                                }
+                                .buttonStyle(.borderedProminent)
+                                .controlSize(.small)
+                            }
+                            Button {
+                                NSWorkspace.shared.open(url)
+                            } label: {
+                                Image(systemName: "arrow.up.forward.app")
+                            }
+                            .controlSize(.small)
+                            .help("Reveal in Finder")
+                        }
+                        .padding(12)
+                        .background(Color(nsColor: .controlBackgroundColor))
+                        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                    }
+                }
+            }
+        }
+    }
+
+    private func openExistingProjectPanel() {
+        let panel = NSOpenPanel()
+        panel.canChooseFiles = false
+        panel.canChooseDirectories = true
+        panel.allowsMultipleSelection = false
+        panel.prompt = "Open in Studio"
+        panel.message = "Select an existing extension or project directory to open in Studio."
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        recordRecentProject(url)
+        onOpenInCodeEditor?(url)
+    }
+
+    private func loadRecentProjects() {
+        var list = UserDefaults.standard.stringArray(forKey: Self.recentProjectsKey) ?? []
+        if let activeRoot = editorState?.projectRootURL?.standardizedFileURL.path,
+           !list.contains(activeRoot) {
+            list.insert(activeRoot, at: 0)
+        }
+        recentProjectPaths = list.filter { FileManager.default.fileExists(atPath: $0) }
+    }
+
+    private func recordRecentProject(_ url: URL) {
+        let standardized = url.standardizedFileURL.path
+        var list = UserDefaults.standard.stringArray(forKey: Self.recentProjectsKey) ?? []
+        list.removeAll { $0 == standardized }
+        list.insert(standardized, at: 0)
+        if list.count > 12 {
+            list = Array(list.prefix(12))
+        }
+        UserDefaults.standard.set(list, forKey: Self.recentProjectsKey)
+        recentProjectPaths = list.filter { FileManager.default.fileExists(atPath: $0) }
     }
 }
 
@@ -181,15 +339,11 @@ private struct WizardConfig {
 
 // MARK: - ScaffoldWizardView
 
-/// Generic creation wizard driven by a ``WizardConfig``.
-///
-/// Behavior contract: live per-field validation, the Create button stays
-/// disabled until every field validates, the directory is chosen with a
-/// native NSOpenPanel, scaffolding writes real files to disk, success shows
-/// the real path with an Open in Finder button, and failure shows the real
-/// error. The log area lists every file written.
 private struct ScaffoldWizardView: View {
     let config: WizardConfig
+    let onCreated: ((URL) -> Void)?
+    let onOpenInCodeEditor: ((URL) -> Void)?
+    let onOpenInManifestEditor: ((URL) -> Void)?
 
     private enum Phase: Equatable {
         case editing
@@ -203,8 +357,16 @@ private struct ScaffoldWizardView: View {
     @State private var log: [String] = []
     @Environment(\.dismiss) private var dismiss
 
-    init(config: WizardConfig) {
+    init(
+        config: WizardConfig,
+        onCreated: ((URL) -> Void)? = nil,
+        onOpenInCodeEditor: ((URL) -> Void)? = nil,
+        onOpenInManifestEditor: ((URL) -> Void)? = nil
+    ) {
         self.config = config
+        self.onCreated = onCreated
+        self.onOpenInCodeEditor = onOpenInCodeEditor
+        self.onOpenInManifestEditor = onOpenInManifestEditor
         var initial: [String: String] = [:]
         for field in config.fields {
             initial[field.key] = field.initialValue
@@ -398,9 +560,6 @@ private struct ScaffoldWizardView: View {
         if !current.isEmpty {
             panel.directoryURL = URL(fileURLWithPath: current)
         }
-        // runModal is synchronous: no escaping completion handler, no
-        // Sendable or cross-executor concerns; the @State write below runs
-        // on @MainActor exactly like a Button action.
         if panel.runModal() == .OK, let url = panel.url {
             values[key] = url.path
         }
@@ -408,9 +567,6 @@ private struct ScaffoldWizardView: View {
 
     // MARK: Creation
 
-    /// Writes the project synchronously on the main actor. The write is a
-    /// handful of small files (milliseconds); doing it inline keeps the
-    /// whole flow on @MainActor with no Sendable or cross-executor hazards.
     private func create() {
         guard isValid, !isWriting else { return }
         guard let outDir = values["outDir"], !outDir.isEmpty else { return }
@@ -435,6 +591,7 @@ private struct ScaffoldWizardView: View {
                     log.append("Wrote \(rel)")
                 }
             }
+            onCreated?(target)
             phase = .success(target: target, written: written)
         } catch {
             let message: String
@@ -464,16 +621,29 @@ private struct ScaffoldWizardView: View {
                 .textSelection(.enabled)
                 .multilineTextAlignment(.center)
                 .frame(maxWidth: 520)
-            Text("Next: open a terminal in that directory and follow the README (npm install, build, test).")
+            Text("Open the project directly in the Studio Code Editor or Manifest Editor, or reveal it in Finder.")
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
                 .frame(maxWidth: 520)
             HStack(spacing: 12) {
+                if let onOpenInCodeEditor {
+                    Button("Open in Code Editor") {
+                        dismiss()
+                        onOpenInCodeEditor(target)
+                    }
+                    .buttonStyle(.borderedProminent)
+                }
+                if let onOpenInManifestEditor {
+                    Button("Edit Manifest") {
+                        dismiss()
+                        onOpenInManifestEditor(target)
+                    }
+                    .buttonStyle(.bordered)
+                }
                 Button("Open in Finder") {
                     NSWorkspace.shared.open(target)
                 }
-                .buttonStyle(.borderedProminent)
                 Button("Done") { dismiss() }
             }
             .padding(.top, 4)
@@ -517,10 +687,10 @@ extension WizardConfig {
         WizardConfig(
             kind: .newExtension,
             title: "New Extension",
-            subtitle: "TypeScript extension with a swiftcode.json manifest. Extensions run out-of-process under host capability controls and can never invoke Assist.",
+            subtitle: "TypeScript extension with a swiftcode.json manifest. Extensions run out-of-process under host capability controls.",
             banner: WizardBanner(
-                title: "Capabilities — fixed in v1",
-                body: "Every generated extension declares exactly source-control.read (display repository status and diffs) and build.execute (run builds through SwiftCode's managed build service), matching the shipped template and the generator's manifest tests. Additional capabilities are not available in this release, so this is shown for transparency and is not editable."
+                title: "Capabilities & Visual Manifest Editor",
+                body: "The starter scaffold declares source-control.read and build.execute. After creation, click “Edit Manifest” to toggle any of the 32 canonical SDK capabilities, edit contributed commands, or configure Assist access in the visual Manifest Editor."
             ),
             fields: [
                 WizardField(

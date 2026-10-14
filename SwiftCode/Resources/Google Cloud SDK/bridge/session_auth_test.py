@@ -22,6 +22,20 @@ class CapturingAgent:
         return self
 
 
+class DummyAdapterServer:
+    def __init__(self, port: int = 54321):
+        self.actual_port = port
+        self.targets = {}
+
+    def register_target(self, model_name, provider, api_key=None, base_url=None, headers=None):
+        self.targets[model_name] = {
+            "provider": provider,
+            "api_key": api_key,
+            "base_url": base_url,
+            "headers": headers or {},
+        }
+
+
 class SessionAuthTests(unittest.IsolatedAsyncioTestCase):
     async def test_account_config_has_bearer_and_no_api_key_on_wire(self):
         bridge = runner.AgentRunner(lambda *_: None)
@@ -44,6 +58,48 @@ class SessionAuthTests(unittest.IsolatedAsyncioTestCase):
             with self.assertRaisesRegex(runner.GeminiAuthConfigError, "only authorizes Gemini"):
                 await bridge.create_session("claude", {"model": "claude-sonnet-test", "provider": "anthropic"})
         self.assertNotIn("claude", bridge.sessions)
+
+    async def test_antigravity_mode_authorizes_claude_catalog_models_with_oauth_token(self):
+        adapter = DummyAdapterServer(port=54321)
+        bridge = runner.AgentRunner(lambda *_: None, adapter_server=adapter)
+        with patch.object(runner, "Agent", CapturingAgent):
+            for claude_model in ("claude-sonnet-4-6", "claude-opus-4-6-thinking"):
+                sess_id = f"ag-{claude_model}"
+                await bridge.create_session(sess_id, {
+                    "model": claude_model,
+                    "provider": "anthropic",
+                    "executionMode": "antigravity",
+                    "oauthToken": "ya29.antigravity-token",
+                    "enableSubagents": False,
+                })
+                config = bridge.sessions[sess_id].agent.config
+                self.assertIsNone(config.api_key)
+                proto = build_models_proto(config.models)[0].gemini_api_endpoint
+                self.assertEqual(proto.api_key, "")
+                self.assertEqual(proto.http_headers["Authorization"], "Bearer ya29.antigravity-token")
+                self.assertEqual(proto.base_url, "http://127.0.0.1:54321/v1")
+                self.assertEqual(adapter.targets[claude_model]["provider"], "antigravity")
+
+    async def test_antigravity_mode_gemini_without_quota_project_routes_via_antigravity_adapter(self):
+        adapter = DummyAdapterServer(port=54322)
+        bridge = runner.AgentRunner(lambda *_: None, adapter_server=adapter)
+        with patch.object(runner, "Agent", CapturingAgent), patch.dict(os.environ, {"GOOGLE_CLOUD_PROJECT": ""}):
+            for gemini_model in ("gemini-3.8-flash", "gemini-3.1-pro", "gemini-3-flash", "gemini-3.1-pro-high", "gemini-3.1-pro-low"):
+                sess_id = f"ag-{gemini_model}"
+                await bridge.create_session(sess_id, {
+                    "model": gemini_model,
+                    "provider": "google",
+                    "executionMode": "antigravity",
+                    "oauthToken": "ya29.antigravity-token",
+                    "enableSubagents": False,
+                })
+                config = bridge.sessions[sess_id].agent.config
+                self.assertIsNone(config.api_key)
+                proto = build_models_proto(config.models)[0].gemini_api_endpoint
+                self.assertEqual(proto.api_key, "")
+                self.assertEqual(proto.http_headers["Authorization"], "Bearer ya29.antigravity-token")
+                self.assertEqual(proto.base_url, "http://127.0.0.1:54322/v1")
+                self.assertEqual(adapter.targets[gemini_model]["provider"], "antigravity")
 
     def test_api_key_is_preserved_without_bearer(self):
         proto = build_models_proto([types.ModelTarget(

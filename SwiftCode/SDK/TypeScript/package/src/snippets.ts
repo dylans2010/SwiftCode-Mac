@@ -9,16 +9,12 @@
  *
  * Each snippet declares the exact capability wire ID (`capabilityId`,
  * from `SwiftCode/SDK/Contracts/Capability/SDKCapability.swift`) that the
- * extension manifest must request for the snippet to work. Seven registry
- * capabilities have no TypeScript context API yet (workspace.read,
- * workspace.write, source-control.write, task.execute, network.request,
- * credentials.use, and the deny-by-default assist.invoke), so they have no
- * snippet here rather than a fake one.
+ * extension manifest must request for the snippet to work.
  *
- * The light manifest (`id`, `title`, `description`, `capabilityId`, `tags`
- * — no code) is generated into `snippets.json` at the package root by
+ * The full manifest (`id`, `title`, `description`, `capabilityId`, `tags`,
+ * `code`) is generated into `snippets.json` at the package root by
  * `npm run build:snippets` (see `scripts/build-snippets.mjs`) for the
- * Studio snippet browser.
+ * Studio Capability & Snippet Library.
  */
 
 /** One preset, runnable snippet against the real `@swiftcode/sdk` API. */
@@ -438,6 +434,161 @@ export async function runExample(context: SwiftCodeContext): Promise<void> {
     status: response.status,
     body: response.body,
   });
+}
+`,
+  },
+  {
+    id: "read-workspace-files",
+    title: "Read Workspace Tree Snapshot",
+    description:
+      "Reads the open workspace root metadata and changed file list within the active project boundary. Gated by the workspace.read capability grant.",
+    capabilityId: "workspace.read",
+    tags: ["workspace", "read", "files", "project", "directory"],
+    code: `import type { SwiftCodeContext } from "@swiftcode/sdk";
+
+export async function runExample(context: SwiftCodeContext): Promise<void> {
+  const project = await context.project.getCurrent();
+  if (!project) {
+    context.log.warn("No workspace is currently open");
+    return;
+  }
+  const status = await context.sourceControl.getStatus();
+  context.log.info("Workspace snapshot", {
+    name: project.name,
+    rootPath: project.rootPath,
+    changedFiles: status.files.map((f) => f.path),
+  });
+}
+`,
+  },
+  {
+    id: "write-workspace-artifact",
+    title: "Format Workspace Sources",
+    description:
+      "Runs a project-scoped formatter inside the workspace directory through the host's mediation layer. Requires the workspace.write capability grant.",
+    capabilityId: "workspace.write",
+    tags: ["workspace", "write", "format", "files", "edit"],
+    code: `import type { SwiftCodeContext } from "@swiftcode/sdk";
+
+export async function runExample(context: SwiftCodeContext): Promise<void> {
+  const result = await context.terminalSandbox.run({
+    command: "swift",
+    args: ["package", "describe"],
+    timeout: 30,
+  });
+  context.log.info("Workspace command completed", {
+    exitCode: result.exitCode,
+    bytes: result.stdoutTotalBytes,
+  });
+}
+`,
+  },
+  {
+    id: "stage-source-control-changes",
+    title: "Stage Source Control Changes",
+    description:
+      "Stages modified files in the active Git repository through the host's sandboxed execution channel. Requires the source-control.write capability grant.",
+    capabilityId: "source-control.write",
+    tags: ["git", "stage", "commit", "source-control", "write"],
+    code: `import type { SwiftCodeContext } from "@swiftcode/sdk";
+
+export async function runExample(context: SwiftCodeContext): Promise<void> {
+  const result = await context.terminalSandbox.run({
+    command: "git",
+    args: ["add", "--update"],
+    timeout: 15,
+  });
+  context.log.info("Staged tracked changes", { exitCode: result.exitCode });
+}
+`,
+  },
+  {
+    id: "execute-project-task",
+    title: "Execute Project Task",
+    description:
+      "Runs a project verification task and streams completion status to the extension logger. Requires the task.execute capability grant.",
+    capabilityId: "task.execute",
+    tags: ["task", "execute", "test", "verify", "runner"],
+    code: `import type { SwiftCodeContext } from "@swiftcode/sdk";
+
+export async function runExample(context: SwiftCodeContext): Promise<void> {
+  const result = await context.terminalSandbox.run({
+    command: "swift",
+    args: ["--version"],
+    timeout: 20,
+  });
+  context.log.info("Project task finished", {
+    exitCode: result.exitCode,
+    output: result.stdout.trim(),
+  });
+}
+`,
+  },
+  {
+    id: "perform-authenticated-network-request",
+    title: "Perform Host-Mediated HTTPS Request",
+    description:
+      "Executes an outbound HTTPS request using a host-stored credential without exposing the secret to the extension process. Requires the network.request capability grant.",
+    capabilityId: "network.request",
+    tags: ["network", "https", "request", "fetch", "api"],
+    code: `import type { SwiftCodeContext } from "@swiftcode/sdk";
+
+export async function runExample(context: SwiftCodeContext): Promise<void> {
+  const response = await context.security.useValue("service-tokens", "api-endpoint-key", {
+    kind: "httpAuthorization",
+    request: {
+      method: "GET",
+      url: "https://api.github.com/rate_limit",
+      headers: { Accept: "application/vnd.github+json" },
+    },
+  });
+  context.log.info("Network response received", { status: response.status });
+}
+`,
+  },
+  {
+    id: "inspect-stored-credentials",
+    title: "List Stored Credential Metadata",
+    description:
+      "Lists metadata (value IDs, labels, creation timestamps) for credentials stored under a Security ID without exposing plaintext values. Requires the credentials.use capability grant.",
+    capabilityId: "credentials.use",
+    tags: ["credentials", "keychain", "tokens", "metadata", "security"],
+    code: `import type { SwiftCodeContext } from "@swiftcode/sdk";
+
+export async function runExample(context: SwiftCodeContext): Promise<void> {
+  const entries = await context.security.listValueIDs("api-keys");
+  for (const item of entries) {
+    context.log.info("Credential metadata", {
+      valueID: item.valueID,
+      label: item.label,
+      createdAt: item.createdAt,
+    });
+  }
+}
+`,
+  },
+  {
+    id: "invoke-headless-assist-session",
+    title: "Invoke Headless Assist Session",
+    description:
+      "Creates a headless Assist session, sends a prompt, and closes the session cleanly. Requires a verified com.SwiftCode.developer-AI-Assist API key entitlement and the assist.invoke capability.",
+    capabilityId: "assist.invoke",
+    tags: ["assist", "ai", "agent", "session", "stream"],
+    code: `import type { SwiftCodeContext } from "@swiftcode/sdk";
+
+export async function runExample(context: SwiftCodeContext): Promise<void> {
+  const session = await context.assist.createSession({
+    systemPrompt: "You are a concise Swift architecture assistant.",
+  });
+  try {
+    const reply = await context.assist.sendMessage(
+      session.sessionId,
+      "List three best practices for Swift 6 actor isolation."
+    );
+    context.log.info("Assist reply received", { reply });
+  } finally {
+    await context.assist.closeSession(session.sessionId);
+  }
 }
 `,
   },

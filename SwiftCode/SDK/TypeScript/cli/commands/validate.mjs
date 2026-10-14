@@ -95,7 +95,7 @@ const REQUIRED_TOP_LEVEL = [
   "capabilities",
 ];
 
-// Capability IDs fixed for v1 (schema enum; ADR §7).
+// Capability IDs across the canonical SDK registry (SDKCapability.swift + ScopesIDLists.ts).
 const CAPABILITY_IDS = [
   "project.read",
   "workspace.read",
@@ -107,7 +107,28 @@ const CAPABILITY_IDS = [
   "network.request",
   "ui.contribute",
   "credentials.use",
+  "use.Security",
+  "use.Security.keychain",
+  "use.Security.audit",
+  "use.Security.crypto",
+  "use.Security.securePrompt",
+  "use.Security.redaction",
+  "use.Security.policy",
   "assist.invoke",
+  "db.ExploreView",
+  "ci.VisualWF",
+  "sandbox.view",
+  "virtualization.view",
+  "deployConsole.view",
+  "use.SwiftCodeModel",
+  "terminal.sandbox",
+  "simulator.view",
+  "preview.live",
+  "uibuilder.open",
+  "symbols.browse",
+  "docs.search",
+  "dictionary.open",
+  "deviceconnect.open",
 ];
 const CAPABILITY_SET = new Set(CAPABILITY_IDS);
 

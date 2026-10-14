@@ -1,15 +1,48 @@
 import Foundation
 
+// MARK: - SDKManifestDiagnostic
+//
+// Structured diagnostic item produced by `SDKManifestValidator.validateWithDiagnostics`
+// for the Studio Visual Manifest Editor and the Studio Compiler Diagnostics panel.
+
+public struct SDKManifestDiagnostic: Identifiable, Equatable, Hashable, Sendable {
+    public enum Severity: String, Codable, Sendable {
+        case error
+        case warning
+        case info
+    }
+
+    public let id: String
+    public let severity: Severity
+    public let field: String
+    public let message: String
+    public let suggestion: String
+    public let line: Int?
+
+    public init(
+        id: String? = nil,
+        severity: Severity,
+        field: String,
+        message: String,
+        suggestion: String,
+        line: Int? = nil
+    ) {
+        self.id = id ?? "\(severity.rawValue):\(field):\(message)"
+        self.severity = severity
+        self.field = field
+        self.message = message
+        self.suggestion = suggestion
+        self.line = line
+    }
+}
+
 // MARK: - SDKManifestValidator
 //
-// Strict, PURE manifest validation for `swiftcode.json` (spec §7.2, §7.3).
-// Performs no I/O: it validates the manifest bytes only. Package-level checks
-// (entrypoint existence, symlink containment, executables) live in
-// `SDKPackageValidator`.
-//
-// Every rejection is an `SDKError` with a user-safe message and an actionable
-// suggestion. Thread-safe: value types and static functions only, no shared
-// mutable state.
+// Strict manifest validation for `swiftcode.json` (spec §7.2, §7.3).
+// `validate(data:)` performs pure validation on manifest bytes.
+// `validateWithDiagnostics(data:projectRoot:grantedCapabilities:)` collects
+// all syntactic, semantic, project-structure, and authorization diagnostics
+// for the Studio Visual Manifest Editor and Compiler Pipeline.
 
 public enum SDKManifestValidator {
 
@@ -21,9 +54,7 @@ public enum SDKManifestValidator {
     private static let supportedProtocolVersion = 1
     private static let requiredSDKName = "@swiftcode/sdk"
     /// Host SDK version this validator checks compatibility against
-    /// (additive release 1.2.0: use.Security family, deployConsole.view,
-    /// virtualization.view, sandbox.view re-targeting, new security.*
-    /// IPC routes).
+    /// (additive release 1.2.0: compatible with 1.0.0, 1.1.0, and 1.2.0).
     private static let hostSDKVersion = (major: 1, minor: 2, patch: 0)
 
     private static let maxIDLength = 128
@@ -36,21 +67,13 @@ public enum SDKManifestValidator {
     private static let maxCapabilities = 32
     private static let maxCommands = 64
 
-    /// The fixed v1 capability registry (ADR §7). Unknown IDs are rejected —
-    /// never silently reinterpreted as a known capability (spec §7.3).
-    private static let supportedCapabilities: Set<String> = [
-        "project.read",
-        "workspace.read",
-        "workspace.write",
-        "source-control.read",
-        "source-control.write",
-        "build.execute",
-        "task.execute",
-        "network.request",
-        "ui.contribute",
-        "credentials.use",
-        "assist.invoke",
-    ]
+    /// The canonical capability registry (`SDKCapability.all` + sub-scopes in `ScopesIDLists.allScopeIDs`).
+    /// Unknown IDs are rejected — never silently reinterpreted as a known capability (spec §7.3).
+    public static var supportedCapabilities: Set<String> {
+        var ids = Set(SDKCapability.all.map(\.id))
+        ids.formUnion(ScopesIDLists.allScopeIDs)
+        return ids
+    }
 
     // MARK: - Entry point
 
@@ -132,6 +155,350 @@ public enum SDKManifestValidator {
         // `assist` is descriptive metadata only (spec §9.1, ADR §9): accepted
         // as decoded. Denial is enforced at the broker, never here.
         return manifest
+    }
+
+    // MARK: - Multi-Diagnostic Validation for Studio Editor & Compiler
+
+    /// Collects all syntactic, semantic, project-level, and authorization diagnostics
+    /// for a manifest without stopping at the first error.
+    public static func validateWithDiagnostics(
+        data: Data,
+        projectRoot: URL? = nil,
+        grantedCapabilities: Set<String>? = nil
+    ) -> [SDKManifestDiagnostic] {
+        var diagnostics: [SDKManifestDiagnostic] = []
+        let rawText = String(data: data, encoding: .utf8) ?? ""
+
+        if data.count > maxManifestBytes {
+            diagnostics.append(SDKManifestDiagnostic(
+                severity: .error,
+                field: "swiftcode.json",
+                message: "The extension manifest exceeds the 64 KB size limit (\(data.count) bytes).",
+                suggestion: "Reduce swiftcode.json to 64 KB or less.",
+                line: 1
+            ))
+            return diagnostics
+        }
+
+        let topLevel: Any
+        do {
+            topLevel = try JSONSerialization.jsonObject(with: data, options: [])
+        } catch {
+            let line = extractJSONErrorLine(from: error, in: rawText)
+            diagnostics.append(SDKManifestDiagnostic(
+                severity: .error,
+                field: "swiftcode.json",
+                message: "Malformed JSON syntax: \(error.localizedDescription)",
+                suggestion: "Fix the JSON syntax error in swiftcode.json.",
+                line: line ?? 1
+            ))
+            return diagnostics
+        }
+
+        guard let object = topLevel as? [String: Any] else {
+            diagnostics.append(SDKManifestDiagnostic(
+                severity: .error,
+                field: "swiftcode.json",
+                message: "The extension manifest must be a single JSON object.",
+                suggestion: "Make the top level of swiftcode.json one JSON object.",
+                line: 1
+            ))
+            return diagnostics
+        }
+
+        let requiredKeys = ["manifestVersion", "id", "name", "version", "type", "runtime", "sdk", "capabilities"]
+        for key in requiredKeys where object[key] == nil {
+            diagnostics.append(SDKManifestDiagnostic(
+                severity: .error,
+                field: key,
+                message: "Missing required field \"\(key)\".",
+                suggestion: "Add \"\(key)\" to swiftcode.json.",
+                line: 1
+            ))
+        }
+
+        if let rawVer = object["manifestVersion"] {
+            if let intVer = rawVer as? Int {
+                if intVer != supportedManifestVersion {
+                    diagnostics.append(SDKManifestDiagnostic(
+                        severity: .error,
+                        field: "manifestVersion",
+                        message: "Unsupported manifestVersion \(intVer) (expected 1).",
+                        suggestion: "Set \"manifestVersion\" to 1.",
+                        line: findLine(ofKey: "manifestVersion", in: rawText)
+                    ))
+                }
+            } else {
+                diagnostics.append(SDKManifestDiagnostic(
+                    severity: .error,
+                    field: "manifestVersion",
+                    message: "\"manifestVersion\" must be an integer.",
+                    suggestion: "Set \"manifestVersion\": 1.",
+                    line: findLine(ofKey: "manifestVersion", in: rawText)
+                ))
+            }
+        }
+
+        guard let manifest = try? JSONDecoder().decode(SDKManifest.self, from: data) else {
+            if diagnostics.isEmpty {
+                diagnostics.append(SDKManifestDiagnostic(
+                    severity: .error,
+                    field: "swiftcode.json",
+                    message: "Manifest structure does not match the v1 schema types.",
+                    suggestion: "Ensure runtime, sdk, capabilities, and contributes have the expected object/array types.",
+                    line: 1
+                ))
+            }
+            return diagnostics
+        }
+
+        // Identity checks
+        let id = manifest.id.trimmingCharacters(in: .whitespacesAndNewlines)
+        if id.isEmpty {
+            diagnostics.append(SDKManifestDiagnostic(
+                severity: .error,
+                field: "id",
+                message: "Extension \"id\" must not be blank.",
+                suggestion: "Set \"id\" to a reverse-DNS identifier, e.g. \"com.example.my-extension\".",
+                line: findLine(ofKey: "id", in: rawText)
+            ))
+        } else if !matches(id, pattern: #"^[a-z0-9]+(\.[a-z0-9-]+)+$"#) {
+            diagnostics.append(SDKManifestDiagnostic(
+                severity: .error,
+                field: "id",
+                message: "Extension ID \"\(id)\" is not a valid lowercase reverse-DNS identifier.",
+                suggestion: "Use lowercase letters, digits, and hyphens separated by dots, e.g. \"com.example.my-extension\".",
+                line: findLine(ofKey: "id", in: rawText)
+            ))
+        }
+
+        let name = manifest.name.trimmingCharacters(in: .whitespacesAndNewlines)
+        if name.isEmpty {
+            diagnostics.append(SDKManifestDiagnostic(
+                severity: .error,
+                field: "name",
+                message: "Extension \"name\" must not be blank.",
+                suggestion: "Provide a human-readable display name.",
+                line: findLine(ofKey: "name", in: rawText)
+            ))
+        }
+
+        let version = manifest.version.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !matches(version, pattern: #"^\d+\.\d+\.\d+(-[0-9A-Za-z.-]+)?$"#) {
+            diagnostics.append(SDKManifestDiagnostic(
+                severity: .error,
+                field: "version",
+                message: "Version \"\(version)\" is not valid semver.",
+                suggestion: "Use a semver string such as \"0.1.0\" or \"1.0.0\".",
+                line: findLine(ofKey: "version", in: rawText)
+            ))
+        }
+
+        if manifest.type != "extension" && manifest.type != "application" {
+            diagnostics.append(SDKManifestDiagnostic(
+                severity: .error,
+                field: "type",
+                message: "Unsupported manifest type \"\(manifest.type)\".",
+                suggestion: "Set \"type\" to \"extension\".",
+                line: findLine(ofKey: "type", in: rawText)
+            ))
+        }
+
+        // Runtime checks
+        if manifest.runtime.language != "typescript" {
+            diagnostics.append(SDKManifestDiagnostic(
+                severity: .error,
+                field: "runtime.language",
+                message: "Unsupported runtime language \"\(manifest.runtime.language)\".",
+                suggestion: "Set \"runtime.language\" to \"typescript\".",
+                line: findLine(ofKey: "language", in: rawText)
+            ))
+        }
+
+        let ep = manifest.runtime.entrypoint.trimmingCharacters(in: .whitespacesAndNewlines)
+        if ep.isEmpty || ep.hasPrefix("/") || ep.split(separator: "/").contains("..") {
+            diagnostics.append(SDKManifestDiagnostic(
+                severity: .error,
+                field: "runtime.entrypoint",
+                message: "Runtime entrypoint \"\(ep)\" must be a safe relative path inside the package.",
+                suggestion: "Use a relative path such as \"dist/index.js\".",
+                line: findLine(ofKey: "entrypoint", in: rawText)
+            ))
+        } else if let root = projectRoot {
+            let entryURL = root.appendingPathComponent(ep)
+            let tsSourceURL = root.appendingPathComponent("src/index.ts")
+            if !FileManager.default.fileExists(atPath: entryURL.path) {
+                if FileManager.default.fileExists(atPath: tsSourceURL.path) {
+                    diagnostics.append(SDKManifestDiagnostic(
+                        severity: .info,
+                        field: "runtime.entrypoint",
+                        message: "Compiled entrypoint \"\(ep)\" has not been built yet (src/index.ts is present).",
+                        suggestion: "Run Build in Studio to compile TypeScript sources into \(ep).",
+                        line: findLine(ofKey: "entrypoint", in: rawText)
+                    ))
+                } else {
+                    diagnostics.append(SDKManifestDiagnostic(
+                        severity: .warning,
+                        field: "runtime.entrypoint",
+                        message: "Entrypoint \"\(ep)\" and source \"src/index.ts\" were not found in project.",
+                        suggestion: "Create src/index.ts or point runtime.entrypoint to an existing file.",
+                        line: findLine(ofKey: "entrypoint", in: rawText)
+                    ))
+                }
+            }
+        }
+
+        if !matches(manifest.runtime.minimumSwiftCodeVersion, pattern: #"^\d+\.\d+\.\d+(-[0-9A-Za-z.-]+)?$"#) {
+            diagnostics.append(SDKManifestDiagnostic(
+                severity: .error,
+                field: "runtime.minimumSwiftCodeVersion",
+                message: "minimumSwiftCodeVersion \"\(manifest.runtime.minimumSwiftCodeVersion)\" is not valid semver.",
+                suggestion: "Use a semver string such as \"1.0.0\".",
+                line: findLine(ofKey: "minimumSwiftCodeVersion", in: rawText)
+            ))
+        }
+
+        // SDK ref checks
+        if manifest.sdk.name != requiredSDKName {
+            diagnostics.append(SDKManifestDiagnostic(
+                severity: .error,
+                field: "sdk.name",
+                message: "SDK name must be \"\(requiredSDKName)\", got \"\(manifest.sdk.name)\".",
+                suggestion: "Set \"sdk.name\" to \"\(requiredSDKName)\".",
+                line: findLine(ofKey: "sdk", in: rawText)
+            ))
+        }
+        if !isSDKRangeCompatible(manifest.sdk.versionRange) {
+            diagnostics.append(SDKManifestDiagnostic(
+                severity: .error,
+                field: "sdk.versionRange",
+                message: "SDK versionRange \"\(manifest.sdk.versionRange)\" is incompatible with host SDK 1.2.0.",
+                suggestion: "Use \"1.2.0\", \"^1.0.0\", \"^1.1.0\", or \"^1.2.0\".",
+                line: findLine(ofKey: "versionRange", in: rawText)
+            ))
+        }
+        if manifest.sdk.protocolVersion != supportedProtocolVersion {
+            diagnostics.append(SDKManifestDiagnostic(
+                severity: .error,
+                field: "sdk.protocolVersion",
+                message: "Unsupported protocolVersion \(manifest.sdk.protocolVersion) (expected 1).",
+                suggestion: "Set \"sdk.protocolVersion\" to 1.",
+                line: findLine(ofKey: "protocolVersion", in: rawText)
+            ))
+        }
+
+        // Capability checks
+        var seenCaps = Set<String>()
+        let validCaps = supportedCapabilities
+        for (idx, cap) in manifest.capabilities.enumerated() {
+            let fieldPath = "capabilities[\(idx)]"
+            let line = findLine(ofValue: cap.id, in: rawText) ?? findLine(ofKey: "capabilities", in: rawText)
+            if !validCaps.contains(cap.id) {
+                diagnostics.append(SDKManifestDiagnostic(
+                    severity: .error,
+                    field: "\(fieldPath).id",
+                    message: "Unknown capability ID \"\(cap.id)\".",
+                    suggestion: "Select a valid capability from the SwiftCode SDK Capability Registry.",
+                    line: line
+                ))
+            }
+            if !seenCaps.insert(cap.id).inserted {
+                diagnostics.append(SDKManifestDiagnostic(
+                    severity: .error,
+                    field: "\(fieldPath).id",
+                    message: "Duplicate capability ID \"\(cap.id)\".",
+                    suggestion: "Remove the duplicate entry for \"\(cap.id)\".",
+                    line: line
+                ))
+            }
+            let reason = cap.reason.trimmingCharacters(in: .whitespacesAndNewlines)
+            if reason.isEmpty {
+                diagnostics.append(SDKManifestDiagnostic(
+                    severity: .error,
+                    field: "\(fieldPath).reason",
+                    message: "Capability \"\(cap.id)\" is missing a required reason.",
+                    suggestion: "Provide a user-facing explanation of why this capability is needed.",
+                    line: line
+                ))
+            } else if reason.count > maxReasonLength {
+                diagnostics.append(SDKManifestDiagnostic(
+                    severity: .error,
+                    field: "\(fieldPath).reason",
+                    message: "Capability \"\(cap.id)\" reason exceeds 512 characters.",
+                    suggestion: "Shorten the capability justification to 512 characters or fewer.",
+                    line: line
+                ))
+            }
+
+            if let granted = grantedCapabilities, validCaps.contains(cap.id), !granted.contains(cap.id) {
+                diagnostics.append(SDKManifestDiagnostic(
+                    severity: .warning,
+                    field: "\(fieldPath).id",
+                    message: "Capability \"\(cap.id)\" is declared in manifest but not yet granted in the active API Key / Grant Store.",
+                    suggestion: "Grant \"\(cap.id)\" in Studio → Permissions or API Keys before invoking it at runtime.",
+                    line: line
+                ))
+            }
+        }
+
+        if manifest.assist.requested && !seenCaps.contains("assist.invoke") {
+            diagnostics.append(SDKManifestDiagnostic(
+                severity: .warning,
+                field: "assist.requested",
+                message: "\"assist.requested\" is true, but \"assist.invoke\" is not listed in capabilities.",
+                suggestion: "Add the \"assist.invoke\" capability if this extension invokes Assist.",
+                line: findLine(ofKey: "assist", in: rawText)
+            ))
+        }
+
+        // Command checks
+        if let cmds = manifest.contributes?.commands {
+            var seenCmds = Set<String>()
+            for (idx, cmd) in cmds.enumerated() {
+                let fieldPath = "contributes.commands[\(idx)]"
+                let line = findLine(ofValue: cmd.id, in: rawText) ?? findLine(ofKey: "commands", in: rawText)
+                if !matches(cmd.id, pattern: #"^[a-z][a-z0-9.-]{0,63}$"#) {
+                    diagnostics.append(SDKManifestDiagnostic(
+                        severity: .error,
+                        field: "\(fieldPath).id",
+                        message: "Command ID \"\(cmd.id)\" is invalid.",
+                        suggestion: "Use lowercase kebab-case starting with a letter, e.g. \"run-build\".",
+                        line: line
+                    ))
+                }
+                if !seenCmds.insert(cmd.id).inserted {
+                    diagnostics.append(SDKManifestDiagnostic(
+                        severity: .error,
+                        field: "\(fieldPath).id",
+                        message: "Duplicate command ID \"\(cmd.id)\".",
+                        suggestion: "Give every contributed command a unique ID.",
+                        line: line
+                    ))
+                }
+                if cmd.title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                    diagnostics.append(SDKManifestDiagnostic(
+                        severity: .error,
+                        field: "\(fieldPath).title",
+                        message: "Command \"\(cmd.id)\" has a blank title.",
+                        suggestion: "Provide a human-readable title for the command.",
+                        line: line
+                    ))
+                }
+            }
+        }
+
+        if !manifest.unknownFields.isEmpty {
+            let keys = manifest.unknownFields.keys.sorted().joined(separator: ", ")
+            diagnostics.append(SDKManifestDiagnostic(
+                severity: .info,
+                field: "unknownFields",
+                message: "Preserving custom top-level field(s): \(keys).",
+                suggestion: "Custom fields are preserved across visual edits.",
+                line: 1
+            ))
+        }
+
+        return diagnostics
     }
 
     // MARK: - Identity
@@ -259,7 +626,7 @@ public enum SDKManifestValidator {
             throw SDKError(
                 code: .incompatibleSDKVersion,
                 message: "The SDK version range \"\(sdk.versionRange)\" is not supported by this SwiftCode release (SDK 1.2.0).",
-                suggestion: "Use one of: \"1.2.0\", \"^1.2.0\", \"~1.2.0\", or \">=1.2.0 <2.0.0\"."
+                suggestion: "Use one of: \"1.0.0\", \"1.1.0\", \"1.2.0\", \"^1.0.0\", \"^1.1.0\", \"^1.2.0\", \"~1.2.0\", or \">=1.0.0 <2.0.0\"."
             )
         }
         guard sdk.protocolVersion == supportedProtocolVersion else {
@@ -281,14 +648,20 @@ public enum SDKManifestValidator {
                 suggestion: "Request at most \(maxCapabilities) capabilities."
             )
         }
+        let validCapabilities = supportedCapabilities
+        var seenIDs = Set<String>()
         for capability in capabilities {
-            guard supportedCapabilities.contains(capability.id) else {
+            guard validCapabilities.contains(capability.id) else {
                 throw SDKError(
                     code: .unknownCapability,
                     message: "Unknown capability \"\(capability.id)\".",
-                    suggestion: "Use only capability IDs from the published v1 registry (e.g. \"source-control.read\", \"build.execute\").",
+                    suggestion: "Use only capability IDs from the published registry (e.g. \"source-control.read\", \"build.execute\").",
                     diagnostics: ["capabilityId": capability.id]
                 )
+            }
+            guard seenIDs.insert(capability.id).inserted else {
+                throw invalid("Duplicate capability ID \"\(capability.id)\".",
+                              suggestion: "List each requested capability at most once in swiftcode.json.")
             }
             let reason = capability.reason.trimmingCharacters(in: .whitespacesAndNewlines)
             guard !reason.isEmpty else {
@@ -315,7 +688,7 @@ public enum SDKManifestValidator {
         }
         var seenIDs = Set<String>()
         for command in contributions.commands {
-            guard matches(command.id, pattern: #"^[a-z][a-z0-9-]{0,63}$"#) else {
+            guard matches(command.id, pattern: #"^[a-z][a-z0-9.-]{0,63}$"#) else {
                 throw invalid("Command ID \"\(command.id)\" is invalid.",
                               suggestion: "Use a lowercase kebab-case ID starting with a letter, up to 64 characters, e.g. \"run-build\".")
             }
@@ -337,24 +710,23 @@ public enum SDKManifestValidator {
 
     // MARK: - Semver range compatibility
 
-    /// A range is compatible when it admits the host SDK version (1.2.0).
-    /// Supported forms only: exact `1.2.0`, `^1.2.0`, `~1.2.0`,
-    /// `>=1.2.0 <2.0.0`. Anything else is rejected.
-    private static func isSDKRangeCompatible(_ range: String) -> Bool {
+    /// A range is compatible when it admits the host SDK 1.x release line (1.0.0 .. 1.2.0).
+    /// Supported forms: exact `1.0.0` / `1.1.0` / `1.2.0`, `^1.0.0` / `^1.1.0` / `^1.2.0`,
+    /// `~1.0.0` / `~1.1.0` / `~1.2.0`, or `>=1.x.0 <2.0.0`.
+    public static func isSDKRangeCompatible(_ range: String) -> Bool {
         let trimmed = range.trimmingCharacters(in: .whitespacesAndNewlines)
         let host = (major: hostSDKVersion.major, minor: hostSDKVersion.minor, patch: hostSDKVersion.patch)
 
         if trimmed.hasPrefix("^") || trimmed.hasPrefix("~") {
             let core = String(trimmed.dropFirst())
             guard let version = parseSemverCore(core), version.prerelease == nil else { return false }
-            return version.major == host.major && version.minor == host.minor && version.patch == host.patch
+            return version.major == host.major && compareSemver(version, host) <= 0
         }
 
         if let exact = parseSemverCore(trimmed) {
             return exact.prerelease == nil
                 && exact.major == host.major
-                && exact.minor == host.minor
-                && exact.patch == host.patch
+                && compareSemver(exact, host) <= 0
         }
 
         let parts = trimmed.split(whereSeparator: \.isWhitespace).map(String.init)
@@ -364,7 +736,7 @@ public enum SDKManifestValidator {
               let lower = parseSemverCore(String(parts[0].dropFirst(2))),
               let upper = parseSemverCore(String(parts[1].dropFirst(1))),
               lower.prerelease == nil, upper.prerelease == nil else { return false }
-        return compareSemver(lower, host) <= 0 && compareSemver(upper, host) < 0
+        return compareSemver(lower, host) <= 0 && compareSemver(upper, host) > 0
     }
 
     private struct SemverCore {
@@ -391,6 +763,38 @@ public enum SDKManifestValidator {
         if lhs.minor != rhs.minor { return lhs.minor < rhs.minor ? -1 : 1 }
         if lhs.patch != rhs.patch { return lhs.patch < rhs.patch ? -1 : 1 }
         return 0
+    }
+
+    // MARK: - Line Lookup Helpers
+
+    private static func findLine(ofKey key: String, in rawText: String) -> Int? {
+        let needle = "\"\(key)\""
+        let lines = rawText.components(separatedBy: .newlines)
+        for (idx, line) in lines.enumerated() where line.contains(needle) {
+            return idx + 1
+        }
+        return nil
+    }
+
+    private static func findLine(ofValue value: String, in rawText: String) -> Int? {
+        guard !value.isEmpty else { return nil }
+        let needle = "\"\(value)\""
+        let lines = rawText.components(separatedBy: .newlines)
+        for (idx, line) in lines.enumerated() where line.contains(needle) {
+            return idx + 1
+        }
+        return nil
+    }
+
+    private static func extractJSONErrorLine(from error: Error, in rawText: String) -> Int? {
+        let nsError = error as NSError
+        if let debugDesc = nsError.userInfo["NSDebugDescription"] as? String {
+            if let range = debugDesc.range(of: #"line (\d+)"#, options: .regularExpression) {
+                let digits = debugDesc[range].filter(\.isNumber)
+                if let line = Int(digits) { return line }
+            }
+        }
+        return 1
     }
 
     // MARK: - Helpers

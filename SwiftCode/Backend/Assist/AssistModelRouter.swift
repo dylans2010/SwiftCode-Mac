@@ -318,7 +318,7 @@ public final class AssistModelRouter: Sendable {
         // Filter: must support agentic use and tool calling, must be configured, must not be quarantined
         let eligible = baseModels.filter { model in
             guard model.supportsAgenticUse && model.supportsToolCalling else { return false }
-            guard model.isConfigured, hasCredentials(for: model.providerID) else { return false }
+            guard model.isConfigured, hasCredentials(forModelID: model.modelIdentifier, provider: model.providerID) else { return false }
 
             // Check quarantine
             if let unquarantine = quarantinedModels[model.id], Date() < unquarantine {
@@ -395,6 +395,7 @@ public final class AssistModelRouter: Sendable {
 
     public func createSyntheticSDKModel(modelID: String) -> AssistAvailableModel {
         if let sdkModel = AntigravitySDKModelFetcher.shared.getModel(byID: modelID) {
+            let configured = hasCredentials(forModelID: sdkModel.id, provider: sdkModel.category)
             return AssistAvailableModel(
                 id: sdkModel.id,
                 displayName: sdkModel.displayName,
@@ -403,8 +404,8 @@ public final class AssistModelRouter: Sendable {
                 modelIdentifier: sdkModel.id,
                 capabilities: [.streaming, .toolCalling, .vision, .structuredOutput, .subagents],
                 source: .gemini,
-                isConfigured: hasCredentials(for: sdkModel.category),
-                isAvailable: hasCredentials(for: sdkModel.category),
+                isConfigured: configured,
+                isAvailable: configured,
                 supportsStreaming: true,
                 supportsToolCalling: true,
                 supportsVision: true,
@@ -421,6 +422,7 @@ public final class AssistModelRouter: Sendable {
         let level = AntigravitySDKModelFetcher.deriveThinkingLevel(modelID: modelID, displayName: modelID)
         let contextWindow = AntigravitySDKModelFetcher.deriveContextWindow(modelID: modelID)
         let category = AntigravitySDKModelFetcher.deriveCategory(modelID: modelID)
+        let configured = hasCredentials(forModelID: modelID, provider: category)
 
         let formattedName = modelID
             .split(separator: "-")
@@ -435,8 +437,8 @@ public final class AssistModelRouter: Sendable {
             modelIdentifier: modelID,
             capabilities: [.streaming, .toolCalling, .vision, .structuredOutput, .subagents],
             source: .gemini,
-            isConfigured: hasCredentials(for: category),
-            isAvailable: hasCredentials(for: category),
+            isConfigured: configured,
+            isAvailable: configured,
             supportsStreaming: true,
             supportsToolCalling: true,
             supportsVision: true,
@@ -731,19 +733,26 @@ public final class AssistModelRouter: Sendable {
         baseConfig.enableSubagents = model.supportsSubagents
 
         let provider = model.providerID.lowercased()
-        let strategy = AppSettings.shared.assistModelRoutingStrategy
-        let isSDKStrategy = (strategy == "default" || strategy == "rotation")
-        let isGoogleProvider = (provider == "google" || provider == "gemini" || isSDKStrategy)
+        let isGoogleProvider = (provider == "google" || provider == "gemini")
+        let isAntigravityCatalog = AntigravitySDKModelFetcher.shared.isAntigravityCatalogModel(model.modelIdentifier)
+        let directProviderKey = resolveAPIKey(for: provider)
+        let hasDirectProviderKey = !(directProviderKey ?? "").trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+
         let apiKey: String?
         let oauthToken: String?
+        let executionMode: String?
 
         let googleAuthMode = UserDefaults.standard.string(forKey: "assist_google_auth_mode") ?? AppSettings.shared.assistGoogleAuthMode
-        let isOAuthAuthenticated = isGoogleProvider && (googleAuthMode == "google_oauth") && GoogleAccountAuthService.shared.isAuthenticated && !AppSettings.shared.alternativeKeysEnabled
+        let isOAuthAuthenticated = (googleAuthMode == "google_oauth")
+            && GoogleAccountAuthService.shared.isAuthenticated
+            && !AppSettings.shared.alternativeKeysEnabled
+            && (isGoogleProvider || (isAntigravityCatalog && !hasDirectProviderKey))
 
         if isOAuthAuthenticated {
             // Strictly rely ONLY on Antigravity allowance / OAuth session. NO API keys.
             apiKey = nil
             oauthToken = GoogleAccountAuthService.shared.getValidAccessToken()
+            executionMode = "antigravity"
         } else if isGoogleProvider && AppSettings.shared.alternativeKeysEnabled {
             // Gemini Key Rotation: rotate through keys strictly with no OAuth
             apiKey = AlternativeKeyManager.shared.getActiveOrNextKey()?.key
@@ -751,9 +760,11 @@ public final class AssistModelRouter: Sendable {
                 ?? APIKeyManager.shared.retrieveKey(service: .google)
                 ?? baseConfig.apiKey
             oauthToken = nil
+            executionMode = "api_key"
         } else {
-            apiKey = resolveAPIKey(for: provider)
+            apiKey = directProviderKey
             oauthToken = isGoogleProvider ? baseConfig.oauthToken : nil
+            executionMode = hasDirectProviderKey ? "api_key" : (oauthToken != nil ? "antigravity" : nil)
         }
 
         let sdkModelInfo = AntigravitySDKModelFetcher.shared.getModel(byID: model.modelIdentifier)
@@ -763,7 +774,8 @@ public final class AssistModelRouter: Sendable {
             model: model.modelIdentifier,
             apiKey: apiKey,
             oauthToken: oauthToken,
-            userProject: isGoogleProvider ? baseConfig.userProject : nil,
+            executionMode: executionMode,
+            userProject: (isGoogleProvider || executionMode == "antigravity") ? baseConfig.userProject : nil,
             vertex: false,
             project: nil,
             location: nil,
@@ -787,11 +799,28 @@ public final class AssistModelRouter: Sendable {
         )
     }
 
-    /// Catalog membership is metadata, not authorization. In particular,
-    /// a Google sign-in never authorizes direct Anthropic/OpenAI requests.
+    /// Checks whether credentials exist for a specific model ID and provider.
+    /// In Google-authenticated Antigravity mode (`google_oauth`), all models in
+    /// the Antigravity SDK catalog (including `claude-sonnet-4-6` and
+    /// `claude-opus-4-6-thinking`) are authorized by the Antigravity session.
+    public func hasCredentials(forModelID modelID: String, provider: String) -> Bool {
+        if hasCredentials(for: provider) {
+            return true
+        }
+        if AntigravitySDKModelFetcher.shared.isAntigravityCatalogModel(modelID) {
+            let mode = UserDefaults.standard.string(forKey: "assist_google_auth_mode") ?? AppSettings.shared.assistGoogleAuthMode
+            if mode == "google_oauth" && GoogleAccountAuthService.shared.isAuthenticated && !AppSettings.shared.alternativeKeysEnabled {
+                return true
+            }
+        }
+        return false
+    }
+
+    /// Catalog membership is metadata, not authorization for non-Antigravity
+    /// direct provider requests.
     public func hasCredentials(for provider: String) -> Bool {
         let p = provider.lowercased()
-        if p == "google" || p == "gemini" {
+        if p == "google" || p == "gemini" || p == "antigravity" {
             if AppSettings.shared.alternativeKeysEnabled {
                 return AlternativeKeyManager.shared.getActiveOrNextKey() != nil
             }

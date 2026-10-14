@@ -71,10 +71,7 @@ public final class AntigravitySDKModelFetcher: ObservableObject {
     @Published public private(set) var fetchError: String? = nil
 
     private init() {
-        // Load cached models first to provide instant UI responsiveness without hardcoding
         loadCachedModels()
-
-        // Asynchronously refresh live from the SDK runtime
         Task {
             await self.fetchModels()
         }
@@ -85,13 +82,25 @@ public final class AntigravitySDKModelFetcher: ObservableObject {
     }
 
     public func getModel(byID id: String) -> AntigravitySDKModel? {
-        models.first { $0.id == id }
+        models.first { $0.id == id } ?? Self.seedModels.first { $0.id == id }
+    }
+
+    /// Returns true if `modelID` belongs to the Antigravity SDK catalog
+    /// (either dynamically fetched or in the canonical seed catalog).
+    public func isAntigravityCatalogModel(_ modelID: String) -> Bool {
+        let normalized = modelID.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        if models.contains(where: { $0.id.lowercased() == normalized }) {
+            return true
+        }
+        if Self.seedModels.contains(where: { $0.id.lowercased() == normalized }) {
+            return true
+        }
+        return false
     }
 
     public func models(forThinkingLevel level: String) -> [AntigravitySDKModel] {
         let normalized = level.lowercased()
-        let matching = models.filter { $0.thinkingLevel.lowercased() == normalized }
-        return matching
+        return models.filter { $0.thinkingLevel.lowercased() == normalized }
     }
 
     /// Dynamically fetches models directly from the Google Antigravity SDK CLI runtime.
@@ -118,7 +127,11 @@ public final class AntigravitySDKModelFetcher: ObservableObject {
     public static let seedModels: [AntigravitySDKModel] = [
         AntigravitySDKModel(id: "gemini-3.8-flash", displayName: "Gemini 3.8 Flash", thinkingLevel: "High", contextWindow: 1_048_576, category: "Google"),
         AntigravitySDKModel(id: "gemini-3.1-pro", displayName: "Gemini 3.1 Pro", thinkingLevel: "High", contextWindow: 2_097_152, category: "Google"),
-        AntigravitySDKModel(id: "claude-sonnet-4-6", displayName: "Claude Sonnet 4.6", thinkingLevel: "Medium", contextWindow: 200_000, category: "Anthropic")
+        AntigravitySDKModel(id: "gemini-3-flash", displayName: "Gemini 3 Flash", thinkingLevel: "Medium", contextWindow: 1_048_576, category: "Google"),
+        AntigravitySDKModel(id: "gemini-3.1-pro-high", displayName: "Gemini 3.1 Pro (High)", thinkingLevel: "High", contextWindow: 2_097_152, category: "Google"),
+        AntigravitySDKModel(id: "gemini-3.1-pro-low", displayName: "Gemini 3.1 Pro (Low)", thinkingLevel: "Low", contextWindow: 2_097_152, category: "Google"),
+        AntigravitySDKModel(id: "claude-sonnet-4-6", displayName: "Claude Sonnet 4.6", thinkingLevel: "Medium", contextWindow: 200_000, category: "Anthropic"),
+        AntigravitySDKModel(id: "claude-opus-4-6-thinking", displayName: "Claude Opus 4.6 (Thinking)", thinkingLevel: "High", contextWindow: 200_000, category: "Anthropic")
     ]
 
     // MARK: - Disk Cache
@@ -141,9 +154,6 @@ public final class AntigravitySDKModelFetcher: ObservableObject {
     // MARK: - SDK Execution
     private func fetchFromSDKRuntime() async -> [AntigravitySDKModel] {
         return await Task.detached(priority: .userInitiated) {
-            // 1. Try the agy CLI: home-relative install location first, then
-            // common system paths, then anything on PATH. Never hardcode a
-            // specific user's home directory.
             let agyBinaryCandidates = [
                 FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".gemini/bin/agy").path,
                 "/usr/local/bin/agy",
@@ -158,7 +168,6 @@ public final class AntigravitySDKModelFetcher: ObservableObject {
                 }
             }
 
-            // 2. Try python SDK query via bundled runtime or system python
             if let parsedPython = Self.runPythonSDKModelDiscoverySync(), !parsedPython.isEmpty {
                 return parsedPython
             }
@@ -208,13 +217,11 @@ public final class AntigravitySDKModelFetcher: ObservableObject {
     public nonisolated static func parseAgyModelsOutput(_ output: String) -> [AntigravitySDKModel] {
         var result: [AntigravitySDKModel] = []
 
-        // Strip ANSI escape codes
         var noAnsi = output
         if let regex = try? NSRegularExpression(pattern: "\\x1B\\[[0-9;?]*[a-zA-Z]") {
             noAnsi = regex.stringByReplacingMatches(in: output, range: NSRange(location: 0, length: output.utf16.count), withTemplate: "")
         }
 
-        // Strip carriage returns and terminal spinner prefixes
         let cleaned = noAnsi
             .replacingOccurrences(of: "\r", with: "\n")
             .replacingOccurrences(of: "Fetching available models...", with: "")
@@ -222,14 +229,12 @@ public final class AntigravitySDKModelFetcher: ObservableObject {
         let lines = cleaned.components(separatedBy: .newlines)
 
         for line in lines {
-            // Remove Unicode Braille spinners (0x2800...0x28FF)
             let sanitized = line.unicodeScalars.filter { scalar in
                 !(0x2800...0x28FF).contains(scalar.value)
             }.map { String($0) }.joined().trimmingCharacters(in: .whitespacesAndNewlines)
 
             guard !sanitized.isEmpty, !sanitized.contains("Fetching") else { continue }
 
-            // Line format: "<model_id>     <Display Name> [(Thinking)]"
             let components = sanitized.components(separatedBy: .whitespaces).filter { !$0.isEmpty }
             guard let modelId = components.first, !modelId.isEmpty else { continue }
 
@@ -260,19 +265,21 @@ public final class AntigravitySDKModelFetcher: ObservableObject {
     }
 
     private nonisolated static func runPythonSDKModelDiscoverySync() -> [AntigravitySDKModel]? {
+        let currentDir = FileManager.default.currentDirectoryPath
+        let bundledPython = Bundle.main.resourceURL?.appendingPathComponent("Google Cloud SDK/runtime/bin/python3").path
+        let repoPython = "\(currentDir)/SwiftCode/Resources/Google Cloud SDK/runtime/bin/python3"
+
         let script = """
         import sys
-        paths = ['/Users/dylan/SwiftCode-Mac/SwiftCode/Resources/Google Cloud SDK/runtime/lib/python3.14/site-packages']
-        for p in paths:
-            sys.path.insert(0, p)
         try:
             import google.antigravity.models as m
-            print(getattr(m, 'DEFAULT_MODEL', 'gemini-3.8-flash'))
+            default_model = getattr(m, 'DEFAULT_MODEL', 'gemini-3.8-flash')
+            print(default_model)
         except Exception:
             pass
         """
 
-        let pythonExecs = ["/opt/homebrew/opt/python@3.14/bin/python3.14", "/usr/bin/python3"]
+        let pythonExecs = [bundledPython, repoPython, "/opt/homebrew/opt/python@3.14/bin/python3.14", "/usr/bin/python3"].compactMap { $0 }
         for py in pythonExecs {
             guard FileManager.default.isExecutableFile(atPath: py) else { continue }
             let process = Process()
@@ -291,19 +298,29 @@ public final class AntigravitySDKModelFetcher: ObservableObject {
                 if let output = String(data: data, encoding: .utf8) {
                     let lines = output.components(separatedBy: .newlines).filter { !$0.trimmingCharacters(in: .whitespaces).isEmpty }
                     if !lines.isEmpty {
-                        var models: [AntigravitySDKModel] = []
+                        // Merge any runtime default model with the canonical Antigravity seed catalog
+                        var merged: [AntigravitySDKModel] = []
+                        var seen = Set<String>()
                         for id in lines {
-                            let level = Self.deriveThinkingLevel(modelID: id, displayName: id)
-                            models.append(AntigravitySDKModel(
-                                id: id,
-                                displayName: id,
-                                thinkingLevel: level,
-                                contextWindow: Self.deriveContextWindow(modelID: id),
-                                isImageModel: id.contains("image"),
-                                category: Self.deriveCategory(modelID: id)
-                            ))
+                            seen.insert(id)
+                            if let match = Self.seedModels.first(where: { $0.id == id }) {
+                                merged.append(match)
+                            } else {
+                                let level = Self.deriveThinkingLevel(modelID: id, displayName: id)
+                                merged.append(AntigravitySDKModel(
+                                    id: id,
+                                    displayName: id,
+                                    thinkingLevel: level,
+                                    contextWindow: Self.deriveContextWindow(modelID: id),
+                                    isImageModel: id.contains("image"),
+                                    category: Self.deriveCategory(modelID: id)
+                                ))
+                            }
                         }
-                        return models
+                        for seed in Self.seedModels where !seen.contains(seed.id) {
+                            merged.append(seed)
+                        }
+                        return merged
                     }
                 }
             } catch {}

@@ -34,9 +34,14 @@ assertTrue(formatted.contains("SC-P004"), "Formatted text should contain SC-P004
 
 // Test 3: Workspace Path Traversal
 print("  - Running testWorkspacePathTraversal...")
-let root = WorkspacePath("/Users/dylan/Downloads/SwiftCode-Debug/SwiftCode/SDK")
-let safe = WorkspacePath("/Users/dylan/Downloads/SwiftCode-Debug/SwiftCode/SDK/Sources")
-let malicious = WorkspacePath("/Users/dylan/Downloads/SwiftCode-Debug/SwiftCode/SDK/../../etc/passwd")
+let currentSDKRoot = URL(fileURLWithPath: #filePath)
+    .deletingLastPathComponent()
+    .deletingLastPathComponent()
+    .deletingLastPathComponent()
+    .path
+let root = WorkspacePath(currentSDKRoot)
+let safe = WorkspacePath("\(currentSDKRoot)/Sources")
+let malicious = WorkspacePath("\(currentSDKRoot)/../../etc/passwd")
 assertTrue(safe.isWithin(root: root), "Safe path should be within root")
 assertTrue(!malicious.isWithin(root: root), "Malicious traversal should NOT be within root")
 
@@ -54,18 +59,36 @@ let diags = validator.validate(manifest: invalidManifest)
 assertTrue(diags.contains { $0.code == .manifestInvalidVersion }, "Should flag invalid manifestVersion")
 assertTrue(diags.contains { $0.code == .manifestMissingRequiredField }, "Should flag missing required field")
 
-// Test 5: Toolchain Discovery
+// Test 5: Canonical Capabilities Recognition
+print("  - Running testCanonicalCapabilities...")
+let canonicalCaps = [
+    "project.read", "workspace.read", "workspace.write",
+    "source-control.read", "source-control.write",
+    "build.execute", "task.execute", "network.request",
+    "ui.contribute", "credentials.use", "use.Security",
+    "assist.invoke", "assist.ui", "assist.headless",
+    "db.ExploreView", "ci.VisualWF", "virtualization.view",
+    "deployConsole.view", "use.SwiftCodeModel", "terminal.sandbox",
+    "simulator.view", "preview.live", "uibuilder.open",
+    "symbols.browse", "docs.search", "dictionary.open",
+    "deviceconnect.open", "security.addValue", "security.hasValue",
+    "security.listValueIDs", "security.deleteValue", "security.useValue"
+]
+for capID in canonicalCaps {
+    assertTrue(ExtensionCapabilityID(rawValue: capID) != nil, "Should recognize canonical capability \(capID)")
+}
+
+// Test 6: Toolchain Discovery
 print("  - Running testToolchainDiscovery...")
 let toolchain = Toolchain()
 let gitPath = toolchain.resolveExecutable(name: "git")
 assertTrue(gitPath != nil, "Git executable should be discovered")
 
-// Test 6: Project Inspector
+// Test 7: Project Inspector
 print("  - Running testProjectInspector...")
 let inspector = ProjectInspector()
-let sdkPath = "/Users/dylan/Downloads/SwiftCode-Debug/SwiftCode/SDK"
-let metadata = try inspector.inspect(at: sdkPath)
+let metadata = try inspector.inspect(at: currentSDKRoot)
 assertEqual(metadata.type, .swiftPackage, "SDK should be identified as a Swift package")
 
-print("✅ All 6 SwiftCode SDK test suites PASSED successfully!")
+print("✅ All 7 SwiftCode SDK test suites PASSED successfully!")
 exit(0)

@@ -139,6 +139,36 @@ def resolve_gemini_auth(*, api_key, oauth_token, vertex, project, location,
     )
 
 
+ANTIGRAVITY_CATALOG_MODEL_IDS = (
+    "gemini-3.8-flash",
+    "gemini-3.1-pro",
+    "gemini-3-flash",
+    "gemini-3.1-pro-high",
+    "gemini-3.1-pro-low",
+    "claude-sonnet-4-6",
+    "claude-opus-4-6-thinking",
+)
+
+
+def resolve_antigravity_execution_mode(params):
+    """Determine whether a session runs in Google-authenticated Antigravity mode ('antigravity')
+    or explicit provider API-key mode ('api_key')."""
+    explicit_mode = str(params.get("executionMode") or params.get("execution_mode") or "").strip().lower()
+    provider = str(params.get("provider") or "").strip().lower()
+    model = str(params.get("model") or "").strip().lower()
+    api_key = (params.get("apiKey") or params.get("api_key") or "").strip() or None
+    oauth_token = (params.get("oauthToken") or params.get("oauth_token") or "").strip() or None
+
+    if explicit_mode == "antigravity" or provider == "antigravity":
+        if oauth_token and not api_key:
+            return "antigravity"
+    if oauth_token and not api_key and model in ANTIGRAVITY_CATALOG_MODEL_IDS:
+        return "antigravity"
+    if api_key:
+        return "api_key"
+    return explicit_mode or ("antigravity" if oauth_token else "api_key")
+
+
 def resolve_session_credentials(params, *, is_gemini):
     """Resolve credentials only for their intended provider; never mutate os.environ."""
     api_key = (params.get("apiKey") or params.get("api_key") or "").strip() or None
@@ -909,14 +939,17 @@ class AgentRunner:
                 or bool(params.get("litertModelPath"))
             )
             has_oauth = bool(params.get("oauthToken") or params.get("oauth_token"))
+            execution_mode = resolve_antigravity_execution_mode(params)
+            is_antigravity_mode = (execution_mode == "antigravity" and has_oauth)
             is_gemini = not is_litert and (
                 (provider in ("gemini", "google", "antigravity"))
-                or has_oauth
+                or is_antigravity_mode
+                or (has_oauth and provider not in ("anthropic", "claude", "openai", "openrouter", "mistral", "qwen"))
                 or (not provider and ("gemini" in model_lower or "claude" in model_lower))
             )
 
             api_key, oauth_token, http_headers = resolve_session_credentials(params, is_gemini=is_gemini)
-            if provider in ("anthropic", "claude", "openai", "openrouter", "mistral", "qwen") and not api_key:
+            if provider in ("anthropic", "claude", "openai", "openrouter", "mistral", "qwen") and not api_key and not is_antigravity_mode:
                 raise GeminiAuthConfigError(
                     "Provider '%s' is not configured for model '%s'. Google account "
                     "authentication only authorizes Gemini requests; choose a Gemini "
@@ -1004,30 +1037,36 @@ class AgentRunner:
                 if http_headers:
                     config_kwargs["http_headers"] = http_headers
 
-                # Resolve the account-first auth contract before building the
-                # endpoint. Raises GeminiAuthConfigError with an actionable
-                # message (missing quota project, missing Vertex project, no
-                # credentials) instead of failing later with a cryptic 403.
-                # An OAuth token is never sent as an API key, and an API key is
-                # never attached to an account-authenticated request: the two
-                # credential kinds select disjoint branches below.
-                auth_mode, auth_project, auth_location = resolve_gemini_auth(
-                    api_key=api_key,
-                    oauth_token=oauth_token,
-                    vertex=vertex,
-                    project=project,
-                    location=location,
-                    http_headers=http_headers,
-                )
+                has_header_project = any(k.lower() == USER_PROJECT_HEADER and str(v).strip() for k, v in http_headers.items())
+                has_any_project = bool((project or "").strip() or (os.environ.get("GOOGLE_CLOUD_PROJECT") or "").strip() or has_header_project)
+                is_antigravity_claude = is_antigravity_mode and (provider in ("anthropic", "claude") or "claude" in model_lower)
 
-                if auth_mode == "vertex":
-                    config_kwargs["vertex"] = True
-                    config_kwargs["project"] = auth_project
-                    config_kwargs["location"] = auth_location
-                elif auth_mode == "oauth":
+                if is_antigravity_mode and (is_antigravity_claude or not has_any_project):
+                    # Antigravity execution mode (Google Sign-In session without direct API keys):
+                    # never route Claude to api.anthropic.com and never fail on missing GCP quota project.
+                    auth_mode = "antigravity"
+                    auth_project = next((v for k, v in http_headers.items() if k.lower() == USER_PROJECT_HEADER), None) or project
+                    auth_location = location
                     if auth_project:
-                        http_headers[USER_PROJECT_HEADER] = auth_project
+                        http_headers[USER_PROJECT_HEADER] = str(auth_project).strip()
                     config_kwargs["http_headers"] = http_headers
+                else:
+                    auth_mode, auth_project, auth_location = resolve_gemini_auth(
+                        api_key=api_key,
+                        oauth_token=oauth_token,
+                        vertex=vertex,
+                        project=project,
+                        location=location,
+                        http_headers=http_headers,
+                    )
+                    if auth_mode == "vertex":
+                        config_kwargs["vertex"] = True
+                        config_kwargs["project"] = auth_project
+                        config_kwargs["location"] = auth_location
+                    elif auth_mode == "oauth":
+                        if auth_project:
+                            http_headers[USER_PROJECT_HEADER] = auth_project
+                        config_kwargs["http_headers"] = http_headers
 
                 # Resolve Gemini thinking level options if specified
                 thinking_level_param = params.get("thinkingLevel") or params.get("thinking_level")
@@ -1061,6 +1100,15 @@ class AgentRunner:
                     endpoint_kwargs: Dict[str, Any] = {"http_headers": http_headers}
                     if auth_mode == "api_key":
                         endpoint_kwargs["api_key"] = api_key
+                    elif auth_mode == "antigravity" and self.adapter_server and self.adapter_server.actual_port > 0:
+                        self.adapter_server.register_target(
+                            model_name=model,
+                            provider="antigravity",
+                            api_key="",
+                            base_url=base_url,
+                            headers=http_headers,
+                        )
+                        endpoint_kwargs["base_url"] = f"http://127.0.0.1:{self.adapter_server.actual_port}/v1"
                     if gemini_options is not None:
                         endpoint_kwargs["options"] = gemini_options
                     endpoint = GeminiAPIEndpoint(**endpoint_kwargs)
