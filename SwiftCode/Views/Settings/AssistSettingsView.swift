@@ -574,6 +574,7 @@ struct AssistSettingsView: View {
     // API-key mode is an explicit opt-in alternative.
     @AppStorage("assist_google_auth_mode") private var assistGoogleAuthMode: String = "google_oauth"
     @ObservedObject private var googleAuth = GoogleAccountAuthService.shared
+    @ObservedObject private var metaAuth = MetaAccountAuthService.shared
     @ObservedObject private var quotaService = AntigravityQuotaService.shared
     @ObservedObject private var sdkModelFetcher = AntigravitySDKModelFetcher.shared
     @State private var showSignOutConfirmation = false
@@ -594,99 +595,90 @@ struct AssistSettingsView: View {
     var body: some View {
         ScrollView {
             VStack(spacing: 24) {
-                // 0. Assist System Selection (Native Assist vs Assist on Google Cloud)
+                // 0. Assist System Selection (Native Assist vs Assist on Google Cloud vs Assist on Meta)
                 GroupBox {
-                    VStack(alignment: .leading, spacing: 14) {
-                        // Header
-                        HStack(alignment: .center) {
-                            HStack(spacing: 10) {
-                                ZStack {
-                                    RoundedRectangle(cornerRadius: 8)
-                                        .fill(
-                                            LinearGradient(
-                                                colors: [Color.blue.opacity(0.18), Color.indigo.opacity(0.14)],
-                                                startPoint: .topLeading,
-                                                endPoint: .bottomTrailing
-                                            )
-                                        )
-                                        .frame(width: 32, height: 32)
-                                    Image(systemName: "cpu.fill")
-                                        .font(.system(size: 14, weight: .bold))
-                                        .foregroundStyle(LinearGradient(colors: [.blue, .indigo], startPoint: .topLeading, endPoint: .bottomTrailing))
-                                }
+                    VStack(alignment: .leading, spacing: 8) {
+                        HStack(alignment: .center, spacing: 10) {
+                            Image(systemName: "cpu.fill")
+                                .font(.system(size: 13, weight: .semibold))
+                                .foregroundStyle(settings.isMetaAssist ? Color.orange : (settings.isGoogleCloudAssist ? Color.blue : Color.purple))
 
-                                VStack(alignment: .leading, spacing: 2) {
-                                    Text("Assist System Architecture")
-                                        .font(.system(size: 14, weight: .semibold))
-                                    Text("Select the underlying reasoning and tool execution engine")
-                                        .font(.caption2)
-                                        .foregroundStyle(.secondary)
-                                }
-                            }
+                            Text("Assist System")
+                                .font(.system(size: 13, weight: .semibold))
 
                             Spacer()
 
-                            // Architecture mode pill badge
-                            HStack(spacing: 5) {
-                                Circle()
-                                    .fill(settings.isMetaAssist ? Color.orange : (settings.isGoogleCloudAssist ? Color.blue : Color.purple))
-                                    .frame(width: 6, height: 6)
-                                Text(settings.isMetaAssist ? "Assist on Meta" : (settings.isGoogleCloudAssist ? "Google Cloud SDK" : "Native Engine"))
-                                    .font(.system(size: 11, weight: .semibold, design: .rounded))
-                                    .foregroundStyle(settings.isMetaAssist ? Color.orange : (settings.isGoogleCloudAssist ? Color.blue : Color.purple))
+                            Picker("Active Assist System", selection: $settings.assistSystemID) {
+                                Text("Native Assist System")
+                                    .tag(AppSettings.nativeAssistSystemID)
+                                Text("Assist on Google Cloud")
+                                    .tag(AppSettings.googleCloudAssistSystemID)
+                                Text("Assist on Meta")
+                                    .tag(AppSettings.metaAssistSystemID)
                             }
-                            .padding(.horizontal, 9)
-                            .padding(.vertical, 3.5)
-                            .background((settings.isMetaAssist ? Color.orange : (settings.isGoogleCloudAssist ? Color.blue : Color.purple)).opacity(0.1), in: Capsule())
+                            .labelsHidden()
+                            .pickerStyle(.menu)
+                            .frame(width: 200)
                         }
 
-                        // Segmented picker
-                        Picker("Active Assist System", selection: $settings.assistSystemID) {
-                            Text("Native Assist System")
-                                .tag(AppSettings.nativeAssistSystemID)
-                            Text("Assist on Google Cloud")
-                                .tag(AppSettings.googleCloudAssistSystemID)
-                            Text("Assist on Meta")
-                                .tag(AppSettings.metaAssistSystemID)
-                        }
-                        .pickerStyle(.segmented)
+                        if settings.isMetaAssist {
+                            Divider()
+                                .padding(.vertical, 2)
 
-                        if settings.assistSystemID == AppSettings.googleCloudAssistSystemID {
                             HStack(spacing: 8) {
-                                Image(systemName: "checkmark.circle.fill")
-                                    .foregroundStyle(.blue)
-                                    .font(.subheadline)
-                                Text("Assist on Google Cloud is active. Google Cloud SDK Engine (Python) runs as an application-managed background daemon.")
-                                    .font(.caption2)
-                                    .foregroundStyle(.secondary)
+                                if metaAuth.isAuthenticating {
+                                    ProgressView()
+                                        .scaleEffect(0.65)
+                                        .frame(width: 14, height: 14)
+                                    if let code = metaAuth.currentCode {
+                                        Text("Authenticating via CLI (Code: \(code))...")
+                                            .font(.caption)
+                                            .foregroundStyle(.secondary)
+                                    } else {
+                                        Text("Authenticating via CLI...")
+                                            .font(.caption)
+                                            .foregroundStyle(.secondary)
+                                    }
+                                    if let url = metaAuth.currentAuthURL {
+                                        Link("Open Browser", destination: url)
+                                            .font(.caption)
+                                    }
+                                } else if let email = metaAuth.userEmail, !email.isEmpty {
+                                    Image(systemName: "checkmark.circle.fill")
+                                        .foregroundStyle(.green)
+                                        .font(.caption)
+                                    Text("Meta Account: \(email).")
+                                        .font(.caption)
+                                        .fontWeight(.medium)
+                                        .foregroundStyle(.primary)
+
+                                    Spacer()
+
+                                    Button("Re-authenticate") {
+                                        metaAuth.startAuthFlow()
+                                    }
+                                    .buttonStyle(.link)
+                                    .font(.caption)
+                                } else {
+                                    Image(systemName: "exclamationmark.triangle.fill")
+                                        .foregroundStyle(.orange)
+                                        .font(.caption)
+                                    Text("Meta Account: Not authenticated.")
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+
+                                    Spacer()
+
+                                    Button("Authenticate via CLI") {
+                                        metaAuth.startAuthFlow()
+                                    }
+                                    .buttonStyle(.borderedProminent)
+                                    .controlSize(.small)
+                                }
                             }
-                            .padding(8)
-                            .background(Color.blue.opacity(0.05), in: RoundedRectangle(cornerRadius: 6))
-                        } else if settings.assistSystemID == AppSettings.metaAssistSystemID {
-                            HStack(spacing: 8) {
-                                Image(systemName: "checkmark.circle.fill")
-                                    .foregroundStyle(.orange)
-                                    .font(.subheadline)
-                                Text("Assist on Meta is active. Meta Muse Code SDK Engine (TypeScript) runs as an application-managed background daemon.")
-                                    .font(.caption2)
-                                    .foregroundStyle(.secondary)
-                            }
-                            .padding(8)
-                            .background(Color.orange.opacity(0.05), in: RoundedRectangle(cornerRadius: 6))
-                        } else {
-                            HStack(spacing: 8) {
-                                Image(systemName: "checkmark.circle.fill")
-                                    .foregroundStyle(.purple)
-                                    .font(.subheadline)
-                                Text("Native Assist System is active. Standard local compiler loops and multi-provider pipelines are enabled.")
-                                    .font(.caption2)
-                                    .foregroundStyle(.secondary)
-                            }
-                            .padding(8)
-                            .background(Color.purple.opacity(0.05), in: RoundedRectangle(cornerRadius: 6))
                         }
                     }
-                    .padding(14)
+                    .padding(10)
                 }
                 .groupBoxStyle(ModernGroupBoxStyle())
 
@@ -1911,11 +1903,25 @@ struct AssistSettingsView: View {
         .onAppear {
             loadAPIKeys()
             loadCachedModels()
+            metaAuth.checkAuthStatus()
+            if settings.isMetaAssist && !metaAuth.isAuthenticated {
+                metaAuth.onAssistOnMetaSelected()
+            }
             Task {
                 await discoveryService.discoverAllModels(forceRefresh: true)
             }
         }
+        .onChange(of: settings.assistSystemID) { _, newSystemID in
+            if newSystemID == AppSettings.metaAssistSystemID {
+                metaAuth.onAssistOnMetaSelected()
+            }
+        }
         .onChange(of: googleAuth.isAuthenticated) { _, _ in
+            Task {
+                await discoveryService.discoverAllModels(forceRefresh: true)
+            }
+        }
+        .onChange(of: metaAuth.isAuthenticated) { _, _ in
             Task {
                 await discoveryService.discoverAllModels(forceRefresh: true)
             }

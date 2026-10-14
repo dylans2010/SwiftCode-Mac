@@ -70,10 +70,10 @@ public final class MetaAssistProvider: Sendable {
 
         let hasCreds = await MuseCodeCLIHelper.shared.checkCredentials()
         if !hasCreds {
-            // Attempt login or inform auth required
-            let result = try await MuseCodeCLIHelper.shared.runCommand(args: ["account", "read"])
-            if !result.isSuccess {
-                throw MuseCodeCLIError.executionFailed(exitCode: result.exitCode, stderr: "Authentication required for Assist with Meta. Please log in via CLI.")
+            do {
+                _ = try await MuseCodeCLIHelper.shared.runLoginFlow()
+            } catch {
+                throw MuseCodeCLIError.executionFailed(exitCode: 2, stderr: "Authentication required for Assist with Meta. Please log in via CLI.")
             }
         }
 
