@@ -307,9 +307,10 @@ public final class AssistModelDiscoveryService: Sendable {
         async let appleTask = discoverAppleFoundationModels()
         async let customTask = discoverCustomAndLocalEndpoints()
         async let openRouterTask = discoverOpenRouterModels()
+        async let metaTask = MetaAssistProvider.shared.discoverModels()
 
-        let (geminiModels, claudeModels, openAIModels, mistralModels, qwenModels, appleModels, customModels, openRouterModels) =
-            await (geminiTask, claudeTask, openAITask, mistralTask, qwenTask, appleTask, customTask, openRouterTask)
+        let (geminiModels, claudeModels, openAIModels, mistralModels, qwenModels, appleModels, customModels, openRouterModels, metaModels) =
+            await (geminiTask, claudeTask, openAITask, mistralTask, qwenTask, appleTask, customTask, openRouterTask, metaTask)
 
         allDiscovered.append(contentsOf: geminiModels)
         allDiscovered.append(contentsOf: claudeModels)
@@ -319,6 +320,7 @@ public final class AssistModelDiscoveryService: Sendable {
         allDiscovered.append(contentsOf: appleModels)
         allDiscovered.append(contentsOf: customModels)
         allDiscovered.append(contentsOf: openRouterModels)
+        allDiscovered.append(contentsOf: metaModels)
 
         return allDiscovered
     }
@@ -1063,6 +1065,9 @@ public final class AssistModelDiscoveryService: Sendable {
     }
 
     public func isProviderExplicitlyActive(_ providerName: String) -> Bool {
+        if providerName == "Assist with Meta" {
+            return await MuseCodeCLIHelper.shared.isInstalled()
+        }
         if providerName == "Apple Foundation Models" { return true }
         if providerName.hasPrefix("Custom") || providerName.hasPrefix("Local") {
             return !CustomEndpointManager.shared.endpoints.isEmpty ||
@@ -1132,7 +1137,7 @@ public final class AssistModelDiscoveryService: Sendable {
     }
 
     public var unfilteredModelsByProvider: [(providerName: String, models: [AssistAvailableModel])] {
-        let order = ["Gemini", "Claude", "OpenAI", "Mistral", "Qwen", "Apple Foundation Models", "Custom Models", "Local / Ollama", "OpenRouter"]
+        let order = ["Assist with Meta", "Gemini", "Claude", "OpenAI", "Mistral", "Qwen", "Apple Foundation Models", "Custom Models", "Local / Ollama", "OpenRouter"]
         var grouped: [String: [AssistAvailableModel]] = [:]
         for model in discoveredModels {
             let key = getProviderName(for: model)

@@ -650,178 +650,16 @@ struct AssistSettingsView: View {
                         .pickerStyle(.segmented)
 
                         if settings.assistSystemID == AppSettings.googleCloudAssistSystemID {
-                            VStack(alignment: .leading, spacing: 12) {
-                                // Modern unified engine control card
-                                HStack(spacing: 12) {
-                                    ZStack {
-                                        RoundedRectangle(cornerRadius: 8)
-                                            .fill(Color.blue.opacity(0.12))
-                                            .frame(width: 36, height: 36)
-                                        Image(systemName: "cloud.fill")
-                                            .font(.system(size: 17))
-                                            .foregroundStyle(.blue)
-                                    }
-
-                                    VStack(alignment: .leading, spacing: 3) {
-                                        HStack(spacing: 6) {
-                                            Text("Google Cloud SDK Engine")
-                                                .font(.system(size: 12.5, weight: .semibold))
-                                            googleCloudStatusBadge
-                                        }
-
-                                        HStack(spacing: 6) {
-                                            Text("Gemini Reasoning")
-                                            Text("·")
-                                            Text("Subagents")
-                                            Text("·")
-                                            Text("Background Daemon")
-                                        }
-                                        .font(.system(size: 10))
-                                        .foregroundStyle(.secondary)
-                                    }
-
-                                    Spacer()
-
-                                    // Compact Action Buttons
-                                    HStack(spacing: 6) {
-                                        Button {
-                                            Task {
-                                                if GoogleCloudSDKRuntime.shared.isRunning {
-                                                    await GoogleCloudSDKLifecycleManager.shared.stopEngine()
-                                                } else {
-                                                    try? await GoogleCloudSDKLifecycleManager.shared.startEngine()
-                                                }
-                                            }
-                                        } label: {
-                                            Text(GoogleCloudSDKRuntime.shared.isRunning ? "Stop" : "Start")
-                                                .font(.system(size: 11, weight: .semibold))
-                                        }
-                                        .buttonStyle(.borderedProminent)
-                                        .tint(GoogleCloudSDKRuntime.shared.isRunning ? Color.secondary : Color.blue)
-                                        .controlSize(.small)
-
-                                        Button {
-                                            Task {
-                                                try? await GoogleCloudSDKLifecycleManager.shared.restartEngine()
-                                            }
-                                        } label: {
-                                            Image(systemName: "arrow.clockwise")
-                                                .font(.system(size: 11, weight: .medium))
-                                        }
-                                        .buttonStyle(.bordered)
-                                        .controlSize(.small)
-                                        .help("Restart SDK Engine")
-
-                                        Button {
-                                            downloadGoogleAntigravityResources()
-                                        } label: {
-                                            Image(systemName: "arrow.down.circle")
-                                                .font(.system(size: 11, weight: .medium))
-                                        }
-                                        .buttonStyle(.bordered)
-                                        .controlSize(.small)
-                                        .help("Download SDK Resources")
-                                    }
-                                }
-                                .padding(10)
-                                .background(Color.primary.opacity(0.025), in: RoundedRectangle(cornerRadius: 9))
-                                .overlay(
-                                    RoundedRectangle(cornerRadius: 9)
-                                        .stroke(Color.primary.opacity(0.06), lineWidth: 1)
-                                )
-
-                                // Configuration Grid in clean cards
-                                VStack(alignment: .leading, spacing: 10) {
-                                    // 1. SDK Execution Backend
-                                    VStack(alignment: .leading, spacing: 6) {
-                                        HStack {
-                                            Text("SDK Execution Backend")
-                                                .font(.system(size: 12, weight: .medium))
-                                            Spacer()
-                                            Text(settings.antigravityExecutionMode == "resources" ? "Direct Binary" : "Python Bridge")
-                                                .font(.system(size: 10, weight: .semibold))
-                                                .foregroundStyle(settings.antigravityExecutionMode == "resources" ? .green : .orange)
-                                        }
-
-                                        Picker("Execution Mode", selection: $settings.antigravityExecutionMode) {
-                                            Text("Downloaded Resources (Direct Binary)").tag("resources")
-                                            Text("Python Bridge Server").tag("bridge")
-                                        }
-                                        .pickerStyle(.segmented)
-                                        .controlSize(.small)
-                                        .onChange(of: settings.antigravityExecutionMode) { _, _ in
-                                            Task {
-                                                try? await GoogleCloudSDKLifecycleManager.shared.restartEngine()
-                                            }
-                                        }
-
-                                        Text(settings.antigravityExecutionMode == "resources"
-                                             ? "Executes the compiled SDK binary directly for maximum speed and raw performance."
-                                             : "Runs the Python IPC bridge server to route requests and stream rich token events.")
-                                            .font(.system(size: 10))
-                                            .foregroundStyle(.secondary)
-                                    }
-
-                                    Divider()
-
-                                    // 2. Assist Toolkit
-                                    VStack(alignment: .leading, spacing: 6) {
-                                        HStack {
-                                            Text("Assist Toolkit")
-                                                .font(.system(size: 12, weight: .medium))
-                                            Spacer()
-                                            Text(settings.assistToolkit == "Cloud" ? "Cloud Tools" : "SwiftCode Tools")
-                                                .font(.system(size: 10, weight: .semibold))
-                                                .foregroundStyle(settings.assistToolkit == "Cloud" ? .blue : .indigo)
-                                        }
-
-                                        Picker("Assist Toolkit", selection: $settings.assistToolkit) {
-                                            Text("System (SwiftCode)").tag("System")
-                                            Text("Cloud (Official SDK)").tag("Cloud")
-                                        }
-                                        .pickerStyle(.segmented)
-                                        .controlSize(.small)
-
-                                        Text(settings.assistToolkit == "Cloud"
-                                             ? "Cloud toolkit leverages the official SDK's built-in file manipulation and execution tools."
-                                             : "System toolkit uses SwiftCode's native code editing, build diagnostics, and terminal tools.")
-                                            .font(.system(size: 10))
-                                            .foregroundStyle(.secondary)
-                                    }
-
-                                    Divider()
-
-                                    // 3. Model Routing Strategy
-                                    VStack(alignment: .leading, spacing: 6) {
-                                        HStack {
-                                            Text("Model Routing Strategy")
-                                                .font(.system(size: 12, weight: .medium))
-                                            Spacer()
-                                        }
-
-                                        Picker("Model Strategy", selection: $settings.assistModelRoutingStrategy) {
-                                            Text("Official SDK Default").tag("default")
-                                            Text("App Model Catalog").tag("app_models")
-                                            Text("Gemini Key Rotation").tag("rotation")
-                                        }
-                                        .pickerStyle(.segmented)
-                                        .controlSize(.small)
-
-                                        if settings.assistModelRoutingStrategy == "rotation" {
-                                            rotationKeysRow
-                                        } else if settings.assistModelRoutingStrategy == "app_models" {
-                                            appModelsStatsRow
-                                        }
-                                    }
-
-                                    Divider()
-
-                                    // 4. SwiftCode Cloud Model
-                                    swiftCodeCloudSection
-                                }
-                                .padding(10)
-                                .background(Color.primary.opacity(0.02), in: RoundedRectangle(cornerRadius: 8))
+                            HStack(spacing: 8) {
+                                Image(systemName: "checkmark.circle.fill")
+                                    .foregroundStyle(.blue)
+                                    .font(.subheadline)
+                                Text("Assist on Google Cloud is active. Google Cloud SDK Engine runs as an application-managed background daemon.")
+                                    .font(.caption2)
+                                    .foregroundStyle(.secondary)
                             }
+                            .padding(8)
+                            .background(Color.blue.opacity(0.05), in: RoundedRectangle(cornerRadius: 6))
                         } else {
                             HStack(spacing: 8) {
                                 Image(systemName: "checkmark.circle.fill")
@@ -834,6 +672,89 @@ struct AssistSettingsView: View {
                             .padding(8)
                             .background(Color.purple.opacity(0.05), in: RoundedRectangle(cornerRadius: 6))
                         }
+                    }
+                    .padding(14)
+                }
+                .groupBoxStyle(ModernGroupBoxStyle())
+
+                // Separate "Assist Configuration" Card
+                GroupBox {
+                    VStack(alignment: .leading, spacing: 14) {
+                        HStack(spacing: 10) {
+                            ZStack {
+                                RoundedRectangle(cornerRadius: 8)
+                                    .fill(Color.indigo.opacity(0.14))
+                                    .frame(width: 32, height: 32)
+                                Image(systemName: "slider.horizontal.3")
+                                    .font(.system(size: 14, weight: .bold))
+                                    .foregroundStyle(Color.indigo)
+                            }
+
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("Assist Configuration")
+                                    .font(.system(size: 14, weight: .semibold))
+                                Text("Configure toolkits, model routing, and cloud options")
+                                    .font(.caption2)
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
+
+                        Divider()
+
+                        // 1. Assist Toolkit
+                        VStack(alignment: .leading, spacing: 6) {
+                            HStack {
+                                Text("Assist Toolkit")
+                                    .font(.system(size: 12, weight: .medium))
+                                Spacer()
+                                Text(settings.assistToolkit == "Cloud" ? "Cloud Tools" : "SwiftCode Tools")
+                                    .font(.system(size: 10, weight: .semibold))
+                                    .foregroundStyle(settings.assistToolkit == "Cloud" ? .blue : .indigo)
+                            }
+
+                            Picker("Assist Toolkit", selection: $settings.assistToolkit) {
+                                Text("System (SwiftCode)").tag("System")
+                                Text("Cloud (Official SDK)").tag("Cloud")
+                            }
+                            .pickerStyle(.segmented)
+                            .controlSize(.small)
+
+                            Text(settings.assistToolkit == "Cloud"
+                                 ? "Cloud toolkit leverages the official SDK's built-in file manipulation and execution tools."
+                                 : "System toolkit uses SwiftCode's native code editing, build diagnostics, and terminal tools.")
+                                .font(.system(size: 10))
+                                .foregroundStyle(.secondary)
+                        }
+
+                        Divider()
+
+                        // 2. Model Routing Strategy
+                        VStack(alignment: .leading, spacing: 6) {
+                            HStack {
+                                Text("Model Routing Strategy")
+                                    .font(.system(size: 12, weight: .medium))
+                                Spacer()
+                            }
+
+                            Picker("Model Strategy", selection: $settings.assistModelRoutingStrategy) {
+                                Text("Official SDK Default").tag("default")
+                                Text("App Model Catalog").tag("app_models")
+                                Text("Gemini Key Rotation").tag("rotation")
+                            }
+                            .pickerStyle(.segmented)
+                            .controlSize(.small)
+
+                            if settings.assistModelRoutingStrategy == "rotation" {
+                                rotationKeysRow
+                            } else if settings.assistModelRoutingStrategy == "app_models" {
+                                appModelsStatsRow
+                            }
+                        }
+
+                        Divider()
+
+                        // 3. SwiftCode Cloud Model
+                        swiftCodeCloudSection
                     }
                     .padding(14)
                 }
