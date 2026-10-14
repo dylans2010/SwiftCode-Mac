@@ -11,10 +11,13 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         // Install bundled custom alert sounds into ~/Library/Sounds/
         _ = SoundInstaller.shared.installSoundsIfNeeded()
 
-        // Start Google Cloud SDK / Antigravity background lifecycle monitoring automatically
+        // Start Google Cloud SDK (Python) and Meta Assist (TypeScript) background lifecycle monitoring automatically
         Task { @MainActor in
             GoogleCloudSDKLifecycleManager.shared.startMonitoring()
             try? await GoogleCloudSDKLifecycleManager.shared.startEngine()
+
+            MetaAssistLifecycleManager.shared.startMonitoring()
+            try? await MetaAssistLifecycleManager.shared.startEngine()
         }
     }
 
@@ -26,6 +29,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         LoggingTool.info("SwiftCode terminating cleanly.")
         Task { @MainActor in
             await GoogleCloudSDKLifecycleManager.shared.stopEngine()
+            await MetaAssistLifecycleManager.shared.stopEngine()
         }
     }
 

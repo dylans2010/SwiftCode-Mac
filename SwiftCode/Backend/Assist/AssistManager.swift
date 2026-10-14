@@ -376,7 +376,8 @@ public final class AssistManager: ObservableObject {
         // Assist with Meta (Muse Code SDK / MSP Protocol execution path)
         let selectedModelID = AppSettings.shared.selectedAssistModelID
         let selectedDiscoveredModel = AssistModelDiscoveryService.shared.discoveredModels.first(where: { $0.modelIdentifier == selectedModelID })
-        let isMetaAssist = selectedDiscoveredModel?.providerID == MetaAssistProvider.providerID ||
+        let isMetaAssist = AppSettings.shared.isMetaAssist ||
+            selectedDiscoveredModel?.providerID == MetaAssistProvider.providerID ||
             (selectedModelID == MetaAssistProvider.defaultModelID && selectedDiscoveredModel == nil)
         if isMetaAssist {
             await sendMetaAssistMessage(trimmed, attachments: attachments, envelope: envelope, metrics: metrics, generation: generation)

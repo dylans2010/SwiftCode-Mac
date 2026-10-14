@@ -87,7 +87,7 @@ public final class MuseCodeMSPBridge: @unchecked Sendable {
     private var process: Process?
     private var stdinPipe: Pipe?
     private var stdoutPipe: Pipe?
-    private var isRunning: Bool = false
+    public private(set) var isRunning: Bool = false
     private var pendingContinuations: [String: CheckedContinuation<String, Error>] = [:]
     private var notificationHandler: ((String, [String: Any]) -> Void)?
     private var incomingBuffer = Data()

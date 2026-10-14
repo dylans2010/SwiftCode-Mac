@@ -629,15 +629,15 @@ struct AssistSettingsView: View {
                             // Architecture mode pill badge
                             HStack(spacing: 5) {
                                 Circle()
-                                    .fill(settings.isGoogleCloudAssist ? Color.blue : Color.purple)
+                                    .fill(settings.isMetaAssist ? Color.orange : (settings.isGoogleCloudAssist ? Color.blue : Color.purple))
                                     .frame(width: 6, height: 6)
-                                Text(settings.isGoogleCloudAssist ? "Google Cloud SDK" : "Native Engine")
+                                Text(settings.isMetaAssist ? "Assist on Meta" : (settings.isGoogleCloudAssist ? "Google Cloud SDK" : "Native Engine"))
                                     .font(.system(size: 11, weight: .semibold, design: .rounded))
-                                    .foregroundStyle(settings.isGoogleCloudAssist ? Color.blue : Color.purple)
+                                    .foregroundStyle(settings.isMetaAssist ? Color.orange : (settings.isGoogleCloudAssist ? Color.blue : Color.purple))
                             }
                             .padding(.horizontal, 9)
                             .padding(.vertical, 3.5)
-                            .background((settings.isGoogleCloudAssist ? Color.blue : Color.purple).opacity(0.1), in: Capsule())
+                            .background((settings.isMetaAssist ? Color.orange : (settings.isGoogleCloudAssist ? Color.blue : Color.purple)).opacity(0.1), in: Capsule())
                         }
 
                         // Segmented picker
@@ -646,6 +646,8 @@ struct AssistSettingsView: View {
                                 .tag(AppSettings.nativeAssistSystemID)
                             Text("Assist on Google Cloud")
                                 .tag(AppSettings.googleCloudAssistSystemID)
+                            Text("Assist on Meta")
+                                .tag(AppSettings.metaAssistSystemID)
                         }
                         .pickerStyle(.segmented)
 
@@ -654,12 +656,23 @@ struct AssistSettingsView: View {
                                 Image(systemName: "checkmark.circle.fill")
                                     .foregroundStyle(.blue)
                                     .font(.subheadline)
-                                Text("Assist on Google Cloud is active. Google Cloud SDK Engine runs as an application-managed background daemon.")
+                                Text("Assist on Google Cloud is active. Google Cloud SDK Engine (Python) runs as an application-managed background daemon.")
                                     .font(.caption2)
                                     .foregroundStyle(.secondary)
                             }
                             .padding(8)
                             .background(Color.blue.opacity(0.05), in: RoundedRectangle(cornerRadius: 6))
+                        } else if settings.assistSystemID == AppSettings.metaAssistSystemID {
+                            HStack(spacing: 8) {
+                                Image(systemName: "checkmark.circle.fill")
+                                    .foregroundStyle(.orange)
+                                    .font(.subheadline)
+                                Text("Assist on Meta is active. Meta Muse Code SDK Engine (TypeScript) runs as an application-managed background daemon.")
+                                    .font(.caption2)
+                                    .foregroundStyle(.secondary)
+                            }
+                            .padding(8)
+                            .background(Color.orange.opacity(0.05), in: RoundedRectangle(cornerRadius: 6))
                         } else {
                             HStack(spacing: 8) {
                                 Image(systemName: "checkmark.circle.fill")

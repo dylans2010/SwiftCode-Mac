@@ -51,6 +51,7 @@ class AppSettings: ObservableObject {
 
     public static let nativeAssistSystemID = "com.swiftcode.assist.native"
     public static let googleCloudAssistSystemID = "com.swiftcode.Assist.Google-Cloud"
+    public static let metaAssistSystemID = "com.swiftcode.Assist.Meta"
 
     @Published var assistSystemID: String {
         didSet { debouncedSave("assistSystemID", assistSystemID) }
@@ -58,6 +59,10 @@ class AppSettings: ObservableObject {
 
     public var isGoogleCloudAssist: Bool {
         assistSystemID == Self.googleCloudAssistSystemID
+    }
+
+    public var isMetaAssist: Bool {
+        assistSystemID == Self.metaAssistSystemID
     }
 
     public static let defaultAssistToolkit = "System"
