@@ -66,6 +66,7 @@ public final class AssistManager: ObservableObject {
     private var activeGoogleCloudTask: Task<Void, Never>?
     private var activeGoogleCloudModelId: String?
     private var activeGoogleCloudModelDisplayName: String?
+    private var activeMetaTask: Task<Void, Never>?
 
     // MARK: - Unified request lifecycle state (AssistRequestState.swift)
     //
@@ -369,6 +370,16 @@ public final class AssistManager: ObservableObject {
         if AppSettings.shared.useSwiftCodeCloudModel,
            SCCloudConfiguration.isCloudModelID(AppSettings.shared.selectedAssistModelID) {
             await sendSwiftCodeCloudMessage(trimmed, attachments: attachments, envelope: envelope, metrics: metrics)
+            return
+        }
+
+        // Assist with Meta (Muse Code SDK / MSP Protocol execution path)
+        let selectedModelID = AppSettings.shared.selectedAssistModelID
+        let selectedDiscoveredModel = AssistModelDiscoveryService.shared.discoveredModels.first(where: { $0.modelIdentifier == selectedModelID })
+        let isMetaAssist = selectedDiscoveredModel?.providerID == MetaAssistProvider.providerID ||
+            (selectedModelID == MetaAssistProvider.defaultModelID && selectedDiscoveredModel == nil)
+        if isMetaAssist {
+            await sendMetaAssistMessage(trimmed, attachments: attachments, envelope: envelope, metrics: metrics, generation: generation)
             return
         }
 
@@ -847,6 +858,12 @@ public final class AssistManager: ObservableObject {
 
         agentSession.cancel()
 
+        activeMetaTask?.cancel()
+        activeMetaTask = nil
+        Task {
+            await MetaAssistProvider.shared.cancelTurn()
+        }
+
         WorkerRuntimeState.shared.stopAllActiveWorkers(reason: "Operation stopped by user.")
         PlanQuestionManager.shared.cancelPendingQuestions()
         cancelTerminalExecution()
@@ -900,6 +917,13 @@ public final class AssistManager: ObservableObject {
         }
 
         agentSession.cancel()
+
+        activeMetaTask?.cancel()
+        activeMetaTask = nil
+        Task {
+            await MetaAssistProvider.shared.cancelTurn()
+            await MuseCodeMSPBridge.shared.stopHost()
+        }
 
         // Clean up workers and pending questions
         WorkerRuntimeState.shared.stopAllActiveWorkers(reason: "Chat cleared by user.")
@@ -999,6 +1023,84 @@ public final class AssistManager: ObservableObject {
                 UserDefaults.standard.set(data, forKey: "com.swiftcode.assist.history")
             }
         }
+    }
+
+    // MARK: - Assist with Meta Execution Pipeline
+
+    private func sendMetaAssistMessage(
+        _ content: String,
+        attachments: [AgentFileContext] = [],
+        envelope: AssistTaskEnvelope? = nil,
+        metrics: AssistRequestMetrics? = nil,
+        generation: AssistRequestGeneration
+    ) async {
+        let workspaceRoot = ProjectSessionStore.shared.activeProject?.directoryURL.path ?? "/"
+
+        await MainActor.run {
+            self.currentActivityStatus = "Contacting Assist with Meta..."
+            self.messages.append(AssistMessage(role: .assistant, content: ""))
+            self.saveHistory()
+            self.setRequestPhase(.sendingRequest)
+        }
+
+        let messageID = await MainActor.run { self.messages.last?.id }
+
+        let task = Task {
+            defer {
+                Task { @MainActor in
+                    guard generation == self.currentGeneration else { return }
+                    self.isProcessing = false
+                    if !self.requestPhase.isTerminal {
+                        self.setRequestPhase(.idle)
+                    }
+                    self.processNextQueuedMessageIfAny()
+                }
+            }
+
+            do {
+                try await MetaAssistProvider.shared.executeTurn(
+                    prompt: content,
+                    workspaceRoot: workspaceRoot,
+                    onTextDelta: { [weak self] delta in
+                        Task { @MainActor [weak self] in
+                            guard let self, generation == self.currentGeneration else { return }
+                            self.setRequestPhase(.receivingResponse)
+                            if let messageID, let idx = self.messages.firstIndex(where: { $0.id == messageID }) {
+                                var msg = self.messages[idx]
+                                msg.content += delta
+                                self.messages[idx] = msg
+                            }
+                        }
+                    }
+                )
+
+                await MainActor.run {
+                    guard generation == self.currentGeneration else { return }
+                    self.setRequestPhase(.completed)
+                    self.saveHistory()
+                }
+            } catch {
+                await MainActor.run {
+                    guard generation == self.currentGeneration else { return }
+                    let errStr = "Assist with Meta Error: \(error.localizedDescription)"
+                    self.lastError = errStr
+                    if let messageID, let idx = self.messages.firstIndex(where: { $0.id == messageID }) {
+                        if self.messages[idx].content.isEmpty {
+                            self.messages[idx].content = errStr
+                        } else {
+                            self.messages.append(AssistMessage(role: .system, content: errStr))
+                        }
+                    } else {
+                        self.messages.append(AssistMessage(role: .system, content: errStr))
+                    }
+                    self.setRequestPhase(.failed)
+                    self.saveHistory()
+                }
+            }
+        }
+
+        activeMetaTask = task
+        _ = await task.result
     }
 
     // MARK: - Google Cloud SDK / Antigravity Execution Pipeline

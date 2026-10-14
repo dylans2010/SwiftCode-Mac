@@ -78,30 +78,7 @@ public actor MetaAssistProvider {
         let bridge = MuseCodeMSPBridge.shared
         try await bridge.startHost(workspaceRoot: workspaceRoot)
 
-        // Set up notification listener
-        await bridge.setNotificationHandler { method, params in
-            if method == "item/delta" {
-                if let delta = params["delta"] as? String {
-                    onTextDelta(delta)
-                } else if let deltaObj = params["delta"] as? [String: Any], let text = deltaObj["text"] as? String {
-                    onTextDelta(text)
-                }
-            } else if method == "approval/requested" {
-                // Auto-approve or resolve permission
-                if let sessionId = params["sessionId"] as? String,
-                   let approvalId = params["approvalId"] as? String {
-                    Task {
-                        _ = try? await MuseCodeMSPBridge.shared.sendCommand(method: "approval/decide", params: [
-                            "sessionId": sessionId,
-                            "approvalId": approvalId,
-                            "requirementId": ["approvalId": approvalId, "sourceIndex": 0],
-                            "choiceId": "allow_once",
-                            "feedback": NSNull()
-                        ])
-                    }
-                }
-            }
-        }
+        let permissionsManager = AssistPermissionsManager()
 
         try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
             Task {
@@ -117,13 +94,45 @@ public actor MetaAssistProvider {
                     } else if method == "approval/requested" {
                         if let sessionId = params["sessionId"] as? String,
                            let approvalId = params["approvalId"] as? String {
+                            let action = params["action"] as? String ?? "operation"
+                            let isAllowed = permissionsManager.authorizeOperation(action)
+                            let choice = isAllowed ? "allow_once" : "deny"
+
                             Task {
                                 _ = try? await MuseCodeMSPBridge.shared.sendCommand(method: "approval/decide", params: [
                                     "sessionId": sessionId,
                                     "approvalId": approvalId,
                                     "requirementId": ["approvalId": approvalId, "sourceIndex": 0],
-                                    "choiceId": "allow_once",
+                                    "choiceId": choice,
                                     "feedback": NSNull()
+                                ])
+                            }
+                        }
+                    } else if method == "tool/requested" {
+                        if let sessionId = params["sessionId"] as? String,
+                           let toolCallId = params["toolCallId"] as? String,
+                           let toolId = params["toolId"] as? String,
+                           let args = params["arguments"] as? [String: Any] {
+                            Task {
+                                var output = ""
+                                var isSuccess = false
+                                if permissionsManager.authorizeOperation(toolId) {
+                                    if let tool = await AssistManager.shared.registry.getTool(toolId) {
+                                        let res = await tool.execute(arguments: args)
+                                        output = res.output ?? res.error ?? "No output"
+                                        isSuccess = res.success
+                                    } else {
+                                        output = "Tool '\(toolId)' not found in SwiftCode registry."
+                                    }
+                                } else {
+                                    output = "Execution of tool '\(toolId)' denied by permission policy."
+                                }
+
+                                _ = try? await MuseCodeMSPBridge.shared.sendCommand(method: "tool/result", params: [
+                                    "sessionId": sessionId,
+                                    "toolCallId": toolCallId,
+                                    "success": isSuccess,
+                                    "output": output
                                 ])
                             }
                         }
@@ -136,9 +145,11 @@ public actor MetaAssistProvider {
                         "clientInfo": ["name": "SwiftCode", "version": "1.0.0"]
                     ])
 
-                    // 2. Start Session
+                    // 2. Start Session with canonical SwiftCode tools
+                    let tools = await AssistManager.shared.registry.getToolSchemas()
                     let sessionRes = try await bridge.sendCommand(method: "session/start", params: [
-                        "workspaceRoot": workspaceRoot
+                        "workspaceRoot": workspaceRoot,
+                        "tools": tools
                     ])
 
                     let sessionId: String
