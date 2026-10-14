@@ -121,12 +121,8 @@ def resolve_gemini_auth(*, api_key, oauth_token, vertex, project, location,
             )
         return ("vertex", project, location)
     if oauth_token:
-        if not user_project:
-            raise GeminiAuthConfigError(
-                "Google account authentication requires a Google Cloud quota project "
-                "(x-goog-user-project), but none was configured. Set your Google Cloud "
-                "project in SwiftCode Settings > Assist > Google Account."
-            )
+        # OAuth token present: use OAuth Developer API mode.
+        # Consumer Google / Antigravity accounts do NOT require a quota project.
         return ("oauth", user_project, location)
 
     if api_key:
@@ -139,14 +135,34 @@ def resolve_gemini_auth(*, api_key, oauth_token, vertex, project, location,
     )
 
 
+def canonicalize_antigravity_model(model_name: str) -> Tuple[str, Optional[str]]:
+    """Maps an Antigravity model name (e.g. gemini-3.8-flash-high) to its canonical
+    upstream model name (e.g. gemini-3.8-flash) and thinking level (e.g. high)."""
+    clean = (model_name or "").strip()
+    lower = clean.lower()
+    if lower.endswith("-high"):
+        return clean[:-5], "high"
+    if lower.endswith("-medium"):
+        return clean[:-7], "medium"
+    if lower.endswith("-low"):
+        return clean[:-4], "low"
+    if lower.endswith("-thinking"):
+        return clean[:-9], "high"
+    return clean, None
+
+
 ANTIGRAVITY_CATALOG_MODEL_IDS = (
     "gemini-3.8-flash",
+    "gemini-3.8-flash-high",
+    "gemini-3.8-flash-medium",
+    "gemini-3.8-flash-low",
     "gemini-3.1-pro",
-    "gemini-3-flash",
     "gemini-3.1-pro-high",
     "gemini-3.1-pro-low",
+    "gemini-3-flash",
     "claude-sonnet-4-6",
     "claude-opus-4-6-thinking",
+    "gpt-oss-120b-medium",
 )
 
 
@@ -1093,9 +1109,10 @@ class AgentRunner:
 
                 has_header_project = any(k.lower() == USER_PROJECT_HEADER and str(v).strip() for k, v in http_headers.items())
                 has_any_project = bool((project or "").strip() or (os.environ.get("GOOGLE_CLOUD_PROJECT") or "").strip() or has_header_project)
+                canonical_model, inferred_thinking_level = canonicalize_antigravity_model(model)
                 is_antigravity_claude = is_antigravity_mode and (provider in ("anthropic", "claude") or "claude" in model_lower)
 
-                if (is_antigravity_mode or oauth_token) and not vertex and (is_antigravity_claude or not has_any_project):
+                if (is_antigravity_mode or oauth_token) and not vertex:
                     # Antigravity execution mode (Google Sign-In session without direct API keys):
                     # never route Claude to api.anthropic.com and never fail on missing GCP quota project.
                     auth_mode = "antigravity"
@@ -1122,8 +1139,8 @@ class AgentRunner:
                             http_headers[USER_PROJECT_HEADER] = auth_project
                         config_kwargs["http_headers"] = http_headers
 
-                # Resolve Gemini thinking level options if specified
-                thinking_level_param = params.get("thinkingLevel") or params.get("thinking_level")
+                # Resolve Gemini thinking level options if specified or inferred from Antigravity model ID
+                thinking_level_param = params.get("thinkingLevel") or params.get("thinking_level") or inferred_thinking_level
                 gemini_options = None
                 if thinking_level_param:
                     tl_str = str(thinking_level_param).strip().lower()
@@ -1154,7 +1171,7 @@ class AgentRunner:
                     endpoint_kwargs: Dict[str, Any] = {"http_headers": http_headers}
                     if auth_mode == "api_key":
                         endpoint_kwargs["api_key"] = api_key
-                    elif auth_mode == "antigravity" and self.adapter_server and self.adapter_server.actual_port > 0:
+                    elif (auth_mode == "antigravity" or oauth_token) and self.adapter_server and self.adapter_server.actual_port > 0:
                         self.adapter_server.register_target(
                             model_name=model,
                             provider="antigravity",
@@ -1162,6 +1179,14 @@ class AgentRunner:
                             base_url=base_url,
                             headers=http_headers,
                         )
+                        if canonical_model != model:
+                            self.adapter_server.register_target(
+                                model_name=canonical_model,
+                                provider="antigravity",
+                                api_key="",
+                                base_url=base_url,
+                                headers=http_headers,
+                            )
                         endpoint_kwargs["base_url"] = f"http://127.0.0.1:{self.adapter_server.actual_port}/v1"
                     if gemini_options is not None:
                         endpoint_kwargs["options"] = gemini_options

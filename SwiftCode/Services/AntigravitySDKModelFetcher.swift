@@ -125,13 +125,15 @@ public final class AntigravitySDKModelFetcher: ObservableObject {
     }
 
     public nonisolated static let seedModels: [AntigravitySDKModel] = [
+        AntigravitySDKModel(id: "gemini-3.8-flash-high", displayName: "Gemini 3.8 Flash (High)", thinkingLevel: "High", contextWindow: 1_048_576, category: "Google"),
+        AntigravitySDKModel(id: "gemini-3.8-flash-medium", displayName: "Gemini 3.8 Flash (Medium)", thinkingLevel: "Medium", contextWindow: 1_048_576, category: "Google"),
+        AntigravitySDKModel(id: "gemini-3.8-flash-low", displayName: "Gemini 3.8 Flash (Low)", thinkingLevel: "Low", contextWindow: 1_048_576, category: "Google"),
+        AntigravitySDKModel(id: "claude-sonnet-4-6", displayName: "Claude Sonnet 4.6 (Thinking)", thinkingLevel: "High", contextWindow: 200_000, category: "Anthropic"),
+        AntigravitySDKModel(id: "claude-opus-4-6-thinking", displayName: "Claude Opus 4.6 (Thinking)", thinkingLevel: "High", contextWindow: 200_000, category: "Anthropic"),
+        AntigravitySDKModel(id: "gpt-oss-120b-medium", displayName: "GPT-OSS 120B (Medium)", thinkingLevel: "Medium", contextWindow: 128_000, category: "OpenAI"),
         AntigravitySDKModel(id: "gemini-3.8-flash", displayName: "Gemini 3.8 Flash", thinkingLevel: "High", contextWindow: 1_048_576, category: "Google"),
         AntigravitySDKModel(id: "gemini-3.1-pro", displayName: "Gemini 3.1 Pro", thinkingLevel: "High", contextWindow: 2_097_152, category: "Google"),
         AntigravitySDKModel(id: "gemini-3-flash", displayName: "Gemini 3 Flash", thinkingLevel: "Medium", contextWindow: 1_048_576, category: "Google"),
-        AntigravitySDKModel(id: "gemini-3.1-pro-high", displayName: "Gemini 3.1 Pro (High)", thinkingLevel: "High", contextWindow: 2_097_152, category: "Google"),
-        AntigravitySDKModel(id: "gemini-3.1-pro-low", displayName: "Gemini 3.1 Pro (Low)", thinkingLevel: "Low", contextWindow: 2_097_152, category: "Google"),
-        AntigravitySDKModel(id: "claude-sonnet-4-6", displayName: "Claude Sonnet 4.6", thinkingLevel: "Medium", contextWindow: 200_000, category: "Anthropic"),
-        AntigravitySDKModel(id: "claude-opus-4-6-thinking", displayName: "Claude Opus 4.6 (Thinking)", thinkingLevel: "High", contextWindow: 200_000, category: "Anthropic")
     ]
 
     // MARK: - Disk Cache
@@ -154,8 +156,10 @@ public final class AntigravitySDKModelFetcher: ObservableObject {
     // MARK: - SDK Execution
     private func fetchFromSDKRuntime() async -> [AntigravitySDKModel] {
         return await Task.detached(priority: .userInitiated) {
+            let homeDir = FileManager.default.homeDirectoryForCurrentUser
             let agyBinaryCandidates = [
-                FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".gemini/bin/agy").path,
+                homeDir.appendingPathComponent(".gemini/bin/agy").path,
+                homeDir.appendingPathComponent(".local/bin/agy").path,
                 "/usr/local/bin/agy",
                 "/opt/homebrew/bin/agy",
             ]

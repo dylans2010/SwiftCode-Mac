@@ -743,10 +743,9 @@ public final class AssistModelRouter: Sendable {
         let executionMode: String?
 
         let googleAuthMode = UserDefaults.standard.string(forKey: "assist_google_auth_mode") ?? AppSettings.shared.assistGoogleAuthMode
-        let isOAuthAuthenticated = (googleAuthMode == "google_oauth")
-            && GoogleAccountAuthService.shared.isAuthenticated
+        let isOAuthAuthenticated = GoogleAccountAuthService.shared.isAuthenticated
             && !AppSettings.shared.alternativeKeysEnabled
-            && (isGoogleProvider || (isAntigravityCatalog && !hasDirectProviderKey))
+            && (isGoogleProvider || isAntigravityCatalog || !hasDirectProviderKey || googleAuthMode == "google_oauth")
 
         if isOAuthAuthenticated {
             // Strictly rely ONLY on Antigravity allowance / OAuth session. NO API keys.

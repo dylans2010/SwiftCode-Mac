@@ -158,22 +158,18 @@ class ResolveGeminiAuthTests(unittest.TestCase):
         self.assertEqual(mode, "oauth")
         self.assertEqual(project, "header-project")
 
-    def test_oauth_without_quota_project_is_actionable_error(self):
-        # Must NOT fabricate a project ("-") and must NOT silently reroute to
-        # Vertex: the operator has to configure a quota project.
-        with self.assertRaises(GeminiAuthConfigError) as ctx:
-            resolve_gemini_auth(
-                api_key=None,
-                oauth_token="ya29.test-token",
-                vertex=False,
-                project=None,
-                location=None,
-                http_headers={},
-            )
-        message = str(ctx.exception)
-        self.assertIn("quota project", message)
-        self.assertIn("x-goog-user-project", message)
-        self.assertNotIn('"-"', message)
+    def test_oauth_without_quota_project_is_allowed(self):
+        # Consumer Google account OAuth tokens do not require a quota project.
+        mode, project, location = resolve_gemini_auth(
+            api_key=None,
+            oauth_token="ya29.test-token",
+            vertex=False,
+            project=None,
+            location=None,
+            http_headers={},
+        )
+        self.assertEqual(mode, "oauth")
+        self.assertIsNone(project)
 
     def test_oauth_with_explicit_vertex_requires_project_and_location(self):
         mode, project, location = resolve_gemini_auth(

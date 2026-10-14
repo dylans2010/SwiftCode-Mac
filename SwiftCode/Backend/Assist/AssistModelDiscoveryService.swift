@@ -369,10 +369,10 @@ public final class AssistModelDiscoveryService: Sendable {
         let googleAuthMode = UserDefaults.standard.string(forKey: "assist_google_auth_mode") ?? AppSettings.shared.assistGoogleAuthMode
         let isOauthActive = (googleAuthMode == "google_oauth") && GoogleAccountAuthService.shared.isAuthenticated && !AppSettings.shared.alternativeKeysEnabled
 
-        // In Google-authenticated Antigravity mode (or when no explicit Gemini API key is configured),
-        // use the Antigravity SDK catalog directly instead of calling the Developer API
-        // (`generativelanguage.googleapis.com/v1beta/models`) with an OAuth Bearer token.
-        if isOauthActive || trimmedKey.isEmpty {
+        // When authenticated via Google account, or in Antigravity mode, or when no explicit API key exists:
+        // strictly use the Antigravity models, NOT the ones from straight up Gemini (generativelanguage.googleapis.com).
+        // The sign in flow is ONLY for authentication, not model fetching.
+        if GoogleAccountAuthService.shared.isAuthenticated || isOauthActive || trimmedKey.isEmpty {
             return await fallbackAntigravityModels()
         }
 

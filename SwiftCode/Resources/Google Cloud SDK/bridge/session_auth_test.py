@@ -84,7 +84,17 @@ class SessionAuthTests(unittest.IsolatedAsyncioTestCase):
         adapter = DummyAdapterServer(port=54322)
         bridge = runner.AgentRunner(lambda *_: None, adapter_server=adapter)
         with patch.object(runner, "Agent", CapturingAgent), patch.dict(os.environ, {"GOOGLE_CLOUD_PROJECT": ""}):
-            for gemini_model in ("gemini-3.8-flash", "gemini-3.1-pro", "gemini-3-flash", "gemini-3.1-pro-high", "gemini-3.1-pro-low"):
+            for gemini_model in (
+                "gemini-3.8-flash",
+                "gemini-3.8-flash-high",
+                "gemini-3.8-flash-medium",
+                "gemini-3.8-flash-low",
+                "gemini-3.1-pro",
+                "gemini-3-flash",
+                "gemini-3.1-pro-high",
+                "gemini-3.1-pro-low",
+                "gpt-oss-120b-medium",
+            ):
                 sess_id = f"ag-{gemini_model}"
                 await bridge.create_session(sess_id, {
                     "model": gemini_model,

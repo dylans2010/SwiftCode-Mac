@@ -20,6 +20,22 @@ import httpx
 logger = logging.getLogger("ModelAdapterServer")
 
 
+def canonicalize_antigravity_model(model_name: str) -> Tuple[str, Optional[str]]:
+    """Maps an Antigravity model name (e.g. gemini-3.8-flash-high) to its canonical
+    upstream model name (e.g. gemini-3.8-flash) and thinking level (e.g. HIGH)."""
+    clean = (model_name or "").strip()
+    lower = clean.lower()
+    if lower.endswith("-high"):
+        return clean[:-5], "HIGH"
+    if lower.endswith("-medium"):
+        return clean[:-7], "MEDIUM"
+    if lower.endswith("-low"):
+        return clean[:-4], "LOW"
+    if lower.endswith("-thinking"):
+        return clean[:-9], "HIGH"
+    return clean, None
+
+
 def normalize_schema(schema: Any) -> Any:
     """Normalizes JSON schemas to ensure compatibility with strict OpenAI/Anthropic validators."""
     if not isinstance(schema, dict):
@@ -751,16 +767,17 @@ class ModelAdapterServer:
         # Extract model name from /v1/v1beta/models/{model}:{action} or /v1beta/models/{model}:{action}
         model_segment = path_no_query.split(f":{action}")[0]
         if "/models/" in model_segment:
-            model_name = model_segment.split("/models/")[-1].strip("/")
+            raw_model_name = model_segment.split("/models/")[-1].strip("/")
         else:
-            model_name = model_segment.strip("/").split("/")[-1]
+            raw_model_name = model_segment.strip("/").split("/")[-1]
 
-        target = self.find_target(model_name)
+        base_model_name, inferred_thinking_level = canonicalize_antigravity_model(raw_model_name)
+        target = self.find_target(raw_model_name) or self.find_target(base_model_name)
         if not target:
             if self.targets:
                 target = next(iter(self.targets.values()))
             else:
-                target = TargetModelConfig(model_name=model_name, provider="antigravity")
+                target = TargetModelConfig(model_name=base_model_name, provider="antigravity")
 
         # Build OAuth-only headers (never attach x-goog-api-key or x-api-key)
         forward_headers: Dict[str, str] = {"Content-Type": "application/json"}
@@ -775,19 +792,36 @@ class ModelAdapterServer:
                 forward_headers[k] = v
 
         client = await self.get_client()
-        is_claude = "claude" in model_name.lower() or target.provider in ("anthropic", "claude")
+        is_claude = "claude" in raw_model_name.lower() or "claude" in base_model_name.lower() or target.provider in ("anthropic", "claude")
+        is_gpt_oss = "gpt-oss" in raw_model_name.lower() or "gpt-oss" in base_model_name.lower()
+        use_openai_gateway = is_claude or is_gpt_oss or (target.base_url and "/openai" in target.base_url)
 
         # For Gemini models without a custom OpenAI gateway, forward directly to generativelanguage.googleapis.com
-        if not is_claude and not (target.base_url and "/openai" in target.base_url):
+        if not use_openai_gateway:
             base = (target.base_url or "https://generativelanguage.googleapis.com").rstrip("/")
             if base.endswith("/v1") or base.endswith("/v1beta"):
                 base = base.rsplit("/", 1)[0]
             query_suffix = "?alt=sse" if stream else ""
-            upstream_url = f"{base}/v1beta/models/{model_name}:{action}{query_suffix}"
+            upstream_url = f"{base}/v1beta/models/{base_model_name}:{action}{query_suffix}"
+
+            # Inject thinkingConfig into body if inferred from Antigravity model suffix
+            out_body = body
+            if inferred_thinking_level and body:
+                try:
+                    payload_json = json.loads(body.decode("utf-8"))
+                    gen_cfg = payload_json.setdefault("generationConfig", {})
+                    if "thinkingConfig" not in gen_cfg:
+                        gen_cfg["thinkingConfig"] = {"thinkingLevel": inferred_thinking_level}
+                    out_body = json.dumps(payload_json).encode("utf-8")
+                    forward_headers["Content-Length"] = str(len(out_body))
+                except Exception:
+                    out_body = body
 
             if stream:
-                async with client.stream("POST", upstream_url, headers=forward_headers, content=body, timeout=120.0) as resp:
-                    if resp.status_code >= 400:
+                async with client.stream("POST", upstream_url, headers=forward_headers, content=out_body, timeout=120.0) as resp:
+                    if resp.status_code == 404 and target.provider == "antigravity":
+                        use_openai_gateway = True
+                    elif resp.status_code >= 400:
                         err_content = await resp.aread()
                         writer.write(
                             f"HTTP/1.1 {resp.status_code} {resp.reason_phrase}\r\nContent-Type: application/json\r\nContent-Length: {len(err_content)}\r\n\r\n".encode("utf-8")
@@ -796,31 +830,42 @@ class ModelAdapterServer:
                         await writer.drain()
                         writer.close()
                         return
-
-                    writer.write(b"HTTP/1.1 200 OK\r\nContent-Type: text/event-stream\r\nCache-Control: no-cache\r\nConnection: keep-alive\r\n\r\n")
-                    await writer.drain()
-                    async for chunk in resp.aiter_bytes():
-                        if chunk:
-                            writer.write(chunk)
-                            await writer.drain()
-                writer.close()
-                return
+                    else:
+                        writer.write(b"HTTP/1.1 200 OK\r\nContent-Type: text/event-stream\r\nCache-Control: no-cache\r\nConnection: keep-alive\r\n\r\n")
+                        await writer.drain()
+                        async for chunk in resp.aiter_bytes():
+                            if chunk:
+                                writer.write(chunk)
+                                await writer.drain()
+                        writer.close()
+                        return
             else:
-                resp = await client.post(upstream_url, headers=forward_headers, content=body, timeout=120.0)
-                writer.write(
-                    f"HTTP/1.1 {resp.status_code} {resp.reason_phrase}\r\nContent-Type: application/json\r\nContent-Length: {len(resp.content)}\r\n\r\n".encode("utf-8")
-                    + resp.content
-                )
-                await writer.drain()
-                writer.close()
-                return
+                resp = await client.post(upstream_url, headers=forward_headers, content=out_body, timeout=120.0)
+                if resp.status_code == 404 and target.provider == "antigravity":
+                    use_openai_gateway = True
+                elif resp.status_code >= 400:
+                    writer.write(
+                        f"HTTP/1.1 {resp.status_code} {resp.reason_phrase}\r\nContent-Type: application/json\r\nContent-Length: {len(resp.content)}\r\n\r\n".encode("utf-8")
+                        + resp.content
+                    )
+                    await writer.drain()
+                    writer.close()
+                    return
+                else:
+                    writer.write(
+                        f"HTTP/1.1 {resp.status_code} {resp.reason_phrase}\r\nContent-Type: application/json\r\nContent-Length: {len(resp.content)}\r\n\r\n".encode("utf-8")
+                        + resp.content
+                    )
+                    await writer.drain()
+                    writer.close()
+                    return
 
-        # For Claude models or OpenAI-compatible Antigravity gateways, translate Gemini <-> OpenAI
+        # For Claude models, GPT-OSS, or OpenAI-compatible Antigravity gateways, translate Gemini <-> OpenAI
         try:
             gemini_req = json.loads(body.decode("utf-8")) if body else {}
         except Exception:
             gemini_req = {}
-        openai_payload = self._gemini_payload_to_openai(model_name, gemini_req, stream=False)
+        openai_payload = self._gemini_payload_to_openai(raw_model_name, gemini_req, stream=False)
         default_gateway = (
             os.environ.get("ANTIGRAVITY_ENDPOINT_URL")
             or os.environ.get("CLOUDCODE_PA_ENDPOINT")

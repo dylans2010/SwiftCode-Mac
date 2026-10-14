@@ -823,10 +823,10 @@ public final class GoogleCloudSDKTests: Sendable {
         let start = Date()
         var failures: [String] = []
 
-        // Verify seed models use canonical base IDs without suffixes
+        // Verify seed models include canonical Antigravity catalog models
         let seedIDs = AntigravitySDKModelFetcher.seedModels.map { $0.id }
-        if seedIDs.contains("gemini-3.8-flash-low") || seedIDs.contains("gemini-3.8-flash-high") {
-            failures.append("Seed models still contain hardcoded thinking level suffixes")
+        if !seedIDs.contains("gemini-3.8-flash-high") || !seedIDs.contains("gemini-3.8-flash-low") {
+            failures.append("Seed models missing Antigravity catalog models (gemini-3.8-flash-high/low)")
         }
         if !seedIDs.contains("gemini-3.8-flash") {
             failures.append("Seed models missing canonical 'gemini-3.8-flash'")

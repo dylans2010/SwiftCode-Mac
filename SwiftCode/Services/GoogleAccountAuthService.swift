@@ -497,10 +497,6 @@ public final class GoogleAccountAuthService: NSObject, ObservableObject {
         logger.info("Signed out from Google Account.")
 
         AntigravityQuotaService.shared.resetToFresh()
-
-        Task {
-            await AssistModelDiscoveryService.shared.discoverAllModels(forceRefresh: true)
-        }
     }
 
     // MARK: - Assist Scope Verification & Re-Authentication
@@ -740,7 +736,6 @@ public final class GoogleAccountAuthService: NSObject, ObservableObject {
             Task {
                 AssistModelRouter.shared.clearAllQuarantines()
                 try? await GoogleCloudSDKLifecycleManager.shared.restartEngine()
-                await AssistModelDiscoveryService.shared.discoverAllModels(forceRefresh: true)
             }
         return true
     }
@@ -775,6 +770,7 @@ public final class GoogleAccountAuthService: NSObject, ObservableObject {
         }
         let homeDir = FileManager.default.homeDirectoryForCurrentUser.path
         let candidates = [
+            "\(homeDir)/.gemini/bin/agy",
             "\(homeDir)/.local/bin/agy",
             "/opt/homebrew/bin/agy",
             "/usr/local/bin/agy",
@@ -1058,7 +1054,6 @@ public final class GoogleAccountAuthService: NSObject, ObservableObject {
                 Task {
                     AssistModelRouter.shared.clearAllQuarantines()
                     try? await GoogleCloudSDKLifecycleManager.shared.restartEngine()
-                    await AssistModelDiscoveryService.shared.discoverAllModels(forceRefresh: true)
                 }
             } else {
                 self.isAuthenticated = false
