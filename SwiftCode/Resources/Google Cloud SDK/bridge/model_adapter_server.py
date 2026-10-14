@@ -216,9 +216,12 @@ class ModelAdapterServer:
             if content_len > 0:
                 body = await reader.readexactly(content_len)
 
-            if method == "POST" and (path.endswith("/chat/completions") or path.endswith("/completions")):
-                await self._handle_chat_completions(body, writer)
-            elif method == "GET" and path.endswith("/models"):
+            path_no_query = path.split("?", 1)[0]
+            if method == "POST" and (":streamGenerateContent" in path_no_query or ":generateContent" in path_no_query):
+                await self._handle_gemini_generate_content(path, headers, body, writer)
+            elif method == "POST" and (path_no_query.endswith("/chat/completions") or path_no_query.endswith("/completions")):
+                await self._handle_chat_completions(body, writer, req_headers=headers)
+            elif method == "GET" and path_no_query.endswith("/models"):
                 await self._handle_list_models(writer)
             else:
                 resp = b"HTTP/1.1 404 Not Found\r\nContent-Length: 0\r\n\r\n"
@@ -252,7 +255,7 @@ class ModelAdapterServer:
         await writer.drain()
         writer.close()
 
-    async def _handle_chat_completions(self, body: Data, writer: asyncio.StreamWriter):
+    async def _handle_chat_completions(self, body: bytes, writer: asyncio.StreamWriter, req_headers: Optional[Dict[str, str]] = None):
         try:
             payload = json.loads(body.decode("utf-8"))
         except Exception as e:
@@ -283,6 +286,13 @@ class ModelAdapterServer:
             else:
                 target = TargetModelConfig(model_name=model_name, provider="openai")
 
+        if req_headers:
+            req_auth = req_headers.get("authorization", "")
+            if req_auth.lower().startswith("bearer ") and not any(
+                k.lower() == "authorization" for k in (target.headers or {})
+            ):
+                target.headers["Authorization"] = req_auth
+
         client = await self.get_client()
 
         has_bearer_header = any(
@@ -290,7 +300,7 @@ class ModelAdapterServer:
             for k, v in (target.headers or {}).items()
         )
 
-        if target.provider == "antigravity" or (target.provider in ("anthropic", "claude") and not target.api_key and has_bearer_header):
+        if target.provider == "antigravity" or (not target.api_key and has_bearer_header):
             await self._forward_to_antigravity(payload, target, stream, writer, client)
         elif target.provider in ("anthropic", "claude"):
             if not target.api_key:
@@ -632,8 +642,240 @@ class ModelAdapterServer:
         url = self._normalize_target_url(target.base_url, default_gateway)
         headers = {"Content-Type": "application/json"}
         if target.headers:
-            headers.update(target.headers)
+            for k, v in target.headers.items():
+                if k.lower() not in ("x-goog-api-key", "x-api-key"):
+                    headers[k] = v
         await self._pipe_openai_request(url, headers, payload, stream, writer, client)
+
+    def _gemini_payload_to_openai(self, model_name: str, gemini_req: Dict[str, Any], stream: bool) -> Dict[str, Any]:
+        """Converts a Gemini GenerateContentRequest payload into an OpenAI chat/completions payload."""
+        messages: List[Dict[str, Any]] = []
+        sys_inst = gemini_req.get("systemInstruction") or gemini_req.get("system_instruction")
+        if isinstance(sys_inst, dict):
+            parts = sys_inst.get("parts") or []
+            sys_texts = [str(p.get("text", "")) for p in parts if isinstance(p, dict) and "text" in p]
+            if sys_texts:
+                messages.append({"role": "system", "content": "\n\n".join(sys_texts)})
+
+        for content in gemini_req.get("contents") or []:
+            if not isinstance(content, dict):
+                continue
+            role = content.get("role", "user")
+            parts = content.get("parts") or []
+            if role == "model":
+                text_chunks: List[str] = []
+                tool_calls: List[Dict[str, Any]] = []
+                for idx, part in enumerate(parts):
+                    if not isinstance(part, dict):
+                        continue
+                    if "text" in part and not part.get("thought"):
+                        text_chunks.append(str(part["text"]))
+                    if "functionCall" in part or "function_call" in part:
+                        fc = part.get("functionCall") or part.get("function_call") or {}
+                        tc_id = fc.get("id") or f"call_{idx}_{uuid.uuid4().hex[:8]}"
+                        tool_calls.append({
+                            "id": tc_id,
+                            "type": "function",
+                            "function": {
+                                "name": fc.get("name", ""),
+                                "arguments": json.dumps(fc.get("args") or {}),
+                            },
+                        })
+                msg: Dict[str, Any] = {"role": "assistant", "content": "".join(text_chunks) or None}
+                if tool_calls:
+                    msg["tool_calls"] = tool_calls
+                messages.append(msg)
+            else:
+                text_chunks = []
+                for part in parts:
+                    if not isinstance(part, dict):
+                        continue
+                    if "text" in part:
+                        text_chunks.append(str(part["text"]))
+                    elif "functionResponse" in part or "function_response" in part:
+                        fr = part.get("functionResponse") or part.get("function_response") or {}
+                        resp_val = fr.get("response")
+                        messages.append({
+                            "role": "tool",
+                            "tool_call_id": fr.get("id") or fr.get("name") or "tool_call",
+                            "content": json.dumps(resp_val) if not isinstance(resp_val, str) else resp_val,
+                        })
+                if text_chunks:
+                    messages.append({"role": "user", "content": "\n".join(text_chunks)})
+
+        openai_tools: List[Dict[str, Any]] = []
+        for tool_group in gemini_req.get("tools") or []:
+            if not isinstance(tool_group, dict):
+                continue
+            decls = tool_group.get("functionDeclarations") or tool_group.get("function_declarations") or []
+            for d in decls:
+                if not isinstance(d, dict) or not d.get("name"):
+                    continue
+                params = d.get("parameters") or d.get("parametersJsonSchema") or {"type": "object", "properties": {}}
+                if isinstance(params, str):
+                    try:
+                        params = json.loads(params)
+                    except Exception:
+                        params = {"type": "object", "properties": {}}
+                openai_tools.append({
+                    "type": "function",
+                    "function": {
+                        "name": d["name"],
+                        "description": d.get("description", ""),
+                        "parameters": normalize_schema(params),
+                    },
+                })
+
+        out: Dict[str, Any] = {
+            "model": model_name,
+            "messages": messages,
+            "stream": stream,
+        }
+        if openai_tools:
+            out["tools"] = openai_tools
+        return out
+
+    async def _handle_gemini_generate_content(
+        self,
+        path: str,
+        req_headers: Dict[str, str],
+        body: bytes,
+        writer: asyncio.StreamWriter,
+    ):
+        """Handles native Gemini :generateContent and :streamGenerateContent requests using OAuth headers only."""
+        import os
+        path_no_query = path.split("?", 1)[0]
+        stream = ":streamGenerateContent" in path_no_query
+        action = "streamGenerateContent" if stream else "generateContent"
+
+        # Extract model name from /v1/v1beta/models/{model}:{action} or /v1beta/models/{model}:{action}
+        model_segment = path_no_query.split(f":{action}")[0]
+        if "/models/" in model_segment:
+            model_name = model_segment.split("/models/")[-1].strip("/")
+        else:
+            model_name = model_segment.strip("/").split("/")[-1]
+
+        target = self.find_target(model_name)
+        if not target:
+            if self.targets:
+                target = next(iter(self.targets.values()))
+            else:
+                target = TargetModelConfig(model_name=model_name, provider="antigravity")
+
+        # Build OAuth-only headers (never attach x-goog-api-key or x-api-key)
+        forward_headers: Dict[str, str] = {"Content-Type": "application/json"}
+        if target.headers:
+            for k, v in target.headers.items():
+                if k.lower() not in ("x-goog-api-key", "x-api-key"):
+                    forward_headers[k] = v
+        for k, v in req_headers.items():
+            if k.lower() in ("authorization", "x-goog-user-project") and k.lower() not in {
+                hk.lower() for hk in forward_headers
+            }:
+                forward_headers[k] = v
+
+        client = await self.get_client()
+        is_claude = "claude" in model_name.lower() or target.provider in ("anthropic", "claude")
+
+        # For Gemini models without a custom OpenAI gateway, forward directly to generativelanguage.googleapis.com
+        if not is_claude and not (target.base_url and "/openai" in target.base_url):
+            base = (target.base_url or "https://generativelanguage.googleapis.com").rstrip("/")
+            if base.endswith("/v1") or base.endswith("/v1beta"):
+                base = base.rsplit("/", 1)[0]
+            query_suffix = "?alt=sse" if stream else ""
+            upstream_url = f"{base}/v1beta/models/{model_name}:{action}{query_suffix}"
+
+            if stream:
+                async with client.stream("POST", upstream_url, headers=forward_headers, content=body, timeout=120.0) as resp:
+                    if resp.status_code >= 400:
+                        err_content = await resp.aread()
+                        writer.write(
+                            f"HTTP/1.1 {resp.status_code} {resp.reason_phrase}\r\nContent-Type: application/json\r\nContent-Length: {len(err_content)}\r\n\r\n".encode("utf-8")
+                            + err_content
+                        )
+                        await writer.drain()
+                        writer.close()
+                        return
+
+                    writer.write(b"HTTP/1.1 200 OK\r\nContent-Type: text/event-stream\r\nCache-Control: no-cache\r\nConnection: keep-alive\r\n\r\n")
+                    await writer.drain()
+                    async for chunk in resp.aiter_bytes():
+                        if chunk:
+                            writer.write(chunk)
+                            await writer.drain()
+                writer.close()
+                return
+            else:
+                resp = await client.post(upstream_url, headers=forward_headers, content=body, timeout=120.0)
+                writer.write(
+                    f"HTTP/1.1 {resp.status_code} {resp.reason_phrase}\r\nContent-Type: application/json\r\nContent-Length: {len(resp.content)}\r\n\r\n".encode("utf-8")
+                    + resp.content
+                )
+                await writer.drain()
+                writer.close()
+                return
+
+        # For Claude models or OpenAI-compatible Antigravity gateways, translate Gemini <-> OpenAI
+        try:
+            gemini_req = json.loads(body.decode("utf-8")) if body else {}
+        except Exception:
+            gemini_req = {}
+        openai_payload = self._gemini_payload_to_openai(model_name, gemini_req, stream=False)
+        default_gateway = (
+            os.environ.get("ANTIGRAVITY_ENDPOINT_URL")
+            or os.environ.get("CLOUDCODE_PA_ENDPOINT")
+            or "https://cloudcode-pa.googleapis.com/v1internal/openai"
+        )
+        gateway_url = self._normalize_target_url(target.base_url, default_gateway)
+        resp = await client.post(gateway_url, headers=forward_headers, json=openai_payload, timeout=120.0)
+        if resp.status_code >= 400:
+            writer.write(
+                f"HTTP/1.1 {resp.status_code} {resp.reason_phrase}\r\nContent-Type: application/json\r\nContent-Length: {len(resp.content)}\r\n\r\n".encode("utf-8")
+                + resp.content
+            )
+            await writer.drain()
+            writer.close()
+            return
+
+        resp_json = resp.json()
+        choices = resp_json.get("choices") or []
+        parts_out: List[Dict[str, Any]] = []
+        if choices:
+            msg = choices[0].get("message") or {}
+            if msg.get("content"):
+                parts_out.append({"text": str(msg["content"])})
+            for tc in msg.get("tool_calls") or []:
+                fn = tc.get("function") or {}
+                try:
+                    parsed_args = json.loads(fn.get("arguments") or "{}")
+                except Exception:
+                    parsed_args = {}
+                parts_out.append({
+                    "functionCall": {
+                        "id": tc.get("id"),
+                        "name": fn.get("name", ""),
+                        "args": parsed_args,
+                    }
+                })
+        gemini_resp = {
+            "candidates": [{
+                "content": {"role": "model", "parts": parts_out or [{"text": ""}]},
+                "finishReason": "STOP",
+            }]
+        }
+        if stream:
+            writer.write(b"HTTP/1.1 200 OK\r\nContent-Type: text/event-stream\r\nCache-Control: no-cache\r\nConnection: keep-alive\r\n\r\n")
+            writer.write(f"data: {json.dumps(gemini_resp)}\r\n\r\n".encode("utf-8"))
+            await writer.drain()
+            writer.close()
+        else:
+            out_bytes = json.dumps(gemini_resp).encode("utf-8")
+            writer.write(
+                f"HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {len(out_bytes)}\r\n\r\n".encode("utf-8")
+                + out_bytes
+            )
+            await writer.drain()
+            writer.close()
 
     async def _forward_to_openai(
         self,

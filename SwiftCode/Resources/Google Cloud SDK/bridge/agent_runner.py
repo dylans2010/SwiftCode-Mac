@@ -158,11 +158,26 @@ def resolve_antigravity_execution_mode(params):
     model = str(params.get("model") or "").strip().lower()
     api_key = (params.get("apiKey") or params.get("api_key") or "").strip() or None
     oauth_token = (params.get("oauthToken") or params.get("oauth_token") or "").strip() or None
+    if not oauth_token:
+        for k, v in (params.get("headers") or {}).items():
+            if str(k).lower() == "authorization" and str(v).strip().lower().startswith("bearer "):
+                candidate = str(v).strip()[7:].strip()
+                if candidate and (not api_key or "oauthToken" in params or "oauth_token" in params):
+                    oauth_token = candidate
+                    break
+    if not oauth_token and (not api_key or explicit_mode == "antigravity" or provider == "antigravity"):
+        if (
+            explicit_mode == "antigravity"
+            or provider in ("", "google", "gemini", "antigravity")
+            or model in ANTIGRAVITY_CATALOG_MODEL_IDS
+            or model.startswith("gemini-")
+        ):
+            oauth_token = (os.environ.get("GOOGLE_OAUTH_ACCESS_TOKEN") or "").strip() or None
 
     if explicit_mode == "antigravity" or provider == "antigravity":
         if oauth_token and not api_key:
             return "antigravity"
-    if oauth_token and not api_key and model in ANTIGRAVITY_CATALOG_MODEL_IDS:
+    if oauth_token and not api_key and (model in ANTIGRAVITY_CATALOG_MODEL_IDS or model.startswith("gemini-")):
         return "antigravity"
     if api_key:
         return "api_key"
@@ -176,7 +191,16 @@ def resolve_session_credentials(params, *, is_gemini):
     oauth_token = None
     if is_gemini:
         oauth_token = (params.get("oauthToken") or params.get("oauth_token") or "").strip() or None
-        if not oauth_token and not api_key:
+        if not oauth_token:
+            for k, v in headers.items():
+                if str(k).lower() == "authorization" and str(v).strip().lower().startswith("bearer "):
+                    candidate = str(v).strip()[7:].strip()
+                    if candidate and (not api_key or "oauthToken" in params or "oauth_token" in params):
+                        oauth_token = candidate
+                        break
+        explicit_mode = str(params.get("executionMode") or params.get("execution_mode") or "").strip().lower()
+        provider = str(params.get("provider") or "").strip().lower()
+        if not oauth_token and (not api_key or explicit_mode == "antigravity" or provider == "antigravity"):
             oauth_token = (os.environ.get("GOOGLE_OAUTH_ACCESS_TOKEN") or "").strip() or None
         if oauth_token:
             # Remove stale key/bearer headers regardless of their casing.
@@ -938,7 +962,28 @@ class AgentRunner:
                 or model_path_param.lower().endswith(".litertlm")
                 or bool(params.get("litertModelPath"))
             )
-            has_oauth = bool(params.get("oauthToken") or params.get("oauth_token"))
+            header_bearer = any(
+                str(k).lower() == "authorization" and str(v).strip().lower().startswith("bearer ")
+                for k, v in (params.get("headers") or {}).items()
+            )
+            explicit_mode_param = str(params.get("executionMode") or params.get("execution_mode") or "").strip().lower()
+            has_explicit_api_key = bool((params.get("apiKey") or params.get("api_key") or "").strip())
+            has_env_oauth = bool((os.environ.get("GOOGLE_OAUTH_ACCESS_TOKEN") or "").strip()) and (
+                not has_explicit_api_key or explicit_mode_param == "antigravity" or provider == "antigravity"
+            )
+            has_oauth = bool(
+                (params.get("oauthToken") or params.get("oauth_token") or "").strip()
+                or header_bearer
+                or (
+                    has_env_oauth
+                    and (
+                        provider in ("", "gemini", "google", "antigravity")
+                        or explicit_mode_param == "antigravity"
+                        or model_lower in ANTIGRAVITY_CATALOG_MODEL_IDS
+                        or "gemini" in model_lower
+                    )
+                )
+            )
             execution_mode = resolve_antigravity_execution_mode(params)
             is_antigravity_mode = (execution_mode == "antigravity" and has_oauth)
             is_gemini = not is_litert and (
@@ -949,6 +994,10 @@ class AgentRunner:
             )
 
             api_key, oauth_token, http_headers = resolve_session_credentials(params, is_gemini=is_gemini)
+            if oauth_token:
+                has_oauth = True
+                if execution_mode == "antigravity" or not api_key:
+                    is_antigravity_mode = True
             if provider in ("anthropic", "claude", "openai", "openrouter", "mistral", "qwen") and not api_key and not is_antigravity_mode:
                 raise GeminiAuthConfigError(
                     "Provider '%s' is not configured for model '%s'. Google account "
@@ -1018,20 +1067,25 @@ class AgentRunner:
                 agent_config = LiteRTAgentConfig(**litert_kwargs)
 
             elif is_gemini:
+                harness_env = {"GEMINI_API_KEY": "", "GOOGLE_API_KEY": "", "GOOGLE_OAUTH_ACCESS_TOKEN": ""}
+                if oauth_token:
+                    # Satisfy localharness's startup env check while keeping
+                    # GeminiAPIEndpoint.api_key="" so only OAuth headers are sent.
+                    harness_env["GEMINI_API_KEY"] = "oauth-header-only"
+                    harness_env["GOOGLE_OAUTH_ACCESS_TOKEN"] = oauth_token
+
                 config_kwargs: Dict[str, Any] = {
                     "model": model,
                     "capabilities": cap_config,
                     "policies": session_policies,
                     "hooks": self._create_hooks(session_id),
-                    # Empty overrides prevent the harness from inheriting stale
-                    # credential kinds without changing the bridge environment.
-                    "env": {"GEMINI_API_KEY": "", "GOOGLE_API_KEY": "", "GOOGLE_OAUTH_ACCESS_TOKEN": ""},
+                    "env": harness_env,
                 }
 
                 if dynamic_tools:
                     config_kwargs["tools"] = dynamic_tools
 
-                if api_key:
+                if api_key and not oauth_token:
                     config_kwargs["api_key"] = api_key
 
                 if http_headers:
@@ -1041,7 +1095,7 @@ class AgentRunner:
                 has_any_project = bool((project or "").strip() or (os.environ.get("GOOGLE_CLOUD_PROJECT") or "").strip() or has_header_project)
                 is_antigravity_claude = is_antigravity_mode and (provider in ("anthropic", "claude") or "claude" in model_lower)
 
-                if is_antigravity_mode and (is_antigravity_claude or not has_any_project):
+                if (is_antigravity_mode or oauth_token) and not vertex and (is_antigravity_claude or not has_any_project):
                     # Antigravity execution mode (Google Sign-In session without direct API keys):
                     # never route Claude to api.anthropic.com and never fail on missing GCP quota project.
                     auth_mode = "antigravity"
