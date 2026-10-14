@@ -11,8 +11,11 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         // Install bundled custom alert sounds into ~/Library/Sounds/
         _ = SoundInstaller.shared.installSoundsIfNeeded()
 
-        // Start Google Cloud SDK / Antigravity background lifecycle monitoring
-        GoogleCloudSDKLifecycleManager.shared.startMonitoring()
+        // Start Google Cloud SDK / Antigravity background lifecycle monitoring automatically
+        Task { @MainActor in
+            GoogleCloudSDKLifecycleManager.shared.startMonitoring()
+            try? await GoogleCloudSDKLifecycleManager.shared.startEngine()
+        }
     }
 
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {

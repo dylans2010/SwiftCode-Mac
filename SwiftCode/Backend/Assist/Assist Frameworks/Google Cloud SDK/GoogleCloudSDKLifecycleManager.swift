@@ -44,11 +44,9 @@ public final class GoogleCloudSDKLifecycleManager: ObservableObject {
             }
             .store(in: &cancellables)
 
-        // If 'Assist on Google Cloud' is already active on launch, start immediately
-        if AppSettings.shared.isGoogleCloudAssist {
-            Task { @MainActor in
-                await self.ensureRunning()
-            }
+        // Start engine automatically on every launch regardless of settings view or provider selection
+        Task { @MainActor in
+            await self.ensureRunning()
         }
 
         // Start periodic health monitor loop
