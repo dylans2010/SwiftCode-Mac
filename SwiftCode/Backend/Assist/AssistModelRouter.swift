@@ -829,6 +829,9 @@ public final class AssistModelRouter: Sendable {
                 return GoogleAccountAuthService.shared.isAuthenticated
             }
         }
+        if p == "meta_assist" || p == "meta" {
+            return MuseCodeCLIHelper.shared.isInstalled()
+        }
         if ["ollama", "lmstudio", "local", "litert", "apple", "custom"].contains(p) { return true }
         return !(resolveAPIKey(for: p) ?? "").trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
