@@ -116,7 +116,7 @@ public struct SDKSnippet: Codable, Identifiable, Hashable, Sendable {
     // MARK: - Canonical Code Synthesis for All Capabilities
 
     public static func defaultTypeScriptCode(for capabilityId: String, title: String) -> String {
-        if let entry = ScopesIDLists.byID[capabilityId] {
+        if let entry = ScopesIDLists.byId[capabilityId] {
             switch entry.kind {
             case .view:
                 let viewId = entry.viewId ?? capabilityId
@@ -128,7 +128,7 @@ public struct SDKSnippet: Codable, Identifiable, Hashable, Sendable {
                   context.log.info("\(title) opened", { capabilityId: "\(capabilityId)" });
                 }
                 """
-            case .ipc:
+            case .api:
                 if capabilityId == "source-control.read" {
                     return """
                     import type { SwiftCodeContext } from "@swiftcode/sdk";
@@ -262,8 +262,6 @@ public struct SDKSnippet: Codable, Identifiable, Hashable, Sendable {
                     }
                     """
                 }
-            case .entitlement:
-                break
             }
         }
 
@@ -324,7 +322,7 @@ public enum SDKSnippetCategoryFilter: String, CaseIterable, Identifiable, Sendab
                    snippet.capabilityId == "terminal.sandbox" ||
                    snippet.capabilityId == "ci.VisualWF"
         case .ui:
-            if let entry = ScopesIDLists.byID[snippet.capabilityId], entry.kind == .view {
+            if let entry = ScopesIDLists.byId[snippet.capabilityId], entry.kind == .view {
                 return true
             }
             return snippet.capabilityId == "ui.contribute"
@@ -828,7 +826,7 @@ public struct SDKCodeSnippetLibraryView: View {
             case .low: return .green
             case .medium: return .blue
             case .high: return .orange
-            case .critical: return .red
+            case .restricted: return .red
             }
         }()
         return Text(risk.rawValue.uppercased())

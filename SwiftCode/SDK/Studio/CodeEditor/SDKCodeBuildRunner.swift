@@ -95,10 +95,10 @@ public actor SDKCodeBuildRunner {
             return false
         }
 
-        let validator = SDKManifestValidator()
         // For pre-build validation we validate structural/semantic rules and capability registry membership;
         // runtime entrypoint existence is checked as a warning before build (since `npm run build` produces `dist/index.js`).
-        let (manifest, rawDiagnostics) = validator.validateWithDiagnostics(
+        let manifest = try? SDKManifestValidator.validate(data: data)
+        let rawDiagnostics = SDKManifestValidator.validateWithDiagnostics(
             data: data,
             projectRoot: nil,
             grantedCapabilities: nil
@@ -122,7 +122,7 @@ public actor SDKCodeBuildRunner {
             let editorDiag = SDKEditorDiagnostic(
                 severity: sev,
                 source: "swiftcode.json",
-                code: item.code.rawValue,
+                code: item.field,
                 message: item.message,
                 suggestion: item.suggestion,
                 fileURL: manifestURL,

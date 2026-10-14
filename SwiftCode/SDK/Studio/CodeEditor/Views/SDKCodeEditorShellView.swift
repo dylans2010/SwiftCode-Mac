@@ -102,8 +102,8 @@ public struct SDKCodeEditorShellView: View {
             }
             if isManifestActiveTab && showVisualManifestEditor {
                 SDKManifestEditorView(
-                    editorState: editorState,
-                    initialManifestURL: editorState.activeTab?.document.fileURL
+                    manifestFileURL: editorState.activeTab?.document.fileURL,
+                    editorState: editorState
                 )
             } else {
                 SDKCodeEditorView(

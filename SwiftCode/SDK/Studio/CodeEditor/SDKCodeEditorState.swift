@@ -434,10 +434,10 @@ public final class SDKCodeEditorState: ObservableObject {
             } else if let offset = doc.cursorOffset,
                       offset >= 0,
                       offset <= doc.text.utf16.count,
-                      let strIndex = String.Index(utf16Offset: offset, in: doc.text) {
+                      offset <= doc.text.utf16.count {
                 var mutable = doc.text
                 let insertion = "\n" + trimmed + "\n"
-                mutable.insert(contentsOf: insertion, at: strIndex)
+                mutable.insert(contentsOf: insertion, at: String.Index(utf16Offset: offset, in: doc.text))
                 updatedText = mutable
             } else {
                 var mutable = doc.text

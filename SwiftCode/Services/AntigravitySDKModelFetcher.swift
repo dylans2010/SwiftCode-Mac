@@ -124,7 +124,7 @@ public final class AntigravitySDKModelFetcher: ObservableObject {
         return self.models
     }
 
-    public static let seedModels: [AntigravitySDKModel] = [
+    public nonisolated static let seedModels: [AntigravitySDKModel] = [
         AntigravitySDKModel(id: "gemini-3.8-flash", displayName: "Gemini 3.8 Flash", thinkingLevel: "High", contextWindow: 1_048_576, category: "Google"),
         AntigravitySDKModel(id: "gemini-3.1-pro", displayName: "Gemini 3.1 Pro", thinkingLevel: "High", contextWindow: 2_097_152, category: "Google"),
         AntigravitySDKModel(id: "gemini-3-flash", displayName: "Gemini 3 Flash", thinkingLevel: "Medium", contextWindow: 1_048_576, category: "Google"),

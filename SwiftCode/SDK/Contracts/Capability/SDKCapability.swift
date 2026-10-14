@@ -517,3 +517,49 @@ public enum SDKCapabilityRegistry {
         info(for: id).risk == .high
     }
 }
+
+// MARK: - SDKCapability (Studio-facing descriptor)
+
+public enum SDKCapabilityCategory: String, Sendable, Codable, CaseIterable {
+    case project, workspace, sourceControl, build, ui, security, ai, system
+}
+
+public enum SDKApprovalPolicy: String, Sendable, Codable {
+    case automatic, promptOnce, promptEveryTime, neverGranted
+}
+
+public struct SDKCapability: Identifiable, Sendable {
+    public let id: String
+    public let title: String
+    public let category: SDKCapabilityCategory
+    public let riskLevel: SDKCapabilityRisk
+    public let approvalPolicy: SDKApprovalPolicy
+    public let summary: String
+    public init(id: String, title: String, category: SDKCapabilityCategory, riskLevel: SDKCapabilityRisk, approvalPolicy: SDKApprovalPolicy, summary: String) {
+        self.id = id; self.title = title; self.category = category
+        self.riskLevel = riskLevel; self.approvalPolicy = approvalPolicy; self.summary = summary
+    }
+    public init(info: SDKCapabilityInfo) {
+        self.init(id: info.id.rawValue, title: info.title, category: Self.category(for: info.id),
+                  riskLevel: info.risk,
+                  approvalPolicy: info.grantableInCurrentRelease ? (info.risk == .low ? .automatic : info.risk == .medium ? .promptOnce : .promptEveryTime) : .neverGranted,
+                  summary: info.description)
+    }
+    public static let all: [SDKCapability] = SDKCapabilityRegistry.all.map(SDKCapability.init(info:))
+    public static func lookup(_ id: String) -> SDKCapability? {
+        guard let capID = SDKCapabilityID(rawValue: id) else { return nil }
+        return SDKCapability(info: SDKCapabilityRegistry.info(for: capID))
+    }
+    private static func category(for id: SDKCapabilityID) -> SDKCapabilityCategory {
+        switch id {
+        case .projectRead: return .project
+        case .workspaceRead, .workspaceWrite: return .workspace
+        case .sourceControlRead, .sourceControlWrite: return .sourceControl
+        case .buildExecute, .taskExecute: return .build
+        case .credentialsUse, .useSecurity, .securityAddValue, .securityHasValue, .securityListValueIDs, .securityDeleteValue, .securityUseValue: return .security
+        case .assistInvoke, .assistUI, .assistHeadless, .assistMainView, .useSwiftCodeModel: return .ai
+        case .networkRequest, .terminalSandbox: return .system
+        default: return .ui
+        }
+    }
+}

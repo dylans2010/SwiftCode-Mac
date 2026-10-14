@@ -72,8 +72,8 @@ public struct SDKStudioView: View {
             SDKCodeEditorShellView(editorState: codeEditorState)
         case .manifestEditor:
             SDKManifestEditorView(
-                editorState: codeEditorState,
-                initialManifestURL: codeEditorState.projectRootURL?.appendingPathComponent("swiftcode.json")
+                manifestFileURL: codeEditorState.projectRootURL?.appendingPathComponent("swiftcode.json"),
+                editorState: codeEditorState
             )
         case .extensions:
             SDKStudioExtensionsView()

@@ -67,11 +67,11 @@ public enum SDKManifestValidator {
     private static let maxCapabilities = 32
     private static let maxCommands = 64
 
-    /// The canonical capability registry (`SDKCapability.all` + sub-scopes in `ScopesIDLists.allScopeIDs`).
+    /// The canonical capability registry (`SDKCapabilityRegistry.all` + sub-scopes in `ScopesIDLists.all`).
     /// Unknown IDs are rejected — never silently reinterpreted as a known capability (spec §7.3).
     public static var supportedCapabilities: Set<String> {
-        var ids = Set(SDKCapability.all.map(\.id))
-        ids.formUnion(ScopesIDLists.allScopeIDs)
+        var ids = Set(SDKCapabilityRegistry.all.map(\.id.rawValue))
+        ids.formUnion(ScopesIDLists.all.map(\.id))
         return ids
     }
 

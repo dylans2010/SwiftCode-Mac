@@ -187,7 +187,7 @@ public struct SDKStudioExtensionsView: View {
             }
             HStack(spacing: 16) {
                 NavigationLink("Manifest") {
-                    SDKManifestInspectorView(extensionID: ext.id)
+                    SDKManifestInspectorView(installedExtension: ext)
                 }
                 NavigationLink("Grants") {
                     SDKGrantManagerView(extensionID: ext.id)

@@ -255,8 +255,7 @@ public struct SDKShipExportView: View {
         } catch {
             throw ExportError(message: "No swiftcode.json found in \(directory.path). Choose an extension or app project directory.")
         }
-        let validator = SDKManifestValidator()
-        let (decodedManifest, diagnostics) = validator.validateWithDiagnostics(
+        let diagnostics = SDKManifestValidator.validateWithDiagnostics(
             data: data,
             projectRoot: directory,
             grantedCapabilities: nil
@@ -265,11 +264,11 @@ public struct SDKShipExportView: View {
         if !errors.isEmpty {
             let formatted = errors.map { diag in
                 let loc = diag.line.map { "line \($0)" } ?? "manifest"
-                return "• [\(diag.code.rawValue)] (\(loc)) \(diag.message)"
+                return "• [\(diag.field)] (\(loc)) \(diag.message)"
             }.joined(separator: "\n")
             throw ExportError(message: "swiftcode.json validation failed:\n\(formatted)")
         }
-        guard let manifest = decodedManifest else {
+        guard let manifest = try? SDKManifestValidator.validate(data: data) else {
             throw ExportError(message: "swiftcode.json could not be decoded.")
         }
         return ProjectSummary(

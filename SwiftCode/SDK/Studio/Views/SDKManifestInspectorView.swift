@@ -19,7 +19,7 @@ public struct SDKManifestInspectorView: View {
     private var manifest: SDKManifest { installedExtension.manifest }
 
     private var manifestFileURL: URL {
-        installedExtension.packageURL.appendingPathComponent("swiftcode.json")
+        URL(fileURLWithPath: installedExtension.installPath).appendingPathComponent("swiftcode.json")
     }
 
     public var body: some View {
@@ -181,7 +181,7 @@ public struct SDKManifestInspectorView: View {
         switch risk {
         case .low: return .green
         case .medium: return .orange
-        case .high, .critical: return .red
+        case .high, .restricted: return .red
         }
     }
 
@@ -243,7 +243,7 @@ public struct SDKManifestInspectorView: View {
     private var packageVerificationGroup: some View {
         GroupBox("Package Verification") {
             VStack(alignment: .leading, spacing: 8) {
-                LabeledContent("Install State", value: installedExtension.state.rawValue)
+                LabeledContent("Install State", value: installedExtension.enabled ? "enabled" : "disabled")
                 LabeledContent("Package Digest (SHA-256)") {
                     Text(installedExtension.packageDigest)
                         .font(.system(.caption, design: .monospaced))
@@ -253,7 +253,7 @@ public struct SDKManifestInspectorView: View {
                     Text(installedExtension.installedAt.formatted(date: .abbreviated, time: .standard))
                 }
                 LabeledContent("Location") {
-                    Text(installedExtension.packageURL.path)
+                    Text(URL(fileURLWithPath: installedExtension.installPath).path)
                         .font(.system(.caption, design: .monospaced))
                         .foregroundStyle(.secondary)
                         .textSelection(.enabled)
@@ -1030,7 +1030,7 @@ public struct SDKManifestEditorView: View {
                                     id: "assist.invoke",
                                     title: "Invoke Assist",
                                     category: .project,
-                                    riskLevel: .critical,
+                                    riskLevel: .restricted,
                                     approvalPolicy: .neverGranted,
                                     summary: "Invoke headless or UI Assist sessions via verified API key entitlement."
                                 ),
@@ -1339,7 +1339,7 @@ public struct SDKManifestEditorView: View {
         case .low: return .green
         case .medium: return .blue
         case .high: return .orange
-        case .critical: return .red
+        case .restricted: return .red
         }
     }
 
