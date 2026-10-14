@@ -917,6 +917,9 @@
 		8D9E00030001000100000014 /* GoogleCloudSDKRuntime.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8D9E00030001000100000013 /* GoogleCloudSDKRuntime.swift */; };
 		8D9E00030001000100000016 /* GoogleCloudSDKTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8D9E00030001000100000015 /* GoogleCloudSDKTests.swift */; };
 		8D9E00030001000100000018 /* GoogleCloudSDKLifecycleManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8D9E00030001000100000017 /* GoogleCloudSDKLifecycleManager.swift */; };
+		8D9E00040001000100000002 /* MetaAssistProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8D9E00040001000100000001 /* MetaAssistProvider.swift */; };
+		8D9E00040001000100000004 /* MuseCodeCLIHelper.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8D9E00040001000100000003 /* MuseCodeCLIHelper.swift */; };
+		8D9E00040001000100000006 /* MuseCodeMSPBridge.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8D9E00040001000100000005 /* MuseCodeMSPBridge.swift */; };
 		8DA2FD4C6BBD0AF84E0FFDD8 /* FilePermissionView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6160E9FC707A9B07E04C2B81 /* FilePermissionView.swift */; };
 		8E03DBB467F75893FCBCF8FA /* WorkerPersistenceStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8EE85E4A3CB85D595FA6A604 /* WorkerPersistenceStore.swift */; };
 		8E0D89B2DEE6321A0CA019C7 /* (null) in Resources */ = {isa = PBXBuildFile; };
@@ -3642,6 +3645,9 @@
 		8D9E00030001000100000013 /* GoogleCloudSDKRuntime.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = GoogleCloudSDKRuntime.swift; sourceTree = "<group>"; };
 		8D9E00030001000100000015 /* GoogleCloudSDKTests.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = GoogleCloudSDKTests.swift; sourceTree = "<group>"; };
 		8D9E00030001000100000017 /* GoogleCloudSDKLifecycleManager.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = GoogleCloudSDKLifecycleManager.swift; sourceTree = "<group>"; };
+		8D9E00040001000100000001 /* MetaAssistProvider.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = MetaAssistProvider.swift; sourceTree = "<group>"; };
+		8D9E00040001000100000003 /* MuseCodeCLIHelper.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = MuseCodeCLIHelper.swift; sourceTree = "<group>"; };
+		8D9E00040001000100000005 /* MuseCodeMSPBridge.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = MuseCodeMSPBridge.swift; sourceTree = "<group>"; };
 		8D9E00030001000100000020 /* Google Cloud SDK */ = {isa = PBXFileReference; lastKnownFileType = folder; path = "Google Cloud SDK"; sourceTree = "<group>"; };
 		8DB9F5B5EFA343C181131ABF /* HistoryManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HistoryManager.swift; sourceTree = "<group>"; };
 		8DDA9799B405D0C0A63CFFF9 /* Models/SyncState.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = Models/SyncState.swift; sourceTree = "<group>"; };
@@ -5536,6 +5542,7 @@
 		0552912968A227D7F9DBDAD8 /* Assist Frameworks */ = {
 			isa = PBXGroup;
 			children = (
+				8D9E00040001000100000000 /* Meta */,
 				8D9E00030001000100000000 /* Google Cloud SDK */,
 				1036DD7471313D36E4B368E1 /* AssistAutonomousDecisionEngine.swift */,
 				1647B0EEBE86E22B995D730C /* AssistCodeIntegrityScanner.swift */,
@@ -7549,6 +7556,16 @@
 				8D9E00030001000100000017 /* GoogleCloudSDKLifecycleManager.swift */,
 			);
 			path = "Google Cloud SDK";
+			sourceTree = "<group>";
+		};
+		8D9E00040001000100000000 /* Meta */ = {
+			isa = PBXGroup;
+			children = (
+				8D9E00040001000100000001 /* MetaAssistProvider.swift */,
+				8D9E00040001000100000003 /* MuseCodeCLIHelper.swift */,
+				8D9E00040001000100000005 /* MuseCodeMSPBridge.swift */,
+			);
+			path = Meta;
 			sourceTree = "<group>";
 		};
 		8D9EEDCDE1FB450488F4CF12 /* Assist */ = {
@@ -11194,6 +11211,9 @@
 				8D9E00030001000100000014 /* GoogleCloudSDKRuntime.swift in Sources */,
 				8D9E00030001000100000016 /* GoogleCloudSDKTests.swift in Sources */,
 				8D9E00030001000100000018 /* GoogleCloudSDKLifecycleManager.swift in Sources */,
+				8D9E00040001000100000002 /* MetaAssistProvider.swift in Sources */,
+				8D9E00040001000100000004 /* MuseCodeCLIHelper.swift in Sources */,
+				8D9E00040001000100000006 /* MuseCodeMSPBridge.swift in Sources */,
 				CMPBLD000000000000000001 /* ComposioService.swift in Sources */,
 				GOOAUTHBLD00000000000001 /* GoogleAccountAuthService.swift in Sources */,
 				AGQUOTABLD000000000001 /* AntigravityQuotaService.swift in Sources */,

@@ -47,7 +47,7 @@ public actor MuseCodeCLIHelper {
     private init() {}
 
     /// Discovers the path to the `muse` executable.
-    public func discoverExecutablePath() -> String? {
+    nonisolated public func discoverExecutablePath() -> String? {
         let fileManager = FileManager.default
 
         // Standard paths
@@ -80,7 +80,7 @@ public actor MuseCodeCLIHelper {
     }
 
     /// Checks whether the `muse` CLI is available.
-    public func isInstalled() -> Bool {
+    nonisolated public func isInstalled() -> Bool {
         return discoverExecutablePath() != nil
     }
 
@@ -95,7 +95,7 @@ public actor MuseCodeCLIHelper {
 
     /// Reusable helper to run a process.
     public func runProcess(executablePath: String, args: [String], environment: [String: String]? = nil, timeoutSeconds: Double = 30.0) async throws -> MuseCodeCLIExecutionResult {
-        return try await withCheckedThrowingContinuation { continuation in
+        return try await Task.detached { () -> MuseCodeCLIExecutionResult in
             let process = Process()
             process.executableURL = URL(fileURLWithPath: executablePath)
             process.arguments = args
@@ -119,45 +119,22 @@ public actor MuseCodeCLIHelper {
             process.standardOutput = stdoutPipe
             process.standardError = stderrPipe
 
-            let stdoutData = NSMutableData()
-            let stderrData = NSMutableData()
+            try process.run()
 
-            stdoutPipe.fileHandleForReading.readabilityHandler = { handle in
-                let data = handle.availableData
-                if !data.isEmpty {
-                    stdoutData.append(data)
-                }
-            }
+            let stdoutData = stdoutPipe.fileHandleForReading.readDataToEndOfFile()
+            let stderrData = stderrPipe.fileHandleForReading.readDataToEndOfFile()
 
-            stderrPipe.fileHandleForReading.readabilityHandler = { handle in
-                let data = handle.availableData
-                if !data.isEmpty {
-                    stderrData.append(data)
-                }
-            }
+            process.waitUntilExit()
 
-            do {
-                try process.run()
-            } catch {
-                continuation.resume(throwing: error)
-                return
-            }
+            let stdoutStr = String(data: stdoutData, encoding: .utf8) ?? ""
+            let stderrStr = String(data: stderrData, encoding: .utf8) ?? ""
 
-            process.terminationHandler = { proc in
-                stdoutPipe.fileHandleForReading.readabilityHandler = nil
-                stderrPipe.fileHandleForReading.readabilityHandler = nil
-
-                let stdoutStr = String(data: stdoutData as Data, encoding: .utf8) ?? ""
-                let stderrStr = String(data: stderrData as Data, encoding: .utf8) ?? ""
-
-                let result = MuseCodeCLIExecutionResult(
-                    exitCode: proc.terminationStatus,
-                    stdout: stdoutStr.trimmingCharacters(in: .whitespacesAndNewlines),
-                    stderr: stderrStr.trimmingCharacters(in: .whitespacesAndNewlines)
-                )
-                continuation.resume(returning: result)
-            }
-        }
+            return MuseCodeCLIExecutionResult(
+                exitCode: process.terminationStatus,
+                stdout: stdoutStr.trimmingCharacters(in: .whitespacesAndNewlines),
+                stderr: stderrStr.trimmingCharacters(in: .whitespacesAndNewlines)
+            )
+        }.value
     }
 
     /// Attempts to install `muse` CLI globally via npm if missing.

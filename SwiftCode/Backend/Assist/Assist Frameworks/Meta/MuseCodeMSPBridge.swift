@@ -11,11 +11,11 @@ public struct MuseCodeMSPMessage: Codable, Sendable {
     public let jsonrpc: String
     public let id: String?
     public let method: String?
-    public let params: AnyCodable?
-    public let result: AnyCodable?
-    public let error: AnyCodable?
+    public let params: MuseCodeAnyCodable?
+    public let result: MuseCodeAnyCodable?
+    public let error: MuseCodeAnyCodable?
 
-    public init(jsonrpc: String = "2.0", id: String? = nil, method: String? = nil, params: AnyCodable? = nil, result: AnyCodable? = nil, error: AnyCodable? = nil) {
+    public init(jsonrpc: String = "2.0", id: String? = nil, method: String? = nil, params: MuseCodeAnyCodable? = nil, result: MuseCodeAnyCodable? = nil, error: MuseCodeAnyCodable? = nil) {
         self.jsonrpc = jsonrpc
         self.id = id
         self.method = method
@@ -25,7 +25,7 @@ public struct MuseCodeMSPMessage: Codable, Sendable {
     }
 }
 
-public struct AnyCodable: Codable, @unchecked Sendable {
+public struct MuseCodeAnyCodable: Codable, @unchecked Sendable {
     public let value: Any
 
     public init(_ value: Any) {
@@ -42,9 +42,9 @@ public struct AnyCodable: Codable, @unchecked Sendable {
             value = double
         } else if let string = try? container.decode(String.self) {
             value = string
-        } else if let array = try? container.decode([AnyCodable].self) {
+        } else if let array = try? container.decode([MuseCodeAnyCodable].self) {
             value = array.map { $0.value }
-        } else if let dictionary = try? container.decode([String: AnyCodable].self) {
+        } else if let dictionary = try? container.decode([String: MuseCodeAnyCodable].self) {
             var dict = [String: Any]()
             for (k, v) in dictionary {
                 dict[k] = v.value
@@ -66,12 +66,12 @@ public struct AnyCodable: Codable, @unchecked Sendable {
         } else if let string = value as? String {
             try container.encode(string)
         } else if let array = value as? [Any] {
-            let encodableArray = array.map { AnyCodable($0) }
+            let encodableArray = array.map { MuseCodeAnyCodable($0) }
             try container.encode(encodableArray)
         } else if let dictionary = value as? [String: Any] {
-            var encodableDict = [String: AnyCodable]()
+            var encodableDict = [String: MuseCodeAnyCodable]()
             for (k, v) in dictionary {
-                encodableDict[k] = AnyCodable(v)
+                encodableDict[k] = MuseCodeAnyCodable(v)
             }
             try container.encode(encodableDict)
         } else {
@@ -80,14 +80,15 @@ public struct AnyCodable: Codable, @unchecked Sendable {
     }
 }
 
-public actor MuseCodeMSPBridge {
+@MainActor
+public final class MuseCodeMSPBridge: @unchecked Sendable {
     public static let shared = MuseCodeMSPBridge()
 
     private var process: Process?
     private var stdinPipe: Pipe?
     private var stdoutPipe: Pipe?
     private var isRunning: Bool = false
-    private var pendingContinuations: [String: CheckedContinuation<[String: Any], Error>] = [:]
+    private var pendingContinuations: [String: CheckedContinuation<String, Error>] = [:]
     private var notificationHandler: ((String, [String: Any]) -> Void)?
     private var incomingBuffer = Data()
 
@@ -96,7 +97,7 @@ public actor MuseCodeMSPBridge {
     public func startHost(workspaceRoot: String) async throws {
         guard !isRunning else { return }
 
-        guard let executablePath = await MuseCodeCLIHelper.shared.discoverExecutablePath() else {
+        guard let executablePath = MuseCodeCLIHelper.shared.discoverExecutablePath() else {
             throw MuseCodeCLIError.executableNotFound
         }
 
@@ -123,8 +124,8 @@ public actor MuseCodeMSPBridge {
         outPipe.fileHandleForReading.readabilityHandler = { [weak self] handle in
             let data = handle.availableData
             guard !data.isEmpty else { return }
-            Task { [weak self] in
-                await self?.handleIncomingData(data)
+            Task { @MainActor [weak self] in
+                self?.handleIncomingData(data)
             }
         }
 
@@ -153,10 +154,16 @@ public actor MuseCodeMSPBridge {
         var lineData = jsonData
         lineData.append(Data([0x0A])) // newline delimitation
 
-        return try await withCheckedThrowingContinuation { continuation in
+        let responseString = try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<String, Error>) in
             pendingContinuations[reqId] = continuation
             inPipe.fileHandleForWriting.write(lineData)
         }
+
+        if let data = responseString.data(using: .utf8),
+           let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
+            return json
+        }
+        return [:]
     }
 
     private func handleIncomingData(_ data: Data) {
@@ -168,6 +175,7 @@ public actor MuseCodeMSPBridge {
             incomingBuffer.removeSubrange(0..<range.upperBound)
 
             guard !lineData.isEmpty,
+                  let lineString = String(data: lineData, encoding: .utf8),
                   let json = try? JSONSerialization.jsonObject(with: lineData) as? [String: Any] else {
                 continue
             }
@@ -177,10 +185,15 @@ public actor MuseCodeMSPBridge {
                     if let error = json["error"] as? [String: Any] {
                         let msg = error["message"] as? String ?? "MSP RPC Error"
                         cont.resume(throwing: MuseCodeCLIError.executionFailed(exitCode: -1, stderr: msg))
-                    } else if let result = json["result"] as? [String: Any] {
-                        cont.resume(returning: result)
+                    } else if let result = json["result"] {
+                        if let resData = try? JSONSerialization.data(withJSONObject: result),
+                           let resStr = String(data: resData, encoding: .utf8) {
+                            cont.resume(returning: resStr)
+                        } else {
+                            cont.resume(returning: lineString)
+                        }
                     } else {
-                        cont.resume(returning: json)
+                        cont.resume(returning: lineString)
                     }
                 }
             } else if let method = json["method"] as? String {

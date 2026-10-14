@@ -1066,7 +1066,7 @@ public final class AssistModelDiscoveryService: Sendable {
 
     public func isProviderExplicitlyActive(_ providerName: String) -> Bool {
         if providerName == "Assist with Meta" {
-            return await MuseCodeCLIHelper.shared.isInstalled()
+            return MuseCodeCLIHelper.shared.isInstalled()
         }
         if providerName == "Apple Foundation Models" { return true }
         if providerName.hasPrefix("Custom") || providerName.hasPrefix("Local") {
