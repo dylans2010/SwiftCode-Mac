@@ -84,6 +84,23 @@ class AppSettings: ObservableObject {
         }
     }
 
+    public static let defaultMetaAssistModelID = "muse-wonder-1.0"
+    public static let defaultMetaReasoningEffort = "high"
+
+    @Published var metaAssistModelID: String {
+        didSet {
+            debouncedSave("metaAssistModelID", metaAssistModelID)
+            UserDefaults.standard.set(metaAssistModelID, forKey: "assist.metaAssistModelID")
+        }
+    }
+
+    @Published var metaReasoningEffort: String {
+        didSet {
+            debouncedSave("metaReasoningEffort", metaReasoningEffort)
+            UserDefaults.standard.set(metaReasoningEffort, forKey: "assist.metaReasoningEffort")
+        }
+    }
+
     public var assistToolkitDisplayName: String {
         if assistToolkit.caseInsensitiveCompare("cloud") == .orderedSame {
             return "Cloud (\(activeCloudToolkitName))"
@@ -411,6 +428,12 @@ class AppSettings: ObservableObject {
         assistToolkit = UserDefaults.standard.string(forKey: "assistToolkit")
             ?? UserDefaults.standard.string(forKey: "assist.assistToolkit")
             ?? Self.defaultAssistToolkit
+        metaAssistModelID = UserDefaults.standard.string(forKey: "metaAssistModelID")
+            ?? UserDefaults.standard.string(forKey: "assist.metaAssistModelID")
+            ?? Self.defaultMetaAssistModelID
+        metaReasoningEffort = UserDefaults.standard.string(forKey: "metaReasoningEffort")
+            ?? UserDefaults.standard.string(forKey: "assist.metaReasoningEffort")
+            ?? Self.defaultMetaReasoningEffort
         swiftCloudModelsEnabled = UserDefaults.standard.object(forKey: "swiftCloudModelsEnabled") as? Bool ?? false
         let loadedUseSavedModels = UserDefaults.standard.object(forKey: "useSavedModels") as? Bool
             ?? UserDefaults.standard.object(forKey: "assist.useSavedModels") as? Bool

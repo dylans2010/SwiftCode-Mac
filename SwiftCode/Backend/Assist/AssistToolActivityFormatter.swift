@@ -33,7 +33,7 @@ public enum AssistToolActivityFormatter {
         let normalizedId = toolId.lowercased().trimmingCharacters(in: .whitespacesAndNewlines)
 
         // 1. File reading tools
-        if ["file_read", "read_file", "view_file", "read_file_content", "file_view"].contains(normalizedId) {
+        if ["file_read", "read_file", "view_file", "read_file_content", "file_view", "read"].contains(normalizedId) {
             if let file = extractFilename(from: arguments) {
                 return ToolFormattedActivity(
                     runningLabel: "Reading \(file)",
@@ -51,7 +51,7 @@ public enum AssistToolActivityFormatter {
         }
 
         // 2. File creation & writing tools
-        if ["file_write", "write_file", "write_to_file", "file_create", "create_file", "code_generate", "generate_file"].contains(normalizedId) {
+        if ["file_write", "write_file", "write_to_file", "file_create", "create_file", "code_generate", "generate_file", "write"].contains(normalizedId) {
             if let file = extractFilename(from: arguments) {
                 let actionVerb = normalizedId.contains("create") || normalizedId.contains("generate") ? "Creating" : "Writing"
                 let completedVerb = normalizedId.contains("create") || normalizedId.contains("generate") ? "Created" : "Wrote"
@@ -89,7 +89,7 @@ public enum AssistToolActivityFormatter {
         }
 
         // 4. File editing & replacing
-        if ["code_replace", "replace_in_file", "replace_file_content", "multi_replace_file_content", "code_multi_edit", "code_insert", "insert_code_block", "code_refactor", "refactor", "code_format", "format_code", "patch_application_engine", "code_mutation_engine"].contains(normalizedId) {
+        if ["code_replace", "replace_in_file", "replace_file_content", "multi_replace_file_content", "code_multi_edit", "code_insert", "insert_code_block", "code_refactor", "refactor", "code_format", "format_code", "patch_application_engine", "code_mutation_engine", "patch", "edit_file"].contains(normalizedId) {
             if let file = extractFilename(from: arguments) {
                 return ToolFormattedActivity(
                     runningLabel: "Editing \(file)",
@@ -239,7 +239,7 @@ public enum AssistToolActivityFormatter {
         }
 
         // 13. Terminal commands (Task runner)
-        if ["use_terminal", "task_runner", "run_command"].contains(normalizedId) {
+        if ["use_terminal", "task_runner", "run_command", "bash", "sh", "shell", "usershell"].contains(normalizedId) {
             let rawCmd = arguments["command"] as? String ?? arguments["CommandLine"] as? String ?? arguments["cmd"] as? String ?? ""
             let safeLabel = sanitizeCommand(rawCmd)
             return ToolFormattedActivity(

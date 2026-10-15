@@ -8,13 +8,48 @@
 
 import Foundation
 
+public struct MetaModelItem: Identifiable, Codable, Sendable {
+    public var id: String { modelId }
+    public let modelId: String
+    public let displayLabel: String
+    public let releaseDate: String?
+    public let description: String?
+    public let contextLimit: Int
+    public let outputLimit: Int
+    public let isDefault: Bool
+    public let variants: [String]
+    public let defaultReasoningEffort: String?
+
+    public init(
+        modelId: String,
+        displayLabel: String,
+        releaseDate: String? = nil,
+        description: String? = nil,
+        contextLimit: Int = 1_000_000,
+        outputLimit: Int = 128_000,
+        isDefault: Bool = false,
+        variants: [String] = [],
+        defaultReasoningEffort: String? = "high"
+    ) {
+        self.modelId = modelId
+        self.displayLabel = displayLabel
+        self.releaseDate = releaseDate
+        self.description = description
+        self.contextLimit = contextLimit
+        self.outputLimit = outputLimit
+        self.isDefault = isDefault
+        self.variants = variants
+        self.defaultReasoningEffort = defaultReasoningEffort
+    }
+}
+
 @MainActor
 public final class MetaAssistProvider: Sendable {
     public static let shared = MetaAssistProvider()
 
     public static let providerID = "meta_assist"
     public static let providerName = "Assist with Meta"
-    public static let defaultModelID = "meta-code-3.0"
+    public static let defaultModelID = "muse-wonder-1.0"
 
     private var activeSessionID: String?
     private var activeWorkspaceRoot: String?
@@ -30,6 +65,96 @@ public final class MetaAssistProvider: Sendable {
         self.activeSessionID = id
     }
 
+    /// Fetches live Meta models catalog from the MSP host via `model/list`.
+    public func fetchModels() async throws -> [MetaModelItem] {
+        let bridge = MuseCodeMSPBridge.shared
+        if !bridge.isRunning {
+            try await bridge.startHost(workspaceRoot: "/tmp")
+        }
+        if !bridge.isInitialized {
+            _ = try await bridge.sendCommand(method: "initialize", params: [
+                "clientInfo": [
+                    "name": "swiftcode",
+                    "title": "SwiftCode",
+                    "version": "1.0.0"
+                ]
+            ])
+            try bridge.sendNotification(method: "initialized", params: [:])
+            bridge.markInitialized()
+        }
+
+        let resp = try await bridge.sendCommand(method: "model/list", params: [:])
+        guard let result = resp["result"] as? [String: Any],
+              let modelsArray = result["models"] as? [[String: Any]] else {
+            return fallbackModels()
+        }
+
+        var items: [MetaModelItem] = []
+        for dict in modelsArray {
+            let modelId = dict["modelId"] as? String ?? ""
+            guard !modelId.isEmpty else { continue }
+            let displayLabel = dict["displayLabel"] as? String ?? modelId
+            let releaseDate = dict["releaseDate"] as? String
+            let description = dict["description"] as? String
+            let contextLimit = dict["contextLimit"] as? Int ?? 1_000_000
+            let outputLimit = dict["outputLimit"] as? Int ?? 128_000
+            let isDefault = dict["isDefault"] as? Bool ?? false
+            let variants = dict["variants"] as? [String] ?? []
+            let defaultReasoningEffort = dict["defaultReasoningEffort"] as? String
+            items.append(MetaModelItem(
+                modelId: modelId,
+                displayLabel: displayLabel,
+                releaseDate: releaseDate,
+                description: description,
+                contextLimit: contextLimit,
+                outputLimit: outputLimit,
+                isDefault: isDefault,
+                variants: variants,
+                defaultReasoningEffort: defaultReasoningEffort
+            ))
+        }
+
+        return items.isEmpty ? fallbackModels() : items
+    }
+
+    public func fallbackModels() -> [MetaModelItem] {
+        return [
+            MetaModelItem(
+                modelId: "muse-wonder-1.0",
+                displayLabel: "muse-wonder-1.0",
+                releaseDate: "2026-10-12",
+                description: "Meta flagship reasoning and coding model with 1,000,000 token context window.",
+                contextLimit: 1_007_997,
+                outputLimit: 128_000,
+                isDefault: true,
+                variants: ["minimal", "low", "medium", "high", "xhigh", "max"],
+                defaultReasoningEffort: "high"
+            ),
+            MetaModelItem(
+                modelId: "muse-spark-1.3",
+                displayLabel: "muse-spark-1.3",
+                releaseDate: "2026-09-02",
+                description: "Fast, high-throughput coding model with deep reasoning variants.",
+                contextLimit: 1_007_997,
+                outputLimit: 128_000,
+                isDefault: false,
+                variants: ["minimal", "low", "medium", "high", "xhigh", "max"],
+                defaultReasoningEffort: "max"
+            ),
+            MetaModelItem(
+                modelId: "muse-spark-1.2",
+                displayLabel: "muse-spark-1.2",
+                releaseDate: "2026-08-05",
+                description: "Optimized lightweight assistant model for responsive code edits.",
+                contextLimit: 1_007_997,
+                outputLimit: 128_000,
+                isDefault: false,
+                variants: ["minimal", "low", "medium", "high", "xhigh"],
+                defaultReasoningEffort: "high"
+            )
+        ]
+    }
+
     /// Returns available models for "Assist with Meta".
     public func discoverModels() async -> [AssistAvailableModel] {
         let isConfigured = MuseCodeCLIHelper.shared.isInstalled()
@@ -39,13 +164,15 @@ public final class MetaAssistProvider: Sendable {
         let status: AssistModelStatus = isAvailable ? .available : (isConfigured ? .authRequired : .unavailable)
         let statusDesc = isAvailable ? "Available" : (isConfigured ? "Authentication Required" : "CLI Not Installed")
 
-        return [
+        let metaModels = (try? await fetchModels()) ?? fallbackModels()
+
+        return metaModels.enumerated().map { index, model in
             AssistAvailableModel(
-                id: "meta-code-3.0",
-                displayName: "Meta Code 3.0",
+                id: model.modelId,
+                displayName: "Meta \(model.displayLabel)",
                 providerID: Self.providerID,
                 providerName: Self.providerName,
-                modelIdentifier: "meta-code-3.0",
+                modelIdentifier: model.modelId,
                 source: .custom,
                 isConfigured: isConfigured,
                 isAvailable: isAvailable,
@@ -55,19 +182,20 @@ public final class MetaAssistProvider: Sendable {
                 supportsStructuredOutput: true,
                 supportsAgenticUse: true,
                 supportsSubagents: true,
-                priority: 90,
+                priority: 95 - index,
                 statusDescription: statusDesc,
                 status: status,
-                contextWindow: 128_000
+                contextWindow: model.contextLimit
             )
-        ]
+        }
     }
 
     /// Initializes host session and executes prompt turn streaming text output back.
     public func executeTurn(
         prompt: String,
         workspaceRoot: String,
-        onTextDelta: @escaping @Sendable (String) -> Void
+        onTextDelta: @escaping @Sendable (String) -> Void,
+        onThinkingDelta: (@Sendable (String) -> Void)? = nil
     ) async throws {
         let isInstalled = MuseCodeCLIHelper.shared.isInstalled()
         if !isInstalled {
@@ -86,13 +214,14 @@ public final class MetaAssistProvider: Sendable {
         let bridge = MuseCodeMSPBridge.shared
         try await bridge.startHost(workspaceRoot: workspaceRoot)
 
-        // 1. Retrieve System Assets training data via SystemIndexService
+        // 1. Retrieve canonical System Assets instructions via SystemIndexService
         let baselinePrompt = (try? AssistManager.shared.getSystemPrompt()) ?? SystemIndexService.shared.baselinePrompt()
+        let selectedModel = AppSettings.shared.metaAssistModelID.isEmpty ? Self.defaultModelID : AppSettings.shared.metaAssistModelID
         let instructionQuery = InstructionQueryContext(
             userText: prompt,
             taskCategory: SystemIndexService.classifyCategory(for: prompt),
             stage: .preparation,
-            modelID: Self.defaultModelID,
+            modelID: selectedModel,
             maxTokens: 4000
         )
         let instructionRetrieval = await SystemIndexService.shared.retrieve(for: instructionQuery)
@@ -106,21 +235,29 @@ public final class MetaAssistProvider: Sendable {
         if isCloudToolkit {
             toolkitDirective = """
             # ACTIVE TOOL PROTOCOL: CLOUD (MUSE SDK)
-            You are operating with the Cloud toolkit. Use the Muse Code SDK's native workspace tools for all file inspection, edits, searches, and executions.
+            You are operating with the Cloud toolkit. Use the Muse Code SDK's workspace tools for reading, editing, and executing tasks.
             """
         } else {
             let systemTools = AssistManager.shared.registry.allTools
             let toolList = systemTools.map { "- \($0.id): \($0.description)" }.joined(separator: "\n")
             toolkitDirective = """
             # ACTIVE TOOL PROTOCOL: SYSTEM (SWIFTCODE)
-            You MUST use SwiftCode's native system tools. To perform actions, issue tool requests using the registered SwiftCode tool IDs:
+            You MUST follow SwiftCode's native system tools and operational specifications.
+            Registered SwiftCode System Tools:
             \(toolList)
             """
         }
 
         var fullPromptParts: [String] = []
         if !prompt.contains("# SYSTEM PROMPT") {
-            fullPromptParts.append("# SYSTEM PROMPT (CANONICAL ASSIST INSTRUCTIONS)\n\(baselinePrompt)")
+            fullPromptParts.append("""
+            # SYSTEM PROMPT (CANONICAL ASSIST INSTRUCTIONS & TRAINING ASSETS)
+            \(baselinePrompt)
+
+            # ASSIST IDENTITY & BEHAVIORAL SAFEGUARDS
+            You are Assist, the intelligent developer assistant built natively into SwiftCode.
+            You must follow SwiftCode's System Assets and safeguards strictly.
+            """)
         }
         if !prompt.contains("# RETRIEVED ASSIST INSTRUCTIONS") && !retrievedInstructions.isEmpty {
             fullPromptParts.append(retrievedInstructions)
@@ -131,16 +268,101 @@ public final class MetaAssistProvider: Sendable {
         let effectivePrompt = fullPromptParts.joined(separator: "\n\n")
         let permissionsManager = AssistPermissionsManager()
 
+        final class TurnTracker: @unchecked Sendable {
+            struct ItemState {
+                let kind: String
+                let tool: String?
+                let args: String
+                var output: String = ""
+                let startedAt: Date = Date()
+            }
+            var items: [String: ItemState] = [:]
+        }
+        let tracker = TurnTracker()
+
         try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
             var hasResumed = false
 
             bridge.setNotificationHandler { method, params in
-                if method == "item/delta" {
-                    if let delta = params["delta"] as? String {
-                        onTextDelta(delta)
-                    } else if let deltaObj = params["delta"] as? [String: Any], let text = deltaObj["text"] as? String {
-                        onTextDelta(text)
+                if method == "item/started" {
+                    guard let item = params["item"] as? [String: Any],
+                          let itemId = item["itemId"] as? String else { return }
+                    let kind = item["kind"] as? String ?? ""
+                    let tool = item["tool"] as? String
+                    let rawArgs = item["args"] as? String ?? ""
+                    tracker.items[itemId] = TurnTracker.ItemState(kind: kind, tool: tool, args: rawArgs)
+
+                    if kind == "toolCall" || kind == "userShell" {
+                        let toolName = tool ?? (kind == "userShell" ? "bash" : "system_tool")
+                        var argsDict: [String: Any] = [:]
+                        if let data = rawArgs.data(using: .utf8),
+                           let parsed = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
+                            argsDict = parsed
+                        }
+                        Task { @MainActor in
+                            AssistManager.shared.reportToolStarted(callId: itemId, toolName: toolName, arguments: argsDict)
+                        }
                     }
+                } else if method == "item/delta" {
+                    let itemId = params["itemId"] as? String
+                    let field = params["field"] as? String
+                    let delta = (params["delta"] as? String)
+                        ?? ((params["delta"] as? [String: Any])?["text"] as? String)
+                        ?? ""
+                    guard !delta.isEmpty else { return }
+
+                    let currentItem = itemId != nil ? tracker.items[itemId!] : nil
+                    let kind = currentItem?.kind ?? ""
+
+                    if field == "output" || kind == "toolCall" || kind == "userShell" {
+                        // Tool stdout / stderr — DO NOT dump to chat text!
+                        if let id = itemId {
+                            tracker.items[id]?.output.append(delta)
+                        }
+                        let cleanMsg = delta.trimmingCharacters(in: .whitespacesAndNewlines)
+                        if !cleanMsg.isEmpty, let id = itemId {
+                            Task { @MainActor in
+                                AssistManager.shared.reportToolProgress(callId: id, message: cleanMsg)
+                            }
+                        }
+                    } else if field?.hasPrefix("summary") == true || kind == "reasoning" {
+                        // Model thinking / reasoning stream
+                        onThinkingDelta?(delta)
+                    } else if field == "text" || field == nil || kind == "agentMessage" {
+                        // Actual assistant response text destined for user chat
+                        onTextDelta(delta)
+                    }
+                } else if method == "item/completed" {
+                    guard let item = params["item"] as? [String: Any],
+                          let itemId = item["itemId"] as? String else { return }
+                    let kind = item["kind"] as? String ?? tracker.items[itemId]?.kind ?? ""
+                    let tool = item["tool"] as? String ?? tracker.items[itemId]?.tool
+                    let rawArgs = item["args"] as? String ?? tracker.items[itemId]?.args ?? ""
+                    let recordedOutput = tracker.items[itemId]?.output ?? ""
+                    let visibleOutput = (item["visibleOutput"] as? String) ?? recordedOutput
+
+                    if kind == "toolCall" || kind == "userShell" {
+                        let toolName = tool ?? (kind == "userShell" ? "bash" : "system_tool")
+                        var argsDict: [String: Any] = [:]
+                        if let data = rawArgs.data(using: .utf8),
+                           let parsed = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
+                            argsDict = parsed
+                        }
+                        Task { @MainActor in
+                            AssistManager.shared.reportToolCompleted(
+                                callId: itemId,
+                                toolName: toolName,
+                                output: visibleOutput.isEmpty ? nil : visibleOutput,
+                                arguments: argsDict
+                            )
+                        }
+                    } else if kind == "reasoning" {
+                        let elapsed = Date().timeIntervalSince(tracker.items[itemId]?.startedAt ?? Date())
+                        Task { @MainActor in
+                            AssistManager.shared.finalizeCurrentThinkingDuration(elapsed)
+                        }
+                    }
+                    tracker.items.removeValue(forKey: itemId)
                 } else if method == "turn/completed" {
                     guard !hasResumed else { return }
                     hasResumed = true
@@ -159,53 +381,6 @@ public final class MetaAssistProvider: Sendable {
                                 "requirementId": ["approvalId": approvalId, "sourceIndex": 0],
                                 "choiceId": choice,
                                 "feedback": NSNull()
-                            ])
-                        }
-                    }
-                } else if method == "tool/requested" {
-                    if let sessionId = params["sessionId"] as? String,
-                       let toolCallId = params["toolCallId"] as? String,
-                       let toolId = params["toolId"] as? String,
-                       let args = params["arguments"] as? [String: Any] {
-                        Task { @MainActor in
-                            var output = ""
-                            var isSuccess = false
-                            if permissionsManager.authorizeOperation(toolId) {
-                                if let tool = AssistManager.shared.registry.getTool(toolId) {
-                                    let rootURL = URL(fileURLWithPath: workspaceRoot)
-                                    let logger = AssistLogger()
-                                    let context = AssistContext(
-                                        sessionId: UUID(),
-                                        project: nil,
-                                        workspaceRoot: rootURL,
-                                        memory: AssistMemoryGraph(),
-                                        logger: logger,
-                                        fileSystem: AssistFileSystem(workspaceRoot: rootURL),
-                                        git: AssistGitManager(project: nil),
-                                        permissions: permissionsManager,
-                                        safetyLevel: .balanced,
-                                        isAutonomous: true
-                                    )
-                                    do {
-                                        let res = try await tool.execute(input: args, context: context)
-                                        output = res.output.isEmpty ? (res.error ?? "No output") : res.output
-                                        isSuccess = res.success
-                                    } catch {
-                                        output = error.localizedDescription
-                                        isSuccess = false
-                                    }
-                                } else {
-                                    output = "Tool '\(toolId)' not found in SwiftCode registry."
-                                }
-                            } else {
-                                output = "Execution of tool '\(toolId)' denied by permission policy."
-                            }
-
-                            _ = try? await MuseCodeMSPBridge.shared.sendCommand(method: "tool/result", params: [
-                                "sessionId": sessionId,
-                                "toolCallId": toolCallId,
-                                "success": isSuccess,
-                                "output": output
                             ])
                         }
                     }
@@ -235,7 +410,8 @@ public final class MetaAssistProvider: Sendable {
                         let sessionCmdId = MuseUUIDv7.generate()
                         let sessionRes = try await bridge.sendCommand(method: "session/start", params: [
                             "commandId": sessionCmdId,
-                            "workspaceRoot": workspaceRoot
+                            "workspaceRoot": workspaceRoot,
+                            "modelId": selectedModel
                         ])
 
                         if let resultObj = sessionRes["result"] as? [String: Any],
@@ -254,11 +430,13 @@ public final class MetaAssistProvider: Sendable {
                         self.activeWorkspaceRoot = workspaceRoot
                     }
 
-                    // 3. Start Turn with UUIDv7 commandId and effective prompt
+                    // 3. Start Turn with UUIDv7 commandId, reasoning effort, and effective prompt
                     let turnCmdId = MuseUUIDv7.generate()
+                    let reasoningEffort = AppSettings.shared.metaReasoningEffort.isEmpty ? "high" : AppSettings.shared.metaReasoningEffort
                     _ = try await bridge.sendCommand(method: "turn/start", params: [
                         "commandId": turnCmdId,
                         "sessionId": sessionId,
+                        "reasoningEffort": reasoningEffort,
                         "input": [["type": "text", "text": effectivePrompt]]
                     ])
                 } catch {

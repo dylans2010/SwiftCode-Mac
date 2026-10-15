@@ -1625,6 +1625,7 @@ private struct AssistChatBubble: View {
 private struct AssistLiveActivityFeed: View {
     let activityGroup: AssistActivityGroup
     @State private var isExpanded: Bool = false
+    @State private var expandedToolDetails: Set<UUID> = []
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
@@ -1646,56 +1647,119 @@ private struct AssistLiveActivityFeed: View {
             }()
 
             ForEach(displayTools) { tool in
-                HStack(spacing: 6) {
-                    if tool.status == .running {
-                        ProgressView()
-                            .scaleEffect(0.4)
-                            .frame(width: 14, height: 14)
-                            .tint(.secondary)
+                VStack(alignment: .leading, spacing: 4) {
+                    HStack(spacing: 6) {
+                        if tool.status == .running {
+                            ProgressView()
+                                .scaleEffect(0.4)
+                                .frame(width: 14, height: 14)
+                                .tint(.secondary)
 
-                        Text(tool.displayLabel ?? tool.purpose)
-                            .font(.system(size: 11, weight: .medium))
-                            .foregroundStyle(.primary)
-                            .lineLimit(1)
-                    } else if tool.status == .completed {
-                        Image(systemName: "checkmark")
-                            .font(.system(size: 9, weight: .bold))
-                            .foregroundStyle(.green.opacity(0.85))
-                            .frame(width: 14, height: 14)
+                            Text(tool.displayLabel ?? tool.purpose)
+                                .font(.system(size: 11, weight: .medium))
+                                .foregroundStyle(.primary)
+                                .lineLimit(1)
+                        } else if tool.status == .completed {
+                            Image(systemName: "checkmark")
+                                .font(.system(size: 9, weight: .bold))
+                                .foregroundStyle(.green.opacity(0.85))
+                                .frame(width: 14, height: 14)
 
-                        Text(tool.completedLabel ?? tool.purpose)
-                            .font(.system(size: 11))
-                            .foregroundStyle(.secondary)
-                            .lineLimit(1)
+                            Text(tool.completedLabel ?? tool.purpose)
+                                .font(.system(size: 11))
+                                .foregroundStyle(.secondary)
+                                .lineLimit(1)
 
-                        if tool.duration > 0 {
-                            Text(String(format: "%.1fs", tool.duration))
-                                .font(.system(size: 9, design: .monospaced))
+                            if tool.duration > 0 {
+                                Text(String(format: "%.1fs", tool.duration))
+                                    .font(.system(size: 9, design: .monospaced))
+                                    .foregroundStyle(.tertiary)
+                            }
+                        } else if tool.status == .failed {
+                            Image(systemName: "xmark")
+                                .font(.system(size: 9, weight: .bold))
+                                .foregroundStyle(.red)
+                                .frame(width: 14, height: 14)
+
+                            Text(tool.purpose)
+                                .font(.system(size: 11))
+                                .foregroundStyle(.red.opacity(0.9))
+                                .lineLimit(1)
+                        } else {
+                            Image(systemName: "circle")
+                                .font(.system(size: 8))
                                 .foregroundStyle(.tertiary)
+                                .frame(width: 14, height: 14)
+
+                            Text(tool.purpose)
+                                .font(.system(size: 11))
+                                .foregroundStyle(.secondary)
+                                .lineLimit(1)
                         }
-                    } else if tool.status == .failed {
-                        Image(systemName: "xmark")
-                            .font(.system(size: 9, weight: .bold))
-                            .foregroundStyle(.red)
-                            .frame(width: 14, height: 14)
 
-                        Text(tool.purpose)
-                            .font(.system(size: 11))
-                            .foregroundStyle(.red.opacity(0.9))
-                            .lineLimit(1)
-                    } else {
-                        Image(systemName: "circle")
-                            .font(.system(size: 8))
-                            .foregroundStyle(.tertiary)
-                            .frame(width: 14, height: 14)
+                        Spacer(minLength: 0)
 
-                        Text(tool.purpose)
-                            .font(.system(size: 11))
-                            .foregroundStyle(.secondary)
-                            .lineLimit(1)
+                        if !tool.result.isEmpty {
+                            Button {
+                                withAnimation(.easeInOut(duration: 0.15)) {
+                                    if expandedToolDetails.contains(tool.id) {
+                                        expandedToolDetails.remove(tool.id)
+                                    } else {
+                                        expandedToolDetails.insert(tool.id)
+                                    }
+                                }
+                            } label: {
+                                HStack(spacing: 2) {
+                                    Text(expandedToolDetails.contains(tool.id) ? "Hide Output" : "View Output")
+                                        .font(.system(size: 9))
+                                    Image(systemName: expandedToolDetails.contains(tool.id) ? "chevron.up" : "chevron.down")
+                                        .font(.system(size: 7, weight: .bold))
+                                }
+                                .foregroundStyle(.tertiary)
+                            }
+                            .buttonStyle(.plain)
+                        }
                     }
 
-                    Spacer(minLength: 0)
+                    if expandedToolDetails.contains(tool.id) && !tool.result.isEmpty {
+                        VStack(alignment: .leading, spacing: 4) {
+                            HStack {
+                                Text("Output (\(tool.toolId))")
+                                    .font(.system(size: 9, weight: .semibold, design: .monospaced))
+                                    .foregroundStyle(.secondary)
+                                Spacer()
+                                Button {
+                                    NSPasteboard.general.clearContents()
+                                    NSPasteboard.general.setString(tool.result, forType: .string)
+                                } label: {
+                                    HStack(spacing: 3) {
+                                        Image(systemName: "doc.on.doc")
+                                            .font(.system(size: 8))
+                                        Text("Copy")
+                                            .font(.system(size: 9))
+                                    }
+                                    .foregroundStyle(.secondary)
+                                }
+                                .buttonStyle(.plain)
+                            }
+                            ScrollView(.horizontal, showsIndicators: false) {
+                                Text(tool.result)
+                                    .font(.system(size: 10, design: .monospaced))
+                                    .lineSpacing(2)
+                                    .textSelection(.enabled)
+                                    .padding(6)
+                            }
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .background(Color.black.opacity(0.18), in: RoundedRectangle(cornerRadius: 6))
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 6)
+                                    .stroke(Color.primary.opacity(0.08), lineWidth: 1)
+                            )
+                        }
+                        .padding(.leading, 20)
+                        .padding(.top, 2)
+                        .padding(.bottom, 4)
+                    }
                 }
             }
 

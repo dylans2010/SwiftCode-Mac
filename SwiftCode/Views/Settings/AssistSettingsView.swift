@@ -769,9 +769,12 @@ struct AssistSettingsView: View {
                 }
                 .groupBoxStyle(ModernGroupBoxStyle())
 
-                // 1. Google Account Authentication — independent card (OAuth
-                // sessions are a different credential kind from API keys).
-                googleAccountCard
+                // 1. Account / Model Allowance Card (Meta vs Google Antigravity)
+                if settings.isMetaAssist {
+                    MetaAssistModelsUI()
+                } else {
+                    googleAccountCard
+                }
 
                 // 2. AI Provider API Keys (disclosure)
                 GroupBox {

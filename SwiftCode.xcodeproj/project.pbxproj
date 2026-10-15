@@ -1563,6 +1563,7 @@
 		D972D60E5221BE489DFD05F5 /* (null) in Resources */ = {isa = PBXBuildFile; };
 		D9B250D963E120CA6EF9CC04 /* MultiCursorExtensionView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E6667D90FCA317DE3700C420 /* MultiCursorExtensionView.swift */; };
 		D9DEF097276E4A2AB835D5E2 /* AssistSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E5C09D1515DC441A8619FDB6 /* AssistSettingsView.swift */; };
+		MTA00197276E4A2AB835D5E1 /* MetaAssistModelsUI.swift in Sources */ = {isa = PBXBuildFile; fileRef = MTA0011515DC441A8619FDB1 /* MetaAssistModelsUI.swift */; };
 		D9F800010000000000000001 /* ExecutionPlanTool.swift in Sources */ = {isa = PBXBuildFile; fileRef = D9F800020000000000000001 /* ExecutionPlanTool.swift */; };
 		D9F800010000000000000002 /* PlanAskUserTool.swift in Sources */ = {isa = PBXBuildFile; fileRef = D9F800020000000000000002 /* PlanAskUserTool.swift */; };
 		D9F800010000000000000003 /* PlanUserAskView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D9F800020000000000000003 /* PlanUserAskView.swift */; };
@@ -4355,6 +4356,7 @@
 		E53E7857AD064FBD8038EB3E /* SwiftCodeWorkflows/WorkflowDashboardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SwiftCodeWorkflows/WorkflowDashboardView.swift; sourceTree = "<group>"; };
 		E5B73007CB474E0AAC2ECC21 /* CopyFile.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CopyFile.swift; sourceTree = "<group>"; };
 		E5C09D1515DC441A8619FDB6 /* AssistSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssistSettingsView.swift; sourceTree = "<group>"; };
+		MTA0011515DC441A8619FDB1 /* MetaAssistModelsUI.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MetaAssistModelsUI.swift; sourceTree = "<group>"; };
 		E5D47536944D9D21484D6F8E /* AIDocGenExtensionView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIDocGenExtensionView.swift; sourceTree = "<group>"; };
 		E5D64F9FF65A0ED54E33742B /* StateInspectorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StateInspectorView.swift; sourceTree = "<group>"; };
 		E5E9A1260294B0DD1562EA23 /* FilePreviewView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FilePreviewView.swift; sourceTree = "<group>"; };
@@ -8892,6 +8894,7 @@
 				775C17DFAC2EE718919A322 /* SettingsView.swift */,
 				02BC29E58C19C690DD971DA0 /* NewSettingsView.swift */,
 				E5C09D1515DC441A8619FDB6 /* AssistSettingsView.swift */,
+				MTA0011515DC441A8619FDB1 /* MetaAssistModelsUI.swift */,
 				D1A0000128C0000100000032 /* AlternativeKeysView.swift */,
 				CMPREF000000000000000004 /* ComposioSettingsView.swift */,
 				057EAE735A7C77DB1A01F4B0 /* PluginManagerView.swift */,
@@ -11999,6 +12002,7 @@
 				187E48D6B1A5492490C1D52B /* AssistModelOption.swift in Sources */,
 				573301DF880D42EE98BEA10A /* AgentSkillManager.swift in Sources */,
 				D9DEF097276E4A2AB835D5E2 /* AssistSettingsView.swift in Sources */,
+				MTA00197276E4A2AB835D5E1 /* MetaAssistModelsUI.swift in Sources */,
 				0334A18EF243CC2EA6E04835 /* ProjectFolder.swift in Sources */,
 				A10DE9AB75E3E283785DD550 /* FileNode.swift in Sources */,
 				CC155183D1A7A48FFF88BAB9 /* ToolbarItem.swift in Sources */,

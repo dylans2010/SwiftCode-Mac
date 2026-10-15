@@ -1096,6 +1096,18 @@ public final class AssistManager: ObservableObject {
                                 self.messages[idx] = msg
                             }
                         }
+                    },
+                    onThinkingDelta: { [weak self] thoughtDelta in
+                        Task { @MainActor [weak self] in
+                            guard let self, generation == self.currentGeneration else { return }
+                            self.setRequestPhase(.waitingForModel)
+                            if let messageID, let idx = self.messages.firstIndex(where: { $0.id == messageID }) {
+                                var msg = self.messages[idx]
+                                let cur = msg.thinkingContent ?? ""
+                                msg.thinkingContent = cur + thoughtDelta
+                                self.messages[idx] = msg
+                            }
+                        }
                     }
                 )
 
@@ -2170,6 +2182,15 @@ public final class AssistManager: ObservableObject {
         )
 
         self.messages[idx].activityGroup = activity
+    }
+
+    @MainActor
+    public func finalizeCurrentThinkingDuration(_ duration: TimeInterval) {
+        if let targetIdx = targetMessageIndexForActivity() {
+            if self.messages[targetIdx].thinkingDuration == nil && self.messages[targetIdx].thinkingContent != nil {
+                self.messages[targetIdx].thinkingDuration = max(0.5, duration)
+            }
+        }
     }
 
     @MainActor
