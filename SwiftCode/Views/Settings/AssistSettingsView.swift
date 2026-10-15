@@ -712,20 +712,24 @@ struct AssistSettingsView: View {
                                 Text("Assist Toolkit")
                                     .font(.system(size: 12, weight: .medium))
                                 Spacer()
-                                Text(settings.assistToolkit == "Cloud" ? "Cloud Tools" : "SwiftCode Tools")
+                                Text(settings.assistToolkit == "Cloud" ? "Cloud Tools (\(settings.activeCloudToolkitName))" : "SwiftCode Tools")
                                     .font(.system(size: 10, weight: .semibold))
                                     .foregroundStyle(settings.assistToolkit == "Cloud" ? .blue : .indigo)
                             }
 
                             Picker("Assist Toolkit", selection: $settings.assistToolkit) {
                                 Text("System (SwiftCode)").tag("System")
-                                Text("Cloud (Official SDK)").tag("Cloud")
+                                Text("Cloud (\(settings.activeCloudToolkitName))").tag("Cloud")
                             }
                             .pickerStyle(.segmented)
                             .controlSize(.small)
 
                             Text(settings.assistToolkit == "Cloud"
-                                 ? "Cloud toolkit leverages the official SDK's built-in file manipulation and execution tools."
+                                 ? (settings.isMetaAssist
+                                    ? "Cloud toolkit leverages Meta Muse SDK's built-in file manipulation, search, and execution tools."
+                                    : (settings.isGoogleCloudAssist
+                                       ? "Cloud toolkit leverages Google Antigravity SDK's built-in file manipulation, execution, and research tools."
+                                       : "Cloud toolkit leverages the official SDK's built-in tools."))
                                  : "System toolkit uses SwiftCode's native code editing, build diagnostics, and terminal tools.")
                                 .font(.system(size: 10))
                                 .foregroundStyle(.secondary)

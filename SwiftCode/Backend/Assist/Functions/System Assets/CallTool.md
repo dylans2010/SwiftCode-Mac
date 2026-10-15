@@ -99,8 +99,10 @@ Deterministic schema failures — fix the argument payload, never retry the iden
 or `{ "finalResponse": "Achievements and files modified" }` on completion.
 
 **Toolkit Routing (System vs Cloud).** The "Assist Toolkit" picker selects:
-- **"System":** Native SwiftCode tools over the Unix IPC bridge via `AssistToolRegistry`.
-- **"Cloud":** Antigravity SDK built-ins (`view_file`, `edit_file`, `create_file`, `run_command`, `list_directory`, `search_directory`, `search_web`, `read_url_content`, `start_subagent`).
+- **"System":** Native SwiftCode tools over the IPC bridge via `AssistToolRegistry`. All models (Muse, Antigravity, or other SDKs) MUST use SwiftCode tools when System is selected.
+- **"Cloud":** Official Cloud SDK built-in tools (dynamically selected based on the active Assist System):
+  - On Meta: Muse SDK built-in workspace tools (`file_read`, `file_write`, `shell`, etc.).
+  - On Google Cloud: Antigravity SDK built-in tools (`view_file`, `edit_file`, `create_file`, `run_command`, `list_directory`, `search_directory`, `search_web`, `read_url_content`, `start_subagent`).
 Catalog strictness: never call a System-only tool in Cloud mode or vice versa.
 
 ---

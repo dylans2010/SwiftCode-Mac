@@ -602,8 +602,12 @@ public final class AssistManager: ObservableObject {
             lastWarning = instructionRetrieval.notes.joined(separator: " ")
         }
 
+        let baselineSystemPrompt = (try? getSystemPrompt()) ?? SystemIndexService.shared.baselinePrompt()
         var prompt = """
-        # SYSTEM PROMPT (OPERATING POLICY)
+        # SYSTEM PROMPT (CANONICAL ASSIST INSTRUCTIONS)
+        \(baselineSystemPrompt)
+
+        # CHAT OPERATING POLICY
         \(chatSystemPrompt)
 
         \(retrievedInstructionsBlock)
@@ -1037,6 +1041,26 @@ public final class AssistManager: ObservableObject {
     ) async {
         let workspaceRoot = ProjectSessionStore.shared.activeProject?.directoryURL.path ?? "/"
 
+        // SystemIndex instruction retrieval for Assist with Meta (Muse Code SDK)
+        await beginInstructionRetrievalPhaseIfNeeded()
+        metrics?.mark(.systemIndexRetrievalStarted)
+        let instructionQuery = InstructionQueryContext(
+            userText: content,
+            taskCategory: SystemIndexService.classifyCategory(for: content),
+            stage: .preparation,
+            modelID: MetaAssistProvider.defaultModelID,
+            maxTokens: 4000,
+            excludingChunkIDs: activeRetrievalLedger?.retrievedChunkIDs ?? []
+        )
+        let instructionRetrieval = await SystemIndexService.shared.retrieve(for: instructionQuery)
+        metrics?.mark(.systemIndexRetrievalCompleted)
+        var metaLedger = activeRetrievalLedger ?? SystemIndexRequestLedger()
+        metaLedger.record(instructionRetrieval)
+        activeRetrievalLedger = metaLedger
+        if !instructionRetrieval.notes.isEmpty {
+            await logger.info("SystemIndex (Meta): \(instructionRetrieval.notes.joined(separator: " | "))")
+        }
+
         await MainActor.run {
             self.currentActivityStatus = "Contacting Assist with Meta..."
             self.messages.append(AssistMessage(role: .assistant, content: ""))
@@ -1170,9 +1194,11 @@ public final class AssistManager: ObservableObject {
             // discovered model (or the configured fallback).
             let selectedID = AppSettings.shared.selectedAssistModelID
             let endpointModel = SCCloudConfiguration.endpointName(forInternalID: selectedID)
+            let baselinePrompt = (try? getSystemPrompt()) ?? SystemIndexService.shared.baselinePrompt()
             let response = try await SCCloudModelClient.shared.complete(
                 prompt: prompt,
                 history: history,
+                systemPrompt: baselinePrompt,
                 modelIdentifier: endpointModel
             )
             metrics?.mark(.requestSent)

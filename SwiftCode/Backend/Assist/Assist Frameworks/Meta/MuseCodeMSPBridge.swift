@@ -117,11 +117,16 @@ public final class MuseCodeMSPBridge: @unchecked Sendable {
     private var stdinPipe: Pipe?
     private var stdoutPipe: Pipe?
     public private(set) var isRunning: Bool = false
+    public private(set) var isInitialized: Bool = false
     private var pendingContinuations: [String: CheckedContinuation<String, Error>] = [:]
     private var notificationHandler: ((String, [String: Any]) -> Void)?
     private var incomingBuffer = Data()
 
     private init() {}
+
+    public func markInitialized() {
+        self.isInitialized = true
+    }
 
     public func startHost(workspaceRoot: String) async throws {
         guard !isRunning else { return }
@@ -149,6 +154,12 @@ public final class MuseCodeMSPBridge: @unchecked Sendable {
         self.stdinPipe = inPipe
         self.stdoutPipe = outPipe
         self.process = proc
+
+        proc.terminationHandler = { [weak self] _ in
+            Task { @MainActor [weak self] in
+                self?.handleTermination()
+            }
+        }
 
         outPipe.fileHandleForReading.readabilityHandler = { [weak self] handle in
             let data = handle.availableData
@@ -249,12 +260,31 @@ public final class MuseCodeMSPBridge: @unchecked Sendable {
         }
     }
 
+    private func handleTermination() {
+        self.isRunning = false
+        self.isInitialized = false
+        self.process = nil
+        self.stdinPipe = nil
+        self.stdoutPipe = nil
+        self.incomingBuffer.removeAll()
+        for (_, cont) in pendingContinuations {
+            cont.resume(throwing: MuseCodeCLIError.executionFailed(exitCode: -1, stderr: "MSP host process terminated."))
+        }
+        pendingContinuations.removeAll()
+    }
+
     public func stopHost() {
+        process?.terminationHandler = nil
         process?.terminate()
         process = nil
         stdinPipe = nil
         stdoutPipe = nil
         isRunning = false
+        isInitialized = false
+        incomingBuffer.removeAll()
+        for (_, cont) in pendingContinuations {
+            cont.resume(throwing: MuseCodeCLIError.cancelled)
+        }
         pendingContinuations.removeAll()
     }
 }

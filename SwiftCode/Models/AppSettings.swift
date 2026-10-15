@@ -74,6 +74,24 @@ class AppSettings: ObservableObject {
         }
     }
 
+    public var activeCloudToolkitName: String {
+        if isMetaAssist {
+            return "Muse SDK"
+        } else if isGoogleCloudAssist {
+            return "Antigravity SDK"
+        } else {
+            return "Cloud SDK"
+        }
+    }
+
+    public var assistToolkitDisplayName: String {
+        if assistToolkit.caseInsensitiveCompare("cloud") == .orderedSame {
+            return "Cloud (\(activeCloudToolkitName))"
+        } else {
+            return "System (SwiftCode)"
+        }
+    }
+
     @Published var swiftCloudModelsEnabled: Bool {
         didSet { debouncedSave("swiftCloudModelsEnabled", swiftCloudModelsEnabled) }
     }
