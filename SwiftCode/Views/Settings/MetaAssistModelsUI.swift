@@ -2,14 +2,13 @@
 //  MetaAssistModelsUI.swift
 //  SwiftCode
 //
-//  Models and reasoning effort control card for "Assist with Meta" (Muse SDK).
+//  Models selection and reasoning effort control card for "Assist with Meta" (Muse SDK).
 //
 
 import SwiftUI
 
 public struct MetaAssistModelsUI: View {
     @ObservedObject private var settings = AppSettings.shared
-    @ObservedObject private var metaAuth = MetaAccountAuthService.shared
 
     @State private var models: [MetaModelItem] = []
     @State private var isLoadingModels: Bool = false
@@ -34,7 +33,7 @@ public struct MetaAssistModelsUI: View {
                                 endPoint: .bottomTrailing
                             ))
                             .frame(width: 32, height: 32)
-                        Image(systemName: "cpu.fill")
+                        Image(systemName: "apple.intelligence")
                             .font(.system(size: 14, weight: .bold))
                             .foregroundStyle(Color.blue)
                     }
@@ -43,84 +42,60 @@ public struct MetaAssistModelsUI: View {
                         HStack(spacing: 6) {
                             Text("Assist with Meta Models")
                                 .font(.system(size: 14, weight: .semibold))
-                            Text("Muse SDK")
+                            Text("Models")
                                 .font(.system(size: 9, weight: .bold, design: .rounded))
                                 .padding(.horizontal, 6)
                                 .padding(.vertical, 2)
                                 .background(Color.blue.opacity(0.12), in: Capsule())
                                 .foregroundStyle(.blue)
                         }
-                        Text("Active models and real-time reasoning controls via Meta CLI")
+                        Text("Available models from the Meta catalog")
                             .font(.caption2)
                             .foregroundStyle(.secondary)
                     }
 
                     Spacer()
 
-                    Button {
-                        Task { await loadModels() }
-                    } label: {
-                        if isLoadingModels {
-                            ProgressView()
-                                .scaleEffect(0.6)
-                                .frame(width: 16, height: 16)
-                        } else {
-                            Image(systemName: "arrow.clockwise")
-                                .font(.system(size: 11, weight: .medium))
+                    HStack(spacing: 8) {
+                        if !models.isEmpty {
+                            Text("\(models.count) Models")
+                                .font(.system(size: 10, weight: .medium))
                                 .foregroundStyle(.secondary)
                         }
-                    }
-                    .buttonStyle(.plain)
-                    .help("Refresh models from Meta CLI")
-                    .disabled(isLoadingModels)
-                }
 
-                // Authentication Status Bar
-                HStack(spacing: 6) {
-                    if let email = metaAuth.userEmail, !email.isEmpty {
-                        Image(systemName: "person.crop.circle.badge.checkmark")
-                            .foregroundStyle(.green)
-                            .font(.system(size: 12))
-                        Text("Meta Account: \(email)")
-                            .font(.system(size: 11, weight: .medium))
-                            .foregroundStyle(.primary)
-                    } else {
-                        Image(systemName: "exclamationmark.triangle.fill")
-                            .foregroundStyle(.orange)
-                            .font(.system(size: 12))
-                        Text("Meta Account: Authenticated via CLI")
-                            .font(.system(size: 11))
-                            .foregroundStyle(.secondary)
+                        Button {
+                            Task { await loadModels() }
+                        } label: {
+                            if isLoadingModels {
+                                ProgressView()
+                                    .scaleEffect(0.6)
+                                    .frame(width: 16, height: 16)
+                            } else {
+                                Image(systemName: "arrow.clockwise")
+                                    .font(.system(size: 11, weight: .medium))
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
+                        .buttonStyle(.plain)
+                        .help("Refresh Models")
+                        .disabled(isLoadingModels)
                     }
-                    Spacer()
-                    Text("1M Context Window")
-                        .font(.system(size: 9, weight: .semibold, design: .monospaced))
-                        .foregroundStyle(.secondary)
                 }
-                .padding(.horizontal, 10)
-                .padding(.vertical, 6)
-                .background(Color.primary.opacity(0.04), in: RoundedRectangle(cornerRadius: 6))
 
                 Divider()
 
-                // 1. Meta Models Selection Section
+                // 1. Models List
                 VStack(alignment: .leading, spacing: 8) {
-                    HStack {
-                        Text("Available Models")
-                            .font(.system(size: 12, weight: .semibold))
-                        Spacer()
-                        Text("\(models.count) models")
-                            .font(.system(size: 10))
-                            .foregroundStyle(.secondary)
-                    }
+                    Text("Available Models")
+                        .font(.system(size: 12, weight: .semibold))
 
                     if isLoadingModels && models.isEmpty {
                         HStack {
                             Spacer()
-                            ProgressView("Fetching models catalog…")
+                            ProgressView("Fetching Models…")
                                 .scaleEffect(0.8)
                                 .font(.caption2)
-                                .padding(.vertical, 12)
+                                .padding(.vertical, 16)
                             Spacer()
                         }
                     } else if let error = loadError, models.isEmpty {
@@ -139,7 +114,7 @@ public struct MetaAssistModelsUI: View {
 
                 Divider()
 
-                // 2. Thinking Slider / Reasoning Effort Section
+                // 2. Thinking Models / Reasoning Effort Section
                 reasoningEffortCard
             }
             .padding(14)
@@ -161,6 +136,9 @@ public struct MetaAssistModelsUI: View {
             settings.metaAssistModelID = model.modelId
             if settings.selectedAssistModelID != model.modelId {
                 settings.selectedAssistModelID = model.modelId
+            }
+            Task {
+                try? await MetaAssistProvider.shared.switchModel(modelId: model.modelId)
             }
         } label: {
             HStack(alignment: .center, spacing: 10) {
@@ -225,7 +203,7 @@ public struct MetaAssistModelsUI: View {
         .buttonStyle(.plain)
     }
 
-    // MARK: - Reasoning Effort Slider View
+    // MARK: - Reasoning Effort / Thinking Models Card
 
     @ViewBuilder
     private var reasoningEffortCard: some View {

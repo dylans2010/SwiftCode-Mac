@@ -7,6 +7,26 @@
 
 import Foundation
 
+public struct MspError: Error, LocalizedError, Sendable {
+    public let code: Int
+    public let message: String
+    public let kind: String?
+    public let data: [String: Any]?
+
+    public init(code: Int, message: String, kind: String? = nil, data: [String: Any]? = nil) {
+        self.code = code
+        self.message = message
+        self.kind = kind
+        self.data = data
+    }
+
+    public var reason: String? {
+        data?["reason"] as? String
+    }
+
+    public var errorDescription: String? { message }
+}
+
 public struct MuseCodeMSPMessage: Codable, Sendable {
     public let jsonrpc: String
     public let id: String?
@@ -120,6 +140,7 @@ public final class MuseCodeMSPBridge: @unchecked Sendable {
     public private(set) var isInitialized: Bool = false
     private var pendingContinuations: [String: CheckedContinuation<String, Error>] = [:]
     private var notificationHandler: ((String, [String: Any]) -> Void)?
+    private var serverRequestHandler: ((Any, String, [String: Any]) -> [String: Any]?)?
     private var incomingBuffer = Data()
 
     private init() {}
@@ -177,6 +198,10 @@ public final class MuseCodeMSPBridge: @unchecked Sendable {
         self.notificationHandler = handler
     }
 
+    public func setServerRequestHandler(_ handler: @escaping (Any, String, [String: Any]) -> [String: Any]?) {
+        self.serverRequestHandler = handler
+    }
+
     public func sendNotification(method: String, params: [String: Any] = [:]) throws {
         guard isRunning, let inPipe = stdinPipe else {
             throw MuseCodeCLIError.executionFailed(exitCode: -1, stderr: "MSP host process not running")
@@ -223,6 +248,35 @@ public final class MuseCodeMSPBridge: @unchecked Sendable {
         return [:]
     }
 
+    public func sendResponse(id: Any, result: [String: Any]) throws {
+        guard isRunning, let inPipe = stdinPipe else { return }
+        let payload: [String: Any] = [
+            "jsonrpc": "2.0",
+            "id": id,
+            "result": result
+        ]
+        let jsonData = try JSONSerialization.data(withJSONObject: payload)
+        var lineData = jsonData
+        lineData.append(Data([0x0A]))
+        inPipe.fileHandleForWriting.write(lineData)
+    }
+
+    public func sendRPCError(id: Any, code: Int, message: String) throws {
+        guard isRunning, let inPipe = stdinPipe else { return }
+        let payload: [String: Any] = [
+            "jsonrpc": "2.0",
+            "id": id,
+            "error": [
+                "code": code,
+                "message": message
+            ]
+        ]
+        let jsonData = try JSONSerialization.data(withJSONObject: payload)
+        var lineData = jsonData
+        lineData.append(Data([0x0A]))
+        inPipe.fileHandleForWriting.write(lineData)
+    }
+
     private func handleIncomingData(_ data: Data) {
         incomingBuffer.append(data)
 
@@ -237,11 +291,30 @@ public final class MuseCodeMSPBridge: @unchecked Sendable {
                 continue
             }
 
-            if let id = json["id"] as? String {
-                if let cont = pendingContinuations.removeValue(forKey: id) {
+            let rawId = json["id"]
+            let method = json["method"] as? String
+
+            if let rawId = rawId, let method = method {
+                // 1. Incoming Server Request (e.g. approval/request)
+                let params = json["params"] as? [String: Any] ?? [:]
+                if let customHandler = serverRequestHandler, let response = customHandler(rawId, method, params) {
+                    try? sendResponse(id: rawId, result: response)
+                } else if method == "approval/request" {
+                    // Muse SDK Cookbook: immediately acknowledge approval/request with {} ("I am handling this")
+                    try? sendResponse(id: rawId, result: [:])
+                } else {
+                    try? sendRPCError(id: rawId, code: -32601, message: "Method not found: \(method)")
+                }
+            } else if let rawId = rawId {
+                // 2. Response to a client request
+                let idString = String(describing: rawId)
+                if let cont = pendingContinuations.removeValue(forKey: idString) {
                     if let error = json["error"] as? [String: Any] {
+                        let code = error["code"] as? Int ?? -32603
                         let msg = error["message"] as? String ?? "MSP RPC Error"
-                        cont.resume(throwing: MuseCodeCLIError.executionFailed(exitCode: -1, stderr: msg))
+                        let errData = error["data"] as? [String: Any]
+                        let kind = (errData?["kind"] as? String) ?? (error["kind"] as? String)
+                        cont.resume(throwing: MspError(code: code, message: msg, kind: kind, data: errData))
                     } else if let result = json["result"] {
                         if let resData = try? JSONSerialization.data(withJSONObject: result),
                            let resStr = String(data: resData, encoding: .utf8) {
@@ -253,7 +326,8 @@ public final class MuseCodeMSPBridge: @unchecked Sendable {
                         cont.resume(returning: lineString)
                     }
                 }
-            } else if let method = json["method"] as? String {
+            } else if let method = method {
+                // 3. Server Notification (e.g. item/delta, item/completed, turn/completed, session/modelChanged)
                 let params = json["params"] as? [String: Any] ?? [:]
                 notificationHandler?(method, params)
             }

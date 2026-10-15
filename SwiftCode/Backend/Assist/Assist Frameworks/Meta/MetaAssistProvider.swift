@@ -53,12 +53,16 @@ public final class MetaAssistProvider: Sendable {
 
     private var activeSessionID: String?
     private var activeWorkspaceRoot: String?
+    private var activeTurnID: String?
+    private var completedTurns: [String: [String: Any]] = [:]
 
     private init() {}
 
     public func resetSession() {
         self.activeSessionID = nil
         self.activeWorkspaceRoot = nil
+        self.activeTurnID = nil
+        self.completedTurns.removeAll()
     }
 
     private func setActiveSessionID(_ id: String) {
@@ -361,29 +365,62 @@ public final class MetaAssistProvider: Sendable {
                         Task { @MainActor in
                             AssistManager.shared.finalizeCurrentThinkingDuration(elapsed)
                         }
+                    } else if kind == "agentMessage" {
+                        // Authoritative message completion: "Deltas are for drawing, item/completed is the truth."
+                        if let authoritativeText = item["text"] as? String, !authoritativeText.isEmpty {
+                            // The complete text is verified authoritative on item/completed
+                            _ = authoritativeText
+                        }
                     }
                     tracker.items.removeValue(forKey: itemId)
                 } else if method == "turn/completed" {
+                    if let turnId = params["turnId"] as? String {
+                        self.completedTurns[turnId] = params
+                    }
                     guard !hasResumed else { return }
                     hasResumed = true
                     continuation.resume(returning: ())
+                } else if method == "turn/unqueued" {
+                    // Turn was unqueued / reclaimed before running — settles cleanly without turn/completed
+                    let unqueuedTurnId = params["turnId"] as? String
+                    if unqueuedTurnId == self.activeTurnID {
+                        guard !hasResumed else { return }
+                        hasResumed = true
+                        continuation.resume(returning: ())
+                    }
+                } else if method == "session/modelChanged" {
+                    if let newModelId = params["modelId"] as? String {
+                        Task { @MainActor in
+                            if AppSettings.shared.metaAssistModelID != newModelId {
+                                AppSettings.shared.metaAssistModelID = newModelId
+                            }
+                        }
+                    }
                 } else if method == "approval/requested" {
                     if let sessionId = params["sessionId"] as? String,
                        let approvalId = params["approvalId"] as? String {
-                        let action = params["action"] as? String ?? "operation"
+                        let action = params["action"] as? String ?? (params["subject"] as? String) ?? "operation"
+                        let reqId = params["currentRequirementId"] ?? params["requirementId"] ?? ["approvalId": approvalId, "sourceIndex": 0]
                         let isAllowed = permissionsManager.authorizeOperation(action)
-                        let choice = isAllowed ? "allow_once" : "deny"
+                        // Muse SDK approval choices: "allow_once", "allow_session", or "abort"
+                        // Denying ("abort") is a valid answer, not a failure.
+                        let choice = isAllowed ? "allow_once" : "abort"
 
                         Task { @MainActor in
                             _ = try? await MuseCodeMSPBridge.shared.sendCommand(method: "approval/decide", params: [
                                 "sessionId": sessionId,
                                 "approvalId": approvalId,
-                                "requirementId": ["approvalId": approvalId, "sourceIndex": 0],
+                                "requirementId": reqId,
                                 "choiceId": choice,
                                 "feedback": NSNull()
                             ])
                         }
                     }
+                } else if method == "approval/resolved" {
+                    // Durable policy result notification (policyResult: "allow" | "deny")
+                    let decision = params["decision"] as? String ?? ""
+                    let policyResult = params["policyResult"] as? String ?? ""
+                    _ = (decision, policyResult)
                 }
             }
 
@@ -430,15 +467,22 @@ public final class MetaAssistProvider: Sendable {
                         self.activeWorkspaceRoot = workspaceRoot
                     }
 
-                    // 3. Start Turn with UUIDv7 commandId, reasoning effort, and effective prompt
+                    // 3. Start Turn with UUIDv7 commandId, reasoning effort, and ifBusy queue support
                     let turnCmdId = MuseUUIDv7.generate()
+                    self.activeTurnID = turnCmdId
                     let reasoningEffort = AppSettings.shared.metaReasoningEffort.isEmpty ? "high" : AppSettings.shared.metaReasoningEffort
-                    _ = try await bridge.sendCommand(method: "turn/start", params: [
+                    let turnRes = try await bridge.sendCommand(method: "turn/start", params: [
                         "commandId": turnCmdId,
                         "sessionId": sessionId,
                         "reasoningEffort": reasoningEffort,
+                        "ifBusy": "queue",
                         "input": [["type": "text", "text": effectivePrompt]]
                     ])
+
+                    if let resultObj = turnRes["result"] as? [String: Any] ?? (turnRes as? [String: Any]),
+                       let returnedTurnId = resultObj["turnId"] as? String {
+                        self.activeTurnID = returnedTurnId
+                    }
                 } catch {
                     guard !hasResumed else { return }
                     hasResumed = true
@@ -448,11 +492,58 @@ public final class MetaAssistProvider: Sendable {
         }
     }
 
-    /// Cancels current active turn.
+    /// Switches the active model mid-session via `session/setModel` without losing session state.
+    public func switchModel(modelId: String, providerId: String = "openai") async throws {
+        guard let sessionId = activeSessionID else {
+            AppSettings.shared.metaAssistModelID = modelId
+            return
+        }
+        let bridge = MuseCodeMSPBridge.shared
+        guard bridge.isRunning else {
+            AppSettings.shared.metaAssistModelID = modelId
+            return
+        }
+        let cmdId = MuseUUIDv7.generate()
+        _ = try await bridge.sendCommand(method: "session/setModel", params: [
+            "sessionId": sessionId,
+            "commandId": cmdId,
+            "model": [
+                "providerId": providerId,
+                "modelId": modelId
+            ]
+        ])
+    }
+
+    /// Un-queues / reclaims a pending turn before it executes via `turn/unqueue`.
+    public func unqueueTurn(turnId: String) async throws {
+        guard let sessionId = activeSessionID else { return }
+        let cmdId = MuseUUIDv7.generate()
+        _ = try await MuseCodeMSPBridge.shared.sendCommand(method: "turn/unqueue", params: [
+            "sessionId": sessionId,
+            "commandId": cmdId,
+            "turnId": turnId
+        ])
+    }
+
+    /// Cancels current active turn, handling the already_terminal race condition gracefully.
     public func cancelTurn() async {
         guard let sessionId = activeSessionID else { return }
-        _ = try? await MuseCodeMSPBridge.shared.sendCommand(method: "turn/cancel", params: [
-            "sessionId": sessionId
-        ])
+        let turnId = activeTurnID ?? ""
+        let cmdId = MuseUUIDv7.generate()
+        var params: [String: Any] = [
+            "sessionId": sessionId,
+            "commandId": cmdId
+        ]
+        if !turnId.isEmpty {
+            params["turnId"] = turnId
+        }
+        do {
+            _ = try await MuseCodeMSPBridge.shared.sendCommand(method: "turn/cancel", params: params)
+        } catch {
+            if let mspError = error as? MspError, mspError.reason == "already_terminal" {
+                // The turn reached its own terminal naturally. Nothing failed.
+                return
+            }
+        }
     }
 }
