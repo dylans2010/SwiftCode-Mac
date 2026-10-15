@@ -137,6 +137,7 @@ public final class AssistToolRegistry {
         register(ExecutionPlanTool())
         register(PlanAskUserTool())
         register(SearchSkillsTool())
+        register(ReportToUserTool())
     }
 
     public var version: Int { registryVersion }
@@ -176,6 +177,9 @@ public final class AssistToolRegistry {
         "run_command": "use_terminal",
         "terminal_command": "use_terminal",
         "execute_command": "use_terminal",
+        "bash": "use_terminal",
+        "sh": "use_terminal",
+        "zsh": "use_terminal",
         "list_dir": "dir_read",
         "list_directory": "dir_read",
         "directory_read": "dir_read",
@@ -188,18 +192,46 @@ public final class AssistToolRegistry {
         "directory_create": "dir_create",
         "delete_directory": "dir_delete",
         "remove_directory": "dir_delete",
-        "directory_delete": "dir_delete"
+        "directory_delete": "dir_delete",
+        "use_workers": "use_workers",
+        "useworkers": "use_workers",
+        "workflow": "use_workers",
+        "plan_askuser": "plan-AskUser",
+        "plan_ask_user": "plan-AskUser",
+        "ask_user": "plan-AskUser",
+        "planaskuser": "plan-AskUser",
+        "report_to_user": "report_to_user",
+        "reporttouser": "report_to_user",
+        "task_complete": "report_to_user",
+        "task_completion": "report_to_user"
     ]
 
     public func getTool(_ id: String) -> AssistTool? {
         if let direct = tools[id] {
             return direct
         }
-        let normalized = id.lowercased().replacingOccurrences(of: "-", with: "_")
-        if let normDirect = tools[normalized] {
-            return normDirect
+        var cleaned = id.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        if cleaned.hasPrefix("muse.") {
+            cleaned = String(cleaned.dropFirst(5))
+        } else if cleaned.hasPrefix("muse_") {
+            cleaned = String(cleaned.dropFirst(5))
         }
-        if let alias = toolAliases[normalized], let target = tools[alias] {
+        cleaned = cleaned.replacingOccurrences(of: "-", with: "_")
+            .replacingOccurrences(of: " ", with: "_")
+            .replacingOccurrences(of: ".", with: "_")
+
+        if let directNorm = tools[cleaned] {
+            return directNorm
+        }
+
+        if let match = tools.values.first(where: {
+            $0.id.caseInsensitiveCompare(id) == .orderedSame ||
+            $0.id.lowercased().replacingOccurrences(of: "-", with: "_") == cleaned
+        }) {
+            return match
+        }
+
+        if let alias = toolAliases[cleaned], let target = getTool(alias) {
             return target
         }
         return nil

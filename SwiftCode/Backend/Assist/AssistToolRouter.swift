@@ -126,6 +126,9 @@ public final class AssistToolRouter: Sendable {
         case "use_terminal", "execute_terminal_command", "terminal_command":
             return ToolMetadata(id: toolId, name: "Execute Terminal Command", description: "Executes shell commands in workspace.", capability: .systemExecution, riskLevel: .execution, isReadOnly: false, isMutating: true, requiresVerificationAfterward: true)
 
+        case "report_to_user", "reporttouser":
+            return ToolMetadata(id: toolId, name: "Report to User", description: "Reports completed task summary and verified results to the user.", capability: .general, riskLevel: .safeRead, isReadOnly: true, isMutating: false, requiresVerificationAfterward: false)
+
         default:
             return ToolMetadata(id: toolId, name: toolId, description: "Assist tool.", capability: .general, riskLevel: .safeRead, isReadOnly: true, isMutating: false, requiresVerificationAfterward: false)
         }

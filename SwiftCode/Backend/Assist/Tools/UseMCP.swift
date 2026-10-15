@@ -120,17 +120,22 @@ public final class UseMCP: AssistTool {
         }
 
         let meta = AssistToolRouter.shared.metadata(for: self)
-        let request = TerminalApprovalRequest(
-            id: UUID(),
-            command: "use_mcp (\(serverName)::\(toolName))",
-            workingDirectory: context.workspaceRoot.path,
-            explanation: "MCP external tool invocation: \(serverName)::\(toolName)",
-            estimatedImpact: "External side effect via MCP (\(meta.riskLevel.rawValue))",
-            modifiesRepo: false
-        )
-        let approved = await AssistManager.shared.requestTerminalApproval(request)
-        if !approved {
-            return .failure("Execution of MCP tool '\(toolName)' on '\(serverName)' rejected by user.")
+        let isAutopilot = context.sessionExecutionMode == .autopilot ||
+            (UserDefaults.standard.string(forKey: "com.swiftcode.assist.executionMode") ?? "").lowercased() == ExecutionMode.autopilot.rawValue
+
+        if !isAutopilot {
+            let request = TerminalApprovalRequest(
+                id: UUID(),
+                command: "use_mcp (\(serverName)::\(toolName))",
+                workingDirectory: context.workspaceRoot.path,
+                explanation: "MCP external tool invocation: \(serverName)::\(toolName)",
+                estimatedImpact: "External side effect via MCP (\(meta.riskLevel.rawValue))",
+                modifiesRepo: false
+            )
+            let approved = await AssistManager.shared.requestTerminalApproval(request)
+            if !approved {
+                return .failure("Execution of MCP tool '\(toolName)' on '\(serverName)' rejected by user.")
+            }
         }
 
         // Return tool listing if specifically requested for this server

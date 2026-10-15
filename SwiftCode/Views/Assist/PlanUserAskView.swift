@@ -10,7 +10,28 @@ public struct PlanUserAskView: View {
 
     public var body: some View {
         if let question = questionManager.currentQuestion {
-            questionContent(question)
+            ZStack {
+                Color.black.opacity(0.45)
+                    .ignoresSafeArea()
+                    .transition(.opacity)
+
+                questionContent(question)
+                    .frame(maxWidth: 520)
+                    .background(
+                        RoundedRectangle(cornerRadius: 14)
+                            .fill(Color(nsColor: .windowBackgroundColor))
+                    )
+                    .clipShape(RoundedRectangle(cornerRadius: 14))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 14)
+                            .stroke(Color.secondary.opacity(0.2), lineWidth: 1)
+                    )
+                    .shadow(color: Color.black.opacity(0.35), radius: 24, x: 0, y: 12)
+                    .padding(24)
+                    .transition(.scale(scale: 0.95).combined(with: .opacity))
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .zIndex(1000)
         } else {
             EmptyView()
         }

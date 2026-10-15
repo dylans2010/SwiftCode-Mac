@@ -1569,6 +1569,7 @@
 		D9F800010000000000000001 /* ExecutionPlanTool.swift in Sources */ = {isa = PBXBuildFile; fileRef = D9F800020000000000000001 /* ExecutionPlanTool.swift */; };
 		D9F800010000000000000002 /* PlanAskUserTool.swift in Sources */ = {isa = PBXBuildFile; fileRef = D9F800020000000000000002 /* PlanAskUserTool.swift */; };
 		D9F800010000000000000003 /* PlanUserAskView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D9F800020000000000000003 /* PlanUserAskView.swift */; };
+		D9F800010000000000000009 /* ReportToUserTool.swift in Sources */ = {isa = PBXBuildFile; fileRef = D9F800020000000000000009 /* ReportToUserTool.swift */; };
 		D9FB167791F84FB39E20AB8F /* PreviewDeviceManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = CB42A73CC4BD4D10AA335FCA /* PreviewDeviceManager.swift */; };
 		D9FF133C52E755CE2BABB653 /* CodexUndoRedoView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 01CD767380F7E9D1B4C793B8 /* CodexUndoRedoView.swift */; };
 		D9FF9FA3FE7EC71D61FFCA39 /* JSONToTSView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8CEA8F39726DF498FCCD5D17 /* JSONToTSView.swift */; };
@@ -4275,6 +4276,7 @@
 		D9F800020000000000000001 /* ExecutionPlanTool.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExecutionPlanTool.swift; sourceTree = "<group>"; };
 		D9F800020000000000000002 /* PlanAskUserTool.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlanAskUserTool.swift; sourceTree = "<group>"; };
 		D9F800020000000000000003 /* PlanUserAskView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlanUserAskView.swift; sourceTree = "<group>"; };
+		D9F800020000000000000009 /* ReportToUserTool.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReportToUserTool.swift; sourceTree = "<group>"; };
 		DA805A4B1040EAA2D74F7A7E /* AppReceiptInspectorDevToolView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppReceiptInspectorDevToolView.swift; sourceTree = "<group>"; };
 		DA9F6ADE169A8733ECDBA630 /* CopyLogsButton.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CopyLogsButton.swift; sourceTree = "<group>"; };
 		DAD75EE19DAE4718A645F6AD /* StopApplicationCommand.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StopApplicationCommand.swift; sourceTree = "<group>"; };
@@ -5692,6 +5694,7 @@
 				BC4ED3821A1E7390B7CFD995 /* AssistWriteFileTool.swift */,
 				D9F800020000000000000001 /* ExecutionPlanTool.swift */,
 				D9F800020000000000000002 /* PlanAskUserTool.swift */,
+				D9F800020000000000000009 /* ReportToUserTool.swift */,
 				A1000003F001000100000003 /* search_skills.swift */,
 				E29470C1E254C1D46E7DB5CF /* AssistXcodeProjectResolver.swift */,
 			);
@@ -11699,6 +11702,7 @@
 				D9F800010000000000000001 /* ExecutionPlanTool.swift in Sources */,
 				D9F800010000000000000002 /* PlanAskUserTool.swift in Sources */,
 				D9F800010000000000000003 /* PlanUserAskView.swift in Sources */,
+				D9F800010000000000000009 /* ReportToUserTool.swift in Sources */,
 				F1CD2E378216E7D1A040795C /* AgentNotesInspectorView.swift in Sources */,
 				52DD46069C3AA9C5DA53998A /* AssistPlanView.swift in Sources */,
 				D11703E67C572322D24C4CB2 /* AssistPlannerView.swift in Sources */,

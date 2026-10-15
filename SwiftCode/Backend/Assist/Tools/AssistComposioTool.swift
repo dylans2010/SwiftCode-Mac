@@ -49,17 +49,22 @@ public final class AssistComposioTool: AssistTool {
         }
 
         let meta = AssistToolRouter.shared.metadata(for: self)
-        let request = TerminalApprovalRequest(
-            id: UUID(),
-            command: "use_composio (\(toolSlug))",
-            workingDirectory: context.workspaceRoot.path,
-            explanation: "Composio external integration call: \(toolSlug)",
-            estimatedImpact: "External side effect via Composio API (\(meta.riskLevel.rawValue))",
-            modifiesRepo: false
-        )
-        let approved = await AssistManager.shared.requestTerminalApproval(request)
-        if !approved {
-            return .failure("Execution of Composio tool '\(toolSlug)' rejected by user.")
+        let isAutopilot = context.sessionExecutionMode == .autopilot ||
+            (UserDefaults.standard.string(forKey: "com.swiftcode.assist.executionMode") ?? "").lowercased() == ExecutionMode.autopilot.rawValue
+
+        if !isAutopilot {
+            let request = TerminalApprovalRequest(
+                id: UUID(),
+                command: "use_composio (\(toolSlug))",
+                workingDirectory: context.workspaceRoot.path,
+                explanation: "Composio external integration call: \(toolSlug)",
+                estimatedImpact: "External side effect via Composio API (\(meta.riskLevel.rawValue))",
+                modifiesRepo: false
+            )
+            let approved = await AssistManager.shared.requestTerminalApproval(request)
+            if !approved {
+                return .failure("Execution of Composio tool '\(toolSlug)' rejected by user.")
+            }
         }
 
         let service = ComposioService.shared

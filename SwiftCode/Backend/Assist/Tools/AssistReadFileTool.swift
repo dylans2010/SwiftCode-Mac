@@ -26,12 +26,14 @@ public struct AssistReadFileTool: AssistTool {
             return .failure("Missing required parameter: path")
         }
 
-        let workspacePrefix = context.workspaceRoot.path
-        if !workspacePrefix.isEmpty && path.hasPrefix(workspacePrefix) {
-            path = String(path.dropFirst(workspacePrefix.count))
-        }
-        while path.hasPrefix("/") {
-            path = String(path.dropFirst())
+        if !path.hasPrefix("/tmp/swiftcode/scripts") {
+            let workspacePrefix = context.workspaceRoot.path
+            if !workspacePrefix.isEmpty && path.hasPrefix(workspacePrefix) {
+                path = String(path.dropFirst(workspacePrefix.count))
+            }
+            while path.hasPrefix("/") {
+                path = String(path.dropFirst())
+            }
         }
 
         do {

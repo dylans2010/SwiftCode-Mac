@@ -2,18 +2,18 @@
 //  MetaAssistToolsUI.swift
 //  SwiftCode
 //
-//  Dedicated Tool Calls and Thinking UI for "Assist with Meta" (Muse SDK).
-//  Faithfully styled after the Muse Desktop architecture (robzilla1738/muse-desktop).
+//  Small card-based Thinking UI for "Assist with Meta" / Muse turns.
+//  Displays thought process, live reasoning metrics, and plans what tools
+//  to use when thinking as an interactive planned-tools roadmap card.
 //
 
 import SwiftUI
 import AppKit
 
-// MARK: - Meta Assist Tools UI Root View
+// MARK: - Legacy MetaAssistToolsUI Adapter
 
-/// Main tools activity view for Assist with Meta (Muse SDK turns).
-/// Groups 3 or more completed tools into a collapsible ToolGroup,
-/// and renders individual ToolItems with inputs, outputs, diff badges, and execution metrics.
+/// Backward-compatible wrapper that directs tool execution rendering to
+/// `MuseCallsNativeToolsUI` (now the default tool execution UI).
 public struct MetaAssistToolsUI: View {
     public let activityGroup: AssistActivityGroup
 
@@ -22,585 +22,14 @@ public struct MetaAssistToolsUI: View {
     }
 
     public var body: some View {
-        let tools = activityGroup.tools
-        let fileItems = activityGroup.files
-
-        VStack(alignment: .leading, spacing: 8) {
-            if tools.isEmpty && !activityGroup.hasContent {
-                EmptyView()
-            } else {
-                let groupedEntries = computeGroupedEntries(from: tools)
-
-                ForEach(groupedEntries) { entry in
-                    switch entry {
-                    case .single(let tool):
-                        MetaAssistToolItemView(tool: tool, fileDiffs: fileItems)
-                    case .group(let id, let toolList):
-                        MetaAssistToolGroupView(id: id, tools: toolList, fileDiffs: fileItems)
-                    }
-                }
-            }
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-    }
-
-    private func computeGroupedEntries(from items: [ToolActivityItem]) -> [GroupedToolEntry] {
-        var entries: [GroupedToolEntry] = []
-        var completedBuffer: [ToolActivityItem] = []
-
-        for item in items {
-            let isCompleted = item.status == .completed
-            if isCompleted {
-                completedBuffer.append(item)
-            } else {
-                if !completedBuffer.isEmpty {
-                    if completedBuffer.count >= 3 {
-                        let groupId = completedBuffer.first?.id.uuidString ?? UUID().uuidString
-                        entries.append(.group(id: groupId, tools: completedBuffer))
-                    } else {
-                        for c in completedBuffer {
-                            entries.append(.single(c))
-                        }
-                    }
-                    completedBuffer.removeAll()
-                }
-                entries.append(.single(item))
-            }
-        }
-
-        if !completedBuffer.isEmpty {
-            if completedBuffer.count >= 3 {
-                let groupId = completedBuffer.first?.id.uuidString ?? UUID().uuidString
-                entries.append(.group(id: groupId, tools: completedBuffer))
-            } else {
-                for c in completedBuffer {
-                    entries.append(.single(c))
-                }
-            }
-        }
-
-        return entries
+        MuseCallsNativeToolsUI(activityGroup: activityGroup)
     }
 }
 
-// MARK: - Grouped Tool Entries Helper
+// MARK: - Small Card-Based Thinking UI
 
-private enum GroupedToolEntry: Identifiable {
-    case single(ToolActivityItem)
-    case group(id: String, tools: [ToolActivityItem])
-
-    var id: String {
-        switch self {
-        case .single(let tool): return tool.id.uuidString
-        case .group(let id, _): return id
-        }
-    }
-}
-
-// MARK: - Single Tool Item View (Muse Desktop ToolItem Replica)
-
-public struct MetaAssistToolItemView: View {
-    public let tool: ToolActivityItem
-    public let fileDiffs: [FileActivityItem]
-
-    @State private var isOpen: Bool = false
-    @State private var copiedInput: Bool = false
-    @State private var copiedOutput: Bool = false
-    @State private var isInputExpanded: Bool = false
-    @State private var isOutputExpanded: Bool = false
-
-    public init(tool: ToolActivityItem, fileDiffs: [FileActivityItem] = []) {
-        self.tool = tool
-        self.fileDiffs = fileDiffs
-    }
-
-    private var isRunning: Bool {
-        tool.status == .running || tool.status == .retrying
-    }
-
-    private var toolTitle: String {
-        if let label = tool.displayLabel, !label.isEmpty, !isRawInternalIdentifier(label) {
-            return label
-        }
-        return humanReadableTitle(for: tool.toolId)
-    }
-
-    private func isRawInternalIdentifier(_ text: String) -> Bool {
-        let raw = text.lowercased()
-        return raw.contains("plan-askuser") ||
-               raw.contains("code_replace") ||
-               raw.contains("use_terminal") ||
-               raw.contains("file_read") ||
-               raw.contains("file_write") ||
-               raw.contains("file_create") ||
-               raw.contains("dir_read") ||
-               raw.contains("search_text") ||
-               raw.contains("agent_subagent_start") ||
-               raw.contains("dispatch_")
-    }
-
-    private func humanReadableTitle(for id: String) -> String {
-        let normalized = id.lowercased().replacingOccurrences(of: "-", with: "_")
-        switch normalized {
-        case "file_read", "read_file", "view_file":
-            return "Reading project files"
-        case "file_write", "write_file", "file_create", "create_file":
-            return "Writing project files"
-        case "code_replace", "edit_file", "replace_in_file":
-            return "Editing project files"
-        case "use_terminal", "run_command", "terminal_command":
-            return "Running terminal command"
-        case "dir_read", "list_dir", "list_directory":
-            return "Reading directory"
-        case "search_text", "search_dir", "find_file":
-            return "Searching codebase"
-        case "plan_askuser", "plan-askuser":
-            return "Preparing decision prompt"
-        case "use_workers", "start_subagent":
-            return "Delegating task to worker"
-        case "build_project":
-            return "Building project"
-        case "run_tests", "test_runner":
-            return "Running tests"
-        case "execution_plan":
-            return "Preparing execution plan"
-        default:
-            let title = id.replacingOccurrences(of: "_", with: " ").replacingOccurrences(of: "-", with: " ").capitalized
-            return title
-        }
-    }
-
-    private var toolSummary: String? {
-        if !tool.purpose.isEmpty && tool.purpose != toolTitle {
-            return tool.purpose
-        }
-        if let msg = tool.progressMessage, !msg.isEmpty {
-            return msg
-        }
-        return nil
-    }
-
-    private var matchingFileDiff: FileActivityItem? {
-        fileDiffs.first { file in
-            let name = (file.filePath as NSString).lastPathComponent
-            return tool.purpose.contains(file.filePath) ||
-                   tool.purpose.contains(name) ||
-                   tool.result.contains(file.filePath) ||
-                   tool.result.contains(name)
-        }
-    }
-
-    public var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            // Header summary button
-            Button {
-                withAnimation(.easeInOut(duration: 0.18)) {
-                    isOpen.toggle()
-                }
-            } label: {
-                HStack(spacing: 8) {
-                    // Tool state indicator
-                    statusIndicator(status: tool.status)
-
-                    // Tool kind icon
-                    toolKindIcon(for: tool.toolId)
-                        .foregroundStyle(.secondary)
-                        .frame(width: 16, height: 16)
-
-                    // Title
-                    Text(toolTitle)
-                        .font(.system(size: 12, weight: .semibold, design: .monospaced))
-                        .foregroundStyle(Color.primary)
-                        .lineLimit(1)
-
-                    // Subtitle / status summary
-                    if let summary = toolSummary {
-                        Text(summary)
-                            .font(.system(size: 11, weight: .regular))
-                            .foregroundStyle(.secondary)
-                            .lineLimit(1)
-                            .truncationMode(.middle)
-                    }
-
-                    Spacer(minLength: 4)
-
-                    // Diff badge if available
-                    if let diff = matchingFileDiff, (diff.addedLines > 0 || diff.deletedLines > 0) {
-                        HStack(spacing: 4) {
-                            Text("+\(diff.addedLines)")
-                                .font(.system(size: 10, weight: .bold, design: .monospaced))
-                                .foregroundStyle(Color.green)
-                            Text("−\(diff.deletedLines)")
-                                .font(.system(size: 10, weight: .bold, design: .monospaced))
-                                .foregroundStyle(Color.red.opacity(0.85))
-                        }
-                        .padding(.horizontal, 6)
-                        .padding(.vertical, 2)
-                        .background(Color.secondary.opacity(0.1), in: Capsule())
-                    }
-
-                    // Rotating Chevron
-                    Image(systemName: "chevron.right")
-                        .font(.system(size: 10, weight: .semibold))
-                        .foregroundStyle(.tertiary)
-                        .rotationEffect(.degrees(isOpen ? 90 : 0))
-                }
-                .padding(.horizontal, 10)
-                .padding(.vertical, 7)
-                .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-
-            // Collapsible body
-            if isOpen {
-                VStack(alignment: .leading, spacing: 10) {
-                    Divider()
-                        .opacity(0.4)
-
-                    // Objective / Description
-                    if !tool.purpose.isEmpty {
-                        Text(tool.purpose)
-                            .font(.system(size: 11))
-                            .foregroundStyle(.secondary)
-                    }
-
-                    // Input / Arguments
-                    if let formattedArgs = formattedArguments(from: tool.semanticKey ?? "") ?? formattedArguments(from: tool.purpose), !formattedArgs.isEmpty {
-                        VStack(alignment: .leading, spacing: 4) {
-                            HStack {
-                                Text("INPUT")
-                                    .font(.system(size: 9, weight: .bold, design: .monospaced))
-                                    .foregroundStyle(.tertiary)
-                                Spacer()
-                                Button {
-                                    withAnimation(.easeInOut(duration: 0.15)) {
-                                        isInputExpanded.toggle()
-                                    }
-                                } label: {
-                                    HStack(spacing: 3) {
-                                        Image(systemName: isInputExpanded ? "arrow.down.right.and.arrow.up.left" : "arrow.up.left.and.arrow.down.right")
-                                            .font(.system(size: 8))
-                                        Text(isInputExpanded ? "Collapse" : "Expand")
-                                            .font(.system(size: 9, weight: .medium))
-                                    }
-                                    .foregroundStyle(.secondary)
-                                    .padding(.horizontal, 6)
-                                    .padding(.vertical, 2)
-                                    .background(Color.secondary.opacity(0.08), in: RoundedRectangle(cornerRadius: 4))
-                                }
-                                .buttonStyle(.plain)
-
-                                copyButton(text: formattedArgs, isCopied: $copiedInput)
-                            }
-                            ScrollView([.horizontal, .vertical], showsIndicators: true) {
-                                Text(formattedArgs)
-                                    .font(.system(size: 11, design: .monospaced))
-                                    .foregroundStyle(Color.primary.opacity(0.9))
-                                    .textSelection(.enabled)
-                                    .frame(maxWidth: .infinity, alignment: .leading)
-                                    .padding(8)
-                            }
-                            .frame(maxHeight: isInputExpanded ? .infinity : 200)
-                            .background(Color.black.opacity(0.2), in: RoundedRectangle(cornerRadius: 6))
-                            .overlay(
-                                RoundedRectangle(cornerRadius: 6)
-                                    .stroke(Color.secondary.opacity(0.12), lineWidth: 0.5)
-                            )
-                        }
-                    }
-
-                    // Output / Result
-                    if !tool.result.isEmpty {
-                        VStack(alignment: .leading, spacing: 4) {
-                            HStack {
-                                Text("OUTPUT")
-                                    .font(.system(size: 9, weight: .bold, design: .monospaced))
-                                    .foregroundStyle(.tertiary)
-                                Spacer()
-                                Button {
-                                    withAnimation(.easeInOut(duration: 0.15)) {
-                                        isOutputExpanded.toggle()
-                                    }
-                                } label: {
-                                    HStack(spacing: 3) {
-                                        Image(systemName: isOutputExpanded ? "arrow.down.right.and.arrow.up.left" : "arrow.up.left.and.arrow.down.right")
-                                            .font(.system(size: 8))
-                                        Text(isOutputExpanded ? "Collapse" : "Expand All")
-                                            .font(.system(size: 9, weight: .medium))
-                                    }
-                                    .foregroundStyle(.secondary)
-                                    .padding(.horizontal, 6)
-                                    .padding(.vertical, 2)
-                                    .background(Color.secondary.opacity(0.08), in: RoundedRectangle(cornerRadius: 4))
-                                }
-                                .buttonStyle(.plain)
-
-                                copyButton(text: tool.result, isCopied: $copiedOutput)
-                            }
-                            ScrollView([.horizontal, .vertical], showsIndicators: true) {
-                                Text(tool.result)
-                                    .font(.system(size: 11, design: .monospaced))
-                                    .foregroundStyle(Color.secondary)
-                                    .textSelection(.enabled)
-                                    .frame(maxWidth: .infinity, alignment: .leading)
-                                    .padding(8)
-                            }
-                            .frame(maxHeight: isOutputExpanded ? .infinity : 320)
-                            .background(Color.black.opacity(0.25), in: RoundedRectangle(cornerRadius: 6))
-                            .overlay(
-                                RoundedRectangle(cornerRadius: 6)
-                                    .stroke(Color.secondary.opacity(0.12), lineWidth: 0.5)
-                            )
-                        }
-                    }
-
-                    // Status and duration pill
-                    HStack(spacing: 6) {
-                        Text(tool.status.rawValue.lowercased())
-                            .font(.system(size: 10, weight: .medium))
-                            .foregroundStyle(.secondary)
-
-                        if tool.duration > 0 {
-                            Text("·")
-                                .font(.system(size: 10))
-                                .foregroundStyle(.tertiary)
-                            Text(String(format: "%.1fs", tool.duration))
-                                .font(.system(size: 10, design: .monospaced))
-                                .foregroundStyle(.secondary)
-                        }
-                    }
-                    .padding(.top, 2)
-                }
-                .padding(.horizontal, 12)
-                .padding(.bottom, 10)
-                .transition(.opacity.combined(with: .move(edge: .top)))
-            }
-        }
-        .background(
-            RoundedRectangle(cornerRadius: 9)
-                .fill(Color(nsColor: .controlBackgroundColor).opacity(0.55))
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: 9)
-                .stroke(Color.secondary.opacity(0.15), lineWidth: 0.75)
-        )
-    }
-
-    @ViewBuilder
-    private func statusIndicator(status: ActivityStatus) -> some View {
-        switch status {
-        case .running, .retrying:
-            ProgressView()
-                .scaleEffect(0.4)
-                .frame(width: 14, height: 14)
-        case .completed:
-            Image(systemName: "checkmark")
-                .font(.system(size: 9, weight: .bold))
-                .foregroundStyle(Color.green)
-                .frame(width: 14, height: 14)
-        case .failed, .cancelled:
-            Image(systemName: "xmark")
-                .font(.system(size: 9, weight: .bold))
-                .foregroundStyle(Color.red)
-                .frame(width: 14, height: 14)
-        case .pending, .skipped:
-            Circle()
-                .fill(Color.secondary.opacity(0.3))
-                .frame(width: 8, height: 8)
-                .frame(width: 14, height: 14)
-        }
-    }
-
-    @ViewBuilder
-    private func toolKindIcon(for name: String) -> some View {
-        let lower = name.lowercased()
-        if lower.contains("subagent") || lower.contains("worker") {
-            Image(systemName: "person.2")
-                .font(.system(size: 11))
-        } else if lower.contains("shell") || lower.contains("bash") || lower.contains("terminal") || lower.contains("command") {
-            Image(systemName: "terminal")
-                .font(.system(size: 11))
-        } else if lower.contains("file") || lower.contains("edit") || lower.contains("write") || lower.contains("read") {
-            Image(systemName: "doc.text")
-                .font(.system(size: 11))
-        } else if lower.contains("build") || lower.contains("test") {
-            Image(systemName: "hammer")
-                .font(.system(size: 11))
-        } else {
-            Image(systemName: "wrench.and.screwdriver")
-                .font(.system(size: 11))
-        }
-    }
-
-    private func copyButton(text: String, isCopied: Binding<Bool>) -> some View {
-        Button {
-            NSPasteboard.general.clearContents()
-            NSPasteboard.general.setString(text, forType: .string)
-            isCopied.wrappedValue = true
-            DispatchQueue.main.asyncAfter(deadline: .now() + 1.8) {
-                isCopied.wrappedValue = false
-            }
-        } label: {
-            HStack(spacing: 3) {
-                Image(systemName: isCopied.wrappedValue ? "checkmark" : "doc.on.doc")
-                    .font(.system(size: 9))
-                Text(isCopied.wrappedValue ? "Copied" : "Copy")
-                    .font(.system(size: 9, weight: .medium))
-            }
-            .foregroundStyle(isCopied.wrappedValue ? Color.green : Color.secondary)
-            .padding(.horizontal, 6)
-            .padding(.vertical, 2)
-            .background(Color.secondary.opacity(0.08), in: RoundedRectangle(cornerRadius: 4))
-        }
-        .buttonStyle(.plain)
-    }
-
-    private func formattedArguments(from raw: String) -> String? {
-        let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else { return nil }
-
-        if trimmed.hasPrefix("{") {
-            if let data = trimmed.data(using: .utf8),
-               let json = try? JSONSerialization.jsonObject(with: data),
-               let pretty = try? JSONSerialization.data(withJSONObject: json, options: [.prettyPrinted]),
-               let str = String(data: pretty, encoding: .utf8) {
-                return str
-            }
-            return trimmed
-        }
-
-        if trimmed.contains("|") {
-            let parts = trimmed.components(separatedBy: "|")
-            if parts.count > 1 {
-                let lines = parts.dropFirst().compactMap { part -> String? in
-                    let sub = part.trimmingCharacters(in: .whitespacesAndNewlines)
-                    return sub.isEmpty ? nil : sub
-                }
-                if !lines.isEmpty {
-                    return lines.joined(separator: "\n")
-                }
-            }
-        }
-        return trimmed
-    }
-}
-
-// MARK: - Tool Group View (Muse Desktop ToolGroup Replica)
-
-public struct MetaAssistToolGroupView: View {
-    public let id: String
-    public let tools: [ToolActivityItem]
-    public let fileDiffs: [FileActivityItem]
-
-    @State private var isOpen: Bool = false
-
-    public init(id: String, tools: [ToolActivityItem], fileDiffs: [FileActivityItem] = []) {
-        self.id = id
-        self.tools = tools
-        self.fileDiffs = fileDiffs
-    }
-
-    private var uniqueToolNames: String {
-        let names = Array(Set(tools.map { $0.displayLabel ?? $0.toolId })).sorted()
-        return names.prefix(3).joined(separator: ", ")
-    }
-
-    private var totalAdded: Int {
-        fileDiffs.reduce(0) { $0 + $1.addedLines }
-    }
-
-    private var totalRemoved: Int {
-        fileDiffs.reduce(0) { $0 + $1.deletedLines }
-    }
-
-    public var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            // Group Header Button
-            Button {
-                withAnimation(.easeInOut(duration: 0.18)) {
-                    isOpen.toggle()
-                }
-            } label: {
-                HStack(spacing: 8) {
-                    Image(systemName: "checkmark")
-                        .font(.system(size: 9, weight: .bold))
-                        .foregroundStyle(Color.green)
-                        .frame(width: 14, height: 14)
-
-                    Image(systemName: "square.3.layers.3d")
-                        .font(.system(size: 11))
-                        .foregroundStyle(.secondary)
-                        .frame(width: 16, height: 16)
-
-                    Text("Ran \(tools.count) tools")
-                        .font(.system(size: 12, weight: .semibold))
-                        .foregroundStyle(Color.primary)
-
-                    Text(uniqueToolNames)
-                        .font(.system(size: 11))
-                        .foregroundStyle(.secondary)
-                        .lineLimit(1)
-                        .truncationMode(.tail)
-
-                    Spacer(minLength: 4)
-
-                    if totalAdded > 0 || totalRemoved > 0 {
-                        HStack(spacing: 4) {
-                            Text("+\(totalAdded)")
-                                .font(.system(size: 10, weight: .bold, design: .monospaced))
-                                .foregroundStyle(Color.green)
-                            Text("−\(totalRemoved)")
-                                .font(.system(size: 10, weight: .bold, design: .monospaced))
-                                .foregroundStyle(Color.red.opacity(0.85))
-                        }
-                        .padding(.horizontal, 6)
-                        .padding(.vertical, 2)
-                        .background(Color.secondary.opacity(0.1), in: Capsule())
-                    }
-
-                    Image(systemName: "chevron.right")
-                        .font(.system(size: 10, weight: .semibold))
-                        .foregroundStyle(.tertiary)
-                        .rotationEffect(.degrees(isOpen ? 90 : 0))
-                }
-                .padding(.horizontal, 10)
-                .padding(.vertical, 8)
-                .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-
-            // Group Expanded List
-            if isOpen {
-                VStack(alignment: .leading, spacing: 6) {
-                    Divider()
-                        .opacity(0.4)
-                        .padding(.bottom, 2)
-
-                    ForEach(tools) { item in
-                        MetaAssistToolItemView(tool: item, fileDiffs: fileDiffs)
-                    }
-                }
-                .padding(.horizontal, 8)
-                .padding(.bottom, 8)
-                .transition(.opacity.combined(with: .move(edge: .top)))
-            }
-        }
-        .background(
-            RoundedRectangle(cornerRadius: 9)
-                .fill(Color(nsColor: .controlBackgroundColor).opacity(0.45))
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: 9)
-                .stroke(Color.secondary.opacity(0.15), lineWidth: 0.75)
-        )
-    }
-}
-
-// MARK: - Reasoning & Thinking UI (Muse Desktop ReasoningItem Replica)
-
-/// Modern Reasoning & Thinking inspection component modeled after Muse Desktop's `ReasoningItem`.
-/// Features clean summary header, animated breathing/spinning indicator while composing,
-/// an accent vertical border, monospaced typography, and direct copy capability.
+/// Small card-based Thinking UI that presents the model's reasoning process,
+/// streaming state, duration, and extracts a planned-tools roadmap based on thinking content.
 public struct MetaAssistThinkingUI: View {
     public let thinkingContent: String
     public let duration: TimeInterval?
@@ -620,115 +49,261 @@ public struct MetaAssistThinkingUI: View {
         self.isStreaming = isStreaming
     }
 
-    private var summaryTitle: String {
-        if isStreaming {
-            return "Thinking…"
-        }
-        if let d = duration, d > 0 {
-            return String(format: "Reasoning summary · %.1fs", d)
-        }
-        return "Reasoning summary"
-    }
-
     public var body: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            // Header summary button
-            Button {
-                withAnimation(.easeInOut(duration: 0.18)) {
-                    isOpen.toggle()
-                }
-            } label: {
-                HStack(spacing: 7) {
-                    if isStreaming {
-                        ProgressView()
-                            .scaleEffect(0.4)
-                            .frame(width: 14, height: 14)
-                    } else {
-                        Image(systemName: "checkmark")
-                            .font(.system(size: 9, weight: .bold))
-                            .foregroundStyle(Color.green)
-                            .frame(width: 14, height: 14)
+        VStack(alignment: .leading, spacing: 6) {
+            // Small Card Container
+            VStack(alignment: .leading, spacing: 0) {
+                // Header Bar (Collapsible Button)
+                Button {
+                    withAnimation(.easeInOut(duration: 0.18)) {
+                        isOpen.toggle()
                     }
-
-                    Text(summaryTitle)
-                        .font(.system(size: 11, weight: .medium))
-                        .foregroundStyle(isStreaming ? Color.accentColor : Color.secondary)
-
-                    Image(systemName: "chevron.right")
-                        .font(.system(size: 9, weight: .semibold))
-                        .foregroundStyle(.tertiary)
-                        .rotationEffect(.degrees(isOpen ? 90 : 0))
-
-                    Spacer()
-
-                        Button {
-                            withAnimation(.easeInOut(duration: 0.15)) {
-                                isExpanded.toggle()
-                            }
-                        } label: {
-                            HStack(spacing: 3) {
-                                Image(systemName: isExpanded ? "arrow.down.right.and.arrow.up.left" : "arrow.up.left.and.arrow.down.right")
-                                    .font(.system(size: 8))
-                                Text(isExpanded ? "Collapse" : "Expand")
-                                    .font(.system(size: 8, weight: .medium))
-                            }
-                            .foregroundStyle(.secondary)
+                } label: {
+                    HStack(spacing: 7) {
+                        // Thinking Icon
+                        if isStreaming {
+                            ProgressView()
+                                .scaleEffect(0.4)
+                                .frame(width: 14, height: 14)
+                        } else {
+                            Image(systemName: "brain.head.profile")
+                                .font(.system(size: 11, weight: .semibold))
+                                .foregroundStyle(Color.purple)
+                                .frame(width: 14, height: 14)
                         }
-                        .buttonStyle(.plain)
 
-                        Button {
-                            NSPasteboard.general.clearContents()
-                            NSPasteboard.general.setString(thinkingContent, forType: .string)
-                            isCopied = true
-                            DispatchQueue.main.asyncAfter(deadline: .now() + 1.8) {
-                                isCopied = false
-                            }
-                        } label: {
-                            HStack(spacing: 3) {
-                                Image(systemName: isCopied ? "checkmark" : "doc.on.doc")
-                                    .font(.system(size: 8))
-                                Text(isCopied ? "Copied" : "Copy")
-                                    .font(.system(size: 8, weight: .medium))
-                            }
-                            .foregroundStyle(isCopied ? Color.green : Color.secondary)
+                        // Title
+                        Text(headerTitle)
+                            .font(.system(size: 11, weight: .semibold, design: .rounded))
+                            .foregroundStyle(isStreaming ? Color.accentColor : Color.primary.opacity(0.85))
+
+                        if let d = duration, d > 0, !isStreaming {
+                            Text(String(format: "· %.1fs", d))
+                                .font(.system(size: 10, design: .monospaced))
+                                .foregroundStyle(.tertiary)
                         }
-                        .buttonStyle(.plain)
-                }
-                .padding(.horizontal, 8)
-                .padding(.vertical, 4)
-                .background(Color.secondary.opacity(0.04), in: RoundedRectangle(cornerRadius: 6))
-            }
-            .buttonStyle(.plain)
 
-            // Collapsible thinking body with Muse Desktop left accent line
-            if isOpen {
-                HStack(alignment: .top, spacing: 10) {
-                    // Left accent border bar
-                    Rectangle()
-                        .fill(LinearGradient(
-                            colors: [Color.accentColor.opacity(0.8), Color.blue.opacity(0.4)],
-                            startPoint: .top,
-                            endPoint: .bottom
-                        ))
-                        .frame(width: 2.5)
-                        .cornerRadius(1.25)
+                        Spacer()
 
-                    ScrollView([.horizontal, .vertical], showsIndicators: true) {
-                        Text(thinkingContent)
-                            .font(.system(size: 11, design: .monospaced))
-                            .foregroundStyle(.secondary)
-                            .lineSpacing(3.5)
-                            .textSelection(.enabled)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .padding(.vertical, 4)
+                        // Planned Tools Count Badge
+                        let planned = plannedTools
+                        if !planned.isEmpty {
+                            HStack(spacing: 4) {
+                                Image(systemName: "checklist")
+                                    .font(.system(size: 9))
+                                Text("\(planned.count) planned")
+                                    .font(.system(size: 9, weight: .medium, design: .rounded))
+                            }
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 2)
+                            .background(Color.purple.opacity(0.12), in: Capsule())
+                            .foregroundStyle(Color.purple)
+                        }
+
+                        // Chevron
+                        Image(systemName: "chevron.right")
+                            .font(.system(size: 9, weight: .semibold))
+                            .foregroundStyle(.tertiary)
+                            .rotationEffect(.degrees(isOpen ? 90 : 0))
                     }
-                    .frame(maxHeight: isExpanded ? .infinity : 280)
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 7)
+                    .contentShape(Rectangle())
                 }
-                .padding(.leading, 6)
-                .padding(.top, 2)
-                .transition(.opacity.combined(with: .move(edge: .top)))
+                .buttonStyle(.plain)
+
+                // Expanded Card Content
+                if isOpen {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Divider()
+                            .opacity(0.35)
+
+                        // 1. Planned Tools Roadmap (What tools to use when thinking)
+                        let planned = plannedTools
+                        if !planned.isEmpty {
+                            VStack(alignment: .leading, spacing: 4) {
+                                HStack(spacing: 4) {
+                                    Image(systemName: "map.fill")
+                                        .font(.system(size: 9))
+                                        .foregroundStyle(.secondary)
+                                    Text("PLANNED TOOL ROADMAP")
+                                        .font(.system(size: 9, weight: .bold, design: .monospaced))
+                                        .foregroundStyle(.secondary)
+                                }
+
+                                ScrollView(.horizontal, showsIndicators: false) {
+                                    HStack(spacing: 6) {
+                                        ForEach(Array(planned.enumerated()), id: \.offset) { index, item in
+                                            HStack(spacing: 4) {
+                                                Image(systemName: item.icon)
+                                                    .font(.system(size: 9))
+                                                    .foregroundStyle(Color.accentColor)
+
+                                                Text(item.name)
+                                                    .font(.system(size: 10, weight: .medium, design: .rounded))
+                                                    .foregroundStyle(Color.primary.opacity(0.9))
+                                            }
+                                            .padding(.horizontal, 7)
+                                            .padding(.vertical, 3)
+                                            .background(Color.secondary.opacity(0.08), in: RoundedRectangle(cornerRadius: 5))
+
+                                            if index < planned.count - 1 {
+                                                Image(systemName: "arrow.right")
+                                                    .font(.system(size: 8, weight: .bold))
+                                                    .foregroundStyle(.tertiary)
+                                            }
+                                        }
+                                    }
+                                    .padding(.vertical, 2)
+                                }
+                            }
+                            .padding(8)
+                            .background(Color.purple.opacity(0.06), in: RoundedRectangle(cornerRadius: 6))
+                        }
+
+                        // 2. Action Buttons (Expand & Copy)
+                        HStack {
+                            Text("REASONING STREAM")
+                                .font(.system(size: 9, weight: .bold, design: .monospaced))
+                                .foregroundStyle(.tertiary)
+
+                            Spacer()
+
+                            Button {
+                                withAnimation(.easeInOut(duration: 0.15)) {
+                                    isExpanded.toggle()
+                                }
+                            } label: {
+                                HStack(spacing: 3) {
+                                    Image(systemName: isExpanded ? "arrow.down.right.and.arrow.up.left" : "arrow.up.left.and.arrow.down.right")
+                                        .font(.system(size: 8))
+                                    Text(isExpanded ? "Collapse" : "Expand")
+                                        .font(.system(size: 9, weight: .medium))
+                                }
+                                .foregroundStyle(.secondary)
+                                .padding(.horizontal, 6)
+                                .padding(.vertical, 2)
+                                .background(Color.secondary.opacity(0.08), in: RoundedRectangle(cornerRadius: 4))
+                            }
+                            .buttonStyle(.plain)
+
+                            Button {
+                                NSPasteboard.general.clearContents()
+                                NSPasteboard.general.setString(thinkingContent, forType: .string)
+                                isCopied = true
+                                DispatchQueue.main.asyncAfter(deadline: .now() + 1.8) {
+                                    isCopied = false
+                                }
+                            } label: {
+                                HStack(spacing: 3) {
+                                    Image(systemName: isCopied ? "checkmark" : "doc.on.doc")
+                                        .font(.system(size: 8))
+                                    Text(isCopied ? "Copied" : "Copy")
+                                        .font(.system(size: 9, weight: .medium))
+                                }
+                                .foregroundStyle(isCopied ? Color.green : Color.secondary)
+                                .padding(.horizontal, 6)
+                                .padding(.vertical, 2)
+                                .background(Color.secondary.opacity(0.08), in: RoundedRectangle(cornerRadius: 4))
+                            }
+                            .buttonStyle(.plain)
+                        }
+
+                        // 3. Scrollable Thinking Content
+                        ScrollView([.horizontal, .vertical], showsIndicators: true) {
+                            Text(thinkingContent)
+                                .font(.system(size: 11, design: .monospaced))
+                                .foregroundStyle(.secondary)
+                                .lineSpacing(3.5)
+                                .textSelection(.enabled)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .padding(8)
+                        }
+                        .frame(maxHeight: isExpanded ? .infinity : 220)
+                        .background(Color.black.opacity(0.2), in: RoundedRectangle(cornerRadius: 6))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 6)
+                                .stroke(Color.secondary.opacity(0.12), lineWidth: 0.5)
+                        )
+                    }
+                    .padding(.horizontal, 10)
+                    .padding(.bottom, 8)
+                    .transition(.opacity.combined(with: .move(edge: .top)))
+                }
             }
+            .background(
+                RoundedRectangle(cornerRadius: 8)
+                    .fill(Color(nsColor: .controlBackgroundColor).opacity(0.55))
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 8)
+                    .stroke(Color.purple.opacity(0.2), lineWidth: 0.75)
+            )
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private var headerTitle: String {
+        if isStreaming {
+            return "Thinking & Planning Tools…"
+        }
+        return "Thought Process & Tool Plan"
+    }
+
+    // MARK: - Plan What Tools to Use When Thinking
+
+    public struct PlannedToolInfo: Identifiable {
+        public let id = UUID()
+        public let name: String
+        public let icon: String
+        public let toolId: String
+    }
+
+    private var plannedTools: [PlannedToolInfo] {
+        var items: [PlannedToolInfo] = []
+        let lower = thinkingContent.lowercased()
+
+        // Analyze reasoning text for tool intents
+        if lower.contains("worker") || lower.contains("subagent") || lower.contains("parallel") || lower.contains("decompose") {
+            items.append(PlannedToolInfo(name: "Coordinate Workers", icon: "person.3.sequence.fill", toolId: "use_workers"))
+        }
+
+        if lower.contains("read") || lower.contains("inspect") || lower.contains("examine") || lower.contains("view file") || lower.contains("check file") {
+            items.append(PlannedToolInfo(name: "Inspect Files", icon: "doc.text.magnifyingglass", toolId: "file_read"))
+        }
+
+        if lower.contains("search") || lower.contains("grep") || lower.contains("find") || lower.contains("scan") {
+            items.append(PlannedToolInfo(name: "Search Codebase", icon: "magnifyingglass", toolId: "search_text"))
+        }
+
+        if lower.contains("replace") || lower.contains("edit") || lower.contains("modify") || lower.contains("refactor") || lower.contains("fix") {
+            items.append(PlannedToolInfo(name: "Code Edit", icon: "text.badge.checkmark", toolId: "code_replace"))
+        }
+
+        if lower.contains("create file") || lower.contains("write file") || lower.contains("new file") {
+            items.append(PlannedToolInfo(name: "Write File", icon: "doc.badge.plus", toolId: "file_write"))
+        }
+
+        if lower.contains("build") || lower.contains("compile") || lower.contains("xcodebuild") {
+            items.append(PlannedToolInfo(name: "Build Project", icon: "hammer.fill", toolId: "project_build"))
+        }
+
+        if lower.contains("test") || lower.contains("verify") || lower.contains("audit") {
+            items.append(PlannedToolInfo(name: "Run Tests / Verify", icon: "play.circle.fill", toolId: "project_test"))
+        }
+
+        if lower.contains("terminal") || lower.contains("shell") || lower.contains("script") || lower.contains("bash") || lower.contains("command") {
+            items.append(PlannedToolInfo(name: "Terminal Command", icon: "terminal.fill", toolId: "use_terminal"))
+        }
+
+        if lower.contains("ask user") || lower.contains("clarif") || lower.contains("decision") {
+            items.append(PlannedToolInfo(name: "Decision Prompt", icon: "questionmark.bubble.fill", toolId: "plan-AskUser"))
+        }
+
+        if lower.contains("report") || lower.contains("complete") || lower.contains("finish") || lower.contains("summary") {
+            items.append(PlannedToolInfo(name: "Task Report", icon: "bubble.left.and.exclamationmark.bubble.right.fill", toolId: "report_to_user"))
+        }
+
+        return items
     }
 }

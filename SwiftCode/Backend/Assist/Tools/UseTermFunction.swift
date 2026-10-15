@@ -64,19 +64,31 @@ public struct UseTermFunction: AssistTool {
         // 1. Resolve working directory URL
         let workingDirURL: URL
         if !relativeWorkDir.isEmpty {
-            workingDirURL = context.workspaceRoot.appendingPathComponent(relativeWorkDir)
+            if relativeWorkDir.hasPrefix("/") {
+                workingDirURL = URL(fileURLWithPath: relativeWorkDir)
+            } else {
+                workingDirURL = context.workspaceRoot.appendingPathComponent(relativeWorkDir)
+            }
         } else {
             workingDirURL = context.workspaceRoot
         }
 
-        // 2. Approval policy: the user's allow-list and Full Access toggle
-        // (Assist Settings > Terminal Command Approvals) decide whether this
+        // Ensure isolated scripts directory exists if targeted
+        if workingDirURL.path.hasPrefix("/tmp/swiftcode/scripts") {
+            try? FileManager.default.createDirectory(atPath: "/tmp/swiftcode/scripts", withIntermediateDirectories: true)
+        }
+
+        // 2. Approval policy: If Assist is on Autopilot, BYPASS the permissions COMPLETELY at a system level.
+        // Otherwise, the user's allow-list and Full Access toggle decide whether this
         // command may run without an explicit approval prompt.
-        let bypassesApproval = TerminalApprovalSettings.shared.isApprovalBypassed(for: command)
+        let isAutopilot = context.sessionExecutionMode == .autopilot ||
+            (UserDefaults.standard.string(forKey: "com.swiftcode.assist.executionMode") ?? "").lowercased() == ExecutionMode.autopilot.rawValue
+        let bypassesApproval = isAutopilot || TerminalApprovalSettings.shared.isApprovalBypassed(for: command)
 
         let approved: Bool
         if bypassesApproval {
-            await context.logger.info("Terminal command bypasses approval (allow-list / Full Access): \(command)", toolId: id)
+            let reason = isAutopilot ? "Autopilot mode" : "allow-list / Full Access"
+            await context.logger.info("Terminal command bypasses approval (\(reason)): \(command)", toolId: id)
             approved = true
         } else {
             // 2a. Request user approval through AssistManager

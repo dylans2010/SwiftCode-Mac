@@ -115,6 +115,7 @@ Capability-level reference for the internal capabilities Assist can invoke durin
 - `execution_plan` (safeRead) — generate a task-specific execution plan from live repository state; writes `agent_notes.md`. Treat output as a roadmap, not completed work.
 - `plan-AskUser` (safeRead) — present a structured question to the user during **Plan mode only** (blocked in Autopilot). Suspends up to 300s; a cancellation or timeout means stop and report, not retry.
 - `use_workers` (safeMutation) — decompose genuinely independent workstreams into parallel/sequenced workers. Default to 0 workers; each worker needs a unique name, non-overlapping scope, a task of ≤ 500 characters, and disjoint `targetFiles`. Workers execute real mutations — the highest-risk planning tool. See AgenticLoop.md for the delegation policy.
+- `report_to_user` (safeRead) — delivers the final task completion summary to the user upon finishing all autonomous task work. Must be called at all times when Assist finishes all task work. Only for task completion, never for general Q&A. Cleans and renders polished Markdown.
 - `create_new_app` (safeMutation) — scaffold a new native macOS/iOS app project. Switches the active project session; not idempotent.
 
 ---

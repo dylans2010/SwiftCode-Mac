@@ -44,6 +44,7 @@ Rules that govern this library:
 | `SystemIndex.md` | The indexing/retrieval service contract and dependency convention | Index diagnostics, retrieval failures |
 | `CodeReviewSystemAsset.md` | Independent code-review operating policy and verdict format | Code-review tasks |
 | `CreatingAppAsset.md` | Autonomous app-creation specification | "Build me an app" tasks |
+| `TaskCompletion.md` | Autonomous task completion protocol, executive reporting, markdown formatting, and `report_to_user` rules | Task finalization, calling report_to_user |
 
 ---
 

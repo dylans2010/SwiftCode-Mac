@@ -2132,6 +2132,15 @@ public final class AssistManager: ObservableObject {
     }
 
     @MainActor
+    public func updateLastAssistantMessageContent(_ content: String) {
+        if let idx = self.messages.indices.reversed().first(where: { self.messages[$0].role == .assistant }) {
+            var msg = self.messages[idx]
+            msg.content = content
+            self.messages[idx] = msg
+        }
+    }
+
+    @MainActor
     public func reportToolStarted(callId: String, toolName: String, arguments: [String: Any]) {
         let formatted = AssistToolActivityFormatter.format(toolId: toolName, arguments: arguments)
         self.currentActivityStatus = formatted.runningLabel

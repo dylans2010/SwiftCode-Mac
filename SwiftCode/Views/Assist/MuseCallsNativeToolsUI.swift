@@ -2,15 +2,16 @@
 //  MuseCallsNativeToolsUI.swift
 //  SwiftCode
 //
-//  Dedicated UI displayed when Muse models call SwiftCode's native tools.
-//  Strictly hides raw JSON schemas and raw tool call payloads, displaying
-//  only relevant human-readable information, clean parameters, status, and results.
+//  Dedicated modern UI displayed when calling SwiftCode's native tools.
+//  Strictly hides raw JSON schemas and raw tool call payloads using `hidesToolSchemaOnUI`,
+//  displaying only clean human-readable narrative, status, duration, diffs, collapsible cards,
+//  and dedicated SF Symbols for EVERY registered tool.
 //
 
 import SwiftUI
 import AppKit
 
-// MARK: - Muse Calls Native Tools UI
+// MARK: - Muse Calls Native Tools UI Root View
 
 public struct MuseCallsNativeToolsUI: View {
     public let activityGroup: AssistActivityGroup
@@ -102,8 +103,113 @@ public struct MuseNativeToolCard: View {
                lower.contains("dir_") ||
                lower.contains("use_terminal") ||
                lower.contains("plan-askuser") ||
-               lower.contains("AssistToolRegistry") ||
-               lower.contains("type:")
+               lower.contains("assisttoolregistry") ||
+               lower.contains("type:") ||
+               lower.contains("properties") ||
+               lower.contains("schema")
+    }
+
+    // MARK: - Complex Schema Stripping & Humanization Function
+
+    /// Complex function that fully strips down the tool schema from showing it on the UI.
+    /// Transforms JSON schemas, argument dictionaries, and raw identifiers into clean,
+    /// natural human-readable text for users without exposing raw schemas or internal IDs.
+    public static func hidesToolSchemaOnUI(rawText: String, arguments: [String: Any] = [:], toolId: String = "") -> String {
+        // 1. If arguments are present, construct a clean narrative from key domain parameters
+        if !arguments.isEmpty {
+            let normalizedId = toolId.lowercased().replacingOccurrences(of: "-", with: "_")
+
+            if normalizedId.contains("file_read") || normalizedId.contains("read_file") || normalizedId.contains("view_file") {
+                if let path = arguments["path"] as? String ?? arguments["targetFile"] as? String ?? arguments["file"] as? String {
+                    let filename = (path as NSString).lastPathComponent
+                    return "Inspecting contents of \(filename)"
+                }
+            } else if normalizedId.contains("file_write") || normalizedId.contains("write_file") || normalizedId.contains("file_create") {
+                if let path = arguments["path"] as? String ?? arguments["targetFile"] as? String ?? arguments["file"] as? String {
+                    let filename = (path as NSString).lastPathComponent
+                    return "Writing file content to \(filename)"
+                }
+            } else if normalizedId.contains("code_replace") || normalizedId.contains("replace_in_file") {
+                if let path = arguments["path"] as? String ?? arguments["targetFile"] as? String ?? arguments["file"] as? String {
+                    let filename = (path as NSString).lastPathComponent
+                    return "Applying targeted code modifications to \(filename)"
+                }
+            } else if normalizedId.contains("use_terminal") || normalizedId.contains("terminal") || normalizedId.contains("bash") || normalizedId.contains("sh") || normalizedId.contains("zsh") {
+                if let cmd = arguments["command"] as? String ?? arguments["CommandLine"] as? String {
+                    let trimmedCmd = cmd.trimmingCharacters(in: .whitespacesAndNewlines)
+                    return "Executing command: \(trimmedCmd.prefix(80))"
+                }
+            } else if normalizedId.contains("use_workers") || normalizedId.contains("workers") || normalizedId.contains("workflow") {
+                if let workers = arguments["workers"] as? [[String: Any]] {
+                    return "Coordinating \(workers.count) parallel workers across distinct tasks"
+                }
+                return "Orchestrating autonomous background workers"
+            } else if normalizedId.contains("plan_askuser") || normalizedId.contains("askuser") {
+                if let q = arguments["question"] as? String {
+                    return "Requesting user decision: \(q.prefix(80))"
+                }
+                return "Prompting user for decision clarification"
+            } else if normalizedId.contains("report_to_user") {
+                return "Delivering final task report to user"
+            } else if normalizedId.contains("search") || normalizedId.contains("grep") {
+                if let query = arguments["query"] as? String ?? arguments["pattern"] as? String {
+                    return "Searching codebase for \"\(query)\""
+                }
+            }
+        }
+
+        // 2. If rawText is provided, strip schema artifacts, JSON brackets, and internal tool signatures
+        var cleaned = rawText.trimmingCharacters(in: .whitespacesAndNewlines)
+
+        // Strip JSON schema keywords and markdown code fences
+        cleaned = cleaned.replacingOccurrences(of: "```json", with: "")
+        cleaned = cleaned.replacingOccurrences(of: "```", with: "")
+
+        let schemaKeywords = [
+            "\"type\": \"object\"",
+            "\"properties\":",
+            "\"required\":",
+            "\"parameters\":",
+            "\"schema\":",
+            "\"description\":",
+            "\"items\":"
+        ]
+
+        var hasSchemaMarker = false
+        for kw in schemaKeywords {
+            if cleaned.contains(kw) {
+                hasSchemaMarker = true
+                break
+            }
+        }
+
+        if hasSchemaMarker {
+            // Attempt to parse out human-friendly values rather than dumping schema
+            if let data = cleaned.data(using: .utf8),
+               let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
+                if let desc = json["description"] as? String, !desc.isEmpty {
+                    return desc
+                }
+                if let msg = json["message"] as? String, !msg.isEmpty {
+                    return msg
+                }
+            }
+            // Strip raw braces and quotes if json parsing was ambiguous
+            cleaned = cleaned.replacingOccurrences(of: "{", with: "")
+                .replacingOccurrences(of: "}", with: "")
+                .replacingOccurrences(of: "\"", with: "")
+        }
+
+        // Remove raw internal IDs from text
+        cleaned = cleaned.replacingOccurrences(of: "file_read", with: "file read")
+            .replacingOccurrences(of: "file_write", with: "file write")
+            .replacingOccurrences(of: "code_replace", with: "code edit")
+            .replacingOccurrences(of: "use_terminal", with: "terminal")
+            .replacingOccurrences(of: "plan-AskUser", with: "decision prompt")
+            .replacingOccurrences(of: "use_workers", with: "worker coordination")
+            .replacingOccurrences(of: "report_to_user", with: "task report")
+
+        return cleaned.isEmpty ? "Operation completed" : cleaned
     }
 
     private func humanReadableTitle(for rawId: String) -> String {
@@ -131,7 +237,7 @@ public struct MuseNativeToolCard: View {
             return "Creating Directory"
         case "tree_view":
             return "Inspecting Workspace Tree"
-        case "search_text", "search_regex":
+        case "search_text", "search_regex", "grep_search":
             return "Searching Codebase"
         case "search_symbol":
             return "Finding Symbol Definition"
@@ -139,16 +245,88 @@ public struct MuseNativeToolCard: View {
             return "Building Xcode Project"
         case "project_test", "run_tests", "test_runner":
             return "Running Test Suite"
-        case "use_terminal", "run_command":
+        case "use_terminal", "run_command", "terminal", "bash", "sh", "zsh":
             return "Executing Terminal Command"
-        case "plan_askuser", "plan-askuser":
+        case "use_workers", "workers", "workflow":
+            return "Coordinating Assist Workers"
+        case "report_to_user":
+            return "Presenting Task Completion"
+        case "plan_askuser", "plan-askuser", "askuser":
             return "Decision Point Requested"
+        case "mcp_call", "use_mcp":
+            return "Executing MCP Integration"
+        case "composio_execute", "use_composio":
+            return "Executing Composio Tool"
+        case "git_status":
+            return "Checking Git Status"
+        case "git_commit":
+            return "Committing Changes"
+        case "git_push":
+            return "Pushing to Git Remote"
         default:
             let cleaned = rawId
                 .replacingOccurrences(of: "_", with: " ")
                 .replacingOccurrences(of: "-", with: " ")
                 .capitalized
-            return cleaned.isEmpty ? "Executing Tool" : cleaned
+            return cleaned.isEmpty ? "Executing Action" : cleaned
+        }
+    }
+
+    // MARK: - SF Symbols for EVERY Tool
+
+    public static func sfSymbol(for toolId: String) -> String {
+        let norm = toolId.lowercased().replacingOccurrences(of: "-", with: "_")
+        switch norm {
+        case "file_read", "read_file", "view_file":
+            return "doc.text.magnifyingglass"
+        case "file_write", "write_file", "file_create", "create_file":
+            return "doc.badge.plus"
+        case "file_delete", "delete_file":
+            return "trash.fill"
+        case "code_replace", "replace_in_file":
+            return "text.badge.checkmark"
+        case "code_insert", "insert_code":
+            return "character.cursor.ibeam"
+        case "code_format", "format_code":
+            return "wand.and.stars"
+        case "code_lint", "lint_code":
+            return "checkmark.shield.fill"
+        case "dir_read", "list_dir", "list_directory":
+            return "folder.fill"
+        case "dir_create", "create_directory":
+            return "folder.badge.plus"
+        case "tree_view":
+            return "list.bullet.indent"
+        case "search_text", "search_regex", "grep_search":
+            return "magnifyingglass"
+        case "search_symbol":
+            return "curlybraces"
+        case "project_build", "build_project":
+            return "hammer.fill"
+        case "project_test", "run_tests", "test_runner":
+            return "play.circle.fill"
+        case "use_terminal", "run_command", "terminal", "bash", "sh", "zsh":
+            return "terminal.fill"
+        case "use_workers", "workers", "workflow":
+            return "person.3.sequence.fill"
+        case "report_to_user":
+            return "bubble.left.and.exclamationmark.bubble.right.fill"
+        case "plan_askuser", "plan-askuser", "askuser":
+            return "questionmark.bubble.fill"
+        case "mcp_call", "use_mcp":
+            return "network"
+        case "composio_execute", "use_composio":
+            return "app.connected.to.app.below.fill"
+        case "git_status", "git_commit", "git_push", "git_diff":
+            return "arrow.triangle.branch"
+        default:
+            if norm.contains("worker") { return "person.3.sequence.fill" }
+            if norm.contains("file") { return "doc.text.fill" }
+            if norm.contains("code") { return "chevron.left.forwardslash.chevron.right" }
+            if norm.contains("term") || norm.contains("shell") { return "terminal.fill" }
+            if norm.contains("build") { return "hammer.fill" }
+            if norm.contains("test") { return "play.circle.fill" }
+            return "wrench.and.screwdriver.fill"
         }
     }
 
@@ -175,7 +353,7 @@ public struct MuseNativeToolCard: View {
             if let extractedPath = extractRelevantPath(from: tool.purpose) {
                 params.append((key: "Target", value: extractedPath))
             } else if !tool.purpose.isEmpty && tool.purpose != displayTitle {
-                params.append((key: "Details", value: tool.purpose))
+                params.append((key: "Details", value: Self.hidesToolSchemaOnUI(rawText: tool.purpose, toolId: tool.toolId)))
             }
         }
 
@@ -189,14 +367,15 @@ public struct MuseNativeToolCard: View {
                lower == "type" ||
                lower == "properties" ||
                lower == "required" ||
-               lower == "json"
+               lower == "json" ||
+               lower == "parametersschema"
     }
 
     private func humanizeParamKey(_ key: String) -> String {
         switch key.lowercased() {
         case "path", "filepath", "file_path", "targetfile":
             return "File"
-        case "command", "cmd":
+        case "command", "cmd", "commandline":
             return "Command"
         case "target", "find", "old_string":
             return "Pattern"
@@ -208,6 +387,10 @@ public struct MuseNativeToolCard: View {
             return "Directory"
         case "line":
             return "Line"
+        case "workers":
+            return "Workers"
+        case "summary":
+            return "Summary"
         default:
             return key.capitalized
         }
@@ -236,9 +419,14 @@ public struct MuseNativeToolCard: View {
         }
     }
 
+    private var isWorkerTool: Bool {
+        let norm = tool.toolId.lowercased().replacingOccurrences(of: "-", with: "_")
+        return norm == "use_workers" || norm == "workers" || norm == "workflow"
+    }
+
     public var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            // Main Summary Row Button
+            // Main Summary Row Button (Collapsible trigger)
             Button {
                 withAnimation(.easeInOut(duration: 0.18)) {
                     isOpen.toggle()
@@ -248,10 +436,11 @@ public struct MuseNativeToolCard: View {
                     // Status Icon
                     statusIcon
 
-                    // Tool Kind Icon
-                    toolKindIcon
-                        .foregroundStyle(Color.accentColor.opacity(0.85))
-                        .frame(width: 14, height: 14)
+                    // Tool Kind SF Symbol (Explicitly mapped for every tool)
+                    Image(systemName: Self.sfSymbol(for: tool.toolId))
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundStyle(Color.accentColor.opacity(0.9))
+                        .frame(width: 16, height: 16)
 
                     // Human-Readable Title
                     Text(displayTitle)
@@ -310,16 +499,30 @@ public struct MuseNativeToolCard: View {
             }
             .buttonStyle(.plain)
 
-            // Expanded Details View
+            // Expanded Collapsible Details Card
             if isOpen {
                 VStack(alignment: .leading, spacing: 8) {
                     Divider()
                         .opacity(0.35)
 
+                    // Human-Readable Narrative (Stripping raw schemas)
+                    let narrative = Self.hidesToolSchemaOnUI(rawText: tool.purpose, toolId: tool.toolId)
+                    if !narrative.isEmpty && narrative != displayTitle {
+                        Text(narrative)
+                            .font(.system(size: 11, weight: .medium, design: .rounded))
+                            .foregroundStyle(Color.primary.opacity(0.85))
+                            .padding(.horizontal, 4)
+                    }
+
+                    // Specialized Worker Card if this is a `use_workers` invocation
+                    if isWorkerTool {
+                        workerOrchestrationDetailsView
+                    }
+
                     // Clean Parameters View (No Schemas, Only Values)
                     if !cleanParameters.isEmpty {
                         VStack(alignment: .leading, spacing: 4) {
-                            Text("PARAMETERS")
+                            Text("ACTION PARAMETERS")
                                 .font(.system(size: 9, weight: .bold, design: .monospaced))
                                 .foregroundStyle(.tertiary)
 
@@ -347,7 +550,7 @@ public struct MuseNativeToolCard: View {
                     if !tool.result.isEmpty {
                         VStack(alignment: .leading, spacing: 4) {
                             HStack {
-                                Text("RESULT")
+                                Text("OUTCOME")
                                     .font(.system(size: 9, weight: .bold, design: .monospaced))
                                     .foregroundStyle(.tertiary)
 
@@ -425,6 +628,31 @@ public struct MuseNativeToolCard: View {
         )
     }
 
+    // MARK: - Dedicated Worker Orchestration Subview
+
+    @ViewBuilder
+    private var workerOrchestrationDetailsView: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(spacing: 6) {
+                Image(systemName: "person.3.sequence.fill")
+                    .font(.system(size: 11))
+                    .foregroundStyle(Color.blue)
+
+                Text("PARALLEL WORKER DISPATCH")
+                    .font(.system(size: 9, weight: .bold, design: .monospaced))
+                    .foregroundStyle(.blue)
+
+                Spacer()
+            }
+
+            Text("Assist coordinated multiple subagent workers to execute scoped subtasks in parallel without cross-worker file collision.")
+                .font(.system(size: 10))
+                .foregroundStyle(.secondary)
+        }
+        .padding(8)
+        .background(Color.blue.opacity(0.08), in: RoundedRectangle(cornerRadius: 6))
+    }
+
     @ViewBuilder
     private var statusIcon: some View {
         switch tool.status {
@@ -450,36 +678,19 @@ public struct MuseNativeToolCard: View {
         }
     }
 
-    @ViewBuilder
-    private var toolKindIcon: some View {
-        let lower = tool.toolId.lowercased()
-        if lower.contains("file") || lower.contains("read") || lower.contains("write") {
-            Image(systemName: "doc.text.fill")
-        } else if lower.contains("code") || lower.contains("edit") || lower.contains("replace") {
-            Image(systemName: "chevron.left.forwardslash.chevron.right")
-        } else if lower.contains("search") || lower.contains("find") {
-            Image(systemName: "magnifyingglass")
-        } else if lower.contains("build") || lower.contains("test") {
-            Image(systemName: "hammer.fill")
-        } else if lower.contains("terminal") || lower.contains("command") {
-            Image(systemName: "terminal.fill")
-        } else {
-            Image(systemName: "gearshape.2.fill")
-        }
-    }
-
     private func cleanOutputText(_ raw: String) -> String {
         var text = raw.trimmingCharacters(in: .whitespacesAndNewlines)
-        // If it starts with JSON syntax, format cleanly without raw schema markers
         if text.hasPrefix("{") && text.hasSuffix("}") {
             if let data = text.data(using: .utf8),
                let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
-                // If there is an output or result field, extract that directly
                 if let output = json["output"] as? String {
                     return output
                 }
                 if let msg = json["message"] as? String {
                     return msg
+                }
+                if let res = json["result"] as? String {
+                    return res
                 }
             }
         }

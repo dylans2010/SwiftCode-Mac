@@ -36,16 +36,21 @@ public struct AssistReplaceInFileTool: AssistTool {
         let allowMultiple = (input["allowMultiple"] ?? input["allow_multiple"]) as? Bool ?? false
 
         // Sandbox & Traversal Defense: Normalize workspace path
-        let workspacePrefix = context.workspaceRoot.path
-        if !workspacePrefix.isEmpty && path.hasPrefix(workspacePrefix) {
-            path = String(path.dropFirst(workspacePrefix.count))
-        }
-        while path.hasPrefix("/") {
-            path = String(path.dropFirst())
-        }
+        let isIsolatedScript = path.hasPrefix("/tmp/swiftcode/scripts")
+        if isIsolatedScript {
+            try? FileManager.default.createDirectory(atPath: "/tmp/swiftcode/scripts", withIntermediateDirectories: true)
+        } else {
+            let workspacePrefix = context.workspaceRoot.path
+            if !workspacePrefix.isEmpty && path.hasPrefix(workspacePrefix) {
+                path = String(path.dropFirst(workspacePrefix.count))
+            }
+            while path.hasPrefix("/") {
+                path = String(path.dropFirst())
+            }
 
-        if path.contains("..") {
-            return .failure("Path security error: Relative path traversal ('..') is prohibited for safety. Path: '\(path)'")
+            if path.contains("..") {
+                return .failure("Path security error: Relative path traversal ('..') is prohibited for safety. Path: '\(path)'")
+            }
         }
 
         let startTime = Date()

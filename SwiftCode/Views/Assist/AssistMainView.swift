@@ -441,6 +441,8 @@ public struct AssistMainView: View {
                     .frame(height: 28)
                 }
 
+                WorkersOnAssistView()
+
                 queuedMessagesView
 
                 inputArea
@@ -1558,32 +1560,20 @@ private struct AssistChatBubble: View {
 
                 // 1. Inline collapsible thought inspector/disclosure, outside the main response bubble
                 if let thinking = message.thinkingContent, !thinking.isEmpty {
-                    if isMetaMessage {
-                        MetaAssistThinkingUI(
-                            thinkingContent: thinking,
-                            duration: message.thinkingDuration,
-                            isStreaming: isCurrentlyThinking
-                        )
-                    } else {
-                        AssistThoughtDisclosureView(
-                            thinkingContent: thinking,
-                            duration: message.thinkingDuration,
-                            isStreaming: isCurrentlyThinking
-                        )
-                    }
+                    MetaAssistThinkingUI(
+                        thinkingContent: thinking,
+                        duration: message.thinkingDuration,
+                        isStreaming: isCurrentlyThinking
+                    )
                 }
 
                 // 2. Main response bubble
                 if hasContent || hasActivity || hasAttachments {
 
                 VStack(alignment: .leading, spacing: 8) {
-                    // 1. Native Live Activity Feed (Subtle, Compact, Streaming)
+                    // 1. Native Live Activity Feed (Default: MuseCallsNativeToolsUI)
                     if let activity = message.activityGroup, activity.hasContent {
-                        if isMetaMessage {
-                            MuseCallsNativeToolsUI(activityGroup: activity)
-                        } else {
-                            AssistLiveActivityFeed(activityGroup: activity)
-                        }
+                        MuseCallsNativeToolsUI(activityGroup: activity)
                     }
 
                     // 2. Streamed / Completed Assistant Markdown Message

@@ -594,7 +594,7 @@ public actor SystemIndexService {
     /// straight from the bundle; the actor index is the preferred path.
     public nonisolated func baselinePrompt() -> String {
         var parts: [String] = []
-        for name in ["AgentSystemAsset.md", "Identity.md", "Safeguards.md"] {
+        for name in ["AgentSystemAsset.md", "Identity.md", "Safeguards.md", "TaskCompletion.md"] {
             if let text = bundledText(forRelativePath: name), !text.isEmpty {
                 parts.append(text)
             }
@@ -606,7 +606,7 @@ public actor SystemIndexService {
 
     private func fallbackBaselineSections() -> [SystemIndexRetrieval] {
         var out: [SystemIndexRetrieval] = []
-        for name in ["Identity.md", "Safeguards.md", "AgentSystemAsset.md"] {
+        for name in ["Identity.md", "Safeguards.md", "AgentSystemAsset.md", "TaskCompletion.md"] {
             guard let text = Self.shared.bundledText(forRelativePath: name), !text.isEmpty else { continue }
             out.append(SystemIndexRetrieval(
                 sectionID: "bundle-fallback#\(name)", documentPath: name,

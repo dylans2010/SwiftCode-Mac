@@ -60,18 +60,20 @@ Runtime events (`agent.progress`, `tool.started`, `tool.completed`, `tool.failed
 
 ---
 
-## 4. Multi-Iteration Rules
+## 4. Multi-Iteration & Autopilot Continuous Execution Rules
 
-- Every iteration must make progress: new information, a workspace mutation, or a verified result. Iterations that change nothing are a stop signal, not a strategy.
-- Ground before mutating: inspect project structure, target configurations, and existing source before modifying. Never assume an API exists without re-reading the relevant declarations.
-- A tool succeeding does not mean the objective is accomplished. Verification requires re-reading modified files, compiling with the real toolchain, and confirming zero diagnostics — never claim success without execution evidence.
-- Direct action over conversation: do not output apologies, filler, or promises of future work ("I will now write this file") — call the tool immediately.
+- **Autopilot Continuous Execution:** When Assist is on **Autopilot**, the agent must work from start to finish WITHOUT reporting to or interrupting the user (unless specifically instructed in the prompt). The agent must keep working until all requirements are fully implemented, built, tested, and audited.
+- **Audit Findings Require Continued Work:** If a self-audit, compiler diagnostic check, or code review identifies errors or incomplete aspects that apply to the task, **CONTINUE WORKING IMMEDIATELY**. Do not stall, pause, or ask the user "Would you like me to fix this?" — fix it directly.
+- **Questions vs. Tasks:** If the user asks questions, seeks explanations, or chats, **ANSWER THEM DIRECTLY IN TEXT**. Do not call tools when answering questions. Only call tools when you have full context of a task that requires inspection, modification, or building.
+- **Least Tool Calls Objective:** Strive to complete the task with the fewest possible tool calls. Create and execute helper scripts in `/tmp/swiftcode/scripts` via `use_terminal` if it accelerates execution.
+- **Every iteration must make progress:** Ground before mutating. Verification requires re-reading modified files, compiling with the real toolchain, and confirming zero diagnostics.
 
 ---
 
-## 5. Final-Answer Detection
+## 5. Final-Answer Detection & `report_to_user` Mandate
 
-The loop ends when the model produces a final answer instead of a tool call: the objective is achieved and verified, or a terminal state from `ErrorHandling.md` (failed / cancelled / timed out / limit-reached) has been reached. In native JSON-protocol sessions the agent signals completion with `finalResponse` describing achievements and files modified. Do not emit a final answer while required verification is still outstanding, and do not keep iterating once the answer is complete.
+- **Task Completion Mandate:** When working on a task, the agent signals completion by invoking the `report_to_user` tool with a clean, executive-level Markdown summary. Never emit plain unrendered dumps, raw tool tokens, or wide jargon tables.
+- **Do not stop prematurely:** Do not call `report_to_user` while required verification (builds, tests, audits) is still outstanding. Once all work is verified and clean, invoke `report_to_user` to finalize the turn.
 
 ---
 

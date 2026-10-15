@@ -67,6 +67,11 @@ public final class AssistFileSystem: @unchecked Sendable, AssistFileSystemProtoc
     }
 
     public func resolve(_ path: String) throws -> URL {
+        if path.hasPrefix("/tmp/swiftcode/scripts") {
+            let directURL = URL(fileURLWithPath: path).standardized
+            return directURL
+        }
+
         let normalizedPath = path.hasPrefix("/") ? String(path.dropFirst()) : path
         let resolvedURL = workspaceRoot.appendingPathComponent(normalizedPath).standardized
 
