@@ -547,6 +547,8 @@ public struct AssistMessage: Codable, Identifiable, Sendable {
     /// Raw server-side error backing a notice. Pulled straight from the model
     /// API (endpoint, status code, response body) — never hardcoded text.
     public var serverError: ServerErrorDetail?
+    /// Provider identifier responsible for minting this message (e.g. MetaAssistProvider.providerID).
+    public var providerID: String?
 
     public init(
         role: AssistRole,
@@ -558,7 +560,8 @@ public struct AssistMessage: Codable, Identifiable, Sendable {
         thinkingContent: String? = nil,
         thinkingDuration: TimeInterval? = nil,
         noticeLevel: AssistNoticeLevel? = nil,
-        serverError: ServerErrorDetail? = nil
+        serverError: ServerErrorDetail? = nil,
+        providerID: String? = nil
     ) {
         self.id = UUID()
         self.role = role
@@ -572,6 +575,7 @@ public struct AssistMessage: Codable, Identifiable, Sendable {
         self.thinkingDuration = thinkingDuration
         self.noticeLevel = noticeLevel
         self.serverError = serverError
+        self.providerID = providerID
     }
 }
 

@@ -7,7 +7,7 @@
 
 import Foundation
 
-public struct MspError: Error, LocalizedError, Sendable {
+public struct MspError: Error, LocalizedError, @unchecked Sendable {
     public let code: Int
     public let message: String
     public let kind: String?

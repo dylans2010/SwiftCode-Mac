@@ -60,6 +60,7 @@ public struct AssistMainView: View {
     @State private var showCustomModelPicker = false
     @State private var discoveryService = AssistModelDiscoveryService.shared
     @ObservedObject private var googleAuth = GoogleAccountAuthService.shared
+    @ObservedObject private var settings = AppSettings.shared
 
     public init() {}
 
@@ -945,7 +946,11 @@ public struct AssistMainView: View {
                 .buttonStyle(.borderless)
                 .help("Choose Model")
                 .popover(isPresented: $showCustomModelPicker, arrowEdge: .top) {
-                    if googleAuth.isAuthenticated && AppSettings.shared.assistModelRoutingStrategy == "default" {
+                    if settings.isMetaAssist {
+                        MetaAssistModelsUI()
+                            .frame(width: 480)
+                            .padding()
+                    } else if googleAuth.isAuthenticated && AppSettings.shared.assistModelRoutingStrategy == "default" {
                         AntigravityLimitsModelsUI(
                             selectedModelID: currentActiveModelID(),
                             onSelect: { selectedModelID in
@@ -1512,6 +1517,7 @@ private struct ServerErrorDialog: View {
 private struct AssistChatBubble: View {
     let message: AssistMessage
     @ObservedObject private var manager = AssistManager.shared
+    @ObservedObject private var settings = AppSettings.shared
 
     private var alignment: HorizontalAlignment {
         message.role == .user ? .trailing : .leading
@@ -1538,6 +1544,7 @@ private struct AssistChatBubble: View {
         let hasActivity = message.activityGroup?.hasContent == true
         let hasContent = !message.content.isEmpty
         let hasAttachments = message.attachments?.isEmpty == false
+        let isMetaMessage = message.providerID == MetaAssistProvider.providerID || (settings.isMetaAssist && message.role == .assistant)
 
         if message.role == .assistant && !hasContent && !hasActivity && !hasThinking && !hasAttachments {
             EmptyView()
@@ -1551,11 +1558,19 @@ private struct AssistChatBubble: View {
 
                 // 1. Inline collapsible thought inspector/disclosure, outside the main response bubble
                 if let thinking = message.thinkingContent, !thinking.isEmpty {
-                    AssistThoughtDisclosureView(
-                        thinkingContent: thinking,
-                        duration: message.thinkingDuration,
-                        isStreaming: isCurrentlyThinking
-                    )
+                    if isMetaMessage {
+                        MetaAssistThinkingUI(
+                            thinkingContent: thinking,
+                            duration: message.thinkingDuration,
+                            isStreaming: isCurrentlyThinking
+                        )
+                    } else {
+                        AssistThoughtDisclosureView(
+                            thinkingContent: thinking,
+                            duration: message.thinkingDuration,
+                            isStreaming: isCurrentlyThinking
+                        )
+                    }
                 }
 
                 // 2. Main response bubble
@@ -1564,7 +1579,11 @@ private struct AssistChatBubble: View {
                 VStack(alignment: .leading, spacing: 8) {
                     // 1. Native Live Activity Feed (Subtle, Compact, Streaming)
                     if let activity = message.activityGroup, activity.hasContent {
-                        AssistLiveActivityFeed(activityGroup: activity)
+                        if isMetaMessage {
+                            MetaAssistToolsUI(activityGroup: activity)
+                        } else {
+                            AssistLiveActivityFeed(activityGroup: activity)
+                        }
                     }
 
                     // 2. Streamed / Completed Assistant Markdown Message
@@ -1583,8 +1602,10 @@ private struct AssistChatBubble: View {
 
                     // 3. Expandable Activity Details (Files modified diffs, etc.)
                     if let activity = message.activityGroup, !activity.files.isEmpty {
-                        AssistActivityView(activityGroup: activity)
-                            .padding(.top, 2)
+                        if !isMetaMessage {
+                            AssistActivityView(activityGroup: activity)
+                                .padding(.top, 2)
+                        }
                     }
 
                     if let attachments = message.attachments, !attachments.isEmpty {

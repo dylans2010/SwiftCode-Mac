@@ -218,15 +218,16 @@ public final class MetaAssistProvider: Sendable {
         let bridge = MuseCodeMSPBridge.shared
         try await bridge.startHost(workspaceRoot: workspaceRoot)
 
-        // 1. Retrieve canonical System Assets instructions via SystemIndexService
-        let baselinePrompt = (try? AssistManager.shared.getSystemPrompt()) ?? SystemIndexService.shared.baselinePrompt()
+        // 1. Ensure SystemIndex is ready and retrieve canonical System Assets instructions
+        await SystemIndexService.shared.ensureReady()
+        let baselinePrompt = SystemIndexService.shared.baselinePrompt()
         let selectedModel = AppSettings.shared.metaAssistModelID.isEmpty ? Self.defaultModelID : AppSettings.shared.metaAssistModelID
         let instructionQuery = InstructionQueryContext(
             userText: prompt,
             taskCategory: SystemIndexService.classifyCategory(for: prompt),
             stage: .preparation,
             modelID: selectedModel,
-            maxTokens: 4000
+            maxTokens: 6000
         )
         let instructionRetrieval = await SystemIndexService.shared.retrieve(for: instructionQuery)
         let retrievedInstructions = instructionRetrieval.formattedForPrompt()
@@ -243,27 +244,43 @@ public final class MetaAssistProvider: Sendable {
             """
         } else {
             let systemTools = AssistManager.shared.registry.allTools
-            let toolList = systemTools.map { "- \($0.id): \($0.description)" }.joined(separator: "\n")
+            let toolSpecs = systemTools.map { tool in
+                var spec = "- \(tool.id): \(tool.description)"
+                if let data = try? JSONEncoder().encode(tool.parametersSchema),
+                   let schemaStr = String(data: data, encoding: .utf8), !schemaStr.isEmpty {
+                    spec += "\n  Parameters Schema: " + schemaStr
+                }
+                return spec
+            }.joined(separator: "\n\n")
+
+            let availableToolsDoc = SystemIndexService.shared.bundledText(forRelativePath: "AvailableTools.md") ?? ""
+            let callToolDoc = SystemIndexService.shared.bundledText(forRelativePath: "CallTool.md") ?? ""
+
             toolkitDirective = """
             # ACTIVE TOOL PROTOCOL: SYSTEM (SWIFTCODE)
             You MUST follow SwiftCode's native system tools and operational specifications.
-            Registered SwiftCode System Tools:
-            \(toolList)
+            You have access to the complete SwiftCode system toolkit registered below.
+
+            \(callToolDoc.isEmpty ? "" : callToolDoc + "\n\n")
+            \(availableToolsDoc.isEmpty ? "" : availableToolsDoc + "\n\n")
+
+            ## Registered SwiftCode System Tools:
+            \(toolSpecs)
             """
         }
 
         var fullPromptParts: [String] = []
-        if !prompt.contains("# SYSTEM PROMPT") {
-            fullPromptParts.append("""
-            # SYSTEM PROMPT (CANONICAL ASSIST INSTRUCTIONS & TRAINING ASSETS)
-            \(baselinePrompt)
+        fullPromptParts.append("""
+        # SYSTEM PROMPT (CANONICAL ASSIST INSTRUCTIONS & TRAINING ASSETS)
+        \(baselinePrompt)
 
-            # ASSIST IDENTITY & BEHAVIORAL SAFEGUARDS
-            You are Assist, the intelligent developer assistant built natively into SwiftCode.
-            You must follow SwiftCode's System Assets and safeguards strictly.
-            """)
-        }
-        if !prompt.contains("# RETRIEVED ASSIST INSTRUCTIONS") && !retrievedInstructions.isEmpty {
+        # ASSIST IDENTITY & BEHAVIORAL SAFEGUARDS
+        You are Assist, the intelligent developer assistant built natively into SwiftCode.
+        You must follow SwiftCode's System Assets and safeguards strictly at all times.
+        Your name is Assist. Always identify as Assist.
+        """)
+
+        if !retrievedInstructions.isEmpty {
             fullPromptParts.append(retrievedInstructions)
         }
         fullPromptParts.append(toolkitDirective)
@@ -439,11 +456,22 @@ public final class MetaAssistProvider: Sendable {
                         bridge.markInitialized()
                     }
 
-                    // 2. Start or reuse Session
-                    let sessionId: String
+                    // 2. Start or resume Session
+                    var sessionId: String = ""
                     if let existingSession = self.activeSessionID, self.activeWorkspaceRoot == workspaceRoot {
-                        sessionId = existingSession
-                    } else {
+                        // Attempt to resume session on host
+                        do {
+                            _ = try await bridge.sendCommand(method: "session/resume", params: [
+                                "sessionId": existingSession,
+                                "history": "inline"
+                            ])
+                            sessionId = existingSession
+                        } catch {
+                            self.activeSessionID = nil
+                        }
+                    }
+
+                    if sessionId.isEmpty {
                         let sessionCmdId = MuseUUIDv7.generate()
                         let sessionRes = try await bridge.sendCommand(method: "session/start", params: [
                             "commandId": sessionCmdId,
@@ -471,13 +499,59 @@ public final class MetaAssistProvider: Sendable {
                     let turnCmdId = MuseUUIDv7.generate()
                     self.activeTurnID = turnCmdId
                     let reasoningEffort = AppSettings.shared.metaReasoningEffort.isEmpty ? "high" : AppSettings.shared.metaReasoningEffort
-                    let turnRes = try await bridge.sendCommand(method: "turn/start", params: [
-                        "commandId": turnCmdId,
-                        "sessionId": sessionId,
-                        "reasoningEffort": reasoningEffort,
-                        "ifBusy": "queue",
-                        "input": [["type": "text", "text": effectivePrompt]]
-                    ])
+
+                    var currentSessionId = sessionId
+                    var turnRes: [String: Any]
+                    do {
+                        turnRes = try await bridge.sendCommand(method: "turn/start", params: [
+                            "commandId": turnCmdId,
+                            "sessionId": currentSessionId,
+                            "reasoningEffort": reasoningEffort,
+                            "ifBusy": "queue",
+                            "displayText": prompt,
+                            "input": [["type": "text", "text": effectivePrompt]]
+                        ])
+                    } catch {
+                        let errText = error.localizedDescription
+                        let isSessionNotLoaded = errText.contains("is not loaded on this host")
+                            || (error as? MspError)?.kind == "sessionNotLoaded"
+                            || (error as? MspError)?.message.contains("is not loaded on this host") == true
+
+                        if isSessionNotLoaded {
+                            let freshCmdId = MuseUUIDv7.generate()
+                            let freshRes = try await bridge.sendCommand(method: "session/start", params: [
+                                "commandId": freshCmdId,
+                                "workspaceRoot": workspaceRoot,
+                                "modelId": selectedModel
+                            ])
+                            let freshSessionId: String
+                            if let resultObj = freshRes["result"] as? [String: Any],
+                               let sessionObj = resultObj["session"] as? [String: Any],
+                               let id = sessionObj["sessionId"] as? String {
+                                freshSessionId = id
+                            } else if let sessionObj = freshRes["session"] as? [String: Any],
+                                      let id = sessionObj["sessionId"] as? String {
+                                freshSessionId = id
+                            } else if let id = freshRes["sessionId"] as? String {
+                                freshSessionId = id
+                            } else {
+                                freshSessionId = freshCmdId
+                            }
+                            self.setActiveSessionID(freshSessionId)
+                            self.activeWorkspaceRoot = workspaceRoot
+                            currentSessionId = freshSessionId
+                            turnRes = try await bridge.sendCommand(method: "turn/start", params: [
+                                "commandId": turnCmdId,
+                                "sessionId": currentSessionId,
+                                "reasoningEffort": reasoningEffort,
+                                "ifBusy": "queue",
+                                "displayText": prompt,
+                                "input": [["type": "text", "text": effectivePrompt]]
+                            ])
+                        } else {
+                            throw error
+                        }
+                    }
 
                     if let resultObj = turnRes["result"] as? [String: Any] ?? (turnRes as? [String: Any]),
                        let returnedTurnId = resultObj["turnId"] as? String {

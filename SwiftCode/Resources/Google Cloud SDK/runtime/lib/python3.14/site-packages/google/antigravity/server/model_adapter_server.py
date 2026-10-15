@@ -819,7 +819,7 @@ class ModelAdapterServer:
 
             if stream:
                 async with client.stream("POST", upstream_url, headers=forward_headers, content=out_body, timeout=120.0) as resp:
-                    if resp.status_code == 404 and target.provider == "antigravity":
+                    if resp.status_code in (401, 403, 404) and (target.provider == "antigravity" or "Bearer" in forward_headers.get("Authorization", "")):
                         use_openai_gateway = True
                     elif resp.status_code >= 400:
                         err_content = await resp.aread()
@@ -841,7 +841,7 @@ class ModelAdapterServer:
                         return
             else:
                 resp = await client.post(upstream_url, headers=forward_headers, content=out_body, timeout=120.0)
-                if resp.status_code == 404 and target.provider == "antigravity":
+                if resp.status_code in (401, 403, 404) and (target.provider == "antigravity" or "Bearer" in forward_headers.get("Authorization", "")):
                     use_openai_gateway = True
                 elif resp.status_code >= 400:
                     writer.write(

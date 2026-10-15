@@ -1063,7 +1063,9 @@ public final class AssistManager: ObservableObject {
 
         await MainActor.run {
             self.currentActivityStatus = "Contacting Assist with Meta..."
-            self.messages.append(AssistMessage(role: .assistant, content: ""))
+            var initialMsg = AssistMessage(role: .assistant, content: "")
+            initialMsg.providerID = MetaAssistProvider.providerID
+            self.messages.append(initialMsg)
             self.saveHistory()
             self.setRequestPhase(.sendingRequest)
         }
@@ -1287,7 +1289,8 @@ public final class AssistManager: ObservableObject {
         let assistGoogleAuthMode = UserDefaults.standard.string(forKey: "assist_google_auth_mode") ?? AppSettings.shared.assistGoogleAuthMode
         let isGoogleAuthActive = assistGoogleAuthMode == "google_oauth"
         let altKeysEnabled = await MainActor.run { AppSettings.shared.alternativeKeysEnabled }
-        if isGoogleAuthActive && GoogleAccountAuthService.shared.isAuthenticated && !GoogleAccountAuthService.shared.hasRequiredAssistScopes() && !altKeysEnabled {
+        let hasAntigravityCreds = GoogleAccountAuthService.shared.fetchAntigravityCredentialsFromKeychain() != nil
+        if isGoogleAuthActive && GoogleAccountAuthService.shared.isAuthenticated && !GoogleAccountAuthService.shared.hasRequiredAssistScopes() && !altKeysEnabled && !hasAntigravityCreds {
             await MainActor.run {
                 self.isProcessing = false
                 self.currentActivityStatus = "Re-authenticating to enable Assist…"
@@ -1783,7 +1786,9 @@ public final class AssistManager: ObservableObject {
                     }()
 
                     if case .scopeInsufficient(let storedScopes) = classification.kind {
-                        let needsScopeUpgrade = !(storedScopes?.contains("generative-language.retriever") ?? false)
+                        let hasCloudPlatform = storedScopes?.contains("cloud-platform") ?? false
+                        let hasAntigravity = GoogleAccountAuthService.shared.fetchAntigravityCredentialsFromKeychain() != nil
+                        let needsScopeUpgrade = !(storedScopes?.contains("generative-language.retriever") ?? false) && !hasCloudPlatform && !hasAntigravity
                         if needsScopeUpgrade && !didAttemptScopeReauth && GoogleAccountAuthService.shared.isAuthenticated {
                             // One-shot scope upgrade: the new sign-in requests
                             // the Developer API scope the old token lacks.

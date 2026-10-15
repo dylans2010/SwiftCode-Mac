@@ -507,12 +507,12 @@ public final class GoogleAccountAuthService: NSObject, ObservableObject {
     /// ACCESS_TOKEN_SCOPE_INSUFFICIENT no matter what other scopes are present.
     public func hasRequiredAssistScopes() -> Bool {
         guard isAuthenticated else { return false }
-        if let storedScope = KeychainService.shared.get(forKey: Self.scopeKey), !storedScope.isEmpty {
-            return storedScope.contains("generative-language.retriever")
-        }
         // If Antigravity credentials exist in Keychain, they possess the required scopes
         if fetchAntigravityCredentialsFromKeychain() != nil {
             return true
+        }
+        if let storedScope = KeychainService.shared.get(forKey: Self.scopeKey), !storedScope.isEmpty {
+            return storedScope.contains("generative-language.retriever") || storedScope.contains("cloud-platform")
         }
         // If authenticated without recorded scope, treat as valid to prevent false lockouts
         return true
