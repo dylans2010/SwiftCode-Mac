@@ -163,7 +163,11 @@ public final class MetaAssistProvider: Sendable {
                 do {
                     // 1. Initialize
                     _ = try await bridge.sendCommand(method: "initialize", params: [
-                        "clientInfo": ["name": "SwiftCode", "version": "1.0.0"]
+                        "clientInfo": [
+                            "name": "swiftcode",
+                            "title": "SwiftCode",
+                            "version": "1.0.0"
+                        ]
                     ])
 
                     // 2. Start Session with canonical SwiftCode tools
