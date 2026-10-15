@@ -29,7 +29,7 @@ Classify every failure before deciding what to do. The classes:
 4. **User rejected.** Symptoms: terminal approval denied, `plan-AskUser` dialogue dismissed or timed out. Stop immediately and respect the user's choice. Do not shell out through another vector or repeat the prompt.
 5. **Network / transient.** Symptoms: timeouts, socket disconnects, 503s. Bounded retry with exponential backoff (1s, 2s, 4s) is appropriate.
 6. **Rate limit / quota.** Symptoms: 429, quota exhausted. Rely on the fallback infrastructure (`AlternativeKeyManager` / `AssistModelRouter` / `AntigravityQuotaService`) to rotate keys or switch model tiers. Do not spam the failing endpoint.
-7. **Mode violation.** Symptoms: calling `plan-AskUser` in Autopilot mode. Do NOT retry — you are in the wrong mode; continue autonomous execution.
+7. **Mode violation.** Symptoms: calling user-question tools in Autopilot mode. Do NOT retry — you are in Autopilot mode; continue autonomous execution.
 8. **Authentication failure.** Symptoms: 401, expired or invalid tokens, "missing client secret". Never retry with the same credentials. Diagnose the credential kind and transport, and surface actionable remediation (see `Authentication.md`).
 9. **Context / index failure.** If instructions cannot be retrieved from the index, the request proceeds only with baseline safeguards or fails closed with a descriptive error — a retrieval failure must never silently bypass safeguards.
 

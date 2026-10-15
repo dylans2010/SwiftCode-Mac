@@ -1039,7 +1039,14 @@ public final class AssistManager: ObservableObject {
         metrics: AssistRequestMetrics? = nil,
         generation: AssistRequestGeneration
     ) async {
-        let workspaceRoot = ProjectSessionStore.shared.activeProject?.directoryURL.path ?? "/"
+        guard let projectURL = ProjectSessionStore.shared.activeProject?.directoryURL,
+              FileManager.default.fileExists(atPath: projectURL.path) else {
+            await MainActor.run {
+                failRequest("Execution failed: No active workspace project selected. Please open or select a project directory first.")
+            }
+            return
+        }
+        let workspaceRoot = projectURL.path
 
         // SystemIndex instruction retrieval for Assist with Meta (Muse Code SDK)
         await beginInstructionRetrievalPhaseIfNeeded()

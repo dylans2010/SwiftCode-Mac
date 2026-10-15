@@ -232,42 +232,33 @@ public final class MetaAssistProvider: Sendable {
         let instructionRetrieval = await SystemIndexService.shared.retrieve(for: instructionQuery)
         let retrievedInstructions = instructionRetrieval.formattedForPrompt()
 
-        // 2. Dynamic Assist Toolkit directives (Cloud vs System)
-        let toolkit = AppSettings.shared.assistToolkit
-        let isCloudToolkit = toolkit.caseInsensitiveCompare("cloud") == .orderedSame
+        // 2. SwiftCode Native Tool Infrastructure Directive:
+        // Always enforce SwiftCode's native system tool infrastructure for execution,
+        // argument validation, path safety, and error handling across all model providers.
+        let systemTools = AssistManager.shared.registry.allTools
+        let toolSpecs = systemTools.map { tool in
+            var spec = "- \(tool.id): \(tool.description)"
+            if let data = try? JSONEncoder().encode(tool.parametersSchema),
+               let schemaStr = String(data: data, encoding: .utf8), !schemaStr.isEmpty {
+                spec += "\n  Parameters Schema: " + schemaStr
+            }
+            return spec
+        }.joined(separator: "\n\n")
 
-        let toolkitDirective: String
-        if isCloudToolkit {
-            toolkitDirective = """
-            # ACTIVE TOOL PROTOCOL: CLOUD (MUSE SDK)
-            You are operating with the Cloud toolkit. Use the Muse Code SDK's workspace tools for reading, editing, and executing tasks.
-            """
-        } else {
-            let systemTools = AssistManager.shared.registry.allTools
-            let toolSpecs = systemTools.map { tool in
-                var spec = "- \(tool.id): \(tool.description)"
-                if let data = try? JSONEncoder().encode(tool.parametersSchema),
-                   let schemaStr = String(data: data, encoding: .utf8), !schemaStr.isEmpty {
-                    spec += "\n  Parameters Schema: " + schemaStr
-                }
-                return spec
-            }.joined(separator: "\n\n")
+        let availableToolsDoc = SystemIndexService.shared.bundledText(forRelativePath: "AvailableTools.md") ?? ""
+        let callToolDoc = SystemIndexService.shared.bundledText(forRelativePath: "CallTool.md") ?? ""
 
-            let availableToolsDoc = SystemIndexService.shared.bundledText(forRelativePath: "AvailableTools.md") ?? ""
-            let callToolDoc = SystemIndexService.shared.bundledText(forRelativePath: "CallTool.md") ?? ""
+        let toolkitDirective = """
+        # ACTIVE TOOL PROTOCOL: SWIFTCODE NATIVE TOOL SYSTEM
+        You MUST use SwiftCode's native system tools for all tool selection, execution, filesystem operations, and shell commands.
+        Do NOT rely on Muse SDK built-in tools for execution. All operations are controlled and executed by SwiftCode.
 
-            toolkitDirective = """
-            # ACTIVE TOOL PROTOCOL: SYSTEM (SWIFTCODE)
-            You MUST follow SwiftCode's native system tools and operational specifications.
-            You have access to the complete SwiftCode system toolkit registered below.
+        \(callToolDoc.isEmpty ? "" : callToolDoc + "\n\n")
+        \(availableToolsDoc.isEmpty ? "" : availableToolsDoc + "\n\n")
 
-            \(callToolDoc.isEmpty ? "" : callToolDoc + "\n\n")
-            \(availableToolsDoc.isEmpty ? "" : availableToolsDoc + "\n\n")
-
-            ## Registered SwiftCode System Tools:
-            \(toolSpecs)
-            """
-        }
+        ## Registered SwiftCode System Tools:
+        \(toolSpecs)
+        """
 
         var fullPromptParts: [String] = []
         fullPromptParts.append("""

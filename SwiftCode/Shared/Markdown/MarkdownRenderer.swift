@@ -79,12 +79,17 @@ public struct MarkdownParser {
     }
 
     /// Balances unclosed fenced code blocks so partially streamed responses
-    /// still parse into blocks instead of degrading the tail into a paragraph.
+    /// still parse into blocks instead of degrading the tail into a paragraph,
+    /// and strips unsafe active script/iframe HTML tags.
     /// Idempotent for complete documents.
     private func sanitizedForStreaming(_ markdown: String) -> String {
-        let fenceCount = markdown.components(separatedBy: "```").count - 1
-        guard fenceCount % 2 == 1 else { return markdown }
-        return markdown + "\n```"
+        var cleaned = markdown
+            .replacingOccurrences(of: "<script[^>]*>[\\s\\S]*?</script>", with: "", options: [.regularExpression, .caseInsensitive])
+            .replacingOccurrences(of: "<iframe[^>]*>[\\s\\S]*?</iframe>", with: "", options: [.regularExpression, .caseInsensitive])
+
+        let fenceCount = cleaned.components(separatedBy: "```").count - 1
+        guard fenceCount % 2 == 1 else { return cleaned }
+        return cleaned + "\n```"
     }
 
     public func render(_ markdown: String) -> AttributedString {
