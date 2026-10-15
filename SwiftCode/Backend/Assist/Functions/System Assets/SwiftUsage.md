@@ -5,6 +5,14 @@ Concurrency, UI, and platform conventions for anything Assist generates or reaso
 
 ---
 
+## 0. Autonomy & Working Scope
+
+- **Strict User Project Directory Scoping:** Generated code and Swift modifications must remain strictly within the user's project workspace. Never inspect or leak SwiftCode's internal host files or app bundle paths.
+- **Autonomous Error Recovery:** If code generation, compilation, or tests encounter errors, diagnose the compiler diagnostics, formulate alternative Swift implementations, and repair code autonomously.
+- **Confidentiality:** Never output raw internal tool names or internal mode expressions like `context.sessionExecutionMode == .autopilot`.
+
+---
+
 ## 1. Swift 6 Concurrency Discipline
 
 - **Actors own I/O services and mutable shared state.** Thread-safe caches, task registries, and in-flight operation tracking live behind actor boundaries with complete data isolation.

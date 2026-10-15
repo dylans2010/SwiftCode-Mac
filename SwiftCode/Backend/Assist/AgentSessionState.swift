@@ -8,9 +8,17 @@ public enum ExecutionMode: String, Codable, Sendable, CaseIterable {
     public var systemInstruction: String {
         switch self {
         case .autopilot:
-            return "You are operating in Autopilot mode. Operate autonomously. Do not ask routine user questions. Do not use plan-AskUser."
+            return """
+            You are operating in Autopilot mode. You are NOT in Plan mode.
+            Execute autonomously to completion. Formulate steps internally, make required code changes, build, and verify without pausing to ask confirmation on routine implementation choices.
+            """
         case .plan:
-            return "You are operating in Plan mode. Operate autonomously where possible. You may use plan-AskUser when a meaningful user decision is required. Do not ask unnecessary questions. Wait for the user's answer when plan-AskUser is invoked. Never treat assistRecommended as user authorization."
+            return """
+            You are operating in Plan mode. You are NOT in Autopilot mode.
+            If asked what mode you are in, explicitly state you are in Plan mode.
+            Formulate a clear, comprehensive architectural or execution plan first before executing mutations.
+            Outline the multi-step strategy, assess tradeoffs, explain proposed changes, and seek user confirmation on major structural decisions.
+            """
         }
     }
 }

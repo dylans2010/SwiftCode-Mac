@@ -85,6 +85,21 @@ public struct AssistWriteFileTool: AssistTool {
             let duration = Date().timeIntervalSince(startTime)
             let statusText = isNewFile ? "Created new file" : "Updated existing file"
 
+            let origCount = originalContent.components(separatedBy: .newlines).count
+            let newCount = content.components(separatedBy: .newlines).count
+            let addedLines = max(0, newCount - (isNewFile ? 0 : origCount))
+            let deletedLines = isNewFile ? 0 : max(0, origCount - newCount)
+
+            await MainActor.run {
+                ProjectSessionStore.shared.recordAssistFileMutation(
+                    path: path,
+                    beforeContent: originalContent,
+                    afterContent: content,
+                    addedLines: isNewFile ? newCount : (addedLines > 0 ? addedLines : (originalContent != content ? 1 : 0)),
+                    deletedLines: isNewFile ? 0 : (deletedLines > 0 ? deletedLines : (originalContent != content ? 1 : 0))
+                )
+            }
+
             return AssistToolResult(
                 success: true,
                 output: "\(statusText): \(path) (\(content.components(separatedBy: .newlines).count) lines)",

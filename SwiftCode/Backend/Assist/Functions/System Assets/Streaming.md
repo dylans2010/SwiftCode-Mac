@@ -5,6 +5,15 @@ The streaming UX contract: what the user sees while a turn is in flight, how too
 
 ---
 
+## 0. Confidentiality & Autonomous Streaming
+
+- **No Raw Tool Envelopes in Stream:** Never stream raw tool identifiers or JSON envelopes into conversational text. Describe actions with dynamic, human-readable titles.
+- **Strict User Project Directory Scoping:** Streamed paths and details must only relate to the user's project workspace. Never stream SwiftCode app bundle or host development paths.
+- **No Internal Expressions:** Never stream internal code expressions like `context.sessionExecutionMode == .autopilot`.
+- **Autonomous Recovery:** If a streamed tool execution encounters a failure, report the failure cleanly through activity items, adjust strategy, and continue autonomously.
+
+---
+
 ## 1. Incremental, Honest Emission
 
 - **Emit partial output incrementally** as it is produced. Fast first event: begin productive analysis or tool execution immediately upon receiving the request over `GoogleCloudSDKTransport`.

@@ -103,6 +103,36 @@ struct DiffViewerView: View {
     }
 
     private func computeDiff() {
+        if let activeDiff = sessionStore.activeFileDiff {
+            originalContent = activeDiff.beforeContent
+            modifiedContent = activeDiff.afterContent
+
+            let origLines = originalContent.components(separatedBy: "\n")
+            let modLines = modifiedContent.components(separatedBy: "\n")
+
+            var result: [DiffLine] = []
+            let maxLines = max(origLines.count, modLines.count)
+
+            for i in 0..<maxLines {
+                let origLine = i < origLines.count ? origLines[i] : nil
+                let modLine = i < modLines.count ? modLines[i] : nil
+
+                if origLine == modLine {
+                    result.append(DiffLine(lineNumber: i + 1, text: origLine ?? "", type: .unchanged))
+                } else {
+                    if let orig = origLine {
+                        result.append(DiffLine(lineNumber: i + 1, text: orig, type: .removed))
+                    }
+                    if let mod = modLine {
+                        result.append(DiffLine(lineNumber: i + 1, text: mod, type: .added))
+                    }
+                }
+            }
+
+            diffLines = result
+            return
+        }
+
         guard let project = sessionStore.activeProject,
               let node = sessionStore.activeFileNode else { return }
 

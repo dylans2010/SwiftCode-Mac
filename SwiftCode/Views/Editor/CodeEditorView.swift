@@ -18,6 +18,7 @@ struct CodeEditorView: View {
     @State private var showSuggestionsView = false
     @State private var showGistComposer = false
     @State private var showAssist = false
+    @State private var showDiffViewerSheet = false
     @AppStorage("minimapEnabled") private var minimapEnabled = true
 
     var body: some View {
@@ -29,6 +30,10 @@ struct CodeEditorView: View {
 
             if sessionStore.activeFileNode != nil {
                 editorActionBar
+            }
+
+            if sessionStore.showDiffBanner, let diff = sessionStore.activeFileDiff {
+                assistDiffBanner(diff)
             }
 
             Button("") {
@@ -108,6 +113,9 @@ struct CodeEditorView: View {
         .sheet(isPresented: $showAssist) {
             Text("Assist Coming Soon")
         }
+        .sheet(isPresented: $showDiffViewerSheet) {
+            DiffViewerView()
+        }
         .onChange(of: sessionStore.fileLoadError) {
             if sessionStore.fileLoadError != nil {
                 showFileLoadError = true
@@ -119,6 +127,74 @@ struct CodeEditorView: View {
                 showSuggestionToast = true
             }
         }
+    }
+
+    // MARK: - Assist Diff Banner
+
+    @ViewBuilder
+    private func assistDiffBanner(_ diff: ProjectSessionStore.AssistFileDiff) -> some View {
+        HStack(spacing: 8) {
+            Image(systemName: "sparkles")
+                .font(.system(size: 11, weight: .bold))
+                .foregroundStyle(.purple)
+
+            Text("Assist modified this file:")
+                .font(.system(size: 11, weight: .semibold))
+                .foregroundStyle(.white)
+
+            HStack(spacing: 4) {
+                if diff.addedLines > 0 {
+                    Text("+\(diff.addedLines)")
+                        .font(.system(size: 11, weight: .bold, design: .monospaced))
+                        .foregroundStyle(.green)
+                }
+                if diff.deletedLines > 0 {
+                    Text("-\(diff.deletedLines)")
+                        .font(.system(size: 11, weight: .bold, design: .monospaced))
+                        .foregroundStyle(.red)
+                }
+            }
+            .padding(.horizontal, 6)
+            .padding(.vertical, 2)
+            .background(Color.white.opacity(0.08), in: Capsule())
+
+            Spacer()
+
+            Button {
+                showDiffViewerSheet = true
+            } label: {
+                HStack(spacing: 4) {
+                    Image(systemName: "arrow.left.arrow.right")
+                        .font(.system(size: 10, weight: .semibold))
+                    Text("View Diffs")
+                        .font(.system(size: 10, weight: .semibold))
+                }
+                .foregroundStyle(.white)
+                .padding(.horizontal, 8)
+                .padding(.vertical, 3)
+                .background(Color.purple.opacity(0.8), in: RoundedRectangle(cornerRadius: 4))
+            }
+            .buttonStyle(.plain)
+
+            Button {
+                sessionStore.dismissDiffBanner()
+            } label: {
+                Image(systemName: "xmark")
+                    .font(.system(size: 9, weight: .bold))
+                    .foregroundStyle(.secondary)
+                    .padding(4)
+            }
+            .buttonStyle(.plain)
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 6)
+        .background(Color.purple.opacity(0.12))
+        .overlay(
+            Rectangle()
+                .frame(height: 1)
+                .foregroundStyle(Color.purple.opacity(0.3)),
+            alignment: .bottom
+        )
     }
 
     // MARK: - File Tabs Bar

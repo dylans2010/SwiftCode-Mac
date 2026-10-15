@@ -70,6 +70,17 @@ public struct AssistCreateFileTool: AssistTool {
                 modified: content
             )
 
+            let newCount = content.components(separatedBy: .newlines).count
+            await MainActor.run {
+                ProjectSessionStore.shared.recordAssistFileMutation(
+                    path: path,
+                    beforeContent: "",
+                    afterContent: content,
+                    addedLines: newCount,
+                    deletedLines: 0
+                )
+            }
+
             return AssistToolResult(
                 success: true,
                 output: "Created file at \(path) (\(content.components(separatedBy: .newlines).count) lines)",

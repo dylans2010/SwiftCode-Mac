@@ -22,9 +22,20 @@ public final class AssistContextBuilder {
         self.git = git
     }
 
+    public static func resolvedWorkspaceRoot() -> URL {
+        if let projectURL = ProjectSessionStore.shared.activeProject?.directoryURL {
+            return projectURL
+        }
+        let documents = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first
+            ?? URL(fileURLWithPath: NSHomeDirectory())
+        let fallback = documents.appendingPathComponent("SwiftCodeProjects/DefaultProject", isDirectory: true)
+        try? FileManager.default.createDirectory(at: fallback, withIntermediateDirectories: true)
+        return fallback
+    }
+
     public func buildContext(sessionId: UUID) -> AssistContext {
         let project = ProjectSessionStore.shared.activeProject
-        let workspaceRoot = project?.directoryURL ?? URL(fileURLWithPath: "/")
+        let workspaceRoot = project?.directoryURL ?? AssistContextBuilder.resolvedWorkspaceRoot()
 
         let executionModeRaw = UserDefaults.standard.string(forKey: "com.swiftcode.assist.executionMode") ?? ExecutionMode.autopilot.rawValue
         let executionMode = ExecutionMode(rawValue: executionModeRaw) ?? .autopilot

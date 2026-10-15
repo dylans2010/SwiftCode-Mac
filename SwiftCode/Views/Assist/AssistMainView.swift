@@ -1580,7 +1580,7 @@ private struct AssistChatBubble: View {
                     // 1. Native Live Activity Feed (Subtle, Compact, Streaming)
                     if let activity = message.activityGroup, activity.hasContent {
                         if isMetaMessage {
-                            MetaAssistToolsUI(activityGroup: activity)
+                            MuseCallsNativeToolsUI(activityGroup: activity)
                         } else {
                             AssistLiveActivityFeed(activityGroup: activity)
                         }

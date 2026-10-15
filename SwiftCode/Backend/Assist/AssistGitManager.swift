@@ -9,7 +9,7 @@ public final class AssistGitManager: Sendable, AssistGitManagerProtocol {
         } else if let proj = project {
             self.workspaceURL = MainActor.assumeIsolated { proj.directoryURL }
         } else {
-            self.workspaceURL = URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
+            self.workspaceURL = MainActor.assumeIsolated { AssistContextBuilder.resolvedWorkspaceRoot() }
         }
     }
 

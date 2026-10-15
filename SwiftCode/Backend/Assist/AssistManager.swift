@@ -300,12 +300,13 @@ public final class AssistManager: ObservableObject {
     }
 
     private func buildContext() -> AssistContext {
+        let activeRoot = ProjectSessionStore.shared.activeProject?.directoryURL ?? AssistContextBuilder.resolvedWorkspaceRoot()
         let builder = AssistContextBuilder(
             logger: logger,
             permissions: permissions,
             memory: memory,
-            fileSystem: AssistFileSystem(workspaceRoot: ProjectSessionStore.shared.activeProject?.directoryURL ?? URL(fileURLWithPath: "/")),
-            git: AssistGitManager(project: ProjectSessionStore.shared.activeProject)
+            fileSystem: AssistFileSystem(workspaceRoot: activeRoot),
+            git: AssistGitManager(project: ProjectSessionStore.shared.activeProject, workspaceRoot: activeRoot)
         )
         return builder.buildContext(sessionId: session.id)
     }
@@ -1485,7 +1486,14 @@ public final class AssistManager: ObservableObject {
                 }
             }
 
-            let instructionPrefix = retrievedInstructionsBlock.isEmpty ? "" : retrievedInstructionsBlock + "\n\n"
+            let executionModeRaw = UserDefaults.standard.string(forKey: "com.swiftcode.assist.executionMode") ?? ExecutionMode.autopilot.rawValue
+            let activeMode = ExecutionMode(rawValue: executionModeRaw) ?? .autopilot
+            let modeDirective = """
+            # ACTIVE OPERATING MODE: \(activeMode.rawValue.uppercased())
+            \(activeMode.systemInstruction)
+            """
+
+            let instructionPrefix = (retrievedInstructionsBlock.isEmpty ? "" : retrievedInstructionsBlock + "\n\n") + modeDirective + "\n\n"
             var currentPrompt = instructionPrefix + (explicitContextPrefix.isEmpty ? content : "\(explicitContextPrefix)\n\n# USER REQUEST\n\(content)")
             var currentAttachments = sdkAttachments
             var currentSession: GoogleCloudSDKSession = session

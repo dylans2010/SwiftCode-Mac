@@ -46,6 +46,8 @@ public struct GoogleCloudSDKConfiguration: Codable, @unchecked Sendable {
     public var litertBackend: String?
     public var downloadIfMissing: Bool
     public var enableSpeculativeDecoding: Bool
+    /// Active Assist execution mode (e.g. "Plan" vs "Autopilot")
+    public var activeExecutionMode: String?
 
     public init(
         model: String = "gemini-3.8-flash",
@@ -74,7 +76,8 @@ public struct GoogleCloudSDKConfiguration: Codable, @unchecked Sendable {
         litertModelPath: String? = nil,
         litertBackend: String? = nil,
         downloadIfMissing: Bool = false,
-        enableSpeculativeDecoding: Bool = false
+        enableSpeculativeDecoding: Bool = false,
+        activeExecutionMode: String? = nil
     ) {
         self.model = model
         self.apiKey = apiKey
@@ -103,11 +106,12 @@ public struct GoogleCloudSDKConfiguration: Codable, @unchecked Sendable {
         self.litertBackend = litertBackend
         self.downloadIfMissing = downloadIfMissing
         self.enableSpeculativeDecoding = enableSpeculativeDecoding
+        self.activeExecutionMode = activeExecutionMode
     }
 
     public enum CodingKeys: String, CodingKey {
         case model, apiKey, oauthToken, executionMode, userProject, vertex, project, location, systemInstructions, skillsPaths, workspaces, appDataDir, saveDir, enableSubagents, maxSubagentDepth, allowedSubagents, serviceTier, provider, baseURL, thinkingLevel, useSavedModels, toolkit
-        case litertModelPath, litertBackend, downloadIfMissing, enableSpeculativeDecoding
+        case litertModelPath, litertBackend, downloadIfMissing, enableSpeculativeDecoding, activeExecutionMode
     }
 
     public init(from decoder: Decoder) throws {
@@ -121,6 +125,7 @@ public struct GoogleCloudSDKConfiguration: Codable, @unchecked Sendable {
         self.project = try container.decodeIfPresent(String.self, forKey: .project)
         self.location = try container.decodeIfPresent(String.self, forKey: .location)
         self.systemInstructions = try container.decodeIfPresent(String.self, forKey: .systemInstructions)
+        self.activeExecutionMode = try container.decodeIfPresent(String.self, forKey: .activeExecutionMode)
         self.skillsPaths = try container.decode([String].self, forKey: .skillsPaths)
         self.workspaces = try container.decode([String].self, forKey: .workspaces)
         self.appDataDir = try container.decodeIfPresent(String.self, forKey: .appDataDir)
@@ -341,7 +346,8 @@ public struct GoogleCloudSDKConfiguration: Codable, @unchecked Sendable {
             litertModelPath: (provider == "litert" || selectedModel.lowercased().contains(".litertlm")) ? selectedModel : nil,
             litertBackend: (provider == "litert" || selectedModel.lowercased().contains(".litertlm")) ? "gpu" : nil,
             downloadIfMissing: false,
-            enableSpeculativeDecoding: false
+            enableSpeculativeDecoding: false,
+            activeExecutionMode: UserDefaults.standard.string(forKey: "com.swiftcode.assist.executionMode") ?? ExecutionMode.autopilot.rawValue
         )
     }
 
@@ -360,6 +366,10 @@ public struct GoogleCloudSDKConfiguration: Codable, @unchecked Sendable {
             "downloadIfMissing": downloadIfMissing,
             "enableSpeculativeDecoding": enableSpeculativeDecoding
         ]
+
+        if let activeExecutionMode = activeExecutionMode {
+            dict["activeExecutionMode"] = activeExecutionMode
+        }
 
         let trimmedApiKey = apiKey?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
         let isAntigravityMode = (executionMode == "antigravity" || provider == "antigravity") && trimmedApiKey.isEmpty
@@ -440,6 +450,7 @@ public struct GoogleCloudSDKConfiguration: Codable, @unchecked Sendable {
         return model == newConfig.model &&
             provider == newConfig.provider &&
             executionMode == newConfig.executionMode &&
+            activeExecutionMode == newConfig.activeExecutionMode &&
             baseURL == newConfig.baseURL &&
             thinkingLevel == newConfig.thinkingLevel &&
             apiKey == newConfig.apiKey &&

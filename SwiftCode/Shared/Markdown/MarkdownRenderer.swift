@@ -439,7 +439,7 @@ public struct MarkdownBlockView: View {
             VStack(alignment: .leading, spacing: 0) {
                 Grid(alignment: .leading, horizontalSpacing: 12, verticalSpacing: 8) {
                     GridRow {
-                        ForEach(headers, id: \.self) { header in
+                        ForEach(Array(headers.enumerated()), id: \.offset) { _, header in
                             inlineText(header)
                                 .fontWeight(.bold)
                                 .padding(8)
@@ -447,9 +447,9 @@ public struct MarkdownBlockView: View {
                         }
                     }
                     Divider()
-                    ForEach(rows, id: \.self) { row in
+                    ForEach(Array(rows.enumerated()), id: \.offset) { _, row in
                         GridRow {
-                            ForEach(row, id: \.self) { cell in
+                            ForEach(Array(row.enumerated()), id: \.offset) { _, cell in
                                 inlineText(cell)
                                     .padding(8)
                             }

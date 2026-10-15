@@ -106,6 +106,8 @@ public struct MetaAssistToolItemView: View {
     @State private var isOpen: Bool = false
     @State private var copiedInput: Bool = false
     @State private var copiedOutput: Bool = false
+    @State private var isInputExpanded: Bool = false
+    @State private var isOutputExpanded: Bool = false
 
     public init(tool: ToolActivityItem, fileDiffs: [FileActivityItem] = []) {
         self.tool = tool
@@ -270,16 +272,35 @@ public struct MetaAssistToolItemView: View {
                                     .font(.system(size: 9, weight: .bold, design: .monospaced))
                                     .foregroundStyle(.tertiary)
                                 Spacer()
+                                Button {
+                                    withAnimation(.easeInOut(duration: 0.15)) {
+                                        isInputExpanded.toggle()
+                                    }
+                                } label: {
+                                    HStack(spacing: 3) {
+                                        Image(systemName: isInputExpanded ? "arrow.down.right.and.arrow.up.left" : "arrow.up.left.and.arrow.down.right")
+                                            .font(.system(size: 8))
+                                        Text(isInputExpanded ? "Collapse" : "Expand")
+                                            .font(.system(size: 9, weight: .medium))
+                                    }
+                                    .foregroundStyle(.secondary)
+                                    .padding(.horizontal, 6)
+                                    .padding(.vertical, 2)
+                                    .background(Color.secondary.opacity(0.08), in: RoundedRectangle(cornerRadius: 4))
+                                }
+                                .buttonStyle(.plain)
+
                                 copyButton(text: formattedArgs, isCopied: $copiedInput)
                             }
-                            ScrollView(.horizontal, showsIndicators: false) {
+                            ScrollView([.horizontal, .vertical], showsIndicators: true) {
                                 Text(formattedArgs)
                                     .font(.system(size: 11, design: .monospaced))
                                     .foregroundStyle(Color.primary.opacity(0.9))
                                     .textSelection(.enabled)
+                                    .frame(maxWidth: .infinity, alignment: .leading)
                                     .padding(8)
                             }
-                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .frame(maxHeight: isInputExpanded ? .infinity : 200)
                             .background(Color.black.opacity(0.2), in: RoundedRectangle(cornerRadius: 6))
                             .overlay(
                                 RoundedRectangle(cornerRadius: 6)
@@ -296,9 +317,27 @@ public struct MetaAssistToolItemView: View {
                                     .font(.system(size: 9, weight: .bold, design: .monospaced))
                                     .foregroundStyle(.tertiary)
                                 Spacer()
+                                Button {
+                                    withAnimation(.easeInOut(duration: 0.15)) {
+                                        isOutputExpanded.toggle()
+                                    }
+                                } label: {
+                                    HStack(spacing: 3) {
+                                        Image(systemName: isOutputExpanded ? "arrow.down.right.and.arrow.up.left" : "arrow.up.left.and.arrow.down.right")
+                                            .font(.system(size: 8))
+                                        Text(isOutputExpanded ? "Collapse" : "Expand All")
+                                            .font(.system(size: 9, weight: .medium))
+                                    }
+                                    .foregroundStyle(.secondary)
+                                    .padding(.horizontal, 6)
+                                    .padding(.vertical, 2)
+                                    .background(Color.secondary.opacity(0.08), in: RoundedRectangle(cornerRadius: 4))
+                                }
+                                .buttonStyle(.plain)
+
                                 copyButton(text: tool.result, isCopied: $copiedOutput)
                             }
-                            ScrollView(.vertical) {
+                            ScrollView([.horizontal, .vertical], showsIndicators: true) {
                                 Text(tool.result)
                                     .font(.system(size: 11, design: .monospaced))
                                     .foregroundStyle(Color.secondary)
@@ -306,7 +345,7 @@ public struct MetaAssistToolItemView: View {
                                     .frame(maxWidth: .infinity, alignment: .leading)
                                     .padding(8)
                             }
-                            .frame(maxHeight: 180)
+                            .frame(maxHeight: isOutputExpanded ? .infinity : 320)
                             .background(Color.black.opacity(0.25), in: RoundedRectangle(cornerRadius: 6))
                             .overlay(
                                 RoundedRectangle(cornerRadius: 6)
@@ -417,16 +456,32 @@ public struct MetaAssistToolItemView: View {
     }
 
     private func formattedArguments(from raw: String) -> String? {
-        guard !raw.isEmpty, raw.trimmingCharacters(in: .whitespacesAndNewlines).hasPrefix("{") else {
-            return nil
+        let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return nil }
+
+        if trimmed.hasPrefix("{") {
+            if let data = trimmed.data(using: .utf8),
+               let json = try? JSONSerialization.jsonObject(with: data),
+               let pretty = try? JSONSerialization.data(withJSONObject: json, options: [.prettyPrinted]),
+               let str = String(data: pretty, encoding: .utf8) {
+                return str
+            }
+            return trimmed
         }
-        guard let data = raw.data(using: .utf8),
-              let json = try? JSONSerialization.jsonObject(with: data),
-              let pretty = try? JSONSerialization.data(withJSONObject: json, options: [.prettyPrinted]),
-              let str = String(data: pretty, encoding: .utf8) else {
-            return raw
+
+        if trimmed.contains("|") {
+            let parts = trimmed.components(separatedBy: "|")
+            if parts.count > 1 {
+                let lines = parts.dropFirst().compactMap { part -> String? in
+                    let sub = part.trimmingCharacters(in: .whitespacesAndNewlines)
+                    return sub.isEmpty ? nil : sub
+                }
+                if !lines.isEmpty {
+                    return lines.joined(separator: "\n")
+                }
+            }
         }
-        return str
+        return trimmed
     }
 }
 
@@ -553,6 +608,7 @@ public struct MetaAssistThinkingUI: View {
 
     @State private var isOpen: Bool = false
     @State private var isCopied: Bool = false
+    @State private var isExpanded: Bool = false
 
     public init(
         thinkingContent: String,
@@ -605,7 +661,21 @@ public struct MetaAssistThinkingUI: View {
 
                     Spacer()
 
-                    if isOpen {
+                        Button {
+                            withAnimation(.easeInOut(duration: 0.15)) {
+                                isExpanded.toggle()
+                            }
+                        } label: {
+                            HStack(spacing: 3) {
+                                Image(systemName: isExpanded ? "arrow.down.right.and.arrow.up.left" : "arrow.up.left.and.arrow.down.right")
+                                    .font(.system(size: 8))
+                                Text(isExpanded ? "Collapse" : "Expand")
+                                    .font(.system(size: 8, weight: .medium))
+                            }
+                            .foregroundStyle(.secondary)
+                        }
+                        .buttonStyle(.plain)
+
                         Button {
                             NSPasteboard.general.clearContents()
                             NSPasteboard.general.setString(thinkingContent, forType: .string)
@@ -623,7 +693,6 @@ public struct MetaAssistThinkingUI: View {
                             .foregroundStyle(isCopied ? Color.green : Color.secondary)
                         }
                         .buttonStyle(.plain)
-                    }
                 }
                 .padding(.horizontal, 8)
                 .padding(.vertical, 4)
@@ -644,7 +713,7 @@ public struct MetaAssistThinkingUI: View {
                         .frame(width: 2.5)
                         .cornerRadius(1.25)
 
-                    ScrollView(.vertical) {
+                    ScrollView([.horizontal, .vertical], showsIndicators: true) {
                         Text(thinkingContent)
                             .font(.system(size: 11, design: .monospaced))
                             .foregroundStyle(.secondary)
@@ -653,7 +722,7 @@ public struct MetaAssistThinkingUI: View {
                             .frame(maxWidth: .infinity, alignment: .leading)
                             .padding(.vertical, 4)
                     }
-                    .frame(maxHeight: 220)
+                    .frame(maxHeight: isExpanded ? .infinity : 280)
                 }
                 .padding(.leading, 6)
                 .padding(.top, 2)

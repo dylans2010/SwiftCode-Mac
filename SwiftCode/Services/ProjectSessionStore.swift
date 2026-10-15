@@ -161,6 +161,39 @@ final class ProjectSessionStore {
         set { activeSession?.fileLoadError = newValue }
     }
 
+    // MARK: - Assist File Mutation & Diff Presentation
+
+    public struct AssistFileDiff: Identifiable, Sendable {
+        public let id: UUID
+        public let filePath: String
+        public let beforeContent: String
+        public let afterContent: String
+        public let addedLines: Int
+        public let deletedLines: Int
+        public let timestamp: Date
+
+        public init(
+            id: UUID = UUID(),
+            filePath: String,
+            beforeContent: String,
+            afterContent: String,
+            addedLines: Int,
+            deletedLines: Int,
+            timestamp: Date = Date()
+        ) {
+            self.id = id
+            self.filePath = filePath
+            self.beforeContent = beforeContent
+            self.afterContent = afterContent
+            self.addedLines = addedLines
+            self.deletedLines = deletedLines
+            self.timestamp = timestamp
+        }
+    }
+
+    public var activeFileDiff: AssistFileDiff? = nil
+    public var showDiffBanner: Bool = false
+
     // MARK: - Initializer
 
     init() {
@@ -661,6 +694,51 @@ final class ProjectSessionStore {
                 self.fileLoadError = "Failed to load: \(error.localizedDescription)"
             }
         }
+    }
+
+    public func openFile(atPath relativeOrAbsolutePath: String) {
+        guard let project = activeProject else { return }
+
+        let projectPath = project.directoryURL.standardizedFileURL.path
+        var relativePath = relativeOrAbsolutePath
+        if relativePath.hasPrefix(projectPath) {
+            relativePath = String(relativePath.dropFirst(projectPath.count))
+        }
+        while relativePath.hasPrefix("/") {
+            relativePath = String(relativePath.dropFirst())
+        }
+
+        let fileURL = project.directoryURL.appendingPathComponent(relativePath).standardizedFileURL
+        guard FileManager.default.fileExists(atPath: fileURL.path) else { return }
+
+        let fileName = fileURL.lastPathComponent
+        let node = FileNode(name: fileName, path: relativePath, isDirectory: false)
+        openFile(node)
+        refreshFileTree(for: project)
+    }
+
+    public func recordAssistFileMutation(
+        path: String,
+        beforeContent: String,
+        afterContent: String,
+        addedLines: Int,
+        deletedLines: Int
+    ) {
+        let diff = AssistFileDiff(
+            filePath: path,
+            beforeContent: beforeContent,
+            afterContent: afterContent,
+            addedLines: addedLines,
+            deletedLines: deletedLines
+        )
+        self.activeFileDiff = diff
+        self.showDiffBanner = (addedLines > 0 || deletedLines > 0)
+        self.openFile(atPath: path)
+    }
+
+    public func dismissDiffBanner() {
+        self.showDiffBanner = false
+        self.activeFileDiff = nil
     }
 
     private func readFileContent(at url: URL) async throws -> String {

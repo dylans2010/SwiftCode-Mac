@@ -320,6 +320,7 @@ public final class AssistEventNormalizer {
                 if !activityGroup.files.contains(where: { $0.filePath == path }) {
                     activityGroup.files.append(FileActivityItem(filePath: path, operation: op))
                 }
+                ProjectSessionStore.shared.openFile(atPath: path)
             }
         }
 

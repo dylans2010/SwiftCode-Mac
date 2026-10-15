@@ -69,6 +69,19 @@ public struct AssistInsertCodeBlockTool: AssistTool {
             try context.fileSystem.writeFile(at: path, content: updated)
             LiveDiffStreamer.shared.completeEdit(filePath: path, finalContent: updated)
 
+            let origCount = content.components(separatedBy: .newlines).count
+            let newCount = updated.components(separatedBy: .newlines).count
+            let addedLines = max(0, newCount - origCount)
+            await MainActor.run {
+                ProjectSessionStore.shared.recordAssistFileMutation(
+                    path: path,
+                    beforeContent: content,
+                    afterContent: updated,
+                    addedLines: addedLines > 0 ? addedLines : 1,
+                    deletedLines: 0
+                )
+            }
+
             return .success("Code block inserted into \(path)")
         } catch {
             LiveDiffStreamer.shared.cancelStream(filePath: path)

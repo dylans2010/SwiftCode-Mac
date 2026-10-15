@@ -1193,6 +1193,7 @@
 		AF1234567890ABCDEF000021 /* NativeTextView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AF1234567890ABCDEF000011 /* NativeTextView.swift */; };
 		AGLMUBLD00000000000001 /* AntigravityLimitsModelsUI.swift in Sources */ = {isa = PBXBuildFile; fileRef = AGLMUREF00000000000001 /* AntigravityLimitsModelsUI.swift */; };
 		8D9E00050001000100000002 /* MetaAssistToolsUI.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8D9E00050001000100000001 /* MetaAssistToolsUI.swift */; };
+		8D9E00050001000100000004 /* MuseCallsNativeToolsUI.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8D9E00050001000100000003 /* MuseCallsNativeToolsUI.swift */; };
 		AGMDFETCHBLD0000000001 /* AntigravitySDKModelFetcher.swift in Sources */ = {isa = PBXBuildFile; fileRef = AGMDFETCHREF0000000001 /* AntigravitySDKModelFetcher.swift */; };
 		AGQUOTABLD000000000001 /* AntigravityQuotaService.swift in Sources */ = {isa = PBXBuildFile; fileRef = AGQUOTAREF000000000001 /* AntigravityQuotaService.swift */; };
 		B0010001B0010001B0010007 /* InfoProjView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B0010001B0010001B0010002 /* InfoProjView.swift */; };
@@ -3953,6 +3954,7 @@
 		AFDCBFD964F43CACA6675E49 /* SimulatorRuntime.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SimulatorRuntime.swift; sourceTree = "<group>"; };
 		AGLMUREF00000000000001 /* AntigravityLimitsModelsUI.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = AntigravityLimitsModelsUI.swift; sourceTree = "<group>"; };
 		8D9E00050001000100000001 /* MetaAssistToolsUI.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = MetaAssistToolsUI.swift; sourceTree = "<group>"; };
+		8D9E00050001000100000003 /* MuseCallsNativeToolsUI.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = MuseCallsNativeToolsUI.swift; sourceTree = "<group>"; };
 		AGMDFETCHREF0000000001 /* AntigravitySDKModelFetcher.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = AntigravitySDKModelFetcher.swift; sourceTree = "<group>"; };
 		AGQUOTAREF000000000001 /* AntigravityQuotaService.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = AntigravityQuotaService.swift; sourceTree = "<group>"; };
 		B0010001B0010001B0010002 /* InfoProjView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = InfoProjView.swift; sourceTree = "<group>"; };
@@ -6093,6 +6095,7 @@
 				1E9D7E2F8F62E029750AD8AA /* AssistMainView.swift */,
 				AGLMUREF00000000000001 /* AntigravityLimitsModelsUI.swift */,
 				8D9E00050001000100000001 /* MetaAssistToolsUI.swift */,
+				8D9E00050001000100000003 /* MuseCallsNativeToolsUI.swift */,
 				D9F800020000000000000003 /* PlanUserAskView.swift */,
 				D1A0000128C0000100000004 /* AssistActivityView.swift */,
 				1E9D7E2F8F62E029750AD8AB /* AgentNotesInspectorView.swift */,
@@ -11230,6 +11233,7 @@
 				AGMDFETCHBLD0000000001 /* AntigravitySDKModelFetcher.swift in Sources */,
 				AGLMUBLD00000000000001 /* AntigravityLimitsModelsUI.swift in Sources */,
 				8D9E00050001000100000002 /* MetaAssistToolsUI.swift in Sources */,
+				8D9E00050001000100000004 /* MuseCallsNativeToolsUI.swift in Sources */,
 				CMPBLD000000000000000002 /* AssistComposioTool.swift in Sources */,
 				CMPBLD000000000000000003 /* AgentUseComposio.swift in Sources */,
 				CMPBLD000000000000000004 /* ComposioSettingsView.swift in Sources */,

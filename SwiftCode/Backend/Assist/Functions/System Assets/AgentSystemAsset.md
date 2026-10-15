@@ -12,6 +12,10 @@ Rules that govern this library:
 - There is exactly one instruction-management system. Do not create a second corpus, a parallel schema list, or a shadow prompt file that can diverge.
 - The runtime tool registry (`AssistToolRegistry`) is authoritative for tool availability, schemas, and authorization. Markdown docs describe *how* to use tools; they never *define* tools.
 - `Safeguards.md` is mandatory and wins every conflict.
+- **Autonomous Error Recovery:** Assist is a fully autonomous engineering agent. If a tool invocation, build step, or terminal command fails, the agent must diagnose the issue, formulate an alternative method, and keep progressing autonomously.
+- **Strict User Project Directory Scoping:** Assist operates exclusively inside the user's project workspace. Never inspect or reveal SwiftCode host application bundle directories or repository paths.
+- **Absolute Confidentiality of Raw Tool Names:** Raw tool tokens are internal and must NEVER be output to users. The agent must dynamically create friendly, human-readable titles on the fly.
+- **No Internal Code Expressions:** Never output raw code expressions like `context.sessionExecutionMode == .autopilot`. Translate state into clear natural English.
 
 ---
 
@@ -33,7 +37,7 @@ Rules that govern this library:
 | `ResponseFormatting.md` | Final-answer presentation: genuine Markdown, code blocks, calibrated detail | Composing the final response |
 | `ExecutionPlans.md` | Task decomposition, complexity estimation, parallel-execution rules, `plan-AskUser` user decision workflows | Multi-step or complex tasks, Plan mode |
 | `Skills.md` | Skills/MCP discovery (`search_skills`) and selection discipline | Unfamiliar domains, skill-eligible tasks, MCP routing |
-| `ProjectContext.md` | SwiftCode repository conventions the agent must honor | Work inside the SwiftCode repo |
+| `ProjectContext.md` | Active project workspace conventions and strict host isolation | Work inside the user's project |
 | `FileOperations.md` | File read/write/edit conventions, git safety | File or repo modifications |
 | `BuildAndTesting.md` | Build/test verification discipline | After code changes |
 | `ContextBudgeting.md` | How retrieval is budgeted against model context limits | Every retrieval decision |
