@@ -570,6 +570,8 @@ struct GeneralSettingsView: View {
     @State private var showAgentConnectionsSheet = false
     @State private var showCoreMLSheet = false
     @State private var showResetConfirmation = false
+    @State private var showDeleteCredentialsConfirmation = false
+    @State private var showCredentialsDeletedAlert = false
     @State private var showUpdatesSheet = false
     @State private var showCreditsSheet = false
     @State private var showPaywall = false
@@ -915,6 +917,24 @@ struct GeneralSettingsView: View {
             Button("Cancel", role: .cancel) {}
         } message: {
             Text("This will permanently delete all projects, settings, API keys, themes, agent connections, and cached files. This action cannot be undone.")
+        }
+        .confirmationDialog(
+            "Delete Saved Credentials",
+            isPresented: $showDeleteCredentialsConfirmation,
+            titleVisibility: .visible
+        ) {
+            Button("Delete Saved Credentials", role: .destructive) {
+                KeychainService.shared.clearAllCredentials()
+                showCredentialsDeletedAlert = true
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("This will permanently purge all cached API keys, tokens, and OAuth credentials. SwiftCode will not prompt for system keychain access.")
+        }
+        .alert("Credentials Deleted", isPresented: $showCredentialsDeletedAlert) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text("All saved credentials have been removed from the cache.")
         }
     }
 
@@ -1864,10 +1884,16 @@ struct SoundLibraryBrowserView: View {
             } label: {
                 Label("Reset SwiftCode", systemImage: "trash.fill")
             }
+
+            Button(role: .destructive) {
+                showDeleteCredentialsConfirmation = true
+            } label: {
+                Label("Delete Saved Credentials", systemImage: "key.slash.fill")
+            }
         } header: {
             Label("App Management", systemImage: "gear.badge")
         } footer: {
-            Text("Removes all stored data and resets the app to its initial state.")
+            Text("Removes stored data, resets the app to its initial state, or purges cached credentials so the app never prompts for system keychain access.")
         }
     }
 

@@ -80,6 +80,35 @@ public struct MuseCodeAnyCodable: Codable, @unchecked Sendable {
     }
 }
 
+public enum MuseUUIDv7 {
+    public static func generate() -> String {
+        var bytes = [UInt8](repeating: 0, count: 16)
+        _ = SecRandomCopyBytes(kSecRandomDefault, 16, &bytes)
+
+        let ms = UInt64(Date().timeIntervalSince1970 * 1000)
+        bytes[0] = UInt8((ms >> 40) & 0xFF)
+        bytes[1] = UInt8((ms >> 32) & 0xFF)
+        bytes[2] = UInt8((ms >> 24) & 0xFF)
+        bytes[3] = UInt8((ms >> 16) & 0xFF)
+        bytes[4] = UInt8((ms >> 8) & 0xFF)
+        bytes[5] = UInt8(ms & 0xFF)
+
+        // Version 7: (0x70 | (random & 0x0F))
+        bytes[6] = 0x70 | (bytes[6] & 0x0F)
+        // Variant 1 (RFC 9562): (0x80 | (random & 0x3F))
+        bytes[8] = 0x80 | (bytes[8] & 0x3F)
+
+        return String(
+            format: "%02x%02x%02x%02x-%02x%02x-%02x%02x-%02x%02x-%02x%02x%02x%02x%02x%02x",
+            bytes[0], bytes[1], bytes[2], bytes[3],
+            bytes[4], bytes[5],
+            bytes[6], bytes[7],
+            bytes[8], bytes[9],
+            bytes[10], bytes[11], bytes[12], bytes[13], bytes[14], bytes[15]
+        )
+    }
+}
+
 @MainActor
 public final class MuseCodeMSPBridge: @unchecked Sendable {
     public static let shared = MuseCodeMSPBridge()
@@ -135,6 +164,23 @@ public final class MuseCodeMSPBridge: @unchecked Sendable {
 
     public func setNotificationHandler(_ handler: @escaping (String, [String: Any]) -> Void) {
         self.notificationHandler = handler
+    }
+
+    public func sendNotification(method: String, params: [String: Any] = [:]) throws {
+        guard isRunning, let inPipe = stdinPipe else {
+            throw MuseCodeCLIError.executionFailed(exitCode: -1, stderr: "MSP host process not running")
+        }
+
+        let payload: [String: Any] = [
+            "jsonrpc": "2.0",
+            "method": method,
+            "params": params
+        ]
+
+        let jsonData = try JSONSerialization.data(withJSONObject: payload)
+        var lineData = jsonData
+        lineData.append(Data([0x0A]))
+        inPipe.fileHandleForWriting.write(lineData)
     }
 
     public func sendCommand(method: String, params: [String: Any]) async throws -> [String: Any] {

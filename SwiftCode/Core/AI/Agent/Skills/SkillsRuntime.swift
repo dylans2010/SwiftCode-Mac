@@ -11,11 +11,30 @@ public actor SkillsRuntime {
 
     public func discoverSkills(in directory: URL) async throws -> [Skill] {
         let fileManager = FileManager.default
-        let enumerator = fileManager.enumerator(at: directory, includingPropertiesForKeys: [.isRegularFileKey], options: [.skipsHiddenFiles])
+        let standardized = directory.standardizedFileURL.resolvingSymlinksInPath()
+        let home = fileManager.homeDirectoryForCurrentUser.standardizedFileURL.resolvingSymlinksInPath()
+
+        // Never perform an unbounded recursive scan on the root filesystem or user home directory
+        if standardized.path == "/" || standardized.path == home.path {
+            return []
+        }
+
+        let enumerator = fileManager.enumerator(
+            at: directory,
+            includingPropertiesForKeys: [.isRegularFileKey, .isDirectoryKey],
+            options: [.skipsHiddenFiles, .skipsPackageDescendants]
+        )
 
         var discoveredSkills: [Skill] = []
 
         while let fileURL = enumerator?.nextObject() as? URL {
+            // Never enter sensitive macOS privacy protected directories (Photos, Music, Movies, Library)
+            let name = fileURL.lastPathComponent
+            if name == "Pictures" || name == "Music" || name == "Movies" || name == "Photos" || name == "Library" {
+                enumerator?.skipDescendants()
+                continue
+            }
+
             if fileURL.lastPathComponent.hasSuffix(".SKILLS.md") || fileURL.lastPathComponent == "SKILLS.md" {
                 do {
                     let content = try String(contentsOf: fileURL, encoding: .utf8)

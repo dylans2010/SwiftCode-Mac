@@ -161,7 +161,7 @@ public final class MetaAssistProvider: Sendable {
 
             Task { @MainActor in
                 do {
-                    // 1. Initialize
+                    // 1. Initialize & handshake
                     _ = try await bridge.sendCommand(method: "initialize", params: [
                         "clientInfo": [
                             "name": "swiftcode",
@@ -169,26 +169,34 @@ public final class MetaAssistProvider: Sendable {
                             "version": "1.0.0"
                         ]
                     ])
+                    try bridge.sendNotification(method: "initialized", params: [:])
 
-                    // 2. Start Session with canonical SwiftCode tools
-                    let tools = AssistManager.shared.registry.getToolSchemas()
+                    // 2. Start Session with canonical UUIDv7 commandId
+                    let sessionCmdId = MuseUUIDv7.generate()
                     let sessionRes = try await bridge.sendCommand(method: "session/start", params: [
-                        "workspaceRoot": workspaceRoot,
-                        "tools": tools
+                        "commandId": sessionCmdId,
+                        "workspaceRoot": workspaceRoot
                     ])
 
                     let sessionId: String
-                    if let sessionObj = sessionRes["session"] as? [String: Any], let id = sessionObj["sessionId"] as? String {
+                    if let resultObj = sessionRes["result"] as? [String: Any],
+                       let sessionObj = resultObj["session"] as? [String: Any],
+                       let id = sessionObj["sessionId"] as? String {
+                        sessionId = id
+                    } else if let sessionObj = sessionRes["session"] as? [String: Any],
+                              let id = sessionObj["sessionId"] as? String {
                         sessionId = id
                     } else if let id = sessionRes["sessionId"] as? String {
                         sessionId = id
                     } else {
-                        sessionId = UUID().uuidString
+                        sessionId = sessionCmdId
                     }
                     self.setActiveSessionID(sessionId)
 
-                    // 3. Start Turn
+                    // 3. Start Turn with UUIDv7 commandId
+                    let turnCmdId = MuseUUIDv7.generate()
                     _ = try await bridge.sendCommand(method: "turn/start", params: [
+                        "commandId": turnCmdId,
                         "sessionId": sessionId,
                         "input": [["type": "text", "text": prompt]]
                     ])
