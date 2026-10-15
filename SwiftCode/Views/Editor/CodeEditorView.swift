@@ -110,9 +110,6 @@ struct CodeEditorView: View {
                 initialContent: sessionStore.activeFileContent
             )
         }
-        .sheet(isPresented: $showAssist) {
-            Text("Assist Coming Soon")
-        }
         .sheet(isPresented: $showDiffViewerSheet) {
             DiffViewerView()
         }
@@ -359,6 +356,16 @@ struct CodeEditorView: View {
                 )
             }
             .buttonStyle(.plain)
+            .popover(isPresented: $showAssist, arrowEdge: .bottom) {
+                CodingToolsUI(
+                    selectedCode: sessionStore.activeFileContent,
+                    filePath: sessionStore.activeFileNode?.path ?? sessionStore.activeFileNode?.name ?? "File.swift",
+                    onApplyCode: { newCode in
+                        sessionStore.activeFileContent = newCode
+                        sessionStore.saveCurrentFile(content: newCode)
+                    }
+                )
+            }
             .padding(.trailing, 10)
         }
         .background(Color(red: 0.10, green: 0.10, blue: 0.13))

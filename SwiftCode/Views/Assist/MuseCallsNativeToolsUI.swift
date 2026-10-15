@@ -15,6 +15,8 @@ import AppKit
 
 public struct MuseCallsNativeToolsUI: View {
     public let activityGroup: AssistActivityGroup
+    @State private var expandedGroupIds: Set<String> = []
+    @State private var showWorkersSheet: Bool = false
 
     public init(activityGroup: AssistActivityGroup) {
         self.activityGroup = activityGroup
@@ -31,13 +33,94 @@ public struct MuseCallsNativeToolsUI: View {
                 // Section Header Badge
                 headerBadge(toolCount: tools.count, isExecuting: activityGroup.isExecuting)
 
-                // Tool Cards
-                ForEach(tools) { tool in
-                    MuseNativeToolCard(tool: tool, fileDiffs: fileItems)
+                let groups = ToolExecutionGroup.group(tools: tools)
+                if groups.count <= 1 && tools.count <= 2 {
+                    // Direct flat presentation for simple single/pair tool calls
+                    ForEach(tools) { tool in
+                        MuseNativeToolCard(tool: tool, fileDiffs: fileItems)
+                    }
+                } else {
+                    // Dynamic stage-grouped collapsible presentation
+                    ForEach(groups) { group in
+                        stageGroupView(group: group, fileDiffs: fileItems)
+                    }
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.vertical, 4)
+            .sheet(isPresented: $showWorkersSheet) {
+                WorkersMainView()
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func stageGroupView(group: ToolExecutionGroup, fileDiffs: [FileActivityItem]) -> some View {
+        let isExpanded = expandedGroupIds.contains(group.id) || group.isExecuting
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(spacing: 6) {
+                Button {
+                    withAnimation(.easeInOut(duration: 0.2)) {
+                        if isExpanded {
+                            expandedGroupIds.remove(group.id)
+                        } else {
+                            expandedGroupIds.insert(group.id)
+                        }
+                    }
+                } label: {
+                    HStack(spacing: 6) {
+                        Image(systemName: group.stage.iconName)
+                            .font(.caption)
+                            .foregroundStyle(group.isExecuting ? Color.accentColor : Color.secondary)
+
+                        Text(group.stage.rawValue)
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(Color.primary)
+
+                        Text("(\(group.summary))")
+                            .font(.caption2)
+                            .foregroundStyle(Color.secondary)
+
+                        Spacer()
+
+                        Image(systemName: isExpanded ? "chevron.down" : "chevron.right")
+                            .font(.caption2)
+                            .foregroundStyle(Color.secondary)
+                    }
+                }
+                .buttonStyle(.plain)
+
+                if group.stage == .workerExecution {
+                    Button {
+                        showWorkersSheet = true
+                    } label: {
+                        HStack(spacing: 3) {
+                            Image(systemName: "person.3.sequence.fill")
+                                .font(.system(size: 9))
+                            Text("Workers")
+                                .font(.system(size: 10, weight: .bold))
+                        }
+                        .foregroundStyle(Color.blue)
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 3)
+                        .background(Color.blue.opacity(0.12), in: Capsule())
+                    }
+                    .buttonStyle(.plain)
+                    .help("Open Assist Workers Dashboard")
+                }
+            }
+            .padding(.horizontal, 8)
+            .padding(.vertical, 5)
+            .background(Color.secondary.opacity(0.06), in: RoundedRectangle(cornerRadius: 6))
+
+            if isExpanded {
+                VStack(spacing: 6) {
+                    ForEach(group.tools) { tool in
+                        MuseNativeToolCard(tool: tool, fileDiffs: fileDiffs)
+                    }
+                }
+                .padding(.leading, 8)
+            }
         }
     }
 

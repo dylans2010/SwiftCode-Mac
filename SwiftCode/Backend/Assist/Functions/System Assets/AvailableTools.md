@@ -26,6 +26,8 @@ Capability-level reference for the internal capabilities Assist can invoke durin
 - `dir_read` (safeRead) — list contents of directory at relative `path` (optional `recursive`, `depth`); the discovery tool before reading files.
 - `tree_view` (safeRead) — directory tree from relative `path` to bounded depth `maxDepth`.
 - `code_generate` (safeMutation) — scaffold a new Swift file at relative `path` from a known template (`template`: `swift_struct`, `swift_class`, `swiftui_view`, `test`).
+- `open_in_finder` (safeRead) — open a file or directory in macOS Finder at relative `path`.
+- `reveal_in_finder` (safeRead) — reveal and highlight a file or directory in macOS Finder at relative `path`.
 
 ---
 

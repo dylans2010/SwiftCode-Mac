@@ -223,12 +223,21 @@ public actor MarkdownRenderer {
 }
 
 private struct MarkdownASTVisitor: MarkupVisitor {
+    typealias Result = Any?
     var blocks: [MarkdownBlock] = []
 
-    mutating func defaultVisit(_ markup: any Markup) {
+    mutating func defaultVisit(_ markup: Markup) -> Any? {
         for child in markup.children {
-            visit(child)
+            _ = visit(child)
         }
+        return nil
+    }
+
+    mutating func visitDocument(_ document: Markdown.Document) -> Any? {
+        for child in document.children {
+            _ = visit(child)
+        }
+        return nil
     }
 
     mutating func visitHeading(_ heading: Markdown.Heading) -> Any? {

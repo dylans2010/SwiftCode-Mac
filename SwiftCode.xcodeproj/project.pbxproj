@@ -2735,9 +2735,25 @@
 		rZsBVu7NX99lzJL1ABWUigmW /* KeychainSDK.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6VIBMoZTC6d3Fx4kke4Yx2Am /* KeychainSDK.swift */; };
 		ti6u6Uwn286uHf4W6x3ZeROg /* SDKShipExportView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F0CYK0cfUdxDY6NoOrnaJ1Yk /* SDKShipExportView.swift */; };
 		vf8Ufnixnzx98JfszV2AlPpw /* SDKSecurityContracts.swift in Sources */ = {isa = PBXBuildFile; fileRef = HKI3CsxfHWHGq43C0obeSqck /* SDKSecurityContracts.swift */; };
+		AA9E000200000001 /* AssistIntentClassifier.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA9E000100000001 /* AssistIntentClassifier.swift */; };
+		AA9E000200000002 /* AssistConversationMemory.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA9E000100000002 /* AssistConversationMemory.swift */; };
+		AA9E000200000003 /* AssistParallelExecutionEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA9E000100000003 /* AssistParallelExecutionEngine.swift */; };
+		AA9E000200000004 /* CodingToolsService.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA9E000100000004 /* CodingToolsService.swift */; };
+		AA9E000200000005 /* AssistFinderTools.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA9E000100000005 /* AssistFinderTools.swift */; };
+		AA9E000200000006 /* ToolExecutionGroupModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA9E000100000006 /* ToolExecutionGroupModel.swift */; };
+		AA9E000200000007 /* CodingToolsUI.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA9E000100000007 /* CodingToolsUI.swift */; };
+		AA9E000200000008 /* EmptyTemplate.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA9E000100000008 /* EmptyTemplate.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		AA9E000100000001 /* AssistIntentClassifier.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssistIntentClassifier.swift; sourceTree = "<group>"; };
+		AA9E000100000002 /* AssistConversationMemory.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssistConversationMemory.swift; sourceTree = "<group>"; };
+		AA9E000100000003 /* AssistParallelExecutionEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssistParallelExecutionEngine.swift; sourceTree = "<group>"; };
+		AA9E000100000004 /* CodingToolsService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CodingToolsService.swift; sourceTree = "<group>"; };
+		AA9E000100000005 /* AssistFinderTools.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssistFinderTools.swift; sourceTree = "<group>"; };
+		AA9E000100000006 /* ToolExecutionGroupModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ToolExecutionGroupModel.swift; sourceTree = "<group>"; };
+		AA9E000100000007 /* CodingToolsUI.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CodingToolsUI.swift; sourceTree = "<group>"; };
+		AA9E000100000008 /* EmptyTemplate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EmptyTemplate.swift; sourceTree = "<group>"; };
 		00048987BBB25A712D49051C /* NordThemeExtensionView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NordThemeExtensionView.swift; sourceTree = "<group>"; };
 		00573C77C75B8076494A575A /* _AssistCriticalValidationEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = _AssistCriticalValidationEngine.swift; sourceTree = "<group>"; };
 		0076F070FA7E4422B0FBAAB8 /* ParseMarkdown.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ParseMarkdown.swift; sourceTree = "<group>"; };
@@ -5627,6 +5643,7 @@
 		0AD835D66CAA78EC371E60BF /* Tools */ = {
 			isa = PBXGroup;
 			children = (
+				AA9E000100000005 /* AssistFinderTools.swift */,
 				EFF867F1B5A5C3D758D6E5B5 /* UseMCP.swift */,
 				CMPREF000000000000000002 /* AssistComposioTool.swift */,
 				5C86F1D43534422697C2209E /* CodeReview.swift */,
@@ -6000,6 +6017,7 @@
 		265E9A432B28B39C005F9A10 /* Templates */ = {
 			isa = PBXGroup;
 			children = (
+				AA9E000100000008 /* EmptyTemplate.swift */,
 				B61712C0BD46B1E17BD74F94 /* ProjectTemplateEngine.swift */,
 				265E9A352B28B39C005F9A10 /* CommandLineToolTemplate.swift */,
 				265E9A362B28B39C005F9A10 /* DocumentAppTemplate.swift */,
@@ -6099,6 +6117,7 @@
 				AGLMUREF00000000000001 /* AntigravityLimitsModelsUI.swift */,
 				8D9E00050001000100000001 /* MetaAssistToolsUI.swift */,
 				8D9E00050001000100000003 /* MuseCallsNativeToolsUI.swift */,
+				AA9E000100000006 /* ToolExecutionGroupModel.swift */,
 				D9F800020000000000000003 /* PlanUserAskView.swift */,
 				D1A0000128C0000100000004 /* AssistActivityView.swift */,
 				1E9D7E2F8F62E029750AD8AB /* AgentNotesInspectorView.swift */,
@@ -7585,6 +7604,10 @@
 		8D9EEDCDE1FB450488F4CF12 /* Assist */ = {
 			isa = PBXGroup;
 			children = (
+				AA9E000100000001 /* AssistIntentClassifier.swift */,
+				AA9E000100000002 /* AssistConversationMemory.swift */,
+				AA9E000100000003 /* AssistParallelExecutionEngine.swift */,
+				AA9E000100000004 /* CodingToolsService.swift */,
 				8ECEC56FDC2B7FB96933295F /* Subagents */,
 				8D9E00010001000100000001 /* AssistTaskModel.swift */,
 				8D9E00010001000100000003 /* AssistToolRouter.swift */,
@@ -8875,6 +8898,7 @@
 				88D5C675571394D656736CBB /* GoToLineView.swift */,
 				9885707843193FBBAC3F657E /* MinimapSettingsView.swift */,
 				FBAB409C7BAE9FEAEB52CBFD /* CodeEditorView.swift */,
+				AA9E000100000007 /* CodingToolsUI.swift */,
 			);
 			path = Editor;
 			sourceTree = "<group>";
@@ -11214,6 +11238,14 @@
 				8D9E00020001000100000008 /* AgentSkillResolver.swift in Sources */,
 				8D9E0002000100010000000A /* AgentRepositoryScanner.swift in Sources */,
 				8D9E0002000100010000000C /* AgentTerminalService.swift in Sources */,
+				AA9E000200000001 /* AssistIntentClassifier.swift in Sources */,
+				AA9E000200000002 /* AssistConversationMemory.swift in Sources */,
+				AA9E000200000003 /* AssistParallelExecutionEngine.swift in Sources */,
+				AA9E000200000004 /* CodingToolsService.swift in Sources */,
+				AA9E000200000005 /* AssistFinderTools.swift in Sources */,
+				AA9E000200000006 /* ToolExecutionGroupModel.swift in Sources */,
+				AA9E000200000007 /* CodingToolsUI.swift in Sources */,
+				AA9E000200000008 /* EmptyTemplate.swift in Sources */,
 				8D9E00030001000100000002 /* GoogleCloudSDKError.swift in Sources */,
 				8D9E00030001000100000004 /* GoogleCloudSDKConfiguration.swift in Sources */,
 				8D9E00030001000100000006 /* GoogleCloudSDKMessage.swift in Sources */,

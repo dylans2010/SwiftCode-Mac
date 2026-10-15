@@ -204,8 +204,9 @@ public final class AssistModelRouter: Sendable {
             let validIds = Self.sdkDefaultModelIDs.filter {
                 createSyntheticSDKModel(modelID: $0).isConfigured
             }
+            let isExplicitCustomOrThirdParty = selectedId.contains("/") || selectedId.contains("ollama") || selectedId.contains("llama") || selectedId.contains("claude") || selectedId.contains("gpt")
             let effectiveModelID: String
-            if validIds.contains(selectedId) {
+            if isExplicitCustomOrThirdParty || validIds.contains(selectedId) {
                 effectiveModelID = selectedId
             } else if let first = validIds.first {
                 effectiveModelID = first
@@ -221,6 +222,8 @@ public final class AssistModelRouter: Sendable {
                 let candidates = await getEligibleCandidates()
                 if let match = candidates.first(where: { $0.id == effectiveModelID || $0.modelIdentifier == effectiveModelID }) {
                     targetModel = match
+                } else if isExplicitCustomOrThirdParty {
+                    targetModel = createSyntheticSDKModel(modelID: effectiveModelID)
                 } else if let firstSdk = candidates.first {
                     targetModel = firstSdk
                 } else {
@@ -766,8 +769,9 @@ public final class AssistModelRouter: Sendable {
             executionMode = hasDirectProviderKey ? "api_key" : (oauthToken != nil ? "antigravity" : nil)
         }
 
+        let derivedLevel = AntigravitySDKModelFetcher.deriveThinkingLevel(modelID: model.modelIdentifier, displayName: model.displayName)
         let sdkModelInfo = AntigravitySDKModelFetcher.shared.getModel(byID: model.modelIdentifier)
-        let level = sdkModelInfo?.thinkingLevel ?? AntigravitySDKModelFetcher.deriveThinkingLevel(modelID: model.modelIdentifier, displayName: model.displayName)
+        let level = (derivedLevel != "Medium" ? derivedLevel : nil) ?? sdkModelInfo?.thinkingLevel ?? derivedLevel
 
         return GoogleCloudSDKConfiguration(
             model: model.modelIdentifier,

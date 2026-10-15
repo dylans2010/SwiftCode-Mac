@@ -120,6 +120,13 @@ public final class AssistToolRouter: Sendable {
         case "code_review":
             return ToolMetadata(id: toolId, name: "Code Review", description: "Autonomous code review evaluation gate.", capability: .diagnostics, riskLevel: .safeRead, isReadOnly: true, isMutating: false, requiresVerificationAfterward: false)
 
+        case "open_in_finder", "open_finder":
+            return ToolMetadata(id: toolId, name: "Open in Finder", description: "Opens file or directory in macOS Finder.", capability: .systemExecution, riskLevel: .safeRead, isReadOnly: true, isMutating: false, requiresVerificationAfterward: false)
+        case "reveal_in_finder", "reveal_finder":
+            return ToolMetadata(id: toolId, name: "Reveal in Finder", description: "Reveals and highlights file or directory in Finder.", capability: .systemExecution, riskLevel: .safeRead, isReadOnly: true, isMutating: false, requiresVerificationAfterward: false)
+        case "version_control_operator", "git":
+            return ToolMetadata(id: toolId, name: "Version Control Operator", description: "Performs git operations including status, diff, commit, and branch.", capability: .gitOperations, riskLevel: .safeMutation, isReadOnly: false, isMutating: true, requiresVerificationAfterward: false)
+
         case "use_workers":
             return ToolMetadata(id: toolId, name: "Use Workers", description: "Creates, schedules, and executes isolated concurrent/sequential Workers for complex tasks.", capability: .planning, riskLevel: .execution, isReadOnly: false, isMutating: true, requiresVerificationAfterward: true)
 
@@ -153,6 +160,10 @@ public final class AssistToolRouter: Sendable {
     }
 
     public func filterTools(for status: AgentSessionStatus, in registry: AssistToolRegistry) -> [AssistTool] {
+        return filterTools(for: nil, status: status, in: registry)
+    }
+
+    public func filterTools(for intent: UserIntent?, status: AgentSessionStatus, in registry: AssistToolRegistry) -> [AssistTool] {
         let all = registry.allTools
 
         switch status {
@@ -165,10 +176,30 @@ public final class AssistToolRouter: Sendable {
             }
 
         case .planning, .planningReview:
+            if let intent = intent {
+                switch intent {
+                case .git:
+                    return rankTools(for: intent, in: all.filter { $0.capability == .gitOperations || $0.capability == .planning || $0.id == "version_control_operator" || $0.id == "project_diff" || $0.capability == .fileReading })
+                case .build:
+                    return rankTools(for: intent, in: all.filter { $0.capability == .compilation || $0.capability == .diagnostics || $0.capability == .planning || $0.capability == .fileReading })
+                case .test:
+                    return rankTools(for: intent, in: all.filter { $0.capability == .testing || $0.capability == .compilation || $0.capability == .planning })
+                case .fileOperation(let action, _):
+                    if action == .openInFinder || action == .revealInFinder {
+                        return all.filter { $0.id == "open_in_finder" || $0.id == "reveal_in_finder" || $0.capability == .systemExecution || $0.capability == .planning }
+                    }
+                default:
+                    break
+                }
+            }
             return all.filter { tool in
                 return tool.capability == .planning ||
                        tool.capability == .repositoryDiscovery ||
                        tool.capability == .fileReading ||
+                       tool.capability == .gitOperations ||
+                       tool.capability == .compilation ||
+                       tool.id == "version_control_operator" ||
+                       tool.id == "project_build" ||
                        tool.id == "code_summary" ||
                        tool.id == "use_workers"
             }
@@ -177,10 +208,15 @@ public final class AssistToolRouter: Sendable {
             return all.filter { tool in
                 return tool.capability == .fileModification ||
                        tool.capability == .fileReading ||
+                       tool.capability == .gitOperations ||
+                       tool.capability == .compilation ||
+                       tool.capability == .testing ||
                        tool.capability == .systemExecution ||
                        tool.id == "code_replace" ||
                        tool.id == "file_write" ||
                        tool.id == "project_diff" ||
+                       tool.id == "version_control_operator" ||
+                       tool.id == "project_build" ||
                        tool.id == "use_workers"
             }
 
@@ -190,7 +226,8 @@ public final class AssistToolRouter: Sendable {
                        tool.capability == .testing ||
                        tool.capability == .diagnostics ||
                        tool.id == "code_review" ||
-                       tool.id == "compiler_diagnostics_engine"
+                       tool.id == "compiler_diagnostics_engine" ||
+                       tool.id == "project_build"
             }
 
         case .recovering, .reviewFailed:
@@ -198,11 +235,64 @@ public final class AssistToolRouter: Sendable {
                 return tool.capability == .diagnostics ||
                        tool.capability == .fileReading ||
                        tool.capability == .fileModification ||
-                       tool.capability == .compilation
+                       tool.capability == .compilation ||
+                       tool.capability == .gitOperations
             }
 
         default:
             return all
+        }
+    }
+
+    public func rankTools(for intent: UserIntent, in tools: [AssistTool]) -> [AssistTool] {
+        return tools.sorted { t1, t2 in
+            let score1 = capabilityScore(for: t1, intent: intent)
+            let score2 = capabilityScore(for: t2, intent: intent)
+            if score1 != score2 { return score1 > score2 }
+            if t1.id != "use_terminal" && t2.id == "use_terminal" { return true }
+            if t1.id == "use_terminal" && t2.id != "use_terminal" { return false }
+            return t1.name < t2.name
+        }
+    }
+
+    private func capabilityScore(for tool: AssistTool, intent: UserIntent) -> Int {
+        switch intent {
+        case .git:
+            if tool.id == "version_control_operator" { return 100 }
+            if tool.id == "project_diff" { return 80 }
+            if tool.capability == .gitOperations { return 70 }
+            if tool.capability == .fileReading { return 20 }
+            return 0
+        case .build:
+            if tool.id == "project_build" { return 100 }
+            if tool.id == "compiler_diagnostics_engine" { return 80 }
+            if tool.capability == .compilation { return 70 }
+            return 0
+        case .test:
+            if tool.id == "project_test" { return 100 }
+            if tool.capability == .testing { return 80 }
+            if tool.capability == .compilation { return 50 }
+            return 0
+        case .codeSearch(let type, _):
+            if type == .symbol && tool.id == "search_symbol" { return 100 }
+            if type == .regex && tool.id == "search_regex" { return 100 }
+            if type == .text && tool.id == "search_text" { return 100 }
+            if tool.capability == .repositoryDiscovery { return 50 }
+            return 0
+        case .fileOperation(let action, _):
+            if action == .openInFinder && tool.id == "open_in_finder" { return 100 }
+            if action == .revealInFinder && tool.id == "reveal_in_finder" { return 100 }
+            if action == .read && tool.id == "file_read" { return 100 }
+            if action == .write && tool.id == "file_write" { return 100 }
+            if action == .replace && tool.id == "code_replace" { return 100 }
+            if tool.capability == .fileModification || tool.capability == .fileReading { return 50 }
+            return 0
+        case .workerDelegation:
+            if tool.id == "use_workers" { return 100 }
+            if tool.capability == .planning { return 50 }
+            return 0
+        default:
+            return 10
         }
     }
 

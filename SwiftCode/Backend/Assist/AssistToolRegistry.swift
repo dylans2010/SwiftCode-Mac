@@ -28,6 +28,8 @@ public struct ToolHealth: Codable, Sendable {
 
 @MainActor
 public final class AssistToolRegistry {
+    public static let shared = AssistToolRegistry()
+
     private var tools: [String: AssistTool] = [:]
     private var health: [String: ToolHealth] = [:]
     private var capabilityIndex: [ToolCapability: [String]] = [:]
@@ -137,6 +139,8 @@ public final class AssistToolRegistry {
         register(ExecutionPlanTool())
         register(PlanAskUserTool())
         register(SearchSkillsTool())
+        register(AssistOpenInFinderTool())
+        register(AssistRevealInFinderTool())
         register(ReportToUserTool())
     }
 
@@ -162,6 +166,25 @@ public final class AssistToolRegistry {
     }
 
     private let toolAliases: [String: String] = [
+        "git": "version_control_operator",
+        "git_status": "version_control_operator",
+        "git_diff": "version_control_operator",
+        "git_commit": "version_control_operator",
+        "git_branch": "version_control_operator",
+        "git_rollback": "version_control_operator",
+        "git_tool": "version_control_operator",
+        "version_control": "version_control_operator",
+        "build": "project_build",
+        "build_project": "project_build",
+        "run_build": "project_build",
+        "xcodebuild": "project_build",
+        "test": "project_test",
+        "run_tests": "project_test",
+        "open_finder": "open_in_finder",
+        "open_in_finder": "open_in_finder",
+        "reveal_finder": "reveal_in_finder",
+        "reveal_in_finder": "reveal_in_finder",
+        "show_in_finder": "reveal_in_finder",
         "write_file": "file_write",
         "create_file": "file_create",
         "read_file": "file_read",
@@ -235,6 +258,10 @@ public final class AssistToolRegistry {
             return target
         }
         return nil
+    }
+
+    public func resolve(toolId: String) -> AssistTool? {
+        return getTool(toolId)
     }
 
     public var allTools: [AssistTool] {

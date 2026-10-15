@@ -364,10 +364,19 @@ public final class AntigravitySDKModelFetcher: ObservableObject {
 
     public nonisolated static func deriveCategory(modelID: String) -> String {
         let lower = modelID.lowercased()
-        if lower.contains("claude") {
+        if lower.contains("claude") || lower.hasPrefix("anthropic/") {
             return "Anthropic"
-        } else if lower.contains("gpt") {
+        } else if lower.contains("gpt") || lower.hasPrefix("openai/") {
             return "OpenAI"
+        } else if lower.hasPrefix("ollama/") || lower.contains("ollama") {
+            return "Ollama"
+        } else if lower.hasPrefix("local/") || lower.contains("local") {
+            return "Local"
+        } else if let slashIdx = lower.firstIndex(of: "/") {
+            let provider = String(lower[..<slashIdx])
+            return provider.capitalized
+        } else if lower.contains("gemini") {
+            return "Google"
         } else {
             return "Google"
         }

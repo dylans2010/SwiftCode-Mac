@@ -237,5 +237,111 @@ public final class AgentTerminalService: Sendable {
         }
         self.isRunning = false
         self.activeProcess = nil
+        AgentTerminalSessionManager.shared.cancelAllSessions()
     }
 }
+
+// MARK: - Multi-Session Terminal Management
+
+public final class AgentTerminalExecutionSession: Identifiable, @unchecked Sendable {
+    public let id: String
+    public let command: String
+    public let workingDirectory: URL
+    public let startTime: Date
+    public private(set) var endTime: Date?
+    public private(set) var isRunning: Bool = false
+    public private(set) var exitCode: Int?
+    public private(set) var stdout: String = ""
+    public private(set) var stderr: String = ""
+    public private(set) var isCancelled: Bool = false
+    public private(set) var lastActivity: Date
+
+    fileprivate var process: Process?
+
+    public init(id: String = UUID().uuidString, command: String, workingDirectory: URL) {
+        self.id = id
+        self.command = command
+        self.workingDirectory = workingDirectory
+        self.startTime = Date()
+        self.lastActivity = Date()
+    }
+
+    public func appendStdout(_ text: String) {
+        self.stdout += text
+        self.lastActivity = Date()
+    }
+
+    public func appendStderr(_ text: String) {
+        self.stderr += text
+        self.lastActivity = Date()
+    }
+
+    public func markStarted(process: Process) {
+        self.process = process
+        self.isRunning = true
+    }
+
+    public func markCompleted(exitCode: Int) {
+        self.exitCode = exitCode
+        self.isRunning = false
+        self.endTime = Date()
+        self.process = nil
+    }
+
+    public func cancel() {
+        self.isCancelled = true
+        guard let proc = process, proc.isRunning else {
+            self.isRunning = false
+            return
+        }
+
+        // Bounded cancellation: terminate gracefully first
+        proc.terminate()
+
+        Task { [weak self] in
+            try? await Task.sleep(nanoseconds: 1_500_000_000)
+            if let p = self?.process, p.isRunning {
+                // If still running after 1.5 seconds, force terminate via kill
+                kill(p.processIdentifier, SIGKILL)
+            }
+        }
+    }
+}
+
+@MainActor
+public final class AgentTerminalSessionManager: Sendable {
+    public static let shared = AgentTerminalSessionManager()
+
+    public private(set) var activeSessions: [String: AgentTerminalExecutionSession] = [:]
+    public private(set) var completedSessions: [AgentTerminalExecutionSession] = []
+
+    private init() {}
+
+    public func registerSession(_ session: AgentTerminalExecutionSession) {
+        activeSessions[session.id] = session
+    }
+
+    public func completeSession(_ session: AgentTerminalExecutionSession) {
+        activeSessions.removeValue(forKey: session.id)
+        completedSessions.append(session)
+        if completedSessions.count > 30 {
+            completedSessions.removeFirst(completedSessions.count - 30)
+        }
+    }
+
+    public func cancelSession(id: String) {
+        if let session = activeSessions[id] {
+            session.cancel()
+            completeSession(session)
+        }
+    }
+
+    public func cancelAllSessions() {
+        for (_, session) in activeSessions {
+            session.cancel()
+        }
+        completedSessions.append(contentsOf: activeSessions.values)
+        activeSessions.removeAll()
+    }
+}
+

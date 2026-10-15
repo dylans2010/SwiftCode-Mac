@@ -378,12 +378,18 @@ public final class AssistAgentSession: Sendable {
         phaseCoordinator.completePhase("PHASE_01_INIT", evidence: "Model \(selectedModel) and provider \(selectedProvider.rawValue) validated.")
         _ = phaseCoordinator.startPhase("PHASE_02_GROUNDING")
 
+        AssistConversationMemory.shared.bindConversation(id: context.sessionId, workspaceRoot: context.workspaceRoot)
+        let classification = AssistIntentClassifier.shared.classify(prompt: objective)
+        _ = AssistConversationMemory.shared.recordTurnStart(prompt: objective, intent: classification.explanation)
+
         self.state.objective = objective
         self.state.toolCallCount = 0
         self.state.plan = []
         self.state.events = []
         self.state.completedActions = []
-        self.conversationHistory = []
+        if AssistConversationMemory.shared.turns.count <= 1 {
+            self.conversationHistory = []
+        }
         AssistManager.shared.currentCodeReview = nil
         AssistManager.shared.hasCodeReviewBeenInvoked = false
         AssistManager.shared.isCodeReviewRunning = false
@@ -416,15 +422,69 @@ public final class AssistAgentSession: Sendable {
 
         self.contextManager = AgentContextManager(context: context)
 
-        // Codebase Analysis
+        // FAST-PATH: If this is a deterministic, high-confidence single tool call, execute directly!
+        if let directToolId = classification.deterministicToolId,
+           let directInput = classification.deterministicInput,
+           let tool = registry.getTool(directToolId) {
+            let formatted = AssistToolActivityFormatter.format(toolId: directToolId, arguments: directInput)
+            postConversationalMessage("Executing: \(formatted.runningLabel)…")
+            AssistManager.shared.currentActivityStatus = formatted.runningLabel
+
+            let toolItem = ToolActivityItem(
+                toolId: directToolId,
+                purpose: formatted.runningLabel,
+                status: .running,
+                displayLabel: formatted.runningLabel,
+                completedLabel: formatted.completedLabel,
+                iconName: formatted.iconName
+            )
+            currentActivityGroup.tools.append(toolItem)
+            currentActivityGroup.isExecuting = true
+            publishCurrentActivityGroup()
+
+            do {
+                let result = try await tool.execute(input: directInput, context: context)
+                let itemIndex = currentActivityGroup.tools.indices.last ?? 0
+                currentActivityGroup.tools[itemIndex].status = result.success ? .completed : .failed
+                currentActivityGroup.tools[itemIndex].result = result.output
+                currentActivityGroup.isExecuting = false
+                publishCurrentActivityGroup()
+
+                AssistConversationMemory.shared.recordToolExecution(toolId: directToolId)
+                if directToolId == "project_build" {
+                    AssistConversationMemory.shared.recordBuildOutcome(result.success ? "Passed" : "Failed")
+                }
+
+                let finalSummary = result.output
+                AssistConversationMemory.shared.finalizeTurn(summary: finalSummary)
+                transition(to: result.success ? .completed : .failed, reason: "Direct execution of \(directToolId) finished.")
+                postConversationalMessage(finalSummary, isComplete: true)
+                return
+            } catch {
+                let itemIndex = currentActivityGroup.tools.indices.last ?? 0
+                currentActivityGroup.tools[itemIndex].status = .failed
+                currentActivityGroup.tools[itemIndex].result = error.localizedDescription
+                currentActivityGroup.isExecuting = false
+                publishCurrentActivityGroup()
+                transition(to: .failed, reason: error.localizedDescription)
+                postConversationalMessage("Action failed: \(error.localizedDescription)", isComplete: true)
+                return
+            }
+        }
+
+        // Codebase Analysis - only for complex or heavy autonomous tasks
         transition(to: .grounding, reason: "Analyzing codebase structure.")
-        let codebaseAnalyzer = _AssistCriticalCodebaseAnalyzer(context: context)
         var preModSummary = ""
-        do {
-            let summary = try await codebaseAnalyzer.analyze()
-            preModSummary = "Scanned \(summary.totalFiles) files and \(summary.swiftFileCount) Swift files recursively in workspace."
-        } catch {
-            preModSummary = "Failed to scan codebase recursively: \(error.localizedDescription)"
+        if classification.profile == .complex || classification.profile == .heavy {
+            let codebaseAnalyzer = _AssistCriticalCodebaseAnalyzer(context: context)
+            do {
+                let summary = try await codebaseAnalyzer.analyze()
+                preModSummary = "Scanned \(summary.totalFiles) files and \(summary.swiftFileCount) Swift files recursively in workspace."
+            } catch {
+                preModSummary = "Failed to scan codebase recursively: \(error.localizedDescription)"
+            }
+        } else {
+            preModSummary = "Targeted execution: bypassed recursive scan for \(classification.profile.rawValue) task."
         }
         phaseCoordinator.completePhase("PHASE_02_GROUNDING", evidence: preModSummary)
 
@@ -456,35 +516,67 @@ public final class AssistAgentSession: Sendable {
             isPassed: baselinePassed,
             details: baselineDetails
         ))
-        postConversationalMessage("I’m analyzing the project structure and locating the relevant files.")
 
-        // MANDATORY: Execute execution_plan tool before any modification
-        _ = phaseCoordinator.startPhase("PHASE_04B_EXECUTION_PLAN")
-        transition(to: .planning, reason: "Generating Execution Plan...")
-        if let executionPlanTool = registry.getTool("execution_plan") {
-            do {
-                let planResult = try await executionPlanTool.execute(
-                    input: [
-                        "objective": objective,
-                        "mode": executionMode.rawValue
-                    ],
-                    context: context
-                )
-                if planResult.success {
-                    pipelineLogger.info("[execution_plan] Plan generated successfully: \(planResult.output.prefix(100))")
-                    phaseCoordinator.completePhase("PHASE_04B_EXECUTION_PLAN", evidence: "Execution Plan generated and written to agent_notes.md")
-                } else {
-                    let errorMsg = planResult.error ?? "Unknown error"
-                    pipelineLogger.warning("[execution_plan] Plan generation failed: \(errorMsg)")
-                    phaseCoordinator.failPhase("PHASE_04B_EXECUTION_PLAN", error: errorMsg)
+        // Execute execution_plan tool only for complex or heavy autonomous coding tasks
+        if classification.profile == .complex || classification.profile == .heavy {
+            postConversationalMessage("I’m analyzing the project structure and locating the relevant files.")
+            _ = phaseCoordinator.startPhase("PHASE_04B_EXECUTION_PLAN")
+            transition(to: .planning, reason: "Generating Execution Plan...")
+            if let executionPlanTool = registry.getTool("execution_plan") {
+                do {
+                    let planResult = try await executionPlanTool.execute(
+                        input: [
+                            "objective": objective,
+                            "mode": executionMode.rawValue
+                        ],
+                        context: context
+                    )
+                    if planResult.success {
+                        pipelineLogger.info("[execution_plan] Plan generated successfully: \(planResult.output.prefix(100))")
+                        phaseCoordinator.completePhase("PHASE_04B_EXECUTION_PLAN", evidence: "Execution Plan generated and written to agent_notes.md")
+                    } else {
+                        let errorMsg = planResult.error ?? "Unknown error"
+                        pipelineLogger.warning("[execution_plan] Plan generation failed: \(errorMsg)")
+                        phaseCoordinator.failPhase("PHASE_04B_EXECUTION_PLAN", error: errorMsg)
+                    }
+                } catch {
+                    pipelineLogger.warning("[execution_plan] Tool execution error: \(error.localizedDescription)")
+                    phaseCoordinator.failPhase("PHASE_04B_EXECUTION_PLAN", error: error.localizedDescription)
                 }
-            } catch {
-                pipelineLogger.warning("[execution_plan] Tool execution error: \(error.localizedDescription)")
-                phaseCoordinator.failPhase("PHASE_04B_EXECUTION_PLAN", error: error.localizedDescription)
+            } else {
+                pipelineLogger.warning("[execution_plan] Tool not found in registry")
+                phaseCoordinator.failPhase("PHASE_04B_EXECUTION_PLAN", error: "execution_plan tool not found")
             }
-        } else {
-            pipelineLogger.warning("[execution_plan] Tool not found in registry")
-            phaseCoordinator.failPhase("PHASE_04B_EXECUTION_PLAN", error: "execution_plan tool not found")
+        }
+
+        // EXPLICIT TOOL EXECUTION: If user requested a specific tool first, run it immediately!
+        if let explicit = classification.explicitTool, let tool = registry.getTool(explicit.toolId) {
+            let formatted = AssistToolActivityFormatter.format(toolId: explicit.toolId, arguments: explicit.suggestedInput)
+            postConversationalMessage("Priority Tool Request: Running \(formatted.runningLabel) first…")
+            let toolItem = ToolActivityItem(
+                toolId: explicit.toolId,
+                purpose: explicit.explanation,
+                status: .running,
+                displayLabel: formatted.runningLabel,
+                completedLabel: formatted.completedLabel,
+                iconName: formatted.iconName
+            )
+            currentActivityGroup.tools.append(toolItem)
+            currentActivityGroup.isExecuting = true
+            publishCurrentActivityGroup()
+
+            do {
+                let explicitResult = try await tool.execute(input: explicit.suggestedInput, context: context)
+                let itemIndex = currentActivityGroup.tools.indices.last ?? 0
+                currentActivityGroup.tools[itemIndex].status = explicitResult.success ? .completed : .failed
+                currentActivityGroup.tools[itemIndex].result = explicitResult.output
+                publishCurrentActivityGroup()
+
+                AssistConversationMemory.shared.recordToolExecution(toolId: explicit.toolId)
+                appendConversationHistory("- Priority Action: Run \(explicit.toolId). Result: \(explicitResult.success ? "SUCCESS" : "FAILURE") - Output: \(explicitResult.output)")
+            } catch {
+                appendConversationHistory("- Priority Action: Run \(explicit.toolId) failed: \(error.localizedDescription)")
+            }
         }
 
         // Production-grade adaptive orchestration trackers
@@ -562,11 +654,9 @@ public final class AssistAgentSession: Sendable {
             let groundingInstructions = contextPayload?.repositoryInstructions ?? ""
             let activeFiles = contextPayload?.activeFileContents.map { "\($0.key):\n\($0.value)" }.joined(separator: "\n\n") ?? ""
 
-            let toolSchemas = cachedToolSchemas[self.state.status] ?? {
-                let phaseTools = AssistToolRouter.shared.filterTools(for: self.state.status, in: registry)
-                let serialized = AssistToolRouter.shared.serializeToolSchemas(phaseTools)
-                cachedToolSchemas[self.state.status] = serialized
-                return serialized
+            let toolSchemas = {
+                let phaseTools = AssistToolRouter.shared.filterTools(for: classification.primaryIntent, status: self.state.status, in: registry)
+                return AssistToolRouter.shared.serializeToolSchemas(phaseTools)
             }()
             let assetSystemPrompt: String
             do {
@@ -594,6 +684,8 @@ public final class AssistAgentSession: Sendable {
                 }
             }
 
+            let historyBlock = AssistConversationMemory.shared.buildHistoricalContextPrompt()
+
             let systemPrompt = """
             # SYSTEM PROMPT (OPERATING POLICY)
             \(assetSystemPrompt)
@@ -606,6 +698,7 @@ public final class AssistAgentSession: Sendable {
             \(executionMode.systemInstruction)
 
             \(groundingInstructions)
+            \(historyBlock)
 
             Respond ONLY with valid JSON:
             {
@@ -770,7 +863,9 @@ public final class AssistAgentSession: Sendable {
 
                 // Final Conversational Completion
                 currentActivityGroup.isExecuting = false
-                postConversationalMessage(finalResponse.isEmpty ? "The fix is complete and verified." : finalResponse, isComplete: true)
+                let finalSummaryText = finalResponse.isEmpty ? "The fix is complete and verified." : finalResponse
+                AssistConversationMemory.shared.finalizeTurn(summary: finalSummaryText)
+                postConversationalMessage(finalSummaryText, isComplete: true)
 
                 _ = phaseCoordinator.startPhase("PHASE_09_COMPLETION")
                 transition(to: .completed, reason: "Task complete and verified.")
@@ -919,11 +1014,18 @@ public final class AssistAgentSession: Sendable {
 
                     logChangeToSummary(toolId: toolId, input: toolInput, explanation: explanation, output: result.output)
 
-                    // Track file modifications in Activity Group
-                    if let path = toolInput["path"] ?? toolInput["filepath"] {
+                    // Track file modifications in Activity Group & Conversation Memory
+                    AssistConversationMemory.shared.recordToolExecution(toolId: toolId)
+                    if let path = toolInput["path"] ?? toolInput["filepath"] ?? toolInput["target"] {
                         let op = toolId.contains("create") ? "Created" : (toolId.contains("delete") ? "Deleted" : "Modified")
                         let added = result.diff?.components(separatedBy: "\n").filter { $0.hasPrefix("+") && !$0.hasPrefix("+++") }.count ?? 0
                         let deleted = result.diff?.components(separatedBy: "\n").filter { $0.hasPrefix("-") && !$0.hasPrefix("---") }.count ?? 0
+
+                        if toolId.contains("read") || toolId.contains("search") || toolId.contains("view") {
+                            AssistConversationMemory.shared.recordFileInspected(path)
+                        } else if ["file_write", "code_replace", "file_create", "file_append", "patch_application_engine"].contains(toolId) {
+                            AssistConversationMemory.shared.recordFileModified(path)
+                        }
 
                         if let existingIndex = currentActivityGroup.files.firstIndex(where: { $0.filePath == path }) {
                             currentActivityGroup.files[existingIndex].addedLines += added
@@ -939,8 +1041,9 @@ public final class AssistAgentSession: Sendable {
                         }
                     }
 
-                    // Track builds/tests in Activity Group
+                    // Track builds/tests in Activity Group & Conversation Memory
                     if toolId == "project_build" || toolId == "build_project" {
+                        AssistConversationMemory.shared.recordBuildOutcome(result.success ? "Passed" : "Failed")
                         currentActivityGroup.builds.append(BuildActivityItem(
                             status: .completed,
                             errorCount: 0,
@@ -952,13 +1055,27 @@ public final class AssistAgentSession: Sendable {
                             status: .completed
                         ))
                     } else if toolId == "use_workers" {
-                        currentActivityGroup.workers.append(WorkerActivityItem(
-                            workerId: UUID().uuidString,
-                            name: toolInput["workerName"] ?? "Worker",
-                            role: toolInput["role"] ?? "Task Worker",
-                            scope: toolInput["scope"] ?? "Codebase",
-                            status: .completed
-                        ))
+                        if let workersJson = toolInput["workers"],
+                           let data = workersJson.data(using: .utf8),
+                           let arr = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]] {
+                            for item in arr {
+                                currentActivityGroup.workers.append(WorkerActivityItem(
+                                    workerId: item["id"] as? String ?? UUID().uuidString,
+                                    name: item["name"] as? String ?? "Worker",
+                                    role: item["role"] as? String ?? "Task Worker",
+                                    scope: item["scope"] as? String ?? "Codebase",
+                                    status: .completed
+                                ))
+                            }
+                        } else {
+                            currentActivityGroup.workers.append(WorkerActivityItem(
+                                workerId: UUID().uuidString,
+                                name: toolInput["workerName"] ?? toolInput["name"] ?? "Worker",
+                                role: toolInput["role"] ?? "Task Worker",
+                                scope: toolInput["scope"] ?? "Codebase",
+                                status: .completed
+                            ))
+                        }
                     }
 
                     if ["file_write", "code_replace", "file_create", "patch_application_engine"].contains(toolId) {

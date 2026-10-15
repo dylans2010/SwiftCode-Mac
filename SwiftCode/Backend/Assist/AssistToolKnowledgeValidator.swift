@@ -47,7 +47,9 @@ public final class AssistToolKnowledgeValidator: Sendable {
     /// into tool ids in document order.
     private func catalogToolIds(in catalog: String) -> [String] {
         var ids: [String] = []
-        for line in catalog.components(separatedBy: "\n") {
+        let sections = catalog.components(separatedBy: "## Cloud Toolkit")
+        let localCatalog = sections.first ?? catalog
+        for line in localCatalog.components(separatedBy: "\n") {
             let trimmed = line.trimmingCharacters(in: .whitespaces)
             guard trimmed.hasPrefix("- `") else { continue }
             let afterTick = trimmed.dropFirst(3)

@@ -91,14 +91,17 @@ public struct AssistBuildProjectTool: AssistTool {
                     output.appendStderr(chunk)
                 }
             )
+            output.flushRemainingLines()
             let duration = Date().timeIntervalSince(startTime)
-            let (stdoutAccum, stderrAccum) = output.snapshot()
+            let snapshot = output.snapshot()
+            let (stdoutAccum, stderrAccum) = (snapshot.stdout, snapshot.stderr)
             let combined = stdoutAccum + "\n" + stderrAccum
-            let buildSucceeded = combined.contains("** BUILD SUCCEEDED **")
-            let errors = parseBuildErrors(from: combined)
-            let warnings = parseBuildWarnings(from: combined)
+
+            let buildSucceeded = snapshot.detectedSuccessMarker && !snapshot.detectedFailureMarker
+            let errors = snapshot.errors
+            let warnings = snapshot.warnings
             let diagStrings = (errors + warnings).map { "\($0)" }
-            let isSuccess = succeeded && buildSucceeded && errors.isEmpty
+            let isSuccess = succeeded && (buildSucceeded || (!snapshot.detectedFailureMarker && errors.isEmpty))
 
             let resultData: [String: String] = [
                 "project": project.url.lastPathComponent,
@@ -107,7 +110,8 @@ public struct AssistBuildProjectTool: AssistTool {
                 "status": isSuccess ? "Passed" : "Failed",
                 "duration": String(format: "%.2fs", duration),
                 "error_count": "\(errors.count)",
-                "warning_count": "\(warnings.count)"
+                "warning_count": "\(warnings.count)",
+                "marker": snapshot.detectedSuccessMarker ? "BUILD SUCCEEDED" : (snapshot.detectedFailureMarker ? "BUILD FAILED" : "NONE")
             ]
 
             if isSuccess {
@@ -143,41 +147,117 @@ public struct AssistBuildProjectTool: AssistTool {
         return .failure("Project builds require the macOS runtime.")
         #endif
     }
-
-    private func parseBuildErrors(from output: String) -> [String] {
-        output.components(separatedBy: .newlines)
-            .filter { $0.contains(": error:") }
-            .map { $0.trimmingCharacters(in: .whitespaces) }
-            .filter { !$0.isEmpty }
-    }
-
-    private func parseBuildWarnings(from output: String) -> [String] {
-        output.components(separatedBy: .newlines)
-            .filter { $0.contains(": warning:") }
-            .map { $0.trimmingCharacters(in: .whitespaces) }
-            .filter { !$0.isEmpty }
-    }
 }
 
-/// Thread-safe accumulator for streamed process output.
-private final class BuildOutputAccumulator: @unchecked Sendable {
+/// Thread-safe accumulator with incremental line-oriented parsing for build markers and diagnostics.
+public final class BuildOutputAccumulator: @unchecked Sendable {
     private let lock = NSLock()
-    private var stdout = ""
-    private var stderr = ""
+    public private(set) var stdout = ""
+    public private(set) var stderr = ""
+    public private(set) var detectedSuccessMarker = false
+    public private(set) var detectedFailureMarker = false
+    public private(set) var errors: [String] = []
+    public private(set) var warnings: [String] = []
 
-    func appendStdout(_ chunk: String) {
+    private var stdoutLineBuffer = ""
+    private var stderrLineBuffer = ""
+    private var seenErrors = Set<String>()
+    private var seenWarnings = Set<String>()
+
+    public init() {}
+
+    public func appendStdout(_ chunk: String) {
         lock.lock(); defer { lock.unlock() }
         stdout += chunk
+        stdoutLineBuffer += chunk
+        processBuffer(&stdoutLineBuffer)
     }
 
-    func appendStderr(_ chunk: String) {
+    public func appendStderr(_ chunk: String) {
         lock.lock(); defer { lock.unlock() }
         stderr += chunk
+        stderrLineBuffer += chunk
+        processBuffer(&stderrLineBuffer)
     }
 
-    func snapshot() -> (String, String) {
+    public func flushRemainingLines() {
         lock.lock(); defer { lock.unlock() }
-        return (stdout, stderr)
+        if !stdoutLineBuffer.isEmpty {
+            processLine(stdoutLineBuffer)
+            stdoutLineBuffer = ""
+        }
+        if !stderrLineBuffer.isEmpty {
+            processLine(stderrLineBuffer)
+            stderrLineBuffer = ""
+        }
+    }
+
+    public var isSucceeded: Bool {
+        lock.lock(); defer { lock.unlock() }
+        return detectedSuccessMarker
+    }
+
+    public var isFailed: Bool {
+        lock.lock(); defer { lock.unlock() }
+        return detectedFailureMarker
+    }
+
+    public func processLine(_ rawLine: String) {
+        lock.lock(); defer { lock.unlock() }
+        processLineUnlocked(rawLine)
+    }
+
+    private func processBuffer(_ buffer: inout String) {
+        while let newlineRange = buffer.range(of: "\n") {
+            let line = String(buffer[..<newlineRange.lowerBound])
+            buffer.removeSubrange(..<newlineRange.upperBound)
+            processLineUnlocked(line)
+        }
+    }
+
+    private func processLineUnlocked(_ rawLine: String) {
+        let line = rawLine.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !line.isEmpty else { return }
+
+        if line.contains("** BUILD SUCCEEDED **") {
+            detectedSuccessMarker = true
+        }
+        if line.contains("** BUILD FAILED **") {
+            detectedFailureMarker = true
+        }
+
+        if line.contains(": error:") {
+            if !seenErrors.contains(line) {
+                seenErrors.insert(line)
+                errors.append(line)
+            }
+        } else if line.contains(": warning:") {
+            if !seenWarnings.contains(line) {
+                seenWarnings.insert(line)
+                warnings.append(line)
+            }
+        }
+    }
+
+    public struct Snapshot: Sendable {
+        public let stdout: String
+        public let stderr: String
+        public let detectedSuccessMarker: Bool
+        public let detectedFailureMarker: Bool
+        public let errors: [String]
+        public let warnings: [String]
+    }
+
+    public func snapshot() -> Snapshot {
+        lock.lock(); defer { lock.unlock() }
+        return Snapshot(
+            stdout: stdout,
+            stderr: stderr,
+            detectedSuccessMarker: detectedSuccessMarker,
+            detectedFailureMarker: detectedFailureMarker,
+            errors: errors,
+            warnings: warnings
+        )
     }
 }
 

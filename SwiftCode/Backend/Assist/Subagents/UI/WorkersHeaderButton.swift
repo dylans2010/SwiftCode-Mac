@@ -4,7 +4,7 @@ import SwiftUI
 /// Displays "Workers · N" with active/total count badge and triggers the full dashboard.
 @MainActor
 public struct WorkersHeaderButton: View {
-    private var runtimeState = WorkerRuntimeState.shared
+    @Bindable private var runtimeState = WorkerRuntimeState.shared
     @State private var showingDashboard = false
     
     public init() {}
@@ -36,6 +36,19 @@ public struct WorkersHeaderButton: View {
             }
             .buttonStyle(.plain)
             .help("Inspect Active Assist Workers")
+            .sheet(isPresented: $showingDashboard) {
+                WorkersMainView()
+            }
+        } else {
+            Button {
+                showingDashboard = true
+            } label: {
+                Image(systemName: "person.3.sequence")
+                    .font(.body)
+                    .foregroundStyle(.secondary)
+            }
+            .buttonStyle(.plain)
+            .help("Workers Dashboard (No Active Workers)")
             .sheet(isPresented: $showingDashboard) {
                 WorkersMainView()
             }

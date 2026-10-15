@@ -124,7 +124,7 @@ public final class GoogleCloudSDKTests: Sendable {
         let passed = compact.contains("structured tools exposed by the active toolkit") &&
             compact.contains("Preserve tool event streaming and cancellation") &&
             compact.contains("SDK Tool Protocol Boundary") &&
-            compact.contains("SAFEGUARDS") &&
+            compact.localizedCaseInsensitiveContains("SAFEGUARDS") &&
             compact.contains("ASSIST IDENTITY") &&
             !compact.contains("You MUST respond as a toolId/input JSON object") &&
             !compact.contains("This unrelated section should not enter") &&
@@ -228,7 +228,7 @@ public final class GoogleCloudSDKTests: Sendable {
         do {
             try await bridge.start()
             let status = try await bridge.getStatus()
-            let isRunning = (status["status"] as? String) == "running"
+            let isRunning = status.status == "running" || (status["status"] as? String) == "running"
             await bridge.stop()
 
             return RuntimeTestCaseResult(

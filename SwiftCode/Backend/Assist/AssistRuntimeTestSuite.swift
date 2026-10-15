@@ -64,6 +64,12 @@ public final class AssistRuntimeTestSuite: Sendable {
         results.append(await testOfflineModelFallbackClassificationAndRehydration())
         results.append(await testAssistWorkersSubsystem())
         results.append(await testEventNormalizationAndActivityTrajectory())
+        results.append(await testAssistIntentClassifier())
+        results.append(await testAssistBuildProjectIncrementalParsing())
+        results.append(await testEmptyTemplateBlankState())
+        results.append(await testCodingToolsServiceActions())
+        results.append(await testAssistConversationMemory())
+        results.append(await testAssistFinderToolsAndAliases())
         results.append(contentsOf: await AssistToolKnowledgeValidator.shared.runAllTests())
         results.append(contentsOf: await SystemIndexTestSuite.shared.runAllTests())
         results.append(contentsOf: await GoogleCloudSDKTests.shared.runAllTests())
@@ -800,6 +806,173 @@ public final class AssistRuntimeTestSuite: Sendable {
             testName: "Event Normalization & Activity Trajectory",
             passed: passed,
             message: passed ? "Deduplication, retry grouping, sanitized errors, and worker titles verified." : "Event normalization regression test failed.",
+            duration: Date().timeIntervalSince(start)
+        )
+    }
+
+    // 21. Assist Intent Classifier
+    public func testAssistIntentClassifier() async -> RuntimeTestCaseResult {
+        let start = Date()
+        let classifier = AssistIntentClassifier.shared
+
+        let gitPrompt = "Please check git status and commit all changes"
+        let gitIntent = classifier.classify(prompt: gitPrompt)
+        let isGit = if case .git(let action, _) = gitIntent.primaryIntent { action == .status || action == .commit } else { false }
+
+        let searchPrompt = "search the codebase for references to Symbol"
+        let searchIntent = classifier.classify(prompt: searchPrompt)
+        let isSearch = if case .codeSearch = searchIntent.primaryIntent { true } else { false }
+
+        let buildPrompt = "build the project and run tests"
+        let buildIntent = classifier.classify(prompt: buildPrompt)
+        let isBuild = if case .build = buildIntent.primaryIntent { true } else { false }
+
+        let finderPrompt = "reveal ContentView.swift in Finder and open the project directory"
+        let finderIntent = classifier.classify(prompt: finderPrompt)
+        let isFinder = if case .fileOperation(let action, _) = finderIntent.primaryIntent { action == .revealInFinder || action == .openInFinder } else { false }
+
+        let explicitPrompt = "Please use run_command and view_file to check status"
+        let explicitIntent = classifier.classify(prompt: explicitPrompt)
+        let explicitPassed = explicitIntent.explicitTool != nil || explicitIntent.deterministicToolId != nil
+
+        let passed = isGit && isSearch && isBuild && isFinder && explicitPassed
+        return RuntimeTestCaseResult(
+            testName: "Assist Intent Classifier & Fast-Path Routing",
+            passed: passed,
+            message: passed ? "Intent classifier domains, actions, explicit priorities, and fast-paths verified." : "Intent classifier validation failed.",
+            duration: Date().timeIntervalSince(start)
+        )
+    }
+
+    // 22. Assist Build Project Incremental Parsing
+    public func testAssistBuildProjectIncrementalParsing() async -> RuntimeTestCaseResult {
+        let start = Date()
+        let accumulator = BuildOutputAccumulator()
+
+        accumulator.processLine("Building SwiftCode...")
+        accumulator.processLine("ContentView.swift:14:5: error: cannot find 'testVar' in scope")
+        accumulator.processLine("ContentView.swift:14:5: error: cannot find 'testVar' in scope") // duplicate
+        accumulator.processLine("ContentView.swift:20:1: warning: variable 'unused' was never used")
+        accumulator.processLine("** BUILD FAILED **")
+
+        let failedPassed = accumulator.isFailed &&
+            !accumulator.isSucceeded &&
+            accumulator.errors.count == 1 &&
+            accumulator.warnings.count == 1
+
+        let successAccumulator = BuildOutputAccumulator()
+        successAccumulator.processLine("CompileSwift normal arm64")
+        successAccumulator.processLine("Linking SwiftCode")
+        successAccumulator.processLine("** BUILD SUCCEEDED **")
+
+        let successPassed = successAccumulator.isSucceeded && !successAccumulator.isFailed
+        let passed = failedPassed && successPassed
+
+        return RuntimeTestCaseResult(
+            testName: "Assist Build Incremental Output Parsing",
+            passed: passed,
+            message: passed ? "Incremental build markers and error deduplication verified." : "Incremental build output parsing failed.",
+            duration: Date().timeIntervalSince(start)
+        )
+    }
+
+    // 23. Empty Template Blank State
+    public func testEmptyTemplateBlankState() async -> RuntimeTestCaseResult {
+        let start = Date()
+        let template = EmptyTemplate()
+
+        let passed = template.name == "Empty" &&
+            template.files.isEmpty &&
+            !template.description.isEmpty &&
+            template.icon == "square.dashed"
+
+        return RuntimeTestCaseResult(
+            testName: "Empty Project Template Blank State",
+            passed: passed,
+            message: passed ? "Empty template verified completely blank with 0 pre-populated files." : "Empty template verification failed.",
+            duration: Date().timeIntervalSince(start)
+        )
+    }
+
+    // 24. Coding Tools Service Actions
+    public func testCodingToolsServiceActions() async -> RuntimeTestCaseResult {
+        let start = Date()
+        let service = CodingToolsService.shared
+
+        let modelID = service.activeModelID
+
+        service.addToAssistContext(code: "struct ContentView: View {}", filePath: "ContentView.swift")
+
+        let hasMessage = AssistManager.shared.messages.contains(where: {
+            $0.content.contains("Attached Code Context from 'ContentView.swift'")
+        })
+        let memoryRecorded = AssistConversationMemory.shared.inspectedFiles.contains("ContentView.swift")
+
+        let passed = !modelID.isEmpty && hasMessage && memoryRecorded
+        return RuntimeTestCaseResult(
+            testName: "Coding Tools Service Editor Actions",
+            passed: passed,
+            message: passed ? "All editor actions, model resolution, and context attachments verified." : "Coding tools service failed.",
+            duration: Date().timeIntervalSince(start)
+        )
+    }
+
+    // 25. Assist Conversation Memory
+    public func testAssistConversationMemory() async -> RuntimeTestCaseResult {
+        let start = Date()
+        let memory = AssistConversationMemory.shared
+        let convId = UUID()
+        let workspaceURL = URL(fileURLWithPath: "/tmp/SwiftCodeTest")
+
+        memory.bindConversation(id: convId, workspaceRoot: workspaceURL)
+        _ = memory.recordTurnStart(prompt: "Please build the app and fix any compiler errors", intent: "build_and_repair")
+        memory.recordFileInspected("ContentView.swift")
+        memory.recordFileModified("ContentView.swift")
+        memory.recordDecision("Do not delete legacy APIs")
+        memory.recordBuildOutcome("Build failed with 1 error")
+        memory.finalizeTurn(summary: "Inspected ContentView.swift and identified missing symbol")
+
+        let inspectedOk = memory.inspectedFiles.contains("ContentView.swift")
+        let modifiedOk = memory.modifiedFiles.contains("ContentView.swift")
+        let decisionOk = memory.establishedDecisions.contains("Do not delete legacy APIs")
+        let buildOk = memory.lastVerifiedBuildOutcome == "Build failed with 1 error"
+
+        let prompt = memory.buildHistoricalContextPrompt()
+        let promptOk = prompt.contains("ContentView.swift") &&
+            prompt.contains("Do not delete legacy APIs") &&
+            prompt.contains("Build failed with 1 error")
+
+        let passed = inspectedOk && modifiedOk && decisionOk && buildOk && promptOk
+        return RuntimeTestCaseResult(
+            testName: "Assist Multi-Turn Conversation Memory",
+            passed: passed,
+            message: passed ? "Memory recorded turns, file mutations, constraints, and build outcomes." : "Conversation memory validation failed.",
+            duration: Date().timeIntervalSince(start)
+        )
+    }
+
+    // 26. Assist Finder Tools & Alias Resolution
+    public func testAssistFinderToolsAndAliases() async -> RuntimeTestCaseResult {
+        let start = Date()
+        let registry = AssistToolRegistry.shared
+
+        let hasOpenInFinder = registry.allTools.contains(where: { $0.id == "open_in_finder" })
+        let hasRevealInFinder = registry.allTools.contains(where: { $0.id == "reveal_in_finder" })
+
+        let gitAlias = registry.resolve(toolId: "git")
+        let buildAlias = registry.resolve(toolId: "build")
+        let directFinder = registry.resolve(toolId: "reveal_in_finder")
+
+        let passed = hasOpenInFinder &&
+            hasRevealInFinder &&
+            gitAlias?.id == "run_command" &&
+            buildAlias?.id == "build_project" &&
+            directFinder?.id == "reveal_in_finder"
+
+        return RuntimeTestCaseResult(
+            testName: "Assist Finder Tools & Registry Aliases",
+            passed: passed,
+            message: passed ? "Finder tools registered and tool alias resolution verified." : "Tool registry finder or alias validation failed.",
             duration: Date().timeIntervalSince(start)
         )
     }

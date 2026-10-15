@@ -11,6 +11,7 @@ struct TemplatePickerView: View {
     @State private var showingNameAlert = false
 
     let templates: [any ProjectScaffoldTemplate] = [
+        EmptyTemplate(),
         IntroductionTemplate(),
         MacOSAppTemplate(),
         MultiplatformAppTemplate(),
