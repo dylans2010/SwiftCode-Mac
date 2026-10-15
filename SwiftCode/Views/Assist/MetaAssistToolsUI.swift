@@ -117,7 +117,55 @@ public struct MetaAssistToolItemView: View {
     }
 
     private var toolTitle: String {
-        tool.displayLabel ?? tool.toolId
+        if let label = tool.displayLabel, !label.isEmpty, !isRawInternalIdentifier(label) {
+            return label
+        }
+        return humanReadableTitle(for: tool.toolId)
+    }
+
+    private func isRawInternalIdentifier(_ text: String) -> Bool {
+        let raw = text.lowercased()
+        return raw.contains("plan-askuser") ||
+               raw.contains("code_replace") ||
+               raw.contains("use_terminal") ||
+               raw.contains("file_read") ||
+               raw.contains("file_write") ||
+               raw.contains("file_create") ||
+               raw.contains("dir_read") ||
+               raw.contains("search_text") ||
+               raw.contains("agent_subagent_start") ||
+               raw.contains("dispatch_")
+    }
+
+    private func humanReadableTitle(for id: String) -> String {
+        let normalized = id.lowercased().replacingOccurrences(of: "-", with: "_")
+        switch normalized {
+        case "file_read", "read_file", "view_file":
+            return "Reading project files"
+        case "file_write", "write_file", "file_create", "create_file":
+            return "Writing project files"
+        case "code_replace", "edit_file", "replace_in_file":
+            return "Editing project files"
+        case "use_terminal", "run_command", "terminal_command":
+            return "Running terminal command"
+        case "dir_read", "list_dir", "list_directory":
+            return "Reading directory"
+        case "search_text", "search_dir", "find_file":
+            return "Searching codebase"
+        case "plan_askuser", "plan-askuser":
+            return "Preparing decision prompt"
+        case "use_workers", "start_subagent":
+            return "Delegating task to worker"
+        case "build_project":
+            return "Building project"
+        case "run_tests", "test_runner":
+            return "Running tests"
+        case "execution_plan":
+            return "Preparing execution plan"
+        default:
+            let title = id.replacingOccurrences(of: "_", with: " ").replacingOccurrences(of: "-", with: " ").capitalized
+            return title
+        }
     }
 
     private var toolSummary: String? {

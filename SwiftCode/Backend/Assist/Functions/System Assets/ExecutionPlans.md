@@ -66,7 +66,7 @@ Plans are active session state, persisted and updated as work progresses:
 The `plan-AskUser` tool presents a structured decision question to the user in native macOS UI (`PlanUserAskView`) during planning.
 
 ### Mode Restriction & Suspension Protocol
-- **Plan Mode ONLY:** `plan-AskUser` is strictly available during Plan mode execution (`context.sessionExecutionMode == .plan`). It is blocked at the runtime registry layer in Autopilot mode.
+- **Plan Mode ONLY:** `PlanAskUserTool` is strictly available during Plan mode execution. It is blocked at the runtime registry layer in Autopilot mode.
 - **Blocking Suspension:** Calling `plan-AskUser` suspends turn execution for up to 300 seconds until the user provides an answer. The answer becomes persistent session data.
 - **Cancellation / Timeout:** If the question times out or is cancelled, do NOT retry automatically — report the status and wait for user guidance.
 

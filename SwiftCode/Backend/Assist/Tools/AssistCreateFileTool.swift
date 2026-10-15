@@ -42,9 +42,53 @@ public struct AssistCreateFileTool: AssistTool {
                 try context.fileSystem.createDirectory(at: dirPath)
             }
 
+            // Live Diff Streamer: Broadcast edit initiation
+            LiveDiffStreamer.shared.beginEdit(
+                filePath: path,
+                operationType: .create,
+                beforeContent: ""
+            )
+
+            LiveDiffStreamer.shared.streamMutation(
+                filePath: path,
+                currentContent: content,
+                isFinal: false
+            )
+
+            // Write updated content
             try context.fileSystem.writeFile(at: path, content: content)
-            return .success("Created file at \(path)", data: ["path": path, "bytes": String(content.utf8.count)])
+
+            LiveDiffStreamer.shared.completeEdit(filePath: path, finalContent: content)
+
+            if let verifiedDisk = try? context.fileSystem.readFile(at: path) {
+                LiveDiffStreamer.shared.reconcileWithDisk(filePath: path, actualDiskContent: verifiedDisk)
+            }
+
+            let diff = AssistDiffEngine.shared.generateUnifiedDiff(
+                filePath: path,
+                original: "",
+                modified: content
+            )
+
+            return AssistToolResult(
+                success: true,
+                output: "Created file at \(path) (\(content.components(separatedBy: .newlines).count) lines)",
+                data: [
+                    "path": path,
+                    "bytes": String(content.utf8.count),
+                    AssistToolDataKey.diff: diff,
+                    "is_new": "true"
+                ],
+                diagnostics: [],
+                filesChanged: [path],
+                diff: diff,
+                duration: 0.1,
+                suggestedNextActions: ["project_build"],
+                beforeContent: "",
+                afterContent: content
+            )
         } catch {
+            LiveDiffStreamer.shared.cancelStream(filePath: path)
             return .failure("Failed to create file at \(path): \(error.localizedDescription)")
         }
     }

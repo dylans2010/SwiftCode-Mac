@@ -63,8 +63,8 @@ Deterministic schema failures — fix the argument payload, never retry the iden
 
 ## 4. Key Execution Tool Protocols
 
-### Protocol: `plan-AskUser`
-- **Availability:** Only valid in Plan execution mode (`context.sessionExecutionMode == .plan`). Blocked in Autopilot mode.
+### Protocol: `PlanAskUserTool`
+- **Availability:** Only valid when Plan execution mode is active. Blocked in Autopilot mode.
 - **Behavior:** Renders `PlanUserAskView` in native macOS UI and suspends execution up to 300 seconds for user answer.
 - **Answer Handling:** Process returned answer (`selectedChoices` or `freeForm`) to update session state. If cancelled or timed out, report status plainly.
 
@@ -98,12 +98,7 @@ Deterministic schema failures — fix the argument payload, never retry the iden
 `{ "toolId": "the_tool_id", "input": { "key": "value" }, "explanation": "Why you are using this tool" }`,
 or `{ "finalResponse": "Achievements and files modified" }` on completion.
 
-**Toolkit Routing (System vs Cloud).** The "Assist Toolkit" picker selects:
-- **"System":** Native SwiftCode tools over the IPC bridge via `AssistToolRegistry`. All models (Muse, Antigravity, or other SDKs) MUST use SwiftCode tools when System is selected.
-- **"Cloud":** Official Cloud SDK built-in tools (dynamically selected based on the active Assist System):
-  - On Meta: Muse SDK built-in workspace tools (`file_read`, `file_write`, `shell`, etc.).
-  - On Google Cloud: Antigravity SDK built-in tools (`view_file`, `edit_file`, `create_file`, `run_command`, `list_directory`, `search_directory`, `search_web`, `read_url_content`, `start_subagent`).
-Catalog strictness: never call a System-only tool in Cloud mode or vice versa.
+**Toolkit Execution Protocol.** SwiftCode's native system tools (`AssistToolRegistry`) are the authoritative tool execution layer across all model providers (Meta, Google Cloud, Gemini, Claude, OpenAI, and local models). All tool selection, argument validation, path safety checks, filesystem access, terminal execution, and result processing are controlled and executed by SwiftCode. Do not rely on Muse SDK built-in tools for execution.
 
 ---
 
