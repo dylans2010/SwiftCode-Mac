@@ -584,7 +584,7 @@ public final class LLMService: Sendable {
                 systemPrompt: nil,
                 modelIdentifier: endpointName
             )
-            return LLMResponse(content: response, model: model)
+            return LLMResponse(modelName: model, completionText: response, tokenUsage: nil, latency: 0)
         }
 
         let resolvedProvider = providerOverride ?? provider(for: model)
