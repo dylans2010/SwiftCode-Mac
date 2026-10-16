@@ -5,6 +5,7 @@
 //  Bridge enabling the Meta Muse SDK / "Assist with Meta" to use third-party API models
 //  (from saved API Providers: OpenAI, Anthropic, Gemini, OpenRouter, Mistral, Qwen)
 //  and Custom Model Setups (from CustomEndpointManager), with automatic rate-limit failover.
+//  Preserves 100% of the native Muse SDK MSP protocol while redirecting model requests.
 //
 
 import Foundation
@@ -14,20 +15,93 @@ import os
 
 private let logger = Logger(subsystem: "com.swiftcode.MetaAssist", category: "MuseOtherModelsBridge")
 
+// MARK: - Thread-safe Streaming State Holder
+private final class GenerationState: @unchecked Sendable {
+    private let lock = NSLock()
+    private var _fullGeneratedText = ""
+    private var _isInThinkingBlock = false
+    private var _currentThinking = ""
+    private var _isCancelled = false
+
+    var isCancelled: Bool {
+        lock.lock(); defer { lock.unlock() }
+        return _isCancelled
+    }
+
+    func cancel() {
+        lock.lock(); defer { lock.unlock() }
+        _isCancelled = true
+    }
+
+    func appendText(_ text: String) {
+        lock.lock(); defer { lock.unlock() }
+        _fullGeneratedText += text
+    }
+
+    var fullGeneratedText: String {
+        lock.lock(); defer { lock.unlock() }
+        return _fullGeneratedText
+    }
+
+    func processToken(
+        _ token: String,
+        onThinkingDelta: ((String) -> Void)?,
+        onTextDelta: (String) -> Void
+    ) {
+        lock.lock(); defer { lock.unlock() }
+        guard !_isCancelled else { return }
+
+        _fullGeneratedText += token
+
+        // Handle `<think>` tags emitted by reasoning models (DeepSeek-R1, QwQ, etc.)
+        if token.contains("<think>") {
+            _isInThinkingBlock = true
+            let cleaned = token.replacingOccurrences(of: "<think>", with: "")
+            if !cleaned.isEmpty {
+                _currentThinking += cleaned
+                onThinkingDelta?(cleaned)
+            }
+            return
+        } else if token.contains("</think>") {
+            _isInThinkingBlock = false
+            let parts = token.components(separatedBy: "</think>")
+            if let thoughtPart = parts.first, !thoughtPart.isEmpty {
+                _currentThinking += thoughtPart
+                onThinkingDelta?(thoughtPart)
+            }
+            if parts.count > 1 {
+                let textPart = parts[1]
+                if !textPart.isEmpty {
+                    onTextDelta(textPart)
+                }
+            }
+            return
+        }
+
+        if _isInThinkingBlock {
+            _currentThinking += token
+            onThinkingDelta?(token)
+        } else {
+            onTextDelta(token)
+        }
+    }
+}
+
 @MainActor
 public final class MuseOtherModelsBridge: @unchecked Sendable {
     public static let shared = MuseOtherModelsBridge()
 
     private var activeTask: Task<Void, Error>?
-    private var isCancelled: Bool = false
     private var proxyServer: MuseLocalProxyServer?
+    private let stateHolder = GenerationState()
 
     private init() {}
 
     // MARK: - Model Resolution
 
     /// Discovers all candidate other models available for use with the Meta SDK.
-    public func availableOtherModels() -> [AssistAvailableModel] {
+    public func availableOtherModels(onlyUseFree: Bool? = nil) -> [AssistAvailableModel] {
+        let effectiveOnlyUseFree = onlyUseFree ?? AppSettings.shared.onlyUseFreeModels
         let discovered = AssistModelDiscoveryService.shared.discoveredModels
 
         // Filter out native Meta models so we only return other models
@@ -46,11 +120,12 @@ public final class MuseOtherModelsBridge: @unchecked Sendable {
                         AssistAvailableModel(
                             id: modelID,
                             displayName: "\(endpoint.name): \(modelID)",
-                            providerName: endpoint.name.isEmpty ? "Custom Model" : endpoint.name,
                             providerID: "custom",
+                            providerName: endpoint.name.isEmpty ? "Custom Model" : endpoint.name,
+                            modelIdentifier: modelID,
                             source: endpoint.isLocal ? .local : .custom,
-                            supportsAgenticUse: true,
                             supportsToolCalling: true,
+                            supportsAgenticUse: true,
                             isAvailable: true
                         )
                     )
@@ -58,13 +133,22 @@ public final class MuseOtherModelsBridge: @unchecked Sendable {
             }
         }
 
+        // Apply strict free-model filter if requested
+        if effectiveOnlyUseFree {
+            models = AssistModelEligibilityPolicy.filterEligible(models, onlyUseFreeModels: true, idKeyPath: \.modelIdentifier)
+        }
+
         // Provide standard fallbacks if list is still empty
         if models.isEmpty {
-            models.append(AssistAvailableModel(id: "gpt-4o", displayName: "OpenAI GPT-4o", providerName: "OpenAI", providerID: "openai", source: .apiProvider, supportsAgenticUse: true, supportsToolCalling: true, isAvailable: true))
-            models.append(AssistAvailableModel(id: "gpt-4o-mini", displayName: "OpenAI GPT-4o mini", providerName: "OpenAI", providerID: "openai", source: .apiProvider, supportsAgenticUse: true, supportsToolCalling: true, isAvailable: true))
-            models.append(AssistAvailableModel(id: "claude-3-7-sonnet-20250219", displayName: "Claude 3.7 Sonnet", providerName: "Anthropic", providerID: "anthropic", source: .apiProvider, supportsAgenticUse: true, supportsToolCalling: true, isAvailable: true))
-            models.append(AssistAvailableModel(id: "gemini-2.5-pro", displayName: "Gemini 2.5 Pro", providerName: "Google Gemini", providerID: "gemini", source: .apiProvider, supportsAgenticUse: true, supportsToolCalling: true, isAvailable: true))
-            models.append(AssistAvailableModel(id: "gemini-2.5-flash", displayName: "Gemini 2.5 Flash", providerName: "Google Gemini", providerID: "gemini", source: .apiProvider, supportsAgenticUse: true, supportsToolCalling: true, isAvailable: true))
+            if effectiveOnlyUseFree {
+                models.append(AssistAvailableModel(id: "openrouter/free", displayName: "OpenRouter Free", providerID: "openrouter", providerName: "OpenRouter", modelIdentifier: "openrouter/free", source: .openRouter, isAvailable: true, supportsToolCalling: true, supportsAgenticUse: true))
+            } else {
+                models.append(AssistAvailableModel(id: "gpt-4o", displayName: "OpenAI GPT-4o", providerID: "openai", providerName: "OpenAI", modelIdentifier: "gpt-4o", source: .openAI, isAvailable: true, supportsToolCalling: true, supportsAgenticUse: true))
+                models.append(AssistAvailableModel(id: "gpt-4o-mini", displayName: "OpenAI GPT-4o mini", providerID: "openai", providerName: "OpenAI", modelIdentifier: "gpt-4o-mini", source: .openAI, isAvailable: true, supportsToolCalling: true, supportsAgenticUse: true))
+                models.append(AssistAvailableModel(id: "claude-3-7-sonnet-20250219", displayName: "Claude 3.7 Sonnet", providerID: "anthropic", providerName: "Anthropic", modelIdentifier: "claude-3-7-sonnet-20250219", source: .claude, isAvailable: true, supportsToolCalling: true, supportsAgenticUse: true))
+                models.append(AssistAvailableModel(id: "gemini-2.5-pro", displayName: "Gemini 2.5 Pro", providerID: "gemini", providerName: "Google Gemini", modelIdentifier: "gemini-2.5-pro", source: .gemini, isAvailable: true, supportsToolCalling: true, supportsAgenticUse: true))
+                models.append(AssistAvailableModel(id: "gemini-2.5-flash", displayName: "Gemini 2.5 Flash", providerID: "gemini", providerName: "Google Gemini", modelIdentifier: "gemini-2.5-flash", source: .gemini, isAvailable: true, supportsToolCalling: true, supportsAgenticUse: true))
+            }
         }
 
         return models
@@ -73,42 +157,50 @@ public final class MuseOtherModelsBridge: @unchecked Sendable {
     /// Resolves the active model to power the Muse SDK bridge.
     public func resolveActiveModel() -> (modelID: String, displayName: String, provider: String) {
         let settings = AppSettings.shared
+        let onlyFree = settings.onlyUseFreeModels
 
         // 1. User explicitly selected a model for the Meta bridge
         if !settings.metaSelectedOtherModelID.isEmpty {
             let modelID = settings.metaSelectedOtherModelID
-            if let customEndpoint = CustomEndpointManager.shared.endpoints.first(where: { $0.models.contains(modelID) }) {
-                return (modelID, "\(customEndpoint.name): \(modelID)", "Custom Model Setup")
+            if !onlyFree || AssistModelEligibilityPolicy.isEligible(modelID: modelID, onlyUseFreeModels: true) {
+                if let customEndpoint = CustomEndpointManager.shared.endpoints.first(where: { $0.models.contains(modelID) }) {
+                    return (modelID, "\(customEndpoint.name): \(modelID)", "Custom Model Setup")
+                }
+                if let found = AssistModelDiscoveryService.shared.discoveredModels.first(where: { $0.modelIdentifier == modelID }) {
+                    return (modelID, found.displayName, found.providerName)
+                }
+                let providerName = settings.metaSelectedOtherModelProvider.isEmpty ? LLMService.shared.provider(for: modelID).rawValue : settings.metaSelectedOtherModelProvider
+                return (modelID, modelID, providerName)
             }
-            if let found = AssistModelDiscoveryService.shared.discoveredModels.first(where: { $0.modelIdentifier == modelID }) {
-                return (modelID, found.displayName, found.providerName)
-            }
-            let providerName = settings.metaSelectedOtherModelProvider.isEmpty ? LLMService.shared.provider(for: modelID).rawValue : settings.metaSelectedOtherModelProvider
-            return (modelID, modelID, providerName)
         }
 
         // 2. Custom Model Setup from CustomEndpointManager
-        if let firstEndpoint = CustomEndpointManager.shared.endpoints.first, let firstModel = firstEndpoint.models.first {
-            return (firstModel, "\(firstEndpoint.name): \(firstModel)", "Custom Model Setup")
+        if let firstEndpoint = CustomEndpointManager.shared.endpoints.first {
+            let eligibleEndpointModels = AssistModelEligibilityPolicy.filterEligibleModelIDs(firstEndpoint.models, onlyUseFreeModels: onlyFree)
+            if let firstModel = eligibleEndpointModels.first {
+                return (firstModel, "\(firstEndpoint.name): \(firstModel)", "Custom Model Setup")
+            }
         }
 
         // 3. User's overall selected assist model (if not a meta model)
         let generalModel = settings.selectedAssistModelID
         if !generalModel.isEmpty && !generalModel.hasPrefix("muse-") {
-            if let found = AssistModelDiscoveryService.shared.discoveredModels.first(where: { $0.modelIdentifier == generalModel }) {
-                return (generalModel, found.displayName, found.providerName)
+            if !onlyFree || AssistModelEligibilityPolicy.isEligible(modelID: generalModel, onlyUseFreeModels: true) {
+                if let found = AssistModelDiscoveryService.shared.discoveredModels.first(where: { $0.modelIdentifier == generalModel }) {
+                    return (generalModel, found.displayName, found.providerName)
+                }
+                return (generalModel, generalModel, LLMService.shared.provider(for: generalModel).rawValue)
             }
-            return (generalModel, generalModel, LLMService.shared.provider(for: generalModel).rawValue)
         }
 
         // 4. First agent-compatible model from discovered providers
-        let available = availableOtherModels()
+        let available = availableOtherModels(onlyUseFree: onlyFree)
         if let best = available.first(where: { $0.supportsAgenticUse && $0.supportsToolCalling }) ?? available.first {
             return (best.modelIdentifier, best.displayName, best.providerName)
         }
 
         // 5. Default reliable fallback
-        return ("gpt-4o", "OpenAI GPT-4o", "OpenAI")
+        return onlyFree ? ("openrouter/free", "OpenRouter Free", "OpenRouter") : ("gpt-4o", "OpenAI GPT-4o", "OpenAI")
     }
 
     // MARK: - Turn Execution
@@ -121,11 +213,19 @@ public final class MuseOtherModelsBridge: @unchecked Sendable {
         onTextDelta: @escaping @Sendable (String) -> Void,
         onThinkingDelta: (@Sendable (String) -> Void)? = nil
     ) async throws {
-        isCancelled = false
-
+        let onlyFree = AppSettings.shared.onlyUseFreeModels
         let resolved = overrideModelID != nil
             ? (modelID: overrideModelID!, displayName: overrideModelID!, provider: LLMService.shared.provider(for: overrideModelID!).rawValue)
             : resolveActiveModel()
+
+        // Enforce execution-time free model eligibility check
+        if onlyFree {
+            try AssistModelEligibilityPolicy.validateExecutionEligibility(
+                modelID: resolved.modelID,
+                provider: resolved.provider,
+                onlyUseFreeModels: true
+            )
+        }
 
         logger.info("MuseOtherModelsBridge executing turn with model: \(resolved.modelID) (Provider: \(resolved.provider))")
 
@@ -228,57 +328,21 @@ public final class MuseOtherModelsBridge: @unchecked Sendable {
         }
 
         // 4. Stream response from LLMService using third-party/custom model
+        let state = GenerationState()
         let currentTask = Task {
-            var fullGeneratedText = ""
-            var isInThinkingBlock = false
-            var currentThinking = ""
-
             try await LLMService.shared.streamChat(
                 messages: messages,
                 model: resolved.modelID,
                 systemPrompt: fullSystemPrompt,
                 providerOverride: nil,
                 onToken: { token in
-                    guard !self.isCancelled else { return }
-
-                    fullGeneratedText += token
-
-                    // Handle `<think>` tags emitted by reasoning models (DeepSeek-R1, QwQ, etc.)
-                    if token.contains("<think>") {
-                        isInThinkingBlock = true
-                        let cleaned = token.replacingOccurrences(of: "<think>", with: "")
-                        if !cleaned.isEmpty {
-                            currentThinking += cleaned
-                            onThinkingDelta?(cleaned)
-                        }
-                        return
-                    } else if token.contains("</think>") {
-                        isInThinkingBlock = false
-                        let parts = token.components(separatedBy: "</think>")
-                        if let thoughtPart = parts.first, !thoughtPart.isEmpty {
-                            currentThinking += thoughtPart
-                            onThinkingDelta?(thoughtPart)
-                        }
-                        if parts.count > 1 {
-                            let textPart = parts[1]
-                            if !textPart.isEmpty {
-                                onTextDelta(textPart)
-                            }
-                        }
-                        return
-                    }
-
-                    if isInThinkingBlock {
-                        currentThinking += token
-                        onThinkingDelta?(token)
-                    } else {
-                        onTextDelta(token)
-                    }
+                    guard !state.isCancelled else { return }
+                    state.processToken(token, onThinkingDelta: onThinkingDelta, onTextDelta: onTextDelta)
                 }
             )
 
             // 5. Inspect and execute any tool calls embedded in the generation
-            await self.parseAndExecuteToolCalls(in: fullGeneratedText, workspaceRoot: workspaceRoot)
+            await self.parseAndExecuteToolCalls(in: state.fullGeneratedText, workspaceRoot: workspaceRoot)
         }
 
         self.activeTask = currentTask
@@ -333,7 +397,7 @@ public final class MuseOtherModelsBridge: @unchecked Sendable {
 
     /// Cancels active turn execution.
     public func cancelTurn() async {
-        isCancelled = true
+        stateHolder.cancel()
         activeTask?.cancel()
         activeTask = nil
     }
@@ -447,85 +511,87 @@ public final class MuseLocalProxyServer: @unchecked Sendable {
     }
 
     private func processRequest(method: String, path: String, body: Data, connection: NWConnection) {
-        if path.hasPrefix("/muse-code/models") || path == "/models" || path == "/v1/models" {
-            // Serve dynamic catalog containing user's other models
+        Task { @MainActor in
             let active = MuseOtherModelsBridge.shared.resolveActiveModel()
-            let catalog: [String: Any] = [
-                "object": "list",
-                "data": [
-                    [
-                        "id": active.modelID,
-                        "object": "model",
-                        "created": Int(Date().timeIntervalSince1970),
-                        "owned_by": active.provider.lowercased(),
-                        "metadata": [
-                            "muse-code": [
-                                "name": active.modelID,
-                                "family": "custom-bridge",
-                                "release_date": "2026-10-12",
-                                "is_hidden": false,
-                                "attachment": true,
-                                "reasoning": true,
-                                "temperature": false,
-                                "tool_call": true,
-                                "modalities": ["input": ["text"], "output": ["text"]],
-                                "limit": ["context": 128_000, "output": 16_384],
-                                "options": ["reasoningEffort": "high"]
+
+            if path.hasPrefix("/muse-code/models") || path == "/models" || path == "/v1/models" {
+                // Serve dynamic catalog containing user's other models
+                let catalog: [String: Any] = [
+                    "object": "list",
+                    "data": [
+                        [
+                            "id": active.modelID,
+                            "object": "model",
+                            "created": Int(Date().timeIntervalSince1970),
+                            "owned_by": active.provider.lowercased(),
+                            "metadata": [
+                                "muse-code": [
+                                    "name": active.modelID,
+                                    "family": "custom-bridge",
+                                    "release_date": "2026-10-12",
+                                    "is_hidden": false,
+                                    "attachment": true,
+                                    "reasoning": true,
+                                    "temperature": false,
+                                    "tool_call": true,
+                                    "modalities": ["input": ["text"], "output": ["text"]],
+                                    "limit": ["context": 128_000, "output": 16_384],
+                                    "options": ["reasoningEffort": "high"]
+                                ]
                             ]
                         ]
                     ]
                 ]
-            ]
 
-            guard let jsonData = try? JSONSerialization.data(withJSONObject: catalog) else {
-                sendErrorResponse(code: 500, message: "Catalog error", connection: connection)
-                return
-            }
+                guard let jsonData = try? JSONSerialization.data(withJSONObject: catalog) else {
+                    self.sendErrorResponse(code: 500, message: "Catalog error", connection: connection)
+                    return
+                }
 
-            var response = "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: \(jsonData.count)\r\nConnection: close\r\n\r\n"
-            var respData = Data(response.utf8)
-            respData.append(jsonData)
-            connection.send(content: respData, completion: .contentProcessed({ _ in
-                connection.cancel()
-            }))
-        } else if path.hasPrefix("/responses") || path.hasPrefix("/v1/responses") || path.hasPrefix("/chat/completions") {
-            // Stream SSE completions for `/responses`
-            let headers = "HTTP/1.1 200 OK\r\nContent-Type: text/event-stream\r\nCache-Control: no-cache\r\nConnection: keep-alive\r\n\r\n"
-            connection.send(content: Data(headers.utf8), completion: .contentProcessed({ _ in }))
+                let response = "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: \(jsonData.count)\r\nConnection: close\r\n\r\n"
+                var respData = Data(response.utf8)
+                respData.append(jsonData)
+                connection.send(content: respData, completion: .contentProcessed({ _ in
+                    connection.cancel()
+                }))
+            } else if path.hasPrefix("/responses") || path.hasPrefix("/v1/responses") || path.hasPrefix("/chat/completions") {
+                // Stream SSE completions for `/responses`
+                let headers = "HTTP/1.1 200 OK\r\nContent-Type: text/event-stream\r\nCache-Control: no-cache\r\nConnection: keep-alive\r\n\r\n"
+                connection.send(content: Data(headers.utf8), completion: .contentProcessed({ _ in }))
 
-            let resolved = MuseOtherModelsBridge.shared.resolveActiveModel()
-            var prompt = "Hello"
-            if let json = try? JSONSerialization.jsonObject(with: body) as? [String: Any],
-               let input = json["input"] as? [[String: Any]] {
-                for item in input {
-                    if let content = item["content"] as? String {
-                        prompt = content
+                var prompt = "Hello"
+                if let json = try? JSONSerialization.jsonObject(with: body) as? [String: Any],
+                   let input = json["input"] as? [[String: Any]] {
+                    for item in input {
+                        if let content = item["content"] as? String {
+                            prompt = content
+                        }
                     }
                 }
-            }
 
-            Task {
-                do {
-                    try await LLMService.shared.streamChat(
-                        messages: [AIMessage(role: .user, content: prompt)],
-                        model: resolved.modelID,
-                        systemPrompt: "You are Assist operating under the Meta Muse SDK bridge with third-party model \(resolved.displayName).",
-                        providerOverride: nil,
-                        onToken: { token in
-                            let sseEvent = "event: response.output_text.delta\ndata: {\"type\":\"response.output_text.delta\",\"delta\":\(self.jsonEscape(token))}\n\n"
-                            connection.send(content: Data(sseEvent.utf8), completion: .contentProcessed({ _ in }))
-                        }
-                    )
-                    let completeEvent = "event: response.completed\ndata: {\"type\":\"response.completed\"}\n\n"
-                    connection.send(content: Data(completeEvent.utf8), completion: .contentProcessed({ _ in
+                Task {
+                    do {
+                        try await LLMService.shared.streamChat(
+                            messages: [AIMessage(role: .user, content: prompt)],
+                            model: active.modelID,
+                            systemPrompt: "You are Assist operating under the Meta Muse SDK bridge with third-party model \(active.displayName).",
+                            providerOverride: nil,
+                            onToken: { token in
+                                let sseEvent = "event: response.output_text.delta\ndata: {\"type\":\"response.output_text.delta\",\"delta\":\(self.jsonEscape(token))}\n\n"
+                                connection.send(content: Data(sseEvent.utf8), completion: .contentProcessed({ _ in }))
+                            }
+                        )
+                        let completeEvent = "event: response.completed\ndata: {\"type\":\"response.completed\"}\n\n"
+                        connection.send(content: Data(completeEvent.utf8), completion: .contentProcessed({ _ in
+                            connection.cancel()
+                        }))
+                    } catch {
                         connection.cancel()
-                    }))
-                } catch {
-                    connection.cancel()
+                    }
                 }
+            } else {
+                self.sendErrorResponse(code: 404, message: "Not Found", connection: connection)
             }
-        } else {
-            sendErrorResponse(code: 404, message: "Not Found", connection: connection)
         }
     }
 

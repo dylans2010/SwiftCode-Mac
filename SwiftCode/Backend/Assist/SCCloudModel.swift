@@ -42,7 +42,7 @@ private let logger = Logger(subsystem: "com.swiftcode.Assist", category: "SCClou
 public enum SCCloudConfiguration {
 
     /// Base URL of the cloud endpoint (Cloudflare tunnel fronting the model host).
-    public static let defaultBaseURLString = "https://hawk-leaving-converter-federation.trycloudflare.com"
+    public static let defaultBaseURLString = "https://interpreted-pct-caribbean-handbags.trycloudflare.com"
 
     public static var baseURLString: String {
         if let custom = UserDefaults.standard.string(forKey: "swiftcode_cloud_endpoint_url")?.trimmingCharacters(in: .whitespacesAndNewlines), !custom.isEmpty {

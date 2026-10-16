@@ -251,6 +251,21 @@ public struct MetaAssistModelsUI: View {
 
                     Divider()
 
+                    // 3rd Toggle: Only Use Free Models
+                    Toggle(isOn: $settings.onlyUseFreeModels) {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Only Use Free Models")
+                                .font(.system(size: 11, weight: .medium))
+                            Text("By enabling this, SwiftCode will only show the free models that re available on this provider. Keep in mind not all providers might support this feature of showing all free models.")
+                                .font(.system(size: 9.5))
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                    .toggleStyle(.switch)
+                    .controlSize(.small)
+
+                    Divider()
+
                     // Active Bridged Model Picker
                     VStack(alignment: .leading, spacing: 4) {
                         Text("Active Bridged Model")
@@ -280,7 +295,8 @@ public struct MetaAssistModelsUI: View {
                             if !customEndpoints.isEmpty {
                                 Section("Custom Model Setups") {
                                     ForEach(customEndpoints) { endpoint in
-                                        ForEach(endpoint.models, id: \.self) { modelID in
+                                        let eligibleModels = AssistModelEligibilityPolicy.filterEligibleModelIDs(endpoint.models, onlyUseFreeModels: settings.onlyUseFreeModels)
+                                        ForEach(eligibleModels, id: \.self) { modelID in
                                             Button {
                                                 settings.metaSelectedOtherModelID = modelID
                                                 settings.metaSelectedOtherModelProvider = endpoint.name

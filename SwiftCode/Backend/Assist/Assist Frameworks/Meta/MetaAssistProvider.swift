@@ -238,26 +238,42 @@ public final class MetaAssistProvider: Sendable {
         onTextDelta: @escaping @Sendable (String) -> Void,
         onThinkingDelta: (@Sendable (String) -> Void)? = nil
     ) async throws {
-        // If "Other Models with Meta SDK" is enabled, execute directly through MuseOtherModelsBridge
+        var hostBaseURL: String? = nil
         if AppSettings.shared.otherModelsWithMetaSDK {
-            let resolved = MuseOtherModelsBridge.shared.resolveActiveModel()
-            logger.info("Executing turn via MuseOtherModelsBridge (Other Models with Meta SDK active): \(resolved.displayName, privacy: .public)")
-            try await MuseOtherModelsBridge.shared.executeTurn(
-                prompt: prompt,
-                workspaceRoot: workspaceRoot,
-                onTextDelta: onTextDelta,
-                onThinkingDelta: onThinkingDelta
-            )
-            return
+            do {
+                let proxyURL = try await MuseOtherModelsBridge.shared.ensureLocalProxyServerStarted()
+                hostBaseURL = proxyURL.absoluteString
+                let resolved = MuseOtherModelsBridge.shared.resolveActiveModel()
+                logger.info("Preserving full Muse SDK architecture via local proxy: \(resolved.displayName, privacy: .public)")
+            } catch {
+                logger.warning("Local proxy startup failed, using direct bridge: \(error.localizedDescription)")
+                try await MuseOtherModelsBridge.shared.executeTurn(
+                    prompt: prompt,
+                    workspaceRoot: workspaceRoot,
+                    onTextDelta: onTextDelta,
+                    onThinkingDelta: onThinkingDelta
+                )
+                return
+            }
         }
 
         let isInstalled = MuseCodeCLIHelper.shared.isInstalled()
         if !isInstalled {
+            if AppSettings.shared.otherModelsWithMetaSDK {
+                // If CLI is not present on developer's machine, execute directly via MuseOtherModelsBridge
+                try await MuseOtherModelsBridge.shared.executeTurn(
+                    prompt: prompt,
+                    workspaceRoot: workspaceRoot,
+                    onTextDelta: onTextDelta,
+                    onThinkingDelta: onThinkingDelta
+                )
+                return
+            }
             throw MuseCodeCLIError.executableNotFound
         }
 
         let hasCreds = await MuseCodeCLIHelper.shared.checkCredentials()
-        if !hasCreds {
+        if !hasCreds && !AppSettings.shared.otherModelsWithMetaSDK {
             do {
                 _ = try await MuseCodeCLIHelper.shared.runLoginFlow()
             } catch {
@@ -266,7 +282,7 @@ public final class MetaAssistProvider: Sendable {
         }
 
         let bridge = MuseCodeMSPBridge.shared
-        try await bridge.startHost(workspaceRoot: workspaceRoot)
+        try await bridge.startHost(workspaceRoot: workspaceRoot, baseURL: hostBaseURL)
 
         // 1. Ensure SystemIndex is ready and retrieve canonical System Assets instructions
         await SystemIndexService.shared.ensureReady()
@@ -662,8 +678,8 @@ public final class MetaAssistProvider: Sendable {
     public static func isRateLimitError(_ error: Error) -> Bool {
         let desc = error.localizedDescription.lowercased()
         if let mspError = error as? MspError {
-            let reason = mspError.reason.lowercased()
-            let msg = mspError.message.lowercased()
+            let reason = mspError.reason?.lowercased() ?? ""
+            let msg = mspError.message?.lowercased() ?? ""
             if reason.contains("rate_limit") || reason.contains("quota") || reason.contains("limit") || reason.contains("429") ||
                msg.contains("rate limit") || msg.contains("quota") || msg.contains("429") || msg.contains("limit reached") {
                 return true

@@ -941,4 +941,62 @@ public struct QueuedAssistMessage: Identifiable, Sendable, Codable, Equatable {
     }
 }
 
+// MARK: - Assist Model Eligibility Policy
+
+public enum AssistModelEligibilityError: LocalizedError, Equatable {
+    case ineligibleModel(modelID: String, provider: String?)
+    case noEligibleFreeModelAvailable(provider: String?)
+
+    public var errorDescription: String? {
+        switch self {
+        case .ineligibleModel(let modelID, let provider):
+            let provStr = provider.map { " on provider '\($0)'" } ?? ""
+            return "Model '\(modelID)'\(provStr) is ineligible under the 'Only Use Free Models' policy. The model ID must contain 'free' (case-insensitive)."
+        case .noEligibleFreeModelAvailable(let provider):
+            let provStr = provider.map { " for provider '\($0)'" } ?? ""
+            return "No eligible free model is available\(provStr). Please disable 'Only Use Free Models' or select a provider that offers free models."
+        }
+    }
+}
+
+public struct AssistModelEligibilityPolicy {
+
+    /// Evaluates whether a given model ID is eligible under the free-only rule.
+    /// A model is eligible in free-only mode ONLY when its actual model ID contains the literal substring "free" (case-insensitive).
+    /// Display names, marketing titles, or price tags alone NEVER override this rule.
+    public static func isEligible(modelID: String, onlyUseFreeModels: Bool) -> Bool {
+        guard onlyUseFreeModels else { return true }
+        let trimmed = modelID.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return false }
+        return trimmed.localizedCaseInsensitiveContains("free")
+    }
+
+    /// Validates model eligibility at runtime before execution.
+    /// Throws `AssistModelEligibilityError.ineligibleModel` if `onlyUseFreeModels` is enabled and the model ID does not contain "free".
+    public static func validateExecutionEligibility(modelID: String, provider: String? = nil, onlyUseFreeModels: Bool) throws {
+        guard onlyUseFreeModels else { return }
+        if !isEligible(modelID: modelID, onlyUseFreeModels: true) {
+            throw AssistModelEligibilityError.ineligibleModel(modelID: modelID, provider: provider)
+        }
+    }
+
+    /// Filters an array of model identifiers according to the eligibility policy.
+    public static func filterEligibleModelIDs(_ modelIDs: [String], onlyUseFreeModels: Bool) -> [String] {
+        guard onlyUseFreeModels else { return modelIDs }
+        return modelIDs.filter { isEligible(modelID: $0, onlyUseFreeModels: true) }
+    }
+
+    /// Filters an arbitrary collection of models by extracting their model identifier.
+    public static func filterEligible<T>(_ models: [T], onlyUseFreeModels: Bool, idKeyPath: KeyPath<T, String>) -> [T] {
+        guard onlyUseFreeModels else { return models }
+        return models.filter { isEligible(modelID: $0[keyPath: idKeyPath], onlyUseFreeModels: true) }
+    }
+
+    /// Filters models using a closure to extract the model ID.
+    public static func filterEligible<T>(_ models: [T], onlyUseFreeModels: Bool, idExtractor: (T) -> String) -> [T] {
+        guard onlyUseFreeModels else { return models }
+        return models.filter { isEligible(modelID: idExtractor($0), onlyUseFreeModels: true) }
+    }
+}
+
 

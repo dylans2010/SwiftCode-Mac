@@ -41,10 +41,12 @@ public struct CodingToolsUI: View {
     public init(
         selectedCode: String,
         filePath: String,
+        initialAction: CodingAction = .refactor,
         onApplyCode: ((String) -> Void)? = nil
     ) {
         self.selectedCode = selectedCode
         self.filePath = filePath
+        self._selectedAction = State(initialValue: initialAction)
         self.onApplyCode = onApplyCode
     }
 

@@ -138,6 +138,15 @@ class AppSettings: ObservableObject {
         }
     }
 
+    @Published var onlyUseFreeModels: Bool {
+        didSet {
+            debouncedSave("onlyUseFreeModels", onlyUseFreeModels)
+            UserDefaults.standard.set(onlyUseFreeModels, forKey: "assist.onlyUseFreeModels")
+            NotificationCenter.default.post(name: NSNotification.Name("AssistModelEligibilityPolicyDidChange"), object: nil)
+            validateCurrentSelectionsForEligibility()
+        }
+    }
+
     @Published var swiftCloudModelsEnabled: Bool {
         didSet { debouncedSave("swiftCloudModelsEnabled", swiftCloudModelsEnabled) }
     }
@@ -475,6 +484,9 @@ class AppSettings: ObservableObject {
         metaSelectedOtherModelProvider = UserDefaults.standard.string(forKey: "metaSelectedOtherModelProvider")
             ?? UserDefaults.standard.string(forKey: "assist.metaSelectedOtherModelProvider")
             ?? ""
+        onlyUseFreeModels = UserDefaults.standard.object(forKey: "onlyUseFreeModels") as? Bool
+            ?? UserDefaults.standard.object(forKey: "assist.onlyUseFreeModels") as? Bool
+            ?? false
         swiftCloudModelsEnabled = UserDefaults.standard.object(forKey: "swiftCloudModelsEnabled") as? Bool ?? false
         let loadedUseSavedModels = UserDefaults.standard.object(forKey: "useSavedModels") as? Bool
             ?? UserDefaults.standard.object(forKey: "assist.useSavedModels") as? Bool
@@ -566,6 +578,27 @@ class AppSettings: ObservableObject {
 
         // Load saved repositories
         loadSavedRepositories()
+
+        // Validate eligibility on launch
+        validateCurrentSelectionsForEligibility()
+    }
+
+    public func validateCurrentSelectionsForEligibility() {
+        guard onlyUseFreeModels else { return }
+
+        // 1. Validate metaSelectedOtherModelID
+        if !metaSelectedOtherModelID.isEmpty && !AssistModelEligibilityPolicy.isEligible(modelID: metaSelectedOtherModelID, onlyUseFreeModels: true) {
+            metaSelectedOtherModelID = ""
+            metaSelectedOtherModelProvider = ""
+        }
+
+        // 2. Validate selectedAssistModelID
+        if !selectedAssistModelID.isEmpty && !AssistModelEligibilityPolicy.isEligible(modelID: selectedAssistModelID, onlyUseFreeModels: true) {
+            let discovered = AssistModelDiscoveryService.shared.discoveredModels
+            if let firstEligible = discovered.first(where: { AssistModelEligibilityPolicy.isEligible(modelID: $0.modelIdentifier, onlyUseFreeModels: true) }) {
+                selectedAssistModelID = firstEligible.modelIdentifier
+            }
+        }
     }
 
     // MARK: - Saved Repositories Persistence

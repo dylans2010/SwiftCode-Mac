@@ -874,11 +874,39 @@ public final class AssistAgentSession: Sendable {
                 return
             }
 
-            // Tool Execution Handling
-            guard let toolId = jsonBlock["toolId"] as? String,
-                  let rawInput = jsonBlock["input"] as? [String: Any] else {
+            // Resilient Tool Extraction (supporting toolId, name, tool, function)
+            let rawToolCandidate = (jsonBlock["toolId"] as? String)
+                ?? (jsonBlock["name"] as? String)
+                ?? (jsonBlock["tool"] as? String)
+                ?? (jsonBlock["function"] as? String)
+
+            guard let rawToolName = rawToolCandidate, !rawToolName.isEmpty else {
                 finalizeStreamedToolPreview(status: .failed, result: "The streamed response did not contain a complete tool call.")
-                appendConversationHistory("- System note: Model output was missing 'toolId' or 'input'. Respond with a valid JSON tool call.")
+                appendConversationHistory("- System note: Model output was missing 'toolId' or 'name'. Respond with a valid JSON tool call.")
+                continue
+            }
+
+            let toolId = MetaAssistProvider.normalizeToolName(rawToolName)
+
+            // Resilient Argument Extraction (supporting input, arguments, parameters, stringified JSON)
+            var extractedInput: [String: Any]? = jsonBlock["input"] as? [String: Any]
+                ?? jsonBlock["arguments"] as? [String: Any]
+                ?? jsonBlock["parameters"] as? [String: Any]
+                ?? jsonBlock["params"] as? [String: Any]
+
+            if extractedInput == nil {
+                if let strArgs = (jsonBlock["arguments"] as? String) ?? (jsonBlock["input"] as? String),
+                   let data = strArgs.data(using: .utf8),
+                   let dict = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
+                    extractedInput = dict
+                } else if jsonBlock.keys.contains("workers") || jsonBlock.keys.contains("path") || jsonBlock.keys.contains("command") {
+                    extractedInput = jsonBlock
+                }
+            }
+
+            guard let rawInput = extractedInput else {
+                finalizeStreamedToolPreview(status: .failed, result: "The streamed response did not contain valid tool arguments.")
+                appendConversationHistory("- System note: Missing arguments for tool \(toolId). Respond with valid arguments.")
                 continue
             }
 

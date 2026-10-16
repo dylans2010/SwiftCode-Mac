@@ -1161,12 +1161,21 @@ public final class AssistModelDiscoveryService: Sendable {
         return result
     }
 
+    public var eligibleDiscoveredModels: [AssistAvailableModel] {
+        AssistModelEligibilityPolicy.filterEligible(discoveredModels, onlyUseFreeModels: AppSettings.shared.onlyUseFreeModels, idKeyPath: \.modelIdentifier)
+    }
+
     public var modelsByProvider: [(providerName: String, models: [AssistAvailableModel])] {
-        unfilteredModelsByProvider.filter { group in
-            if isProviderExplicitlyActive(group.providerName) {
-                return true
+        let onlyFree = AppSettings.shared.onlyUseFreeModels
+        return unfilteredModelsByProvider.compactMap { group in
+            if !isProviderExplicitlyActive(group.providerName) && hiddenProviderNames.contains(group.providerName) {
+                return nil
             }
-            return !hiddenProviderNames.contains(group.providerName)
+            let eligible = AssistModelEligibilityPolicy.filterEligible(group.models, onlyUseFreeModels: onlyFree, idKeyPath: \.modelIdentifier)
+            if eligible.isEmpty && onlyFree {
+                return nil
+            }
+            return (group.providerName, eligible)
         }
     }
 

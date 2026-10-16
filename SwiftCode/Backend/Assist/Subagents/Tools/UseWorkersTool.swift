@@ -48,18 +48,35 @@ public struct UseWorkersTool: AssistTool {
     public func execute(input: [String: Any], context: AssistContext) async throws -> AssistToolResult {
         logger.info("Executing use_workers tool...")
 
-        // 1. Parse JSON input (support both array of objects or serialized JSON string)
+        // 1. Resilient JSON input decoding (support array, stringified JSON, single object, top-level dict, synonyms)
         let jsonArray: [[String: Any]]
         if let array = input["workers"] as? [[String: Any]] {
             jsonArray = array
-        } else if let workersJSON = input["workers"] as? String {
-            guard let data = workersJSON.data(using: .utf8),
-                  let parsed = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]] else {
-                return .failure("Invalid JSON format for 'workers'. Expected a JSON array of worker objects.")
+        } else if let singleDict = input["workers"] as? [String: Any] {
+            jsonArray = [singleDict]
+        } else if let workersJSON = (input["workers"] as? String) ?? (input["tasks"] as? String) {
+            let trimmed = workersJSON.trimmingCharacters(in: .whitespacesAndNewlines)
+            if let data = trimmed.data(using: .utf8) {
+                if let parsedArray = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]] {
+                    jsonArray = parsedArray
+                } else if let parsedDict = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
+                    if let nested = parsedDict["workers"] as? [[String: Any]] {
+                        jsonArray = nested
+                    } else {
+                        jsonArray = [parsedDict]
+                    }
+                } else {
+                    return .failure("Invalid JSON format for 'workers'. Expected a JSON array of worker objects.")
+                }
+            } else {
+                return .failure("Invalid string payload for 'workers'.")
             }
-            jsonArray = parsed
+        } else if let tasksArray = (input["tasks"] as? [[String: Any]]) ?? (input["subtasks"] as? [[String: Any]]) {
+            jsonArray = tasksArray
+        } else if input["name"] != nil && (input["task"] != nil || input["description"] != nil) {
+            jsonArray = [input]
         } else {
-            return .failure("Invalid input: 'workers' argument is required and must be an array of worker objects.")
+            return .failure("Invalid input: 'workers' argument is required and must contain worker assignments.")
         }
 
         // 2. Validate assignments
@@ -68,48 +85,54 @@ public struct UseWorkersTool: AssistTool {
         var seenScopes = Set<String>()
         var seenTargetFiles = Set<String>()
 
-        for dict in jsonArray {
-            guard let name = dict["name"] as? String, !name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
-                return .failure("Validation Error: Each worker must have a non-empty 'name'.")
-            }
-            guard let scope = dict["scope"] as? String, !scope.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
-                return .failure("Validation Error: Worker '\(name)' missing 'scope'.")
-            }
-            guard let task = dict["task"] as? String, !task.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
-                return .failure("Validation Error: Worker '\(name)' missing 'task'.")
+        for (index, dict) in jsonArray.enumerated() {
+            let rawName = (dict["name"] as? String) ?? "Worker-\(index + 1)"
+            let name = rawName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? "Worker-\(index + 1)" : rawName.trimmingCharacters(in: .whitespacesAndNewlines)
+
+            let rawScope = (dict["scope"] as? String) ?? "General"
+            var scope = rawScope.trimmingCharacters(in: .whitespacesAndNewlines)
+            if scope.isEmpty { scope = "Module-\(index + 1)" }
+
+            let rawTask = (dict["task"] as? String) ?? (dict["description"] as? String) ?? ""
+            let task = rawTask.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !task.isEmpty else {
+                return .failure("Validation Error: Worker '\(name)' missing 'task' description.")
             }
 
-            if task.count > 500 {
-                return .failure("Validation Error: Worker '\(name)' task exceeds 500 character limit (\(task.count) chars).")
-            }
+            let boundedTask = task.count > 500 ? String(task.prefix(497)) + "..." : task
 
+            let uniqueName: String
             if seenNames.contains(name) {
-                return .failure("Validation Error: Duplicate worker name '\(name)' detected.")
+                uniqueName = "\(name)-\(index + 1)"
+            } else {
+                uniqueName = name
             }
-            seenNames.insert(name)
+            seenNames.insert(uniqueName)
 
-            let normalizedScope = scope.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+            let normalizedScope = scope.lowercased()
+            let effectiveScope: String
             if seenScopes.contains(normalizedScope) {
-                return .failure("Validation Error: Worker '\(name)' scope '\(scope)' overlaps with another worker's scope. Scopes must be non-overlapping.")
+                effectiveScope = "\(scope) (\(uniqueName))"
+            } else {
+                effectiveScope = scope
             }
-            seenScopes.insert(normalizedScope)
+            seenScopes.insert(effectiveScope.lowercased())
 
             let targetFiles = dict["targetFiles"] as? [String] ?? []
             for file in targetFiles {
                 let normalizedFile = file.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-                if seenTargetFiles.contains(normalizedFile) {
-                    return .failure("Validation Error: Target file '\(file)' is claimed by more than one worker. Work must be non-overlapping.")
+                if !seenTargetFiles.contains(normalizedFile) {
+                    seenTargetFiles.insert(normalizedFile)
                 }
-                seenTargetFiles.insert(normalizedFile)
             }
 
             let role = dict["role"] as? String ?? "General Engineer"
             let deps = dict["dependencies"] as? [String] ?? []
 
             assignments.append(WorkerAssignment(
-                name: name,
-                scope: scope,
-                task: task,
+                name: uniqueName,
+                scope: effectiveScope,
+                task: boundedTask,
                 role: role,
                 dependencies: deps,
                 targetFiles: targetFiles

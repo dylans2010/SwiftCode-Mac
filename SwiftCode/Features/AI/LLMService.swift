@@ -575,6 +575,11 @@ public final class LLMService: Sendable {
 
     public func sendChatRequest(model: String, messages: [AIMessage], key: String? = nil, providerOverride: LLMProvider? = nil) async throws -> LLMResponse {
         let resolvedProvider = providerOverride ?? provider(for: model)
+        let onlyFree = await MainActor.run { AppSettings.shared.onlyUseFreeModels }
+        if onlyFree {
+            try AssistModelEligibilityPolicy.validateExecutionEligibility(modelID: model, provider: resolvedProvider.rawValue, onlyUseFreeModels: true)
+        }
+
         if await isSwiftCloudRequest(for: resolvedProvider) {
             if await isSwiftCloudLimitReached() {
                 throw LLMError.swiftCloudLimitReached(await formattedSwiftCloudResetMessage())
@@ -596,8 +601,13 @@ public final class LLMService: Sendable {
             let candidates = await getFallbackModels(for: model, provider: resolvedProvider)
             logInfo("[sendChatRequest] Candidate models for fallback: \(candidates)")
 
+            if onlyFree && candidates.isEmpty {
+                throw AssistModelEligibilityError.noEligibleFreeModelAvailable(provider: resolvedProvider.rawValue)
+            }
+
             for candidate in candidates {
                 if candidate == model { continue }
+                if onlyFree && !AssistModelEligibilityPolicy.isEligible(modelID: candidate, onlyUseFreeModels: true) { continue }
                 logInfo("[sendChatRequest] Attempting fallback model: \(candidate)...")
                 do {
                     return try await sendChatRequestInternal(model: candidate, messages: messages, key: key, providerOverride: providerOverride)
@@ -780,6 +790,11 @@ public final class LLMService: Sendable {
         onToken: @escaping @Sendable (String) async -> Void
     ) async throws {
         let resolvedProvider = providerOverride ?? provider(for: model)
+        let onlyFree = await MainActor.run { AppSettings.shared.onlyUseFreeModels }
+        if onlyFree {
+            try AssistModelEligibilityPolicy.validateExecutionEligibility(modelID: model, provider: resolvedProvider.rawValue, onlyUseFreeModels: true)
+        }
+
         if await isSwiftCloudRequest(for: resolvedProvider) {
             if await isSwiftCloudLimitReached() {
                 throw LLMError.swiftCloudLimitReached(await formattedSwiftCloudResetMessage())
@@ -801,8 +816,13 @@ public final class LLMService: Sendable {
             let candidates = await getFallbackModels(for: model, provider: resolvedProvider)
             logInfo("[streamChat] Candidate models for fallback: \(candidates)")
 
+            if onlyFree && candidates.isEmpty {
+                throw AssistModelEligibilityError.noEligibleFreeModelAvailable(provider: resolvedProvider.rawValue)
+            }
+
             for candidate in candidates {
                 if candidate == model { continue }
+                if onlyFree && !AssistModelEligibilityPolicy.isEligible(modelID: candidate, onlyUseFreeModels: true) { continue }
                 logInfo("[streamChat] Attempting fallback stream with model: \(candidate)...")
                 do {
                     try await streamChatInternal(messages: messages, model: candidate, systemPrompt: systemPrompt, providerOverride: providerOverride, onToken: onToken)
@@ -1121,26 +1141,28 @@ public final class LLMService: Sendable {
     }
 
     private func getFallbackModels(for model: String, provider: LLMProvider) async -> [String] {
+        let onlyFree = await MainActor.run { AppSettings.shared.onlyUseFreeModels }
+        var list: [String] = []
+
         if let customEndpoint = findCustomEndpoint(for: model) {
             if !customEndpoint.models.isEmpty {
-                return customEndpoint.models
+                list = customEndpoint.models
+            } else if let fetched = try? await fetchModelsForCustomEndpoint(customEndpoint) {
+                list = fetched
             }
-            if let fetched = try? await fetchModelsForCustomEndpoint(customEndpoint) {
-                return fetched
+        } else if model == "AFM 3 Core" || model == "AFM 3 Core Advanced" {
+            list = ["AFM 3 Core", "AFM 3 Core Advanced"]
+        } else {
+            let key = retrieveAPIKey(for: provider)
+            if !key.isEmpty, let fetched = try? await fetchAvailableModels(provider: provider, key: key) {
+                list = fetched
             }
-            return []
         }
 
-        if model == "AFM 3 Core" || model == "AFM 3 Core Advanced" {
-            return ["AFM 3 Core", "AFM 3 Core Advanced"]
+        if onlyFree {
+            return AssistModelEligibilityPolicy.filterEligibleModelIDs(list, onlyUseFreeModels: true)
         }
-
-        let key = retrieveAPIKey(for: provider)
-        if !key.isEmpty, let fetched = try? await fetchAvailableModels(provider: provider, key: key) {
-            return fetched
-        }
-
-        return []
+        return list
     }
 
     private func fetchModelsForCustomEndpoint(_ endpoint: SavedCustomEndpoint) async throws -> [String] {

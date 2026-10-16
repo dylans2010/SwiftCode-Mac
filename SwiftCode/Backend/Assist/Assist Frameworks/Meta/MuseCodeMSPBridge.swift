@@ -149,7 +149,7 @@ public final class MuseCodeMSPBridge: @unchecked Sendable {
         self.isInitialized = true
     }
 
-    public func startHost(workspaceRoot: String) async throws {
+    public func startHost(workspaceRoot: String, baseURL: String? = nil) async throws {
         guard !isRunning else { return }
 
         guard let executablePath = MuseCodeCLIHelper.shared.discoverExecutablePath() else {
@@ -158,7 +158,11 @@ public final class MuseCodeMSPBridge: @unchecked Sendable {
 
         let proc = Process()
         proc.executableURL = URL(fileURLWithPath: executablePath)
-        proc.arguments = ["serve"]
+        if let base = baseURL, !base.isEmpty {
+            proc.arguments = ["--base-url", base, "serve"]
+        } else {
+            proc.arguments = ["serve"]
+        }
         proc.currentDirectoryURL = URL(fileURLWithPath: workspaceRoot)
 
         var env = ProcessInfo.processInfo.environment

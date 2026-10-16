@@ -19,6 +19,9 @@ struct CodeEditorView: View {
     @State private var showGistComposer = false
     @State private var showAssist = false
     @State private var showDiffViewerSheet = false
+    @State private var contextualCodingToolsAction: CodingToolsUI.CodingAction = .refactor
+    @State private var contextualSelectedCode: String = ""
+    @State private var contextualSelectionRange: NSRange? = nil
     @AppStorage("minimapEnabled") private var minimapEnabled = true
 
     var body: some View {
@@ -62,7 +65,8 @@ struct CodeEditorView: View {
                         ),
                         wordWrap: toolbarSettings.wordWrap,
                         searchQuery: toolbarSettings.showSearchBar ? searchQuery : "",
-                        fileExtension: sessionStore.activeFileNode?.name.components(separatedBy: ".").last ?? "swift"
+                        fileExtension: sessionStore.activeFileNode?.name.components(separatedBy: ".").last ?? "swift",
+                        filePath: sessionStore.activeFileNode?.path ?? sessionStore.activeFileNode?.name ?? "File.swift"
                     )
                     .background(Color(red: 0.11, green: 0.11, blue: 0.14))
                     .id(sessionStore.activeFileNode?.id)
@@ -123,6 +127,26 @@ struct CodeEditorView: View {
             withAnimation {
                 showSuggestionToast = true
             }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: Notification.Name("TriggerCodingToolsContextAction"))) { notification in
+            guard let userInfo = notification.userInfo else { return }
+            let action = userInfo["action"] as? CodingToolsUI.CodingAction ?? .refactor
+            let code = userInfo["code"] as? String ?? ""
+            let range = userInfo["range"] as? NSRange
+            let filePath = userInfo["filePath"] as? String ?? sessionStore.activeFileNode?.path ?? "File.swift"
+
+            if action == .addToContext {
+                CodingToolsService.shared.addToAssistContext(
+                    code: code.isEmpty ? sessionStore.activeFileContent : code,
+                    filePath: filePath
+                )
+                return
+            }
+
+            self.contextualCodingToolsAction = action
+            self.contextualSelectedCode = code.isEmpty ? sessionStore.activeFileContent : code
+            self.contextualSelectionRange = range
+            self.showAssist = true
         }
     }
 
@@ -335,6 +359,9 @@ struct CodeEditorView: View {
             .padding(.trailing, 10)
 
             Button {
+                contextualSelectedCode = sessionStore.activeFileContent
+                contextualSelectionRange = nil
+                contextualCodingToolsAction = .refactor
                 showAssist = true
             } label: {
                 HStack(spacing: 4) {
@@ -358,11 +385,25 @@ struct CodeEditorView: View {
             .buttonStyle(.plain)
             .popover(isPresented: $showAssist, arrowEdge: .bottom) {
                 CodingToolsUI(
-                    selectedCode: sessionStore.activeFileContent,
+                    selectedCode: contextualSelectedCode.isEmpty ? sessionStore.activeFileContent : contextualSelectedCode,
                     filePath: sessionStore.activeFileNode?.path ?? sessionStore.activeFileNode?.name ?? "File.swift",
+                    initialAction: contextualCodingToolsAction,
                     onApplyCode: { newCode in
+                        if let range = contextualSelectionRange, range.length > 0 {
+                            let current = sessionStore.activeFileContent as NSString
+                            if range.location + range.length <= current.length {
+                                let updated = current.replacingCharacters(in: range, with: newCode)
+                                sessionStore.activeFileContent = updated
+                                sessionStore.saveCurrentFile(content: updated)
+                                contextualSelectionRange = nil
+                                contextualSelectedCode = ""
+                                return
+                            }
+                        }
                         sessionStore.activeFileContent = newCode
                         sessionStore.saveCurrentFile(content: newCode)
+                        contextualSelectionRange = nil
+                        contextualSelectedCode = ""
                     }
                 )
             }
@@ -634,6 +675,7 @@ struct TextEditorRepresentable: NSViewRepresentable {
     var wordWrap: Bool
     var searchQuery: String
     var fileExtension: String = "swift"
+    var filePath: String = "File.swift"
 
     func makeNSView(context: Context) -> NSScrollView {
         let scrollView = NSScrollView()
@@ -643,7 +685,8 @@ struct TextEditorRepresentable: NSViewRepresentable {
         scrollView.hasVerticalScroller = true
         scrollView.hasHorizontalScroller = true
 
-        let textView = NSTextView()
+        let textView = CodeEditorTextView()
+        textView.filePath = filePath
         textView.backgroundColor = .clear
         textView.textColor = NSColor(red: 0.85, green: 0.85, blue: 0.85, alpha: 1)
         textView.font = TextLayoutEngine.editorFont()
@@ -689,6 +732,9 @@ struct TextEditorRepresentable: NSViewRepresentable {
         guard let textView = context.coordinator.textView else { return }
 
         context.coordinator.fileExtension = fileExtension
+        if let codeTextView = textView as? CodeEditorTextView {
+            codeTextView.filePath = filePath
+        }
 
         if textView.string != text {
             let highlighted = SyntaxHighlighter.shared.highlight(text, fileExtension: fileExtension)
@@ -838,4 +884,109 @@ final class LineNumberView: NSView {
         }
     }
 }
+
+// MARK: - Native Text View with Coding Tools Context Menu
+
+#if canImport(AppKit)
+@MainActor
+final class CodeEditorTextView: NSTextView {
+    var filePath: String = "File.swift"
+
+    override func menu(for event: NSEvent) -> NSMenu? {
+        // Preserve standard macOS contextual menu:
+        // Cut, Copy, Paste, Share, Font, Spelling and Grammar, Speech, Services, etc.
+        guard let menu = super.menu(for: event) else { return nil }
+
+        // Capture current selected text or fallback to line/symbol under cursor
+        var effectiveRange = self.selectedRange()
+        let nsString = self.string as NSString
+        var selectedCode = ""
+
+        if effectiveRange.length > 0 && effectiveRange.location + effectiveRange.length <= nsString.length {
+            selectedCode = nsString.substring(with: effectiveRange)
+        } else if nsString.length > 0 {
+            // If no range is selected, find the character index under the click event
+            let mousePoint = self.convert(event.locationInWindow, from: nil)
+            let charIndex = self.characterIndexForInsertion(at: mousePoint)
+            if charIndex < nsString.length {
+                let lineRange = nsString.lineRange(for: NSRange(location: charIndex, length: 0))
+                selectedCode = nsString.substring(with: lineRange)
+                effectiveRange = lineRange
+            } else {
+                selectedCode = self.string
+                effectiveRange = NSRange(location: 0, length: nsString.length)
+            }
+        }
+
+        // Add standard separator before Coding Tools
+        menu.addItem(NSMenuItem.separator())
+
+        // Create the Coding Tools menu item with submenu
+        let codingToolsRoot = NSMenuItem(title: "Coding Tools", action: nil, keyEquivalent: "")
+        if let icon = NSImage(systemSymbolName: "sparkles", accessibilityDescription: "Coding Tools") {
+            codingToolsRoot.image = icon
+        }
+
+        let codingToolsSubmenu = NSMenu(title: "Coding Tools")
+
+        let actions: [(CodingToolsUI.CodingAction, String, String)] = [
+            (.refactor, "Refactor Code", "wand.and.stars"),
+            (.addToContext, "Add to Assist Context", "plus.bubble"),
+            (.explain, "Explain Code", "text.bubble"),
+            (.documentation, "Write Documentation", "doc.text"),
+            (.preview, "Generate SwiftUI Preview", "eye"),
+            (.custom, "Custom Instruction…", "terminal")
+        ]
+
+        for (action, title, iconName) in actions {
+            let item = NSMenuItem(title: title, action: #selector(handleCodingToolMenuItem(_:)), keyEquivalent: "")
+            item.target = self
+            item.representedObject = CodingToolMenuPayload(
+                action: action,
+                code: selectedCode,
+                range: effectiveRange,
+                filePath: self.filePath
+            )
+            if let image = NSImage(systemSymbolName: iconName, accessibilityDescription: title) {
+                item.image = image
+            }
+            codingToolsSubmenu.addItem(item)
+        }
+
+        codingToolsRoot.submenu = codingToolsSubmenu
+        menu.addItem(codingToolsRoot)
+
+        return menu
+    }
+
+    @objc private func handleCodingToolMenuItem(_ sender: NSMenuItem) {
+        guard let payload = sender.representedObject as? CodingToolMenuPayload else { return }
+        NotificationCenter.default.post(
+            name: Notification.Name("TriggerCodingToolsContextAction"),
+            object: nil,
+            userInfo: [
+                "action": payload.action,
+                "code": payload.code,
+                "range": payload.range,
+                "filePath": payload.filePath
+            ]
+        )
+    }
+}
+
+final class CodingToolMenuPayload: NSObject {
+    let action: CodingToolsUI.CodingAction
+    let code: String
+    let range: NSRange
+    let filePath: String
+
+    init(action: CodingToolsUI.CodingAction, code: String, range: NSRange, filePath: String) {
+        self.action = action
+        self.code = code
+        self.range = range
+        self.filePath = filePath
+        super.init()
+    }
+}
+#endif
 
