@@ -161,5 +161,9 @@
 	<string>$(GEMINI_API_KEY)</string>
 	<key>SWIFTCLOUD_API_URL</key>
 	<string>$(SWIFTCLOUD_API_URL)</string>
+	<key>NSSpeechRecognitionUsageDescription</key>
+	<string>SwiftCode uses Speech Recognition to convert spoken instructions into code and assistant prompts.</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>SwiftCode requires microphone access to record voice prompts for transcription.</string>
 </dict>
 </plist>
