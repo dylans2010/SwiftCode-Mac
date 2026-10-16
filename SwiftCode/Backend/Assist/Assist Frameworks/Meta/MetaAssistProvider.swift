@@ -7,6 +7,9 @@
 //
 
 import Foundation
+import os
+
+private let logger = Logger(subsystem: "com.swiftcode.MetaAssist", category: "MetaAssistProvider")
 
 public struct MetaModelItem: Identifiable, Codable, Sendable {
     public var id: String { modelId }
@@ -235,6 +238,19 @@ public final class MetaAssistProvider: Sendable {
         onTextDelta: @escaping @Sendable (String) -> Void,
         onThinkingDelta: (@Sendable (String) -> Void)? = nil
     ) async throws {
+        // If "Other Models with Meta SDK" is enabled, execute directly through MuseOtherModelsBridge
+        if AppSettings.shared.otherModelsWithMetaSDK {
+            let resolved = MuseOtherModelsBridge.shared.resolveActiveModel()
+            logger.info("Executing turn via MuseOtherModelsBridge (Other Models with Meta SDK active): \(resolved.displayName, privacy: .public)")
+            try await MuseOtherModelsBridge.shared.executeTurn(
+                prompt: prompt,
+                workspaceRoot: workspaceRoot,
+                onTextDelta: onTextDelta,
+                onThinkingDelta: onThinkingDelta
+            )
+            return
+        }
+
         let isInstalled = MuseCodeCLIHelper.shared.isInstalled()
         if !isInstalled {
             throw MuseCodeCLIError.executableNotFound
@@ -354,7 +370,8 @@ public final class MetaAssistProvider: Sendable {
         }
         let tracker = TurnTracker()
 
-        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
+        do {
+            try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
             var hasResumed = false
 
             bridge.setNotificationHandler { method, params in
@@ -621,6 +638,47 @@ public final class MetaAssistProvider: Sendable {
                 }
             }
         }
+    } catch {
+            if AppSettings.shared.useOtherModelsWhenRateLimited && Self.isRateLimitError(error) {
+                let resolved = MuseOtherModelsBridge.shared.resolveActiveModel()
+                logger.warning("Meta model rate limit or quota exceeded: \(error.localizedDescription). Automatically failing over to Other Models Bridge (\(resolved.displayName, privacy: .public))...")
+                Task { @MainActor in
+                    AssistManager.shared.currentActivityStatus = "Meta rate limited — failing over to \(resolved.displayName)..."
+                }
+                try await MuseOtherModelsBridge.shared.executeTurn(
+                    prompt: prompt,
+                    workspaceRoot: workspaceRoot,
+                    onTextDelta: onTextDelta,
+                    onThinkingDelta: onThinkingDelta
+                )
+                return
+            } else {
+                throw error
+            }
+        }
+    }
+
+    /// Detects if an error from Meta/Muse SDK is due to rate limits (429), quota exhaustion, or capacity constraints.
+    public static func isRateLimitError(_ error: Error) -> Bool {
+        let desc = error.localizedDescription.lowercased()
+        if let mspError = error as? MspError {
+            let reason = mspError.reason.lowercased()
+            let msg = mspError.message.lowercased()
+            if reason.contains("rate_limit") || reason.contains("quota") || reason.contains("limit") || reason.contains("429") ||
+               msg.contains("rate limit") || msg.contains("quota") || msg.contains("429") || msg.contains("limit reached") {
+                return true
+            }
+        }
+        return desc.contains("429") ||
+            desc.contains("rate limit") ||
+            desc.contains("rate_limit") ||
+            desc.contains("quota") ||
+            desc.contains("resource_exhausted") ||
+            desc.contains("too many requests") ||
+            desc.contains("limit reached") ||
+            desc.contains("hit your limit") ||
+            desc.contains("overloaded") ||
+            desc.contains("capacity")
     }
 
     /// Switches the active model mid-session via `session/setModel` without losing session state.
@@ -658,6 +716,7 @@ public final class MetaAssistProvider: Sendable {
 
     /// Cancels current active turn, handling the already_terminal race condition gracefully.
     public func cancelTurn() async {
+        await MuseOtherModelsBridge.shared.cancelTurn()
         guard let sessionId = activeSessionID else { return }
         let turnId = activeTurnID ?? ""
         let cmdId = MuseUUIDv7.generate()

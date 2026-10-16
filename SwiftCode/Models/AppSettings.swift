@@ -101,6 +101,35 @@ class AppSettings: ObservableObject {
         }
     }
 
+    // MARK: - Other Models with Meta SDK & Rate-Limit Fallback
+    @Published var otherModelsWithMetaSDK: Bool {
+        didSet {
+            debouncedSave("otherModelsWithMetaSDK", otherModelsWithMetaSDK)
+            UserDefaults.standard.set(otherModelsWithMetaSDK, forKey: "assist.otherModelsWithMetaSDK")
+        }
+    }
+
+    @Published var useOtherModelsWhenRateLimited: Bool {
+        didSet {
+            debouncedSave("useOtherModelsWhenRateLimited", useOtherModelsWhenRateLimited)
+            UserDefaults.standard.set(useOtherModelsWhenRateLimited, forKey: "assist.useOtherModelsWhenRateLimited")
+        }
+    }
+
+    @Published var metaSelectedOtherModelID: String {
+        didSet {
+            debouncedSave("metaSelectedOtherModelID", metaSelectedOtherModelID)
+            UserDefaults.standard.set(metaSelectedOtherModelID, forKey: "assist.metaSelectedOtherModelID")
+        }
+    }
+
+    @Published var metaSelectedOtherModelProvider: String {
+        didSet {
+            debouncedSave("metaSelectedOtherModelProvider", metaSelectedOtherModelProvider)
+            UserDefaults.standard.set(metaSelectedOtherModelProvider, forKey: "assist.metaSelectedOtherModelProvider")
+        }
+    }
+
     public var assistToolkitDisplayName: String {
         if assistToolkit.caseInsensitiveCompare("cloud") == .orderedSame {
             return "Cloud (\(activeCloudToolkitName))"
@@ -434,6 +463,18 @@ class AppSettings: ObservableObject {
         metaReasoningEffort = UserDefaults.standard.string(forKey: "metaReasoningEffort")
             ?? UserDefaults.standard.string(forKey: "assist.metaReasoningEffort")
             ?? Self.defaultMetaReasoningEffort
+        otherModelsWithMetaSDK = UserDefaults.standard.object(forKey: "otherModelsWithMetaSDK") as? Bool
+            ?? UserDefaults.standard.object(forKey: "assist.otherModelsWithMetaSDK") as? Bool
+            ?? false
+        useOtherModelsWhenRateLimited = UserDefaults.standard.object(forKey: "useOtherModelsWhenRateLimited") as? Bool
+            ?? UserDefaults.standard.object(forKey: "assist.useOtherModelsWhenRateLimited") as? Bool
+            ?? true
+        metaSelectedOtherModelID = UserDefaults.standard.string(forKey: "metaSelectedOtherModelID")
+            ?? UserDefaults.standard.string(forKey: "assist.metaSelectedOtherModelID")
+            ?? ""
+        metaSelectedOtherModelProvider = UserDefaults.standard.string(forKey: "metaSelectedOtherModelProvider")
+            ?? UserDefaults.standard.string(forKey: "assist.metaSelectedOtherModelProvider")
+            ?? ""
         swiftCloudModelsEnabled = UserDefaults.standard.object(forKey: "swiftCloudModelsEnabled") as? Bool ?? false
         let loadedUseSavedModels = UserDefaults.standard.object(forKey: "useSavedModels") as? Bool
             ?? UserDefaults.standard.object(forKey: "assist.useSavedModels") as? Bool

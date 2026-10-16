@@ -1070,7 +1070,12 @@ public final class AssistManager: ObservableObject {
         }
 
         await MainActor.run {
-            self.currentActivityStatus = "Contacting Assist with Meta..."
+            if AppSettings.shared.otherModelsWithMetaSDK {
+                let resolved = MuseOtherModelsBridge.shared.resolveActiveModel()
+                self.currentActivityStatus = "Contacting Assist with Meta (Bridged: \(resolved.displayName))..."
+            } else {
+                self.currentActivityStatus = "Contacting Assist with Meta..."
+            }
             var initialMsg = AssistMessage(role: .assistant, content: "")
             initialMsg.providerID = MetaAssistProvider.providerID
             self.messages.append(initialMsg)

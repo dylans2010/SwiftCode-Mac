@@ -921,6 +921,7 @@
 		8D9E00040001000100000004 /* MuseCodeCLIHelper.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8D9E00040001000100000003 /* MuseCodeCLIHelper.swift */; };
 		8D9E00040001000100000006 /* MuseCodeMSPBridge.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8D9E00040001000100000005 /* MuseCodeMSPBridge.swift */; };
 		8D9E00040001000100000008 /* MetaAssistLifecycleManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8D9E00040001000100000007 /* MetaAssistLifecycleManager.swift */; };
+		8D9E0004000100010000000A /* MuseOtherModelsBridge.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8D9E00040001000100000009 /* MuseOtherModelsBridge.swift */; };
 		8DA2FD4C6BBD0AF84E0FFDD8 /* FilePermissionView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6160E9FC707A9B07E04C2B81 /* FilePermissionView.swift */; };
 		8E03DBB467F75893FCBCF8FA /* WorkerPersistenceStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8EE85E4A3CB85D595FA6A604 /* WorkerPersistenceStore.swift */; };
 		8E0D89B2DEE6321A0CA019C7 /* (null) in Resources */ = {isa = PBXBuildFile; };
@@ -3670,6 +3671,7 @@
 		8D9E00040001000100000003 /* MuseCodeCLIHelper.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = MuseCodeCLIHelper.swift; sourceTree = "<group>"; };
 		8D9E00040001000100000005 /* MuseCodeMSPBridge.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = MuseCodeMSPBridge.swift; sourceTree = "<group>"; };
 		8D9E00040001000100000007 /* MetaAssistLifecycleManager.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = MetaAssistLifecycleManager.swift; sourceTree = "<group>"; };
+		8D9E00040001000100000009 /* MuseOtherModelsBridge.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = MuseOtherModelsBridge.swift; sourceTree = "<group>"; };
 		8D9E00030001000100000020 /* Google Cloud SDK */ = {isa = PBXFileReference; lastKnownFileType = folder; path = "Google Cloud SDK"; sourceTree = "<group>"; };
 		8DB9F5B5EFA343C181131ABF /* HistoryManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HistoryManager.swift; sourceTree = "<group>"; };
 		8DDA9799B405D0C0A63CFFF9 /* Models/SyncState.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = Models/SyncState.swift; sourceTree = "<group>"; };
@@ -7597,6 +7599,7 @@
 				8D9E00040001000100000003 /* MuseCodeCLIHelper.swift */,
 				8D9E00040001000100000005 /* MuseCodeMSPBridge.swift */,
 				8D9E00040001000100000007 /* MetaAssistLifecycleManager.swift */,
+				8D9E00040001000100000009 /* MuseOtherModelsBridge.swift */,
 			);
 			path = Meta;
 			sourceTree = "<group>";
@@ -11262,6 +11265,7 @@
 				8D9E00040001000100000004 /* MuseCodeCLIHelper.swift in Sources */,
 				8D9E00040001000100000006 /* MuseCodeMSPBridge.swift in Sources */,
 				8D9E00040001000100000008 /* MetaAssistLifecycleManager.swift in Sources */,
+				8D9E0004000100010000000A /* MuseOtherModelsBridge.swift in Sources */,
 				CMPBLD000000000000000001 /* ComposioService.swift in Sources */,
 				GOOAUTHBLD00000000000001 /* GoogleAccountAuthService.swift in Sources */,
 				AGQUOTABLD000000000001 /* AntigravityQuotaService.swift in Sources */,

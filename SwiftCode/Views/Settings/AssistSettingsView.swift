@@ -764,6 +764,11 @@ struct AssistSettingsView: View {
 
                         // 3. SwiftCode Cloud Model
                         swiftCodeCloudSection
+
+                        if settings.isMetaAssist {
+                            Divider()
+                            metaSDKOtherModelsSection
+                        }
                     }
                     .padding(14)
                 }
@@ -2123,6 +2128,135 @@ struct AssistSettingsView: View {
             cloudModels = fresh
             cloudModelsUpdatedAt = updated
             isRefreshingCloudModels = false
+        }
+    }
+
+    @ViewBuilder
+    // MARK: - Meta SDK Other Models Bridge Section
+
+    private var metaSDKOtherModelsSection: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Toggle(isOn: $settings.otherModelsWithMetaSDK) {
+                HStack(spacing: 6) {
+                    Image(systemName: "cpu")
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundStyle(.purple)
+                    Text("Other Models with Meta SDK")
+                        .font(.system(size: 12, weight: .medium))
+                    Spacer()
+                    if settings.otherModelsWithMetaSDK {
+                        Text("Bridge Active")
+                            .font(.system(size: 9, weight: .bold))
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 2)
+                            .background(Color.purple.opacity(0.15), in: Capsule())
+                            .foregroundStyle(.purple)
+                    }
+                }
+            }
+            .toggleStyle(.switch)
+            .controlSize(.small)
+
+            Text("Route Assist with Meta turns through the Muse SDK bridge using third-party models from your saved API providers (OpenAI, Anthropic, Gemini, OpenRouter, Mistral, Qwen) or Custom Model Setups.")
+                .font(.system(size: 10))
+                .foregroundStyle(.secondary)
+
+            if settings.otherModelsWithMetaSDK {
+                VStack(alignment: .leading, spacing: 10) {
+                    Divider()
+
+                    // 2nd Toggle: Use Other Models when Rate Limited
+                    Toggle(isOn: $settings.useOtherModelsWhenRateLimited) {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Use Other Models when Rate Limited")
+                                .font(.system(size: 11, weight: .medium))
+                            Text("Automatically failover to the bridged model if Meta models hit rate limits (429), token limits, or quota exhaustion.")
+                                .font(.system(size: 9.5))
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                    .toggleStyle(.switch)
+                    .controlSize(.small)
+
+                    Divider()
+
+                    // Active Bridged Model Picker
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("Bridged Model")
+                            .font(.system(size: 11, weight: .medium))
+
+                        let availableModels = MuseOtherModelsBridge.shared.availableOtherModels()
+                        let activeModel = MuseOtherModelsBridge.shared.resolveActiveModel()
+
+                        Menu {
+                            Section("Saved API Providers & Models") {
+                                ForEach(availableModels.filter { $0.source != .custom && $0.source != .local }) { model in
+                                    Button {
+                                        settings.metaSelectedOtherModelID = model.modelIdentifier
+                                        settings.metaSelectedOtherModelProvider = model.providerName
+                                    } label: {
+                                        HStack {
+                                            Text(model.displayName)
+                                            if settings.metaSelectedOtherModelID == model.modelIdentifier {
+                                                Image(systemName: "checkmark")
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+
+                            let customEndpoints = CustomEndpointManager.shared.endpoints
+                            if !customEndpoints.isEmpty {
+                                Section("Custom Model Setups") {
+                                    ForEach(customEndpoints) { endpoint in
+                                        ForEach(endpoint.models, id: \.self) { modelID in
+                                            Button {
+                                                settings.metaSelectedOtherModelID = modelID
+                                                settings.metaSelectedOtherModelProvider = endpoint.name
+                                            } label: {
+                                                HStack {
+                                                    Text("\(endpoint.name): \(modelID)")
+                                                    if settings.metaSelectedOtherModelID == modelID {
+                                                        Image(systemName: "checkmark")
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        } label: {
+                            HStack {
+                                Image(systemName: "sparkles")
+                                    .foregroundStyle(.purple)
+                                    .font(.system(size: 11))
+                                Text(activeModel.displayName)
+                                    .font(.system(size: 11, weight: .medium))
+                                    .lineLimit(1)
+                                Spacer()
+                                Text(activeModel.provider)
+                                    .font(.system(size: 9.5, weight: .bold))
+                                    .padding(.horizontal, 6)
+                                    .padding(.vertical, 2)
+                                    .background(Color.purple.opacity(0.12), in: Capsule())
+                                    .foregroundStyle(.purple)
+                                Image(systemName: "chevron.up.chevron.down")
+                                    .font(.system(size: 10))
+                                    .foregroundStyle(.secondary)
+                            }
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 5)
+                            .background(Color(NSColor.controlBackgroundColor))
+                            .clipShape(RoundedRectangle(cornerRadius: 6))
+                            .overlay(RoundedRectangle(cornerRadius: 6).stroke(Color.primary.opacity(0.1), lineWidth: 1))
+                        }
+                        .menuStyle(.borderlessButton)
+                    }
+                }
+                .padding(10)
+                .background(Color.purple.opacity(0.04), in: RoundedRectangle(cornerRadius: 8))
+                .overlay(RoundedRectangle(cornerRadius: 8).stroke(Color.purple.opacity(0.15), lineWidth: 1))
+            }
         }
     }
 
