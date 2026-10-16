@@ -676,6 +676,20 @@ struct AssistSettingsView: View {
                                     .controlSize(.small)
                                 }
                             }
+
+                            Divider()
+                                .padding(.vertical, 2)
+
+                            Toggle(isOn: $settings.useMetaSlashCommands) {
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text("Use Meta's Slash Commands")
+                                        .font(.system(size: 13, weight: .medium))
+                                    Text("Type \"/\" on AssistMainView to list and run all commands from Meta Code.")
+                                        .font(.caption2)
+                                        .foregroundStyle(.secondary)
+                                }
+                            }
+                            .toggleStyle(.switch)
                         }
                     }
                     .padding(10)

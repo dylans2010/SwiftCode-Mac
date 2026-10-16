@@ -141,6 +141,14 @@ class AppSettings: ObservableObject {
         }
     }
 
+    // MARK: - Use Meta Slash Commands
+    @Published var useMetaSlashCommands: Bool {
+        didSet {
+            debouncedSave("useMetaSlashCommands", useMetaSlashCommands)
+            UserDefaults.standard.set(useMetaSlashCommands, forKey: "assist.useMetaSlashCommands")
+        }
+    }
+
     public var assistToolkitDisplayName: String {
         if assistToolkit.caseInsensitiveCompare("cloud") == .orderedSame {
             return "Cloud (\(activeCloudToolkitName))"
@@ -498,6 +506,9 @@ class AppSettings: ObservableObject {
         metaSelectedOtherModelProvider = UserDefaults.standard.string(forKey: "metaSelectedOtherModelProvider")
             ?? UserDefaults.standard.string(forKey: "assist.metaSelectedOtherModelProvider")
             ?? ""
+        useMetaSlashCommands = UserDefaults.standard.object(forKey: "useMetaSlashCommands") as? Bool
+            ?? UserDefaults.standard.object(forKey: "assist.useMetaSlashCommands") as? Bool
+            ?? true
         onlyUseFreeModels = UserDefaults.standard.object(forKey: "onlyUseFreeModels") as? Bool
             ?? UserDefaults.standard.object(forKey: "assist.onlyUseFreeModels") as? Bool
             ?? false

@@ -57,6 +57,7 @@ public struct AssistMainView: View {
     @State private var selectedExplicitMCPServers: [String] = []
     @State private var selectedExplicitFiles: [AgentFileContext] = []
     @State private var composerTriggerMode: ComposerTriggerMode? = nil
+    @State private var selectedMetaCommandForArgs: MetaSlashCommand? = nil
     @State private var showCustomModelPicker = false
     @State private var showSpeechUI = false
     @State private var discoveryService = AssistModelDiscoveryService.shared
@@ -1125,7 +1126,26 @@ public struct AssistMainView: View {
                     onSelectSkill: { skill in selectSkill(skill) },
                     onSelectMCP: { server in selectMCP(server) },
                     onSelectFile: { url in selectFile(url) },
+                    onSelectMetaCommand: { command, arg in selectMetaCommand(command, argument: arg) },
+                    onRequestCommandArguments: { command in
+                        selectedMetaCommandForArgs = command
+                        composerTriggerMode = nil
+                    },
                     onDismiss: { composerTriggerMode = nil }
+                )
+                .padding(.bottom, 60)
+                .padding(.leading, 8)
+                .transition(.opacity.combined(with: .scale(scale: 0.95)))
+            } else if let command = selectedMetaCommandForArgs {
+                MetaCommandArgumentPickerView(
+                    command: command,
+                    onSelect: { chosenArg in
+                        selectMetaCommand(command, argument: chosenArg)
+                        selectedMetaCommandForArgs = nil
+                    },
+                    onDismiss: {
+                        selectedMetaCommandForArgs = nil
+                    }
                 )
                 .padding(.bottom, 60)
                 .padding(.leading, 8)
@@ -1174,9 +1194,30 @@ public struct AssistMainView: View {
             composerTriggerMode = .resource(query: query)
         } else if lastWord.hasPrefix("/") {
             let query = String(lastWord.dropFirst())
-            composerTriggerMode = .skill(query: query)
+            if settings.isMetaAssist && settings.useMetaSlashCommands {
+                composerTriggerMode = .metaCommand(query: query)
+            } else {
+                composerTriggerMode = .skill(query: query)
+            }
         } else {
             composerTriggerMode = nil
+        }
+    }
+
+    private func selectMetaCommand(_ command: MetaSlashCommand, argument: String?) {
+        consumeTrailingToken(prefix: "/")
+        composerTriggerMode = nil
+        selectedMetaCommandForArgs = nil
+
+        Task {
+            let result = await MetaSlashCommandManager.shared.executeCommand(command, argument: argument)
+            await MainActor.run {
+                if result.hasPrefix("/") {
+                    self.inputText = result
+                } else {
+                    logger.info("Meta slash command executed: \(result)")
+                }
+            }
         }
     }
 

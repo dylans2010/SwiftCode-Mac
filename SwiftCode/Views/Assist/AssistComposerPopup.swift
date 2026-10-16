@@ -12,6 +12,7 @@ import AppKit
 public enum ComposerTriggerMode: Equatable {
     case resource(query: String) // @
     case skill(query: String)    // /
+    case metaCommand(query: String) // / with Meta Code
 }
 
 public struct ComposerResourceItem: Identifiable, Hashable {
@@ -155,6 +156,8 @@ public struct AssistComposerPopupView: View {
     public let onSelectSkill: (SkillDescriptor) -> Void
     public let onSelectMCP: (String) -> Void
     public let onSelectFile: (URL) -> Void
+    public var onSelectMetaCommand: ((MetaSlashCommand, String?) -> Void)? = nil
+    public var onRequestCommandArguments: ((MetaSlashCommand) -> Void)? = nil
     public let onDismiss: () -> Void
 
     @ObservedObject private var skillIndex = SkillIndex.shared
@@ -167,13 +170,22 @@ public struct AssistComposerPopupView: View {
         onSelectSkill: @escaping (SkillDescriptor) -> Void,
         onSelectMCP: @escaping (String) -> Void,
         onSelectFile: @escaping (URL) -> Void,
+        onSelectMetaCommand: ((MetaSlashCommand, String?) -> Void)? = nil,
+        onRequestCommandArguments: ((MetaSlashCommand) -> Void)? = nil,
         onDismiss: @escaping () -> Void
     ) {
         self.mode = mode
         self.onSelectSkill = onSelectSkill
         self.onSelectMCP = onSelectMCP
         self.onSelectFile = onSelectFile
+        self.onSelectMetaCommand = onSelectMetaCommand
+        self.onRequestCommandArguments = onRequestCommandArguments
         self.onDismiss = onDismiss
+    }
+
+    private var metaCommandItems: [MetaSlashCommand] {
+        guard case .metaCommand(let query) = mode else { return [] }
+        return MetaSlashCommandManager.shared.searchCommands(query: query)
     }
 
     private var skillItems: [SkillDescriptor] {
@@ -226,11 +238,11 @@ public struct AssistComposerPopupView: View {
             // Header bar
             HStack {
                 HStack(spacing: 5) {
-                    Image(systemName: isSkillMode ? "wand.and.stars" : "at")
+                    Image(systemName: isMetaCommandMode ? "bolt.badge.automatic.fill" : (isSkillMode ? "wand.and.stars" : "at"))
                         .font(.system(size: 11, weight: .bold))
-                        .foregroundColor(isSkillMode ? .orange : .accentColor)
+                        .foregroundColor(isMetaCommandMode ? .orange : (isSkillMode ? .orange : .accentColor))
 
-                    Text(isSkillMode ? "Agent Skills (Mandatory Execution)" : "Resources (@MCP or @File)")
+                    Text(isMetaCommandMode ? "Meta Code Commands (/)" : (isSkillMode ? "Agent Skills (Mandatory Execution)" : "Resources (@MCP or @File)"))
                         .font(.system(size: 11, weight: .semibold))
                         .foregroundColor(.primary)
                 }
@@ -250,7 +262,15 @@ public struct AssistComposerPopupView: View {
             // List of filtered options
             ScrollView {
                 VStack(spacing: 2) {
-                    if isSkillMode {
+                    if isMetaCommandMode {
+                        if metaCommandItems.isEmpty {
+                            emptyRow(text: "No matching Meta commands found")
+                        } else {
+                            ForEach(Array(metaCommandItems.enumerated()), id: \.element.id) { idx, cmd in
+                                metaCommandRow(command: cmd, isSelected: idx == selectedIndex)
+                            }
+                        }
+                    } else if isSkillMode {
                         if skillItems.isEmpty {
                             emptyRow(text: "No matching skills found")
                         } else {
@@ -286,9 +306,78 @@ public struct AssistComposerPopupView: View {
         .onExitCommand(perform: onDismiss)
     }
 
+    private var isMetaCommandMode: Bool {
+        if case .metaCommand = mode { return true }
+        return false
+    }
+
     private var isSkillMode: Bool {
         if case .skill = mode { return true }
         return false
+    }
+
+    private func metaCommandRow(command: MetaSlashCommand, isSelected: Bool) -> some View {
+        Button {
+            if command.requiresArguments {
+                if let onRequestCommandArguments {
+                    onRequestCommandArguments(command)
+                } else if let onSelectMetaCommand {
+                    onSelectMetaCommand(command, nil)
+                }
+            } else {
+                onSelectMetaCommand?(command, nil)
+            }
+        } label: {
+            HStack(spacing: 8) {
+                Image(systemName: command.icon)
+                    .font(.system(size: 12))
+                    .foregroundColor(.orange)
+                    .frame(width: 20)
+
+                VStack(alignment: .leading, spacing: 2) {
+                    HStack(spacing: 6) {
+                        Text(command.name)
+                            .font(.system(size: 12, weight: .bold, design: .monospaced))
+                            .foregroundColor(.orange)
+
+                        Text(command.title)
+                            .font(.system(size: 11, weight: .medium))
+                            .foregroundColor(.primary)
+
+                        Text(command.category)
+                            .font(.system(size: 9))
+                            .foregroundColor(.secondary)
+                            .padding(.horizontal, 4)
+                            .padding(.vertical, 1)
+                            .background(Color.primary.opacity(0.06), in: Capsule())
+                    }
+
+                    Text(command.description)
+                        .font(.system(size: 10))
+                        .foregroundColor(.secondary)
+                        .lineLimit(1)
+                }
+
+                Spacer()
+
+                if command.requiresArguments {
+                    Image(systemName: "slider.horizontal.3")
+                        .font(.system(size: 10))
+                        .foregroundColor(.orange)
+                } else {
+                    Image(systemName: "arrow.up.left")
+                        .font(.system(size: 10))
+                        .foregroundColor(.secondary)
+                }
+            }
+            .padding(.horizontal, 8)
+            .padding(.vertical, 5)
+            .background(
+                RoundedRectangle(cornerRadius: 5)
+                    .fill(isSelected ? Color.orange.opacity(0.12) : Color.clear)
+            )
+        }
+        .buttonStyle(.plain)
     }
 
     private func emptyRow(text: String) -> some View {

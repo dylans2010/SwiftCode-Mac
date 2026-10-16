@@ -162,7 +162,8 @@ public actor MuseCodeCLIHelper {
             let hasCreds = (email != nil && !email!.isEmpty) ||
                            (meta.accessToken != nil && !meta.accessToken!.isEmpty) ||
                            (meta.apiKey != nil && !meta.apiKey!.isEmpty) ||
-                           (meta.mechanism != nil && !meta.mechanism!.isEmpty)
+                           (meta.mechanism != nil && !meta.mechanism!.isEmpty) ||
+                           (meta.storage != nil && !meta.storage!.isEmpty)
             return (hasCreds, email, name)
         }
         // Fallback generic extraction if structure varies
@@ -171,10 +172,49 @@ public actor MuseCodeCLIHelper {
            let meta = providers["meta"] as? [String: Any] {
             let email = meta["user_email"] as? String
             let name = meta["user_full_name"] as? String
-            let hasCreds = email != nil || meta["access_token"] != nil || meta["mechanism"] != nil
+            let hasCreds = email != nil || meta["access_token"] != nil || meta["mechanism"] != nil || meta["storage"] != nil
             return (hasCreds, email, name)
         }
         return (false, nil, nil)
+    }
+
+    /// Ensures ~/.config/muse/settings.json exists with valid default model and config.
+    /// Fixes CLI errors where muse fails with "failed to fetch model catalog: model catalog has no visible models".
+    nonisolated public func ensureMuseConfigHealth() {
+        let home = NSHomeDirectory()
+        let configDir = (home as NSString).appendingPathComponent(".config/muse")
+        let settingsFile = (configDir as NSString).appendingPathComponent("settings.json")
+        let fileManager = FileManager.default
+
+        if !fileManager.fileExists(atPath: configDir) {
+            try? fileManager.createDirectory(atPath: configDir, withIntermediateDirectories: true)
+        }
+
+        var json: [String: Any] = [:]
+        if let data = try? Data(contentsOf: URL(fileURLWithPath: settingsFile)),
+           let parsed = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
+            json = parsed
+        }
+
+        var modified = false
+        if json["schema_version"] == nil {
+            json["schema_version"] = 1
+            modified = true
+        }
+        if json["model"] == nil || (json["model"] as? String)?.isEmpty == true {
+            json["model"] = "muse-wonder-1.0"
+            modified = true
+        }
+        if json["model_reasoning_efforts"] == nil {
+            json["model_reasoning_efforts"] = ["muse-wonder-1.0": "high"]
+            modified = true
+        }
+
+        if modified {
+            if let outData = try? JSONSerialization.data(withJSONObject: json, options: [.prettyPrinted]) {
+                try? outData.write(to: URL(fileURLWithPath: settingsFile))
+            }
+        }
     }
 
     /// Checks if valid account credentials exist.
@@ -199,10 +239,20 @@ public actor MuseCodeCLIHelper {
 
     /// Reusable helper to run a process.
     public func runProcess(executablePath: String, args: [String], environment: [String: String]? = nil, timeoutSeconds: Double = 30.0) async throws -> MuseCodeCLIExecutionResult {
+        MuseCodeCLIHelper.shared.ensureMuseConfigHealth()
+
+        var processArgs = args
+        if processArgs.contains("exec") && !processArgs.contains("--model") {
+            // Ensure default model is provided to avoid catalog visibility errors
+            if let execIndex = processArgs.firstIndex(of: "exec") {
+                processArgs.insert(contentsOf: ["--model", "muse-wonder-1.0"], at: execIndex)
+            }
+        }
+
         return try await Task.detached { () -> MuseCodeCLIExecutionResult in
             let process = Process()
             process.executableURL = URL(fileURLWithPath: executablePath)
-            process.arguments = args
+            process.arguments = processArgs
 
             var env = ProcessInfo.processInfo.environment
             if let customEnv = environment {
@@ -246,6 +296,13 @@ public actor MuseCodeCLIHelper {
     public func runLoginFlow(onAuthURL: (@Sendable (URL, String?) -> Void)? = nil) async throws -> String {
         guard let executable = discoverExecutablePath() else {
             throw MuseCodeCLIError.executableNotFound
+        }
+
+        // If already authenticated with valid credentials, return immediately
+        let existingInfo = MuseCodeCLIHelper.shared.readAuthInfo()
+        if existingInfo.isAuthenticated, let email = existingInfo.email, !email.isEmpty {
+            MuseCodeCLIHelper.shared.ensureMuseConfigHealth()
+            return email
         }
 
         return try await Task.detached { () -> String in
@@ -296,12 +353,17 @@ public actor MuseCodeCLIHelper {
 
             let stdoutPipe = Pipe()
             let stderrPipe = Pipe()
+            let stdinPipe = Pipe()
             process.standardOutput = stdoutPipe
             process.standardError = stderrPipe
+            process.standardInput = stdinPipe
 
             let handleData: @Sendable (Data) -> Void = { data in
                 if let extracted = state.appendAndExtractURL(data) {
                     onAuthURL?(extracted.url, extracted.code)
+                    if let nl = "\n".data(using: .utf8) {
+                        try? stdinPipe.fileHandleForWriting.write(contentsOf: nl)
+                    }
                 }
             }
 
@@ -318,6 +380,15 @@ public actor MuseCodeCLIHelper {
             }
 
             try process.run()
+
+            // Feed newline after 1s in case prompt appears without triggering regex
+            Task {
+                try? await Task.sleep(nanoseconds: 1_000_000_000)
+                if let nl = "\n".data(using: .utf8) {
+                    try? stdinPipe.fileHandleForWriting.write(contentsOf: nl)
+                }
+            }
+
             process.waitUntilExit()
 
             stderrPipe.fileHandleForReading.readabilityHandler = nil
@@ -328,10 +399,15 @@ public actor MuseCodeCLIHelper {
             handleData(remainingOut)
             handleData(remainingErr)
 
+            MuseCodeCLIHelper.shared.ensureMuseConfigHealth()
+
             // Re-read auth info after process exit
             let info = MuseCodeCLIHelper.shared.readAuthInfo()
             if let email = info.email, !email.isEmpty {
                 return email
+            }
+            if info.isAuthenticated {
+                return info.email ?? "Authenticated"
             }
             if process.terminationStatus == 0 {
                 return info.email ?? "Authenticated"

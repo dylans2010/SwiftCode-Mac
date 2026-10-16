@@ -29,6 +29,7 @@ public struct AssistSpeechUI: View {
     @State private var recognitionRequest: SFSpeechAudioBufferRecognitionRequest?
     @State private var recognitionTask: SFSpeechRecognitionTask?
     @State private var audioEngine = AVAudioEngine()
+    @State private var hasInstalledTap: Bool = false
 
     public init(onSend: ((String) -> Void)? = nil, onInsert: ((String) -> Void)? = nil) {
         self.onSend = onSend
@@ -197,12 +198,38 @@ public struct AssistSpeechUI: View {
     // MARK: - Speech Recognition Engine Lifecycle
 
     private func requestPermissions() {
+        #if os(macOS)
+        let authStatus = AVCaptureDevice.authorizationStatus(for: .audio)
+        if authStatus == .authorized {
+            self.isAuthorized = true
+        } else if authStatus == .notDetermined {
+            AVCaptureDevice.requestAccess(for: .audio) { granted in
+                DispatchQueue.main.async {
+                    self.isAuthorized = granted
+                    if !granted {
+                        self.errorMessage = "Microphone access denied. Please allow it in macOS System Settings > Privacy & Security > Microphone."
+                    }
+                }
+            }
+        } else {
+            self.isAuthorized = false
+            self.errorMessage = "Microphone permission was denied. Enable it in macOS System Settings > Privacy & Security > Microphone."
+        }
+        #endif
+
         SFSpeechRecognizer.requestAuthorization { status in
             DispatchQueue.main.async {
                 switch status {
                 case .authorized:
+                    #if os(macOS)
+                    if AVCaptureDevice.authorizationStatus(for: .audio) == .authorized {
+                        self.isAuthorized = true
+                        self.errorMessage = nil
+                    }
+                    #else
                     self.isAuthorized = true
                     self.errorMessage = nil
+                    #endif
                 case .denied:
                     self.isAuthorized = false
                     self.errorMessage = "Speech recognition permission was denied. Enable it in macOS System Settings."
@@ -217,31 +244,27 @@ public struct AssistSpeechUI: View {
                 }
             }
         }
-
-        #if os(macOS)
-        AVCaptureDevice.requestAccess(for: .audio) { granted in
-            if !granted {
-                DispatchQueue.main.async {
-                    self.errorMessage = "Microphone permission was denied. Enable it in macOS System Settings."
-                }
-            }
-        }
-        #endif
     }
 
     private func startRecording() {
+        guard let recognizer = speechRecognizer, recognizer.isAvailable else {
+            self.errorMessage = "Speech recognition is currently unavailable for your system locale."
+            return
+        }
+
+        #if os(macOS)
+        guard AVCaptureDevice.authorizationStatus(for: .audio) == .authorized else {
+            requestPermissions()
+            return
+        }
+        #else
         guard isAuthorized else {
             requestPermissions()
             return
         }
+        #endif
 
-        if audioEngine.isRunning {
-            audioEngine.stop()
-            recognitionRequest?.endAudio()
-        }
-
-        recognitionTask?.cancel()
-        recognitionTask = nil
+        stopRecording()
 
         #if os(iOS)
         let audioSession = AVAudioSession.sharedInstance()
@@ -250,17 +273,29 @@ public struct AssistSpeechUI: View {
         #endif
 
         recognitionRequest = SFSpeechAudioBufferRecognitionRequest()
-        guard let recognitionRequest = recognitionRequest else { return }
+        guard let recognitionRequest = recognitionRequest else {
+            self.errorMessage = "Unable to create speech recognition request."
+            return
+        }
 
         recognitionRequest.shouldReportPartialResults = true
 
         let inputNode = audioEngine.inputNode
-        let recordingFormat = inputNode.outputFormat(forBus: 0)
+        let hwFormat = inputNode.inputFormat(forBus: 0)
+        guard hwFormat.sampleRate > 0, hwFormat.channelCount > 0 else {
+            self.errorMessage = "No valid audio input format detected. Please check your sound input devices in System Settings."
+            return
+        }
 
-        inputNode.removeTap(onBus: 0)
-        inputNode.installTap(onBus: 0, bufferSize: 1024, format: recordingFormat) { buffer, _ in
+        if hasInstalledTap {
+            inputNode.removeTap(onBus: 0)
+            hasInstalledTap = false
+        }
+
+        inputNode.installTap(onBus: 0, bufferSize: 1024, format: hwFormat) { buffer, _ in
             self.recognitionRequest?.append(buffer)
         }
+        hasInstalledTap = true
 
         audioEngine.prepare()
         do {
@@ -269,7 +304,7 @@ public struct AssistSpeechUI: View {
             errorMessage = nil
             waveAnimation = 1.35
 
-            recognitionTask = speechRecognizer?.recognitionTask(with: recognitionRequest) { result, error in
+            recognitionTask = recognizer.recognitionTask(with: recognitionRequest) { result, error in
                 if let result = result {
                     DispatchQueue.main.async {
                         self.transcribedText = result.bestTranscription.formattedString
@@ -289,9 +324,15 @@ public struct AssistSpeechUI: View {
     }
 
     private func stopRecording() {
-        guard isRecording else { return }
-        audioEngine.stop()
-        audioEngine.inputNode.removeTap(onBus: 0)
+        guard isRecording || audioEngine.isRunning || hasInstalledTap || recognitionTask != nil else { return }
+
+        if audioEngine.isRunning {
+            audioEngine.stop()
+        }
+        if hasInstalledTap {
+            audioEngine.inputNode.removeTap(onBus: 0)
+            hasInstalledTap = false
+        }
         recognitionRequest?.endAudio()
         recognitionTask?.cancel()
 

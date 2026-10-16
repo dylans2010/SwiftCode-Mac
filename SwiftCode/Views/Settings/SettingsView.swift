@@ -491,11 +491,9 @@ public final class SettingsSidebarViewController: NSViewController, NSOutlineVie
             } else {
                 cell?.iconView.image = nil
             }
-            if let color = node.color {
-                cell?.iconBackground.fillColor = color
-            } else {
-                cell?.iconBackground.fillColor = .controlAccentColor
-            }
+            cell?.iconBackground.fillColor = .clear
+            cell?.iconBackground.isTransparent = true
+            cell?.iconView.contentTintColor = .systemOrange
 
             // Right Click Context menu to toggle Favorites
             let menu = NSMenu()
@@ -562,12 +560,14 @@ final class SettingsSidebarCellView: NSTableCellView {
     private func setupViews() {
         iconBackground.translatesAutoresizingMaskIntoConstraints = false
         iconBackground.boxType = .custom
-        iconBackground.cornerRadius = 6
+        iconBackground.cornerRadius = 0
         iconBackground.borderWidth = 0
+        iconBackground.fillColor = .clear
+        iconBackground.isTransparent = true
         addSubview(iconBackground)
 
         iconView.translatesAutoresizingMaskIntoConstraints = false
-        iconView.contentTintColor = .white
+        iconView.contentTintColor = .systemOrange
         iconBackground.addSubview(iconView)
 
         let text = NSTextField(labelWithString: "")
@@ -585,8 +585,8 @@ final class SettingsSidebarCellView: NSTableCellView {
 
             iconView.centerXAnchor.constraint(equalTo: iconBackground.centerXAnchor),
             iconView.centerYAnchor.constraint(equalTo: iconBackground.centerYAnchor),
-            iconView.widthAnchor.constraint(equalToConstant: 12),
-            iconView.heightAnchor.constraint(equalToConstant: 12),
+            iconView.widthAnchor.constraint(equalToConstant: 16),
+            iconView.heightAnchor.constraint(equalToConstant: 16),
 
             text.leadingAnchor.constraint(equalTo: iconBackground.trailingAnchor, constant: 8),
             text.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -4),
