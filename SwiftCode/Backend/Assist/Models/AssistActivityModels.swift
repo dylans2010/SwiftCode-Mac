@@ -61,6 +61,7 @@ public struct ToolActivityItem: Codable, Identifiable, Sendable, Hashable {
     public var semanticKey: String?
     public var operationId: String?
     public var progressMessage: String?
+    public var isMuseSDKTool: Bool
 
     public init(
         id: UUID = UUID(),
@@ -77,7 +78,8 @@ public struct ToolActivityItem: Codable, Identifiable, Sendable, Hashable {
         retryCount: Int = 0,
         semanticKey: String? = nil,
         operationId: String? = nil,
-        progressMessage: String? = nil
+        progressMessage: String? = nil,
+        isMuseSDKTool: Bool = false
     ) {
         self.id = id
         self.toolId = toolId
@@ -94,6 +96,7 @@ public struct ToolActivityItem: Codable, Identifiable, Sendable, Hashable {
         self.semanticKey = semanticKey
         self.operationId = operationId
         self.progressMessage = progressMessage
+        self.isMuseSDKTool = isMuseSDKTool
     }
 }
 

@@ -1222,10 +1222,18 @@ public final class AssistManager: ObservableObject {
             let selectedID = AppSettings.shared.selectedAssistModelID
             let endpointModel = SCCloudConfiguration.endpointName(forInternalID: selectedID)
             let baselinePrompt = (try? getSystemPrompt()) ?? SystemIndexService.shared.baselinePrompt()
+            let identityDirective = """
+            # ASSIST IDENTITY & BEHAVIORAL SAFEGUARDS
+            CRITICAL IDENTITY DIRECTIVE: Your name is Assist, the intelligent software engineering assistant built natively inside SwiftCode.
+            You are running inside the SwiftCode IDE environment using SwiftCode Cloud Model.
+            Regardless of the underlying model host, you MUST ALWAYS identify as Assist and NEVER claim to be any other product or service.
+            All system assets and training data retrieved through SystemIndex are your native SwiftCode knowledge base.
+            """
+            let fullSystemPrompt = identityDirective + "\n\n" + baselinePrompt
             let response = try await SCCloudModelClient.shared.complete(
                 prompt: prompt,
                 history: history,
-                systemPrompt: baselinePrompt,
+                systemPrompt: fullSystemPrompt,
                 modelIdentifier: endpointModel
             )
             metrics?.mark(.requestSent)
@@ -2146,7 +2154,7 @@ public final class AssistManager: ObservableObject {
     }
 
     @MainActor
-    public func reportToolStarted(callId: String, toolName: String, arguments: [String: Any]) {
+    public func reportToolStarted(callId: String, toolName: String, arguments: [String: Any], isMuseSDKTool: Bool = false) {
         let formatted = AssistToolActivityFormatter.format(toolId: toolName, arguments: arguments)
         self.currentActivityStatus = formatted.runningLabel
 
@@ -2157,6 +2165,7 @@ public final class AssistManager: ObservableObject {
             callId: callId,
             toolName: toolName,
             arguments: arguments,
+            isMuseSDKTool: isMuseSDKTool,
             in: &activity
         )
 
@@ -2180,7 +2189,7 @@ public final class AssistManager: ObservableObject {
     }
 
     @MainActor
-    public func reportToolCompleted(callId: String, toolName: String, output: String?, arguments: [String: Any]) {
+    public func reportToolCompleted(callId: String, toolName: String, output: String?, arguments: [String: Any], isMuseSDKTool: Bool = false) {
         let formatted = AssistToolActivityFormatter.format(toolId: toolName, arguments: arguments)
         self.currentActivityStatus = formatted.completedLabel
 
@@ -2192,6 +2201,7 @@ public final class AssistManager: ObservableObject {
             toolName: toolName,
             output: output,
             arguments: arguments,
+            isMuseSDKTool: isMuseSDKTool,
             in: &activity
         )
 
@@ -2199,7 +2209,7 @@ public final class AssistManager: ObservableObject {
     }
 
     @MainActor
-    public func reportToolFailed(callId: String, toolName: String, error: String, arguments: [String: Any]) {
+    public func reportToolFailed(callId: String, toolName: String, error: String, arguments: [String: Any], isMuseSDKTool: Bool = false) {
         let formatted = AssistToolActivityFormatter.format(toolId: toolName, arguments: arguments)
         let cleanError = AssistEventNormalizer.shared.sanitizeErrorMessage(rawError: error, toolName: toolName)
         self.currentActivityStatus = "\(formatted.failedLabel) — \(cleanError)"

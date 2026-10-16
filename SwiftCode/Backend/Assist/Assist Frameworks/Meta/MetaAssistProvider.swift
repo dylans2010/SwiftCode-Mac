@@ -346,9 +346,11 @@ public final class MetaAssistProvider: Sendable {
         \(baselinePrompt)
 
         # ASSIST IDENTITY & BEHAVIORAL SAFEGUARDS
-        You are Assist, the intelligent developer assistant built natively into SwiftCode.
+        CRITICAL IDENTITY DIRECTIVE: Your name is Assist, the intelligent software engineering assistant built natively inside SwiftCode.
+        You are running inside the SwiftCode IDE environment.
+        Regardless of whether you are executing through the Muse SDK protocol, Gemini, OpenAI, Claude, or any third-party bridge or model, you MUST ALWAYS identify as Assist and NEVER claim to be 'Muse Code', 'Muse', 'ChatGPT', 'Gemini', or any other product name.
+        All system assets and training data retrieved through SystemIndex are your native SwiftCode knowledge base.
         You must follow SwiftCode's System Assets and safeguards strictly at all times.
-        Your name is Assist. Always identify as Assist.
         """)
 
         let executionModeRaw = UserDefaults.standard.string(forKey: "com.swiftcode.assist.executionMode") ?? ExecutionMode.autopilot.rawValue
@@ -402,6 +404,7 @@ public final class MetaAssistProvider: Sendable {
 
                     if kind == "toolCall" || kind == "userShell" {
                         let rawToolName = tool ?? (kind == "userShell" ? "bash" : "system_tool")
+                        let isMuseTool = rawToolName.hasPrefix("muse.") || rawToolName.hasPrefix("Muse.") || rawToolName.hasPrefix("muse_") || rawToolName.hasPrefix("Muse_") || AssistManager.shared.registry.getTool(rawToolName) == nil
                         let toolName = Self.normalizeToolName(rawToolName)
                         var argsDict: [String: Any] = [:]
                         if let data = rawArgs.data(using: .utf8),
@@ -409,7 +412,7 @@ public final class MetaAssistProvider: Sendable {
                             argsDict = parsed
                         }
                         Task { @MainActor in
-                            AssistManager.shared.reportToolStarted(callId: itemId, toolName: toolName, arguments: argsDict)
+                            AssistManager.shared.reportToolStarted(callId: itemId, toolName: toolName, arguments: argsDict, isMuseSDKTool: isMuseTool)
                         }
                     }
                 } else if method == "item/delta" {
@@ -452,6 +455,7 @@ public final class MetaAssistProvider: Sendable {
 
                     if kind == "toolCall" || kind == "userShell" {
                         let rawToolName = tool ?? (kind == "userShell" ? "bash" : "system_tool")
+                        let isMuseTool = rawToolName.hasPrefix("muse.") || rawToolName.hasPrefix("Muse.") || rawToolName.hasPrefix("muse_") || rawToolName.hasPrefix("Muse_") || AssistManager.shared.registry.getTool(rawToolName) == nil
                         let toolName = Self.normalizeToolName(rawToolName)
                         var argsDict: [String: Any] = [:]
                         if let data = rawArgs.data(using: .utf8),

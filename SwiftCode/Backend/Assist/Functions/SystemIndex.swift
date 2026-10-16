@@ -277,22 +277,43 @@ public actor SystemIndexService {
 
     /// Absolute URL of the bundled System Assets directory, if present.
     public nonisolated func bundledAssetsURL() -> URL? {
+        let fm = FileManager.default
+
+        // 1. Bundle resources search
         if let resourceURL = Bundle.main.resourceURL {
             let url = resourceURL.appendingPathComponent(Self.resourcesSubdirectory, isDirectory: true)
             var isDir: ObjCBool = false
-            if FileManager.default.fileExists(atPath: url.path, isDirectory: &isDir), isDir.boolValue {
+            if fm.fileExists(atPath: url.path, isDirectory: &isDir), isDir.boolValue {
                 return url
             }
         }
 
-        // Development, CLI, and test runner fallback paths:
-        let fm = FileManager.default
+        // 2. Direct development, CLI, and test runner fallback paths
         let currentDir = fm.currentDirectoryPath
-        let devPaths = [
+        var candidatePaths: [String] = [
             currentDir + "/SwiftCode/Backend/Assist/Functions/System Assets",
-            currentDir + "/Backend/Assist/Functions/System Assets"
+            currentDir + "/Backend/Assist/Functions/System Assets",
+            currentDir + "/System Assets"
         ]
-        for path in devPaths {
+
+        // 3. Parent directory traversal from executable and bundle paths
+        var anchorURLs: [URL] = []
+        if let execURL = Bundle.main.executableURL { anchorURLs.append(execURL) }
+        anchorURLs.append(Bundle.main.bundleURL)
+
+        for anchor in anchorURLs {
+            var dir = anchor.deletingLastPathComponent()
+            for _ in 0..<8 {
+                candidatePaths.append(dir.appendingPathComponent("SwiftCode/Backend/Assist/Functions/System Assets").path)
+                candidatePaths.append(dir.appendingPathComponent("Backend/Assist/Functions/System Assets").path)
+                candidatePaths.append(dir.appendingPathComponent("System Assets").path)
+                let parent = dir.deletingLastPathComponent()
+                if parent == dir { break }
+                dir = parent
+            }
+        }
+
+        for path in candidatePaths {
             var isDir: ObjCBool = false
             if fm.fileExists(atPath: path, isDirectory: &isDir), isDir.boolValue {
                 return URL(fileURLWithPath: path, isDirectory: true)

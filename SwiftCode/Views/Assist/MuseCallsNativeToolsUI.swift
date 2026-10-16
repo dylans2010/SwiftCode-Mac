@@ -37,7 +37,11 @@ public struct MuseCallsNativeToolsUI: View {
                 if groups.count <= 1 && tools.count <= 2 {
                     // Direct flat presentation for simple single/pair tool calls
                     ForEach(tools) { tool in
-                        MuseNativeToolCard(tool: tool, fileDiffs: fileItems)
+                        if tool.isMuseSDKTool {
+                            MuseSDKToolCall(tool: tool, fileDiffs: fileItems)
+                        } else {
+                            MuseNativeToolCard(tool: tool, fileDiffs: fileItems)
+                        }
                     }
                 } else {
                     // Dynamic stage-grouped collapsible presentation
@@ -116,7 +120,11 @@ public struct MuseCallsNativeToolsUI: View {
             if isExpanded {
                 VStack(spacing: 6) {
                     ForEach(group.tools) { tool in
-                        MuseNativeToolCard(tool: tool, fileDiffs: fileDiffs)
+                        if tool.isMuseSDKTool {
+                            MuseSDKToolCall(tool: tool, fileDiffs: fileDiffs)
+                        } else {
+                            MuseNativeToolCard(tool: tool, fileDiffs: fileDiffs)
+                        }
                     }
                 }
                 .padding(.leading, 8)
