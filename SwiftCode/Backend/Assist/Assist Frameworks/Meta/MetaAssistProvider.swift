@@ -239,7 +239,8 @@ public final class MetaAssistProvider: Sendable {
         onThinkingDelta: (@Sendable (String) -> Void)? = nil
     ) async throws {
         var hostBaseURL: String? = nil
-        if AppSettings.shared.otherModelsWithMetaSDK {
+        let isOtherActive = AppSettings.shared.otherModelsWithMetaSDK || AppSettings.shared.swiftCodeCloudWithMetaSDK
+        if isOtherActive {
             do {
                 let proxyURL = try await MuseOtherModelsBridge.shared.ensureLocalProxyServerStarted()
                 hostBaseURL = proxyURL.absoluteString
@@ -259,7 +260,7 @@ public final class MetaAssistProvider: Sendable {
 
         let isInstalled = MuseCodeCLIHelper.shared.isInstalled()
         if !isInstalled {
-            if AppSettings.shared.otherModelsWithMetaSDK {
+            if isOtherActive {
                 // If CLI is not present on developer's machine, execute directly via MuseOtherModelsBridge
                 try await MuseOtherModelsBridge.shared.executeTurn(
                     prompt: prompt,
@@ -273,7 +274,7 @@ public final class MetaAssistProvider: Sendable {
         }
 
         let hasCreds = await MuseCodeCLIHelper.shared.checkCredentials()
-        if !hasCreds && !AppSettings.shared.otherModelsWithMetaSDK {
+        if !hasCreds && !isOtherActive {
             do {
                 _ = try await MuseCodeCLIHelper.shared.runLoginFlow()
             } catch {
@@ -679,7 +680,7 @@ public final class MetaAssistProvider: Sendable {
         let desc = error.localizedDescription.lowercased()
         if let mspError = error as? MspError {
             let reason = mspError.reason?.lowercased() ?? ""
-            let msg = mspError.message?.lowercased() ?? ""
+            let msg = mspError.message.lowercased()
             if reason.contains("rate_limit") || reason.contains("quota") || reason.contains("limit") || reason.contains("429") ||
                msg.contains("rate limit") || msg.contains("quota") || msg.contains("429") || msg.contains("limit reached") {
                 return true

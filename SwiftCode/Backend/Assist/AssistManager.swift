@@ -1070,7 +1070,7 @@ public final class AssistManager: ObservableObject {
         }
 
         await MainActor.run {
-            if AppSettings.shared.otherModelsWithMetaSDK {
+            if AppSettings.shared.otherModelsWithMetaSDK || AppSettings.shared.swiftCodeCloudWithMetaSDK {
                 let resolved = MuseOtherModelsBridge.shared.resolveActiveModel()
                 self.currentActivityStatus = "Contacting Assist with Meta (Bridged: \(resolved.displayName))..."
             } else {

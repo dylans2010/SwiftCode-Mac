@@ -124,12 +124,51 @@ public final class MuseOtherModelsBridge: @unchecked Sendable {
                             providerName: endpoint.name.isEmpty ? "Custom Model" : endpoint.name,
                             modelIdentifier: modelID,
                             source: endpoint.isLocal ? .local : .custom,
+                            isAvailable: true,
                             supportsToolCalling: true,
-                            supportsAgenticUse: true,
-                            isAvailable: true
+                            supportsAgenticUse: true
                         )
                     )
                 }
+            }
+        }
+
+        // Include SwiftCode Cloud Models
+        let cloudModels = SCCloudModelDiscovery.shared.models
+        if !cloudModels.isEmpty {
+            for cloud in cloudModels {
+                if !models.contains(where: { $0.modelIdentifier == cloud.internalID || $0.id == cloud.internalID }) {
+                    models.append(
+                        AssistAvailableModel(
+                            id: cloud.internalID,
+                            displayName: "SwiftCode Cloud: \(cloud.displayName)",
+                            providerID: SCCloudConfiguration.providerID,
+                            providerName: SCCloudConfiguration.providerName,
+                            modelIdentifier: cloud.internalID,
+                            source: .custom,
+                            isAvailable: true,
+                            supportsToolCalling: true,
+                            supportsAgenticUse: true
+                        )
+                    )
+                }
+            }
+        } else {
+            let defaultCloudID = SCCloudConfiguration.modelIDPrefix
+            if !models.contains(where: { $0.modelIdentifier == defaultCloudID || $0.id == defaultCloudID }) {
+                models.append(
+                    AssistAvailableModel(
+                        id: defaultCloudID,
+                        displayName: "SwiftCode Cloud Model",
+                        providerID: SCCloudConfiguration.providerID,
+                        providerName: SCCloudConfiguration.providerName,
+                        modelIdentifier: defaultCloudID,
+                        source: .custom,
+                        isAvailable: true,
+                        supportsToolCalling: true,
+                        supportsAgenticUse: true
+                    )
+                )
             }
         }
 
@@ -162,6 +201,12 @@ public final class MuseOtherModelsBridge: @unchecked Sendable {
         // 1. User explicitly selected a model for the Meta bridge
         if !settings.metaSelectedOtherModelID.isEmpty {
             let modelID = settings.metaSelectedOtherModelID
+            if SCCloudConfiguration.isCloudModelID(modelID) {
+                let endpoint = SCCloudConfiguration.endpointName(forInternalID: modelID)
+                    ?? SCCloudModelDiscovery.shared.models.first?.endpointName
+                    ?? "swiftcode-cloud"
+                return (modelID, "SwiftCode Cloud: \(endpoint)", SCCloudConfiguration.providerName)
+            }
             if !onlyFree || AssistModelEligibilityPolicy.isEligible(modelID: modelID, onlyUseFreeModels: true) {
                 if let customEndpoint = CustomEndpointManager.shared.endpoints.first(where: { $0.models.contains(modelID) }) {
                     return (modelID, "\(customEndpoint.name): \(modelID)", "Custom Model Setup")
@@ -185,6 +230,12 @@ public final class MuseOtherModelsBridge: @unchecked Sendable {
         // 3. User's overall selected assist model (if not a meta model)
         let generalModel = settings.selectedAssistModelID
         if !generalModel.isEmpty && !generalModel.hasPrefix("muse-") {
+            if SCCloudConfiguration.isCloudModelID(generalModel) {
+                let endpoint = SCCloudConfiguration.endpointName(forInternalID: generalModel)
+                    ?? SCCloudModelDiscovery.shared.models.first?.endpointName
+                    ?? "swiftcode-cloud"
+                return (generalModel, "SwiftCode Cloud: \(endpoint)", SCCloudConfiguration.providerName)
+            }
             if !onlyFree || AssistModelEligibilityPolicy.isEligible(modelID: generalModel, onlyUseFreeModels: true) {
                 if let found = AssistModelDiscoveryService.shared.discoveredModels.first(where: { $0.modelIdentifier == generalModel }) {
                     return (generalModel, found.displayName, found.providerName)
@@ -218,8 +269,12 @@ public final class MuseOtherModelsBridge: @unchecked Sendable {
             ? (modelID: overrideModelID!, displayName: overrideModelID!, provider: LLMService.shared.provider(for: overrideModelID!).rawValue)
             : resolveActiveModel()
 
+        if SCCloudConfiguration.isCloudModelID(resolved.modelID) {
+            SCCloudDeviceFingerprint.ensureFingerprint()
+        }
+
         // Enforce execution-time free model eligibility check
-        if onlyFree {
+        if onlyFree && !SCCloudConfiguration.isCloudModelID(resolved.modelID) {
             try AssistModelEligibilityPolicy.validateExecutionEligibility(
                 modelID: resolved.modelID,
                 provider: resolved.provider,

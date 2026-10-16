@@ -2170,11 +2170,28 @@ struct AssistSettingsView: View {
             .toggleStyle(.switch)
             .controlSize(.small)
 
-            Text("Route Assist with Meta turns through the Muse SDK bridge using third-party models from your saved API providers (OpenAI, Anthropic, Gemini, OpenRouter, Mistral, Qwen) or Custom Model Setups.")
+            Toggle(isOn: $settings.swiftCodeCloudWithMetaSDK) {
+                HStack(spacing: 6) {
+                    Image(systemName: "cloud.sun.fill")
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundStyle(.blue)
+                    Text("SwiftCode Cloud Models with Meta SDK")
+                        .font(.system(size: 12, weight: .medium))
+                    Spacer()
+                    let remaining = SCCloudModelClient.shared.remainingRequestsToday
+                    Text("\(remaining)/\(SCCloudConfiguration.dailyRequestLimit) left today")
+                        .font(.system(size: 9.5, weight: .semibold))
+                        .foregroundStyle(remaining > 0 ? Color.secondary : Color.orange)
+                }
+            }
+            .toggleStyle(.switch)
+            .controlSize(.small)
+
+            Text("Route Assist with Meta turns through the Muse SDK bridge using third-party models from your saved API providers (OpenAI, Anthropic, Gemini, OpenRouter, Mistral, Qwen), Custom Model Setups, or SwiftCode's Cloud Models.")
                 .font(.system(size: 10))
                 .foregroundStyle(.secondary)
 
-            if settings.otherModelsWithMetaSDK {
+            if settings.otherModelsWithMetaSDK || settings.swiftCodeCloudWithMetaSDK {
                 VStack(alignment: .leading, spacing: 10) {
                     Divider()
 
@@ -2202,8 +2219,30 @@ struct AssistSettingsView: View {
                         let activeModel = MuseOtherModelsBridge.shared.resolveActiveModel()
 
                         Menu {
+                            let cloudModels = SCCloudModelDiscovery.shared.models
+                            if !cloudModels.isEmpty {
+                                Section("SwiftCode Cloud Models") {
+                                    ForEach(cloudModels, id: \.endpointName) { model in
+                                        Button {
+                                            settings.metaSelectedOtherModelID = model.internalID
+                                            settings.metaSelectedOtherModelProvider = SCCloudConfiguration.providerName
+                                            settings.selectedAssistModelID = model.internalID
+                                            settings.useSwiftCodeCloudModel = true
+                                            SCCloudDeviceFingerprint.ensureFingerprint()
+                                        } label: {
+                                            HStack {
+                                                Text("SwiftCode Cloud: \(model.displayName)")
+                                                if settings.metaSelectedOtherModelID == model.internalID {
+                                                    Image(systemName: "checkmark")
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+
                             Section("Saved API Providers & Models") {
-                                ForEach(availableModels.filter { $0.source != .custom && $0.source != .local }) { model in
+                                ForEach(availableModels.filter { $0.source != .custom && $0.source != .local && !SCCloudConfiguration.isCloudModelID($0.id) }) { model in
                                     Button {
                                         settings.metaSelectedOtherModelID = model.modelIdentifier
                                         settings.metaSelectedOtherModelProvider = model.providerName

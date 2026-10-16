@@ -109,6 +109,17 @@ class AppSettings: ObservableObject {
         }
     }
 
+    @Published var swiftCodeCloudWithMetaSDK: Bool {
+        didSet {
+            debouncedSave("swiftCodeCloudWithMetaSDK", swiftCodeCloudWithMetaSDK)
+            UserDefaults.standard.set(swiftCodeCloudWithMetaSDK, forKey: "assist.swiftCodeCloudWithMetaSDK")
+            if swiftCodeCloudWithMetaSDK {
+                SCCloudDeviceFingerprint.ensureFingerprint()
+                Task { await SCCloudModelDiscovery.shared.refreshIfStale() }
+            }
+        }
+    }
+
     @Published var useOtherModelsWhenRateLimited: Bool {
         didSet {
             debouncedSave("useOtherModelsWhenRateLimited", useOtherModelsWhenRateLimited)
@@ -474,6 +485,9 @@ class AppSettings: ObservableObject {
             ?? Self.defaultMetaReasoningEffort
         otherModelsWithMetaSDK = UserDefaults.standard.object(forKey: "otherModelsWithMetaSDK") as? Bool
             ?? UserDefaults.standard.object(forKey: "assist.otherModelsWithMetaSDK") as? Bool
+            ?? false
+        swiftCodeCloudWithMetaSDK = UserDefaults.standard.object(forKey: "swiftCodeCloudWithMetaSDK") as? Bool
+            ?? UserDefaults.standard.object(forKey: "assist.swiftCodeCloudWithMetaSDK") as? Bool
             ?? false
         useOtherModelsWhenRateLimited = UserDefaults.standard.object(forKey: "useOtherModelsWhenRateLimited") as? Bool
             ?? UserDefaults.standard.object(forKey: "assist.useOtherModelsWhenRateLimited") as? Bool

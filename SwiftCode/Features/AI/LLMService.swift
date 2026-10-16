@@ -574,6 +574,19 @@ public final class LLMService: Sendable {
     }
 
     public func sendChatRequest(model: String, messages: [AIMessage], key: String? = nil, providerOverride: LLMProvider? = nil) async throws -> LLMResponse {
+        if SCCloudConfiguration.isCloudModelID(model) {
+            let endpointName = SCCloudConfiguration.endpointName(forInternalID: model)
+            let prompt = messages.last?.content ?? ""
+            let history = messages.dropLast().map { ($0.role.rawValue, $0.content) }
+            let response = try await SCCloudModelClient.shared.complete(
+                prompt: prompt,
+                history: history,
+                systemPrompt: nil,
+                modelIdentifier: endpointName
+            )
+            return LLMResponse(content: response, model: model)
+        }
+
         let resolvedProvider = providerOverride ?? provider(for: model)
         let onlyFree = await MainActor.run { AppSettings.shared.onlyUseFreeModels }
         if onlyFree {
@@ -789,6 +802,20 @@ public final class LLMService: Sendable {
         providerOverride: LLMProvider? = nil,
         onToken: @escaping @Sendable (String) async -> Void
     ) async throws {
+        if SCCloudConfiguration.isCloudModelID(model) {
+            let endpointName = SCCloudConfiguration.endpointName(forInternalID: model)
+            let prompt = messages.last?.content ?? ""
+            let history = messages.dropLast().map { ($0.role.rawValue, $0.content) }
+            let response = try await SCCloudModelClient.shared.complete(
+                prompt: prompt,
+                history: history,
+                systemPrompt: systemPrompt.isEmpty ? nil : systemPrompt,
+                modelIdentifier: endpointName
+            )
+            await onToken(response)
+            return
+        }
+
         let resolvedProvider = providerOverride ?? provider(for: model)
         let onlyFree = await MainActor.run { AppSettings.shared.onlyUseFreeModels }
         if onlyFree {

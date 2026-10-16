@@ -41,12 +41,74 @@ private let logger = Logger(subsystem: "com.swiftcode.Assist", category: "SCClou
 
 public enum SCCloudConfiguration {
 
-    /// Base URL of the cloud endpoint (Cloudflare tunnel fronting the model host).
-    public static let defaultBaseURLString = "https://interpreted-pct-caribbean-handbags.trycloudflare.com"
+    /// Base URL fallback if no custom configuration or SCCloudModelsEndpoint.js is present.
+    public static let defaultBaseURLString = "https://gives-appearance-bands-procedure.trycloudflare.com"
+
+    /// Reads the endpoint dynamically from `SCCloudModelsEndpoint.js` so the user can
+    /// change the URL at any time without recompiling or modifying Swift code.
+    public static func readEndpointFromJSFile() -> String? {
+        let fileName = "SCCloudModelsEndpoint.js"
+        var candidatePaths: [String] = []
+
+        // 1. App Bundle resources
+        if let bundlePath = Bundle.main.path(forResource: "SCCloudModelsEndpoint", ofType: "js") {
+            candidatePaths.append(bundlePath)
+        }
+        if let resourceURL = Bundle.main.resourceURL {
+            candidatePaths.append(resourceURL.appendingPathComponent(fileName).path)
+        }
+
+        // 2. Current Working Directory
+        let cwd = FileManager.default.currentDirectoryPath
+        candidatePaths.append("\(cwd)/\(fileName)")
+
+        // 3. Known project root directories & parent traversal
+        let homeDir = NSHomeDirectory()
+        candidatePaths.append("\(homeDir)/SwiftCode-Mac/\(fileName)")
+
+        // Walk up parents from bundle executable (useful in local dev / DerivedData runs)
+        if let execURL = Bundle.main.executableURL {
+            var dir = execURL.deletingLastPathComponent()
+            for _ in 0..<8 {
+                candidatePaths.append(dir.appendingPathComponent(fileName).path)
+                let parent = dir.deletingLastPathComponent()
+                if parent == dir { break }
+                dir = parent
+            }
+        }
+
+        for path in candidatePaths {
+            guard FileManager.default.fileExists(atPath: path),
+                  let content = try? String(contentsOfFile: path, encoding: .utf8) else {
+                continue
+            }
+            // Parse URL from JS patterns like:
+            // endpoint: "https://..." or "endpoint": 'https://...' or const endpoint = "https://..."
+            let regexPatterns = [
+                #"endpoint\s*[:=]\s*["']([^"']+)["']"#,
+                #"["']endpoint["']\s*:\s*["']([^"']+)["']"#
+            ]
+            for pattern in regexPatterns {
+                if let regex = try? NSRegularExpression(pattern: pattern, options: [.caseInsensitive]),
+                   let match = regex.firstMatch(in: content, options: [], range: NSRange(location: 0, length: (content as NSString).length)),
+                   match.numberOfRanges > 1 {
+                    let range = match.range(at: 1)
+                    let foundURL = (content as NSString).substring(with: range).trimmingCharacters(in: .whitespacesAndNewlines)
+                    if !foundURL.isEmpty {
+                        return foundURL
+                    }
+                }
+            }
+        }
+        return nil
+    }
 
     public static var baseURLString: String {
         if let custom = UserDefaults.standard.string(forKey: "swiftcode_cloud_endpoint_url")?.trimmingCharacters(in: .whitespacesAndNewlines), !custom.isEmpty {
             return custom
+        }
+        if let jsEndpoint = readEndpointFromJSFile(), !jsEndpoint.isEmpty {
+            return jsEndpoint
         }
         return defaultBaseURLString
     }
@@ -318,17 +380,42 @@ public final class SCCloudModelDiscovery: @unchecked Sendable {
     private let lock = NSLock()
     private var cachedModels: [SCCloudModelInfo]?
     private var cachedUpdatedAt: Date?
+    private var cachedEndpointURL: String?
 
     private init() {}
 
     /// Best-known model list: memory cache, else the persisted snapshot, else empty.
+    /// If the endpoint URL has changed (e.g. updated in SCCloudModelsEndpoint.js),
+    /// stale models from the old URL are immediately evicted and refreshed in background.
     public var models: [SCCloudModelInfo] {
         lock.lock()
-        defer { lock.unlock() }
-        if let cached = cachedModels { return cached }
-        let (persisted, updatedAt) = loadPersistedLocked()
+        let currentURL = SCCloudConfiguration.baseURLString
+        if let lastURL = cachedEndpointURL, lastURL != currentURL {
+            cachedModels = nil
+            cachedUpdatedAt = nil
+            cachedEndpointURL = currentURL
+            lock.unlock()
+            Task { await self.refresh() }
+            return []
+        }
+        cachedEndpointURL = currentURL
+        if let cached = cachedModels {
+            lock.unlock()
+            return cached
+        }
+        let (persisted, updatedAt, savedURL) = loadPersistedLocked()
+        if let savedURL = savedURL, savedURL != currentURL {
+            // URL in SCCloudModelsEndpoint.js changed since last app run:
+            // ignore old persisted models and fetch fresh from new URL.
+            cachedModels = nil
+            cachedUpdatedAt = nil
+            lock.unlock()
+            Task { await self.refresh() }
+            return []
+        }
         cachedModels = persisted
         cachedUpdatedAt = updatedAt
+        lock.unlock()
         return persisted
     }
 
@@ -337,13 +424,19 @@ public final class SCCloudModelDiscovery: @unchecked Sendable {
         lock.lock()
         defer { lock.unlock() }
         if cachedUpdatedAt != nil { return cachedUpdatedAt }
-        let (_, updatedAt) = loadPersistedLocked()
+        let (_, updatedAt, _) = loadPersistedLocked()
         cachedUpdatedAt = updatedAt
         return updatedAt
     }
 
-    /// True when there is no usable cached list or the cache is older than the TTL.
+    /// True when there is no usable cached list, the cache is older than the TTL,
+    /// or the endpoint URL was changed in SCCloudModelsEndpoint.js.
     public var isStale: Bool {
+        lock.lock()
+        let currentURL = SCCloudConfiguration.baseURLString
+        let urlChanged = (cachedEndpointURL != nil && cachedEndpointURL != currentURL)
+        lock.unlock()
+        if urlChanged { return true }
         guard let updatedAt = lastUpdated else { return true }
         return Date().timeIntervalSince(updatedAt) > Self.cacheTTL
     }
@@ -370,12 +463,14 @@ public final class SCCloudModelDiscovery: @unchecked Sendable {
             let unique = Array(Dictionary(grouping: fetched, by: { $0.endpointName }).values.compactMap { $0.first })
                 .sorted { $0.endpointName.localizedCaseInsensitiveCompare($1.endpointName) == .orderedAscending }
             let now = Date()
+            let currentURL = SCCloudConfiguration.baseURLString
             lock.withLock {
                 cachedModels = unique
                 cachedUpdatedAt = now
+                cachedEndpointURL = currentURL
             }
-            persistLocked(models: unique, updatedAt: now)
-            logger.info("[SCCloud] Discovered \(unique.count) cloud models.")
+            persistLocked(models: unique, updatedAt: now, endpointURL: currentURL)
+            logger.info("[SCCloud] Discovered \(unique.count) cloud models from \(currentURL, privacy: .public).")
             return unique
         } catch {
             logger.warning("[SCCloud] Model discovery failed: \(error.localizedDescription, privacy: .public) — keeping previous cache.")
@@ -460,6 +555,7 @@ public final class SCCloudModelDiscovery: @unchecked Sendable {
     private struct Snapshot: Codable {
         let updatedAt: Double
         let models: [SCCloudModelInfo]
+        let endpointURL: String?
     }
 
     private var storeURL: URL {
@@ -470,19 +566,19 @@ public final class SCCloudModelDiscovery: @unchecked Sendable {
         return dir.appendingPathComponent("sccloud-models.json")
     }
 
-    private func persistLocked(models: [SCCloudModelInfo], updatedAt: Date) {
-        let snapshot = Snapshot(updatedAt: updatedAt.timeIntervalSince1970, models: models)
+    private func persistLocked(models: [SCCloudModelInfo], updatedAt: Date, endpointURL: String?) {
+        let snapshot = Snapshot(updatedAt: updatedAt.timeIntervalSince1970, models: models, endpointURL: endpointURL)
         if let data = try? JSONEncoder().encode(snapshot) {
             try? data.write(to: storeURL, options: .atomic)
         }
     }
 
-    private func loadPersistedLocked() -> (models: [SCCloudModelInfo], updatedAt: Date?) {
+    private func loadPersistedLocked() -> (models: [SCCloudModelInfo], updatedAt: Date?, endpointURL: String?) {
         guard let data = try? Data(contentsOf: storeURL),
               let snapshot = try? JSONDecoder().decode(Snapshot.self, from: data) else {
-            return ([], nil)
+            return ([], nil, nil)
         }
-        return (snapshot.models, Date(timeIntervalSince1970: snapshot.updatedAt))
+        return (snapshot.models, Date(timeIntervalSince1970: snapshot.updatedAt), snapshot.endpointURL)
     }
 }
 
