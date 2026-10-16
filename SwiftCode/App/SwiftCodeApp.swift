@@ -84,13 +84,9 @@ struct SwiftCodeApp: App {
                 await OfflineModelDownloader.shared.resumePendingDownloadIfNeeded()
                 await AssistModelDiscoveryService.shared.discoverAllModels(forceRefresh: true)
 
-                // Warm the System Index at launch (low priority, never blocks
-                // the UI): by the time the user sends a message the instruction
-                // corpus is already indexed, so "Loading instructions…" is
-                // instant for any model instead of blocking first use.
-                Task.detached(priority: .utility) {
-                    await SystemIndexService.shared.ensureReady()
-                }
+                // Initialize the System Index at launch so all AI models (Antigravity, Meta Muse, Cloud, Chat)
+                // have instant access to canonical training and system assets from startup.
+                await SystemIndexService.shared.ensureReady()
 
                 if CommandLine.arguments.contains("--open-last-project"), let firstProject = sessionStore.projects.first {
                     await sessionStore.openProject(firstProject)

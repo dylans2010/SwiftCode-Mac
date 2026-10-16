@@ -67,6 +67,7 @@ public final class AssistEventNormalizer {
         callId: String,
         toolName: String,
         arguments: [String: Any],
+        isMuseSDKTool: Bool = false,
         in activityGroup: inout AssistActivityGroup
     ) {
         activityGroup.isExecuting = true
@@ -126,7 +127,8 @@ public final class AssistEventNormalizer {
                 attemptsCount: 1,
                 retryCount: 0,
                 semanticKey: semKey,
-                operationId: callId
+                operationId: callId,
+                isMuseSDKTool: isMuseSDKTool
             )
             activityGroup.tools.append(newItem)
             if !callId.isEmpty {
@@ -163,6 +165,7 @@ public final class AssistEventNormalizer {
         toolName: String,
         output: String?,
         arguments: [String: Any] = [:],
+        isMuseSDKTool: Bool = false,
         in activityGroup: inout AssistActivityGroup
     ) {
         let formatted = AssistToolActivityFormatter.format(toolId: toolName, arguments: arguments)
@@ -203,7 +206,8 @@ public final class AssistEventNormalizer {
                     attemptsCount: 1,
                     retryCount: 0,
                     semanticKey: semKey,
-                    operationId: callId
+                    operationId: callId,
+                    isMuseSDKTool: isMuseSDKTool
                 )
                 activityGroup.tools.append(newItem)
             }

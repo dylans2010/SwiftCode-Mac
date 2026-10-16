@@ -58,6 +58,7 @@ public struct AssistMainView: View {
     @State private var selectedExplicitFiles: [AgentFileContext] = []
     @State private var composerTriggerMode: ComposerTriggerMode? = nil
     @State private var showCustomModelPicker = false
+    @State private var showSpeechUI = false
     @State private var discoveryService = AssistModelDiscoveryService.shared
     @ObservedObject private var googleAuth = GoogleAccountAuthService.shared
     @ObservedObject private var settings = AppSettings.shared
@@ -937,6 +938,32 @@ public struct AssistMainView: View {
                     AddFilesAgentContext(attachedFiles: $attachedFiles, isProcessingFiles: $isProcessingFiles)
                 }
                 .help("Attach Files to Context")
+
+                Button {
+                    showSpeechUI = true
+                } label: {
+                    Image(systemName: "mic.fill")
+                        .font(.caption)
+                        .foregroundStyle(showSpeechUI ? Color.accentColor : .secondary)
+                }
+                .buttonStyle(.borderless)
+                .help("Voice Assistant Input")
+                .popover(isPresented: $showSpeechUI, arrowEdge: .top) {
+                    AssistSpeechUI(
+                        onSend: { text in
+                            Task {
+                                await manager.sendMessage(text)
+                            }
+                        },
+                        onInsert: { text in
+                            if inputText.isEmpty {
+                                inputText = text
+                            } else {
+                                inputText += " " + text
+                            }
+                        }
+                    )
+                }
 
                 Button {
                     showCustomModelPicker.toggle()
