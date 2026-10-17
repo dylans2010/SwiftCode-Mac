@@ -2641,6 +2641,21 @@
 		FEC3B44DC8224E81AD104B28 /* QuestionHandler.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3095C7FC268B4822B1D7F891 /* QuestionHandler.swift */; };
 		FEC5C12176F72F3CC50317A3 /* PreviewConsoleView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6D5E1EE46384F0F742A15574 /* PreviewConsoleView.swift */; };
 		FEEB43E173A76242890C793F /* AssistCreateDirectoryTool.swift in Sources */ = {isa = PBXBuildFile; fileRef = C30534EE8E54C035A52377B9 /* AssistCreateDirectoryTool.swift */; };
+		BBA100020000000000000001 /* AssistAssetCatalogTool.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBA100010000000000000001 /* AssistAssetCatalogTool.swift */; };
+		BBA100020000000000000002 /* AssistSwiftPackageTool.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBA100010000000000000002 /* AssistSwiftPackageTool.swift */; };
+		BBA100020000000000000003 /* AssistPlistTool.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBA100010000000000000003 /* AssistPlistTool.swift */; };
+		BBA100020000000000000004 /* AssistCodeMetricsTool.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBA100010000000000000004 /* AssistCodeMetricsTool.swift */; };
+		BBA100020000000000000005 /* AssistLocalizationTool.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBA100010000000000000005 /* AssistLocalizationTool.swift */; };
+		BBA100020000000000000006 /* AssistMemoryLeakDetectorTool.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBA100010000000000000006 /* AssistMemoryLeakDetectorTool.swift */; };
+		BBA100020000000000000007 /* AssistDeadCodeEliminatorTool.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBA100010000000000000007 /* AssistDeadCodeEliminatorTool.swift */; };
+		BBA100020000000000000008 /* AssistInterfaceSimulatorTool.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBA100010000000000000008 /* AssistInterfaceSimulatorTool.swift */; };
+		BBA100020000000000000009 /* AssistDocStringGeneratorTool.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBA100010000000000000009 /* AssistDocStringGeneratorTool.swift */; };
+		BBA100020000000000000010 /* AssistEntitlementsTool.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBA100010000000000000010 /* AssistEntitlementsTool.swift */; };
+		BBA100020000000000000011 /* AssistCodeSnippetTool.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBA100010000000000000011 /* AssistCodeSnippetTool.swift */; };
+		BBA100020000000000000012 /* AssistSecurityAuditTool.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBA100010000000000000012 /* AssistSecurityAuditTool.swift */; };
+		BBA100020000000000000013 /* AssistMigrationTool.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBA100010000000000000013 /* AssistMigrationTool.swift */; };
+		BBA100020000000000000014 /* AssistGitStashTool.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBA100010000000000000014 /* AssistGitStashTool.swift */; };
+		BBA100020000000000000015 /* AssistXcodeSchemeTool.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBA100010000000000000015 /* AssistXcodeSchemeTool.swift */; };
 		FEFC87DC8083410D9A030894 /* ManageSecrets.swift in Sources */ = {isa = PBXBuildFile; fileRef = D5AE11BAA8BF4AA791C4B03B /* ManageSecrets.swift */; };
 		FF52F891987748E884AFFD15 /* JSMinifierView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6F97765BE6AC4E869BDE597A /* JSMinifierView.swift */; };
 		FF9CAC60CA0CBCF5791DE39B /* SimulatorDeviceCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3832577F2F7AF231BCD96229 /* SimulatorDeviceCard.swift */; };
@@ -4145,6 +4160,21 @@
 		C2B098DB710219E16DA132EE /* AssistSemanticQueryEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssistSemanticQueryEngine.swift; sourceTree = "<group>"; };
 		C2D27BD943FCEE2AACD106C6 /* AssistMemoryConsistencyValidator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssistMemoryConsistencyValidator.swift; sourceTree = "<group>"; };
 		C30534EE8E54C035A52377B9 /* AssistCreateDirectoryTool.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssistCreateDirectoryTool.swift; sourceTree = "<group>"; };
+		BBA100010000000000000001 /* AssistAssetCatalogTool.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssistAssetCatalogTool.swift; sourceTree = "<group>"; };
+		BBA100010000000000000002 /* AssistSwiftPackageTool.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssistSwiftPackageTool.swift; sourceTree = "<group>"; };
+		BBA100010000000000000003 /* AssistPlistTool.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssistPlistTool.swift; sourceTree = "<group>"; };
+		BBA100010000000000000004 /* AssistCodeMetricsTool.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssistCodeMetricsTool.swift; sourceTree = "<group>"; };
+		BBA100010000000000000005 /* AssistLocalizationTool.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssistLocalizationTool.swift; sourceTree = "<group>"; };
+		BBA100010000000000000006 /* AssistMemoryLeakDetectorTool.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssistMemoryLeakDetectorTool.swift; sourceTree = "<group>"; };
+		BBA100010000000000000007 /* AssistDeadCodeEliminatorTool.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssistDeadCodeEliminatorTool.swift; sourceTree = "<group>"; };
+		BBA100010000000000000008 /* AssistInterfaceSimulatorTool.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssistInterfaceSimulatorTool.swift; sourceTree = "<group>"; };
+		BBA100010000000000000009 /* AssistDocStringGeneratorTool.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssistDocStringGeneratorTool.swift; sourceTree = "<group>"; };
+		BBA100010000000000000010 /* AssistEntitlementsTool.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssistEntitlementsTool.swift; sourceTree = "<group>"; };
+		BBA100010000000000000011 /* AssistCodeSnippetTool.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssistCodeSnippetTool.swift; sourceTree = "<group>"; };
+		BBA100010000000000000012 /* AssistSecurityAuditTool.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssistSecurityAuditTool.swift; sourceTree = "<group>"; };
+		BBA100010000000000000013 /* AssistMigrationTool.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssistMigrationTool.swift; sourceTree = "<group>"; };
+		BBA100010000000000000014 /* AssistGitStashTool.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssistGitStashTool.swift; sourceTree = "<group>"; };
+		BBA100010000000000000015 /* AssistXcodeSchemeTool.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssistXcodeSchemeTool.swift; sourceTree = "<group>"; };
 		C33725107C0F0A6D94F3898B /* CodeIntelligenceView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CodeIntelligenceView.swift; sourceTree = "<group>"; };
 		C39809E8DD524CA3ACCE2522 /* ProgressTracker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProgressTracker.swift; sourceTree = "<group>"; };
 		C3BEBC556AA8B3A31CB2BB66 /* PreviewConfiguration.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PreviewConfiguration.swift; sourceTree = "<group>"; };
@@ -5675,6 +5705,21 @@
 				AD54992631331BB681BE7A7C /* AssistContextSnapshotTool.swift */,
 				EC3A70B57D8E0BF9F9805ABF /* AssistCopyFileTool.swift */,
 				C30534EE8E54C035A52377B9 /* AssistCreateDirectoryTool.swift */,
+				BBA100010000000000000001 /* AssistAssetCatalogTool.swift */,
+				BBA100010000000000000002 /* AssistSwiftPackageTool.swift */,
+				BBA100010000000000000003 /* AssistPlistTool.swift */,
+				BBA100010000000000000004 /* AssistCodeMetricsTool.swift */,
+				BBA100010000000000000005 /* AssistLocalizationTool.swift */,
+				BBA100010000000000000006 /* AssistMemoryLeakDetectorTool.swift */,
+				BBA100010000000000000007 /* AssistDeadCodeEliminatorTool.swift */,
+				BBA100010000000000000008 /* AssistInterfaceSimulatorTool.swift */,
+				BBA100010000000000000009 /* AssistDocStringGeneratorTool.swift */,
+				BBA100010000000000000010 /* AssistEntitlementsTool.swift */,
+				BBA100010000000000000011 /* AssistCodeSnippetTool.swift */,
+				BBA100010000000000000012 /* AssistSecurityAuditTool.swift */,
+				BBA100010000000000000013 /* AssistMigrationTool.swift */,
+				BBA100010000000000000014 /* AssistGitStashTool.swift */,
+				BBA100010000000000000015 /* AssistXcodeSchemeTool.swift */,
 				4D86E6B3C4F5CD5E93105C83 /* AssistCreateFileTool.swift */,
 				FBEBD3A4ABAF787AD20D1524 /* AssistDeleteDirectoryTool.swift */,
 				897DA024410E9596986FAF97 /* AssistDeleteFileTool.swift */,
@@ -11697,6 +11742,21 @@
 				A1246FC706D773AF0F6386E8 /* AssistContextSnapshotTool.swift in Sources */,
 				CA97C2B8C27FF68767ED218D /* AssistCopyFileTool.swift in Sources */,
 				FEEB43E173A76242890C793F /* AssistCreateDirectoryTool.swift in Sources */,
+				BBA100020000000000000001 /* AssistAssetCatalogTool.swift in Sources */,
+				BBA100020000000000000002 /* AssistSwiftPackageTool.swift in Sources */,
+				BBA100020000000000000003 /* AssistPlistTool.swift in Sources */,
+				BBA100020000000000000004 /* AssistCodeMetricsTool.swift in Sources */,
+				BBA100020000000000000005 /* AssistLocalizationTool.swift in Sources */,
+				BBA100020000000000000006 /* AssistMemoryLeakDetectorTool.swift in Sources */,
+				BBA100020000000000000007 /* AssistDeadCodeEliminatorTool.swift in Sources */,
+				BBA100020000000000000008 /* AssistInterfaceSimulatorTool.swift in Sources */,
+				BBA100020000000000000009 /* AssistDocStringGeneratorTool.swift in Sources */,
+				BBA100020000000000000010 /* AssistEntitlementsTool.swift in Sources */,
+				BBA100020000000000000011 /* AssistCodeSnippetTool.swift in Sources */,
+				BBA100020000000000000012 /* AssistSecurityAuditTool.swift in Sources */,
+				BBA100020000000000000013 /* AssistMigrationTool.swift in Sources */,
+				BBA100020000000000000014 /* AssistGitStashTool.swift in Sources */,
+				BBA100020000000000000015 /* AssistXcodeSchemeTool.swift in Sources */,
 				12BF2C55E38591BEF5E01446 /* AssistCreateFileTool.swift in Sources */,
 				1D23D93FFD5D7ACA4FA9218E /* AssistDeleteDirectoryTool.swift in Sources */,
 				F58988ABA5BBAD3C80651AC1 /* AssistDeleteFileTool.swift in Sources */,

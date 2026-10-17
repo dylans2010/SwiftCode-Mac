@@ -122,6 +122,27 @@ Capability-level reference for the internal capabilities Assist can invoke durin
 
 ---
 
+## Advanced Apple Platform & Specialized Engineering Tools
+
+- `asset_catalog_manager` (safeMutation) — inspect, manage, and create `.xcassets` asset catalogs, color sets, and image sets.
+- `swift_package_manager` (execution) — inspect, resolve, update, and describe Swift Package Manager (SPM) dependencies via `swift package`.
+- `plist_editor` (safeMutation) — inspect, read, set, or delete keys in `Info.plist` or Apple property list XML/binary files.
+- `code_metrics_analyzer` (safeRead) — calculate line counts, comment density, functions, types, and cyclomatic complexity estimates.
+- `localization_manager` (safeMutation) — inspect, extract, add translations, and validate `.strings` and `.xcstrings` catalogs.
+- `memory_leak_detector` (safeRead) — static scanner for retain cycles, unowned self hazards in async closures, and non-weak delegates.
+- `dead_code_eliminator` (safeRead) — detect unreferenced private functions and dead code declarations across Swift files.
+- `interface_simulator` (safeRead) — audit SwiftUI view structures, accessibility traits, dynamic type scaling, and tap targets.
+- `docstring_generator` (safeRead) — generate Apple DocC compliant markdown documentation blocks for Swift declarations.
+- `entitlements_manager` (safeMutation) — inspect, add, or remove App Sandbox, Network Client/Server, and security entitlements.
+- `code_snippet_manager` (safeRead) — retrieve and inject standardized Swift 6 templates (@Observable, AsyncStream, Actor, Glass Card).
+- `security_audit_scanner` (safeRead) — scan for hardcoded secrets, plain HTTP URLs (ATS violations), and unsafe credentials.
+- `swift_migration_advisor` (safeRead) — audit Swift code for Swift 6 strict concurrency, mutable globals, and actor isolation.
+- `git_stash_operator` (safeMutation) — save, pop, list, show, or drop Git stashes during refactoring or experiments.
+- `xcode_scheme_manager` (safeRead) — inspect, list, and query Xcode schemes, build targets, and configurations via `xcodebuild -list`.
+
+
+---
+
 ## Cloud Toolkit (Antigravity SDK Built-ins — Cloud Mode ONLY)
 
 When the **"Cloud"** toolkit is active, the session uses Google Antigravity SDK's built-in cloud runtime tools instead of the System tools above. These IDs are **not** in the local system registry; they are provided by the Antigravity cloud runtime and may only be called in Cloud mode:

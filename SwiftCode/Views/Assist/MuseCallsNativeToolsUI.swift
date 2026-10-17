@@ -29,25 +29,61 @@ public struct MuseCallsNativeToolsUI: View {
         if tools.isEmpty && !activityGroup.hasContent {
             EmptyView()
         } else {
-            VStack(alignment: .leading, spacing: 8) {
-                // Section Header Badge
-                headerBadge(toolCount: tools.count, isExecuting: activityGroup.isExecuting)
+            let nativeTools = tools.filter { !$0.isMuseSDKTool }
+            let museTools = tools.filter { $0.isMuseSDKTool }
 
-                let groups = ToolExecutionGroup.group(tools: tools)
-                if groups.count <= 1 && tools.count <= 2 {
-                    // Direct flat presentation for simple single/pair tool calls
-                    ForEach(tools) { tool in
-                        if tool.isMuseSDKTool {
-                            MuseSDKToolCall(tool: tool, fileDiffs: fileItems)
+            VStack(alignment: .leading, spacing: 12) {
+                // 1. SwiftCode Native Tools Section
+                if !nativeTools.isEmpty {
+                    VStack(alignment: .leading, spacing: 8) {
+                        nativeHeaderBadge(
+                            toolCount: nativeTools.count,
+                            isExecuting: activityGroup.isExecuting && nativeTools.contains(where: { $0.status == .running })
+                        )
+
+                        let groups = ToolExecutionGroup.group(tools: nativeTools)
+                        if groups.count <= 1 && nativeTools.count <= 2 {
+                            ForEach(nativeTools) { tool in
+                                MuseNativeToolCard(tool: tool, fileDiffs: fileItems)
+                            }
                         } else {
-                            MuseNativeToolCard(tool: tool, fileDiffs: fileItems)
+                            ForEach(groups) { group in
+                                stageGroupView(group: group, fileDiffs: fileItems)
+                            }
                         }
                     }
-                } else {
-                    // Dynamic stage-grouped collapsible presentation
-                    ForEach(groups) { group in
-                        stageGroupView(group: group, fileDiffs: fileItems)
+                }
+
+                // 2. Muse SDK Tools Section (Dedicated distinct UI)
+                if !museTools.isEmpty {
+                    VStack(alignment: .leading, spacing: 8) {
+                        museHeaderBadge(
+                            toolCount: museTools.count,
+                            isExecuting: activityGroup.isExecuting && museTools.contains(where: { $0.status == .running })
+                        )
+
+                        VStack(spacing: 6) {
+                            ForEach(museTools) { tool in
+                                MuseSDKToolCall(tool: tool, fileDiffs: fileItems)
+                            }
+                        }
                     }
+                    .padding(8)
+                    .background(
+                        RoundedRectangle(cornerRadius: 10)
+                            .fill(Color.purple.opacity(0.04))
+                    )
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 10)
+                            .stroke(
+                                LinearGradient(
+                                    colors: [Color.purple.opacity(0.35), Color.indigo.opacity(0.18)],
+                                    startPoint: .topLeading,
+                                    endPoint: .bottomTrailing
+                                ),
+                                lineWidth: 1
+                            )
+                    )
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -133,13 +169,13 @@ public struct MuseCallsNativeToolsUI: View {
     }
 
     @ViewBuilder
-    private func headerBadge(toolCount: Int, isExecuting: Bool) -> some View {
+    private func nativeHeaderBadge(toolCount: Int, isExecuting: Bool) -> some View {
         HStack(spacing: 6) {
             Image(systemName: "wrench.and.screwdriver.fill")
                 .font(.system(size: 10, weight: .semibold))
                 .foregroundStyle(Color.accentColor)
 
-            Text("Native Tool Execution")
+            Text("SwiftCode Native Operations")
                 .font(.system(size: 11, weight: .bold, design: .rounded))
                 .foregroundStyle(Color.primary)
 
@@ -148,7 +184,7 @@ public struct MuseCallsNativeToolsUI: View {
                     .scaleEffect(0.4)
                     .frame(width: 12, height: 12)
             } else {
-                Text("· \(toolCount) \(toolCount == 1 ? "action" : "actions")")
+                Text("· \(toolCount) \(toolCount == 1 ? "operation" : "operations")")
                     .font(.system(size: 10, weight: .medium))
                     .foregroundStyle(.secondary)
             }
@@ -158,6 +194,34 @@ public struct MuseCallsNativeToolsUI: View {
         .padding(.horizontal, 8)
         .padding(.vertical, 4)
         .background(Color.accentColor.opacity(0.08), in: RoundedRectangle(cornerRadius: 6))
+    }
+
+    @ViewBuilder
+    private func museHeaderBadge(toolCount: Int, isExecuting: Bool) -> some View {
+        HStack(spacing: 6) {
+            Image(systemName: "cpu.fill")
+                .font(.system(size: 10, weight: .semibold))
+                .foregroundStyle(Color.purple)
+
+            Text("Muse SDK Operations")
+                .font(.system(size: 11, weight: .bold, design: .rounded))
+                .foregroundStyle(Color.purple)
+
+            if isExecuting {
+                ProgressView()
+                    .scaleEffect(0.4)
+                    .frame(width: 12, height: 12)
+            } else {
+                Text("· \(toolCount) \(toolCount == 1 ? "tool" : "tools")")
+                    .font(.system(size: 10, weight: .medium))
+                    .foregroundStyle(.secondary)
+            }
+
+            Spacer()
+        }
+        .padding(.horizontal, 8)
+        .padding(.vertical, 4)
+        .background(Color.purple.opacity(0.08), in: RoundedRectangle(cornerRadius: 6))
     }
 }
 

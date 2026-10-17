@@ -15,6 +15,7 @@ public struct CodingToolsUI: View {
     @State private var executionResult: String = ""
     @State private var errorMessage: String? = nil
     @State private var didCopy: Bool = false
+    @State private var gradientRotation: Double = 0
 
     public enum CodingAction: String, CaseIterable, Identifiable {
         case refactor = "Refactor"
@@ -176,8 +177,69 @@ public struct CodingToolsUI: View {
                 .disabled(isExecuting || (selectedAction == .custom && customInstruction.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty))
             }
         }
-        .padding(14)
+        .padding(16)
         .frame(width: 440)
+        .background {
+            // Subtle ambient dynamic gradient wash
+            AngularGradient(
+                colors: [
+                    Color.cyan.opacity(0.06),
+                    Color.purple.opacity(0.07),
+                    Color.blue.opacity(0.05),
+                    Color.indigo.opacity(0.07),
+                    Color.cyan.opacity(0.06)
+                ],
+                center: .center,
+                angle: .degrees(gradientRotation)
+            )
+        }
+        .background(.ultraThinMaterial)
+        .overlay(
+            // Soft atmospheric aura around popover border (subtle glow, not thick block)
+            RoundedRectangle(cornerRadius: 12)
+                .stroke(
+                    AngularGradient(
+                        colors: [
+                            Color.cyan.opacity(0.40),
+                            Color.indigo.opacity(0.35),
+                            Color.purple.opacity(0.45),
+                            Color.pink.opacity(0.30),
+                            Color.blue.opacity(0.35),
+                            Color.cyan.opacity(0.40)
+                        ],
+                        center: .center,
+                        angle: .degrees(gradientRotation)
+                    ),
+                    lineWidth: 3.5
+                )
+                .blur(radius: 6)
+                .opacity(0.65)
+        )
+        .overlay(
+            // Defined subtle moving gradient rim (smooth ~1.8pt stroke)
+            RoundedRectangle(cornerRadius: 12)
+                .stroke(
+                    AngularGradient(
+                        colors: [
+                            Color.cyan.opacity(0.60),
+                            Color.purple.opacity(0.55),
+                            Color.blue.opacity(0.50),
+                            Color.pink.opacity(0.40),
+                            Color.cyan.opacity(0.60)
+                        ],
+                        center: .center,
+                        angle: .degrees(gradientRotation)
+                    ),
+                    lineWidth: 1.8
+                )
+        )
+        .clipShape(RoundedRectangle(cornerRadius: 12))
+        .padding(4)
+        .onAppear {
+            withAnimation(.linear(duration: 8.0).repeatForever(autoreverses: false)) {
+                gradientRotation = 360
+            }
+        }
     }
 
     private var actionButtonTitle: String {
@@ -233,6 +295,12 @@ public struct CodingToolsUI: View {
                 case .custom:
                     result = try await CodingToolsService.shared.executeCustomInstruction(
                         instruction: customInstruction,
+                        code: selectedCode,
+                        filePath: filePath
+                    )
+                case .view:
+                    result = try await CodingToolsService.shared.executeCustomInstruction(
+                        instruction: customInstruction.isEmpty ? "View and explain the architectural structure and visual rendering of this component." : customInstruction,
                         code: selectedCode,
                         filePath: filePath
                     )

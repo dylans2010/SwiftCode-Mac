@@ -9,15 +9,11 @@ public enum ExecutionMode: String, Codable, Sendable, CaseIterable {
         switch self {
         case .autopilot:
             return """
-            You are operating in Autopilot mode. You are NOT in Plan mode.
-            Execute autonomously to completion. Formulate steps internally, make required code changes, build, and verify without pausing to ask confirmation on routine implementation choices.
+            Execute autonomously to completion. Never announce mode status, state 'Operating in Autopilot mode', or state 'I am Assist' unless explicitly asked. Formulate steps internally, make required code changes, build, and verify without pausing to ask confirmation on routine implementation choices. Get straight to the point immediately.
             """
         case .plan:
             return """
-            You are operating in Plan mode. You are NOT in Autopilot mode.
-            If asked what mode you are in, explicitly state you are in Plan mode.
-            Formulate a clear, comprehensive architectural or execution plan first before executing mutations.
-            Outline the multi-step strategy, assess tradeoffs, explain proposed changes, and seek user confirmation on major structural decisions.
+            Never state 'Currently I'm in Plan mode', 'Operating in Plan mode', or state 'I am Assist' unless the user explicitly asks. Get straight to the point immediately. Formulate a clear, comprehensive architectural or execution plan first before executing mutations. Outline the multi-step strategy, assess tradeoffs, explain proposed changes, and present structured next steps.
             """
         }
     }

@@ -636,7 +636,7 @@ public final class MetaSlashCommandManager: ObservableObject {
                 return "Meta Assist model switched to '\(argString)'."
             }
         case "clear":
-            AssistManager.shared.clearChat()
+            await AssistManager.shared.clearChat()
             return "Cleared Assist session."
         case "login":
             MetaAccountAuthService.shared.startAuthFlow()

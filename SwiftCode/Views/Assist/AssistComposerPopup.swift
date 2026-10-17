@@ -161,9 +161,11 @@ public struct AssistComposerPopupView: View {
     public let onDismiss: () -> Void
 
     @ObservedObject private var skillIndex = SkillIndex.shared
+    @ObservedObject private var metaCommandManager = MetaSlashCommandManager.shared
     @State private var mcpServers: [MCPServer] = []
     @State private var projectFiles: [URL] = []
     @State private var selectedIndex: Int = 0
+    @State private var selectedCategory: String = "All"
 
     public init(
         mode: ComposerTriggerMode,
@@ -183,14 +185,26 @@ public struct AssistComposerPopupView: View {
         self.onDismiss = onDismiss
     }
 
+    private var metaCommandCategories: [String] {
+        var cats = ["All"]
+        let allCategories = Set(metaCommandManager.commands.map { $0.category })
+        cats.append(contentsOf: allCategories.sorted())
+        return cats
+    }
+
     private var metaCommandItems: [MetaSlashCommand] {
         guard case .metaCommand(let query) = mode else { return [] }
-        return MetaSlashCommandManager.shared.searchCommands(query: query)
+        let allFiltered = metaCommandManager.searchCommands(query: query)
+        if selectedCategory == "All" {
+            return allFiltered
+        } else {
+            return allFiltered.filter { $0.category.caseInsensitiveCompare(selectedCategory) == .orderedSame }
+        }
     }
 
     private var skillItems: [SkillDescriptor] {
         guard case .skill(let query) = mode else { return [] }
-        return skillIndex.search(query: query, limit: 12)
+        return skillIndex.search(query: query, limit: 16)
     }
 
     private var resourceItems: [ComposerResourceItem] {
@@ -236,74 +250,212 @@ public struct AssistComposerPopupView: View {
     public var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             // Header bar
-            HStack {
-                HStack(spacing: 5) {
-                    Image(systemName: isMetaCommandMode ? "bolt.badge.automatic.fill" : (isSkillMode ? "wand.and.stars" : "at"))
-                        .font(.system(size: 11, weight: .bold))
-                        .foregroundColor(isMetaCommandMode ? .orange : (isSkillMode ? .orange : .accentColor))
+            HStack(spacing: 8) {
+                HStack(spacing: 6) {
+                    ZStack {
+                        RoundedRectangle(cornerRadius: 6)
+                            .fill(
+                                LinearGradient(
+                                    colors: isMetaCommandMode ? [Color.orange.opacity(0.85), Color.pink.opacity(0.75)] : (isSkillMode ? [Color.orange.opacity(0.8), Color.yellow.opacity(0.7)] : [Color.blue.opacity(0.8), Color.purple.opacity(0.7)]),
+                                    startPoint: .topLeading,
+                                    endPoint: .bottomTrailing
+                                )
+                            )
+                            .frame(width: 22, height: 22)
 
-                    Text(isMetaCommandMode ? "Meta Code Commands (/)" : (isSkillMode ? "Agent Skills (Mandatory Execution)" : "Resources (@MCP or @File)"))
-                        .font(.system(size: 11, weight: .semibold))
-                        .foregroundColor(.primary)
+                        Image(systemName: isMetaCommandMode ? "bolt.badge.automatic.fill" : (isSkillMode ? "wand.and.stars" : "at"))
+                            .font(.system(size: 11, weight: .bold))
+                            .foregroundColor(.white)
+                    }
+
+                    VStack(alignment: .leading, spacing: 1) {
+                        Text(isMetaCommandMode ? "Meta Slash Commands" : (isSkillMode ? "Agent Skills (Mandatory Execution)" : "Resources (@MCP or @File)"))
+                            .font(.system(size: 12, weight: .bold))
+                            .foregroundColor(.primary)
+
+                        if isMetaCommandMode {
+                            Text("\(metaCommandItems.count) commands available · Navigate with ↑↓ and Return ↵")
+                                .font(.system(size: 9.5))
+                                .foregroundColor(.secondary)
+                        }
+                    }
                 }
 
                 Spacer()
 
-                Text("esc to close")
-                    .font(.system(size: 9))
-                    .foregroundColor(.secondary)
+                HStack(spacing: 6) {
+                    Text("esc to dismiss")
+                        .font(.system(size: 9, weight: .medium, design: .monospaced))
+                        .foregroundColor(.secondary)
+                        .padding(.horizontal, 5)
+                        .padding(.vertical, 2)
+                        .background(Color.primary.opacity(0.06), in: RoundedRectangle(cornerRadius: 4))
+                }
             }
-            .padding(.horizontal, 10)
-            .padding(.vertical, 6)
-            .background(Color(nsColor: .controlBackgroundColor))
+            .padding(.horizontal, 12)
+            .padding(.vertical, 8)
+            .background(Color(nsColor: .controlBackgroundColor).opacity(0.85))
+
+            // Category filter pills for Meta commands
+            if isMetaCommandMode {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 5) {
+                        ForEach(metaCommandCategories, id: \.self) { cat in
+                            Button {
+                                selectedCategory = cat
+                                selectedIndex = 0
+                            } label: {
+                                Text(cat)
+                                    .font(.system(size: 10, weight: selectedCategory == cat ? .bold : .medium))
+                                    .foregroundColor(selectedCategory == cat ? .orange : .secondary)
+                                    .padding(.horizontal, 8)
+                                    .padding(.vertical, 3)
+                                    .background(
+                                        Capsule()
+                                            .fill(selectedCategory == cat ? Color.orange.opacity(0.18) : Color.primary.opacity(0.04))
+                                    )
+                                    .overlay(
+                                        Capsule()
+                                            .stroke(selectedCategory == cat ? Color.orange.opacity(0.35) : Color.clear, lineWidth: 1)
+                                    )
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 5)
+                }
+                .background(Color(nsColor: .windowBackgroundColor).opacity(0.5))
+            }
 
             Divider()
+                .opacity(0.6)
 
-            // List of filtered options
-            ScrollView {
-                VStack(spacing: 2) {
-                    if isMetaCommandMode {
-                        if metaCommandItems.isEmpty {
-                            emptyRow(text: "No matching Meta commands found")
-                        } else {
-                            ForEach(Array(metaCommandItems.enumerated()), id: \.element.id) { idx, cmd in
-                                metaCommandRow(command: cmd, isSelected: idx == selectedIndex)
+            // Scrollable list of commands/skills/resources with explicit non-collapsing frame
+            ScrollViewReader { proxy in
+                ScrollView {
+                    LazyVStack(spacing: 3) {
+                        if isMetaCommandMode {
+                            if metaCommandItems.isEmpty {
+                                emptyRow(text: "No matching Meta commands found for '\(selectedCategory)'")
+                            } else {
+                                ForEach(Array(metaCommandItems.enumerated()), id: \.element.id) { idx, cmd in
+                                    metaCommandRow(command: cmd, isSelected: idx == selectedIndex)
+                                        .id(idx)
+                                }
                             }
-                        }
-                    } else if isSkillMode {
-                        if skillItems.isEmpty {
-                            emptyRow(text: "No matching skills found")
-                        } else {
-                            ForEach(Array(skillItems.enumerated()), id: \.element.id) { idx, skill in
-                                skillRow(skill: skill, isSelected: idx == selectedIndex)
+                        } else if isSkillMode {
+                            if skillItems.isEmpty {
+                                emptyRow(text: "No matching skills found")
+                            } else {
+                                ForEach(Array(skillItems.enumerated()), id: \.element.id) { idx, skill in
+                                    skillRow(skill: skill, isSelected: idx == selectedIndex)
+                                        .id(idx)
+                                }
                             }
-                        }
-                    } else {
-                        if resourceItems.isEmpty {
-                            emptyRow(text: "No matching MCP servers or files found")
                         } else {
-                            ForEach(Array(resourceItems.enumerated()), id: \.element.id) { idx, item in
-                                resourceRow(item: item, isSelected: idx == selectedIndex)
+                            if resourceItems.isEmpty {
+                                emptyRow(text: "No matching MCP servers or files found")
+                            } else {
+                                ForEach(Array(resourceItems.enumerated()), id: \.element.id) { idx, item in
+                                    resourceRow(item: item, isSelected: idx == selectedIndex)
+                                        .id(idx)
+                                }
                             }
                         }
                     }
+                    .padding(6)
                 }
-                .padding(4)
+                .frame(height: 290)
+                .onChange(of: selectedIndex) { _, newIdx in
+                    withAnimation(.easeInOut(duration: 0.12)) {
+                        proxy.scrollTo(newIdx, anchor: .center)
+                    }
+                }
             }
-            .frame(maxHeight: 220)
         }
-        .frame(width: 360)
+        .frame(width: 490)
         .background(.ultraThinMaterial)
-        .cornerRadius(8)
+        .cornerRadius(12)
         .overlay(
-            RoundedRectangle(cornerRadius: 8)
-                .stroke(Color.primary.opacity(0.12), lineWidth: 1)
+            RoundedRectangle(cornerRadius: 12)
+                .stroke(
+                    LinearGradient(
+                        colors: [Color.orange.opacity(0.4), Color.primary.opacity(0.12)],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    ),
+                    lineWidth: 1
+                )
         )
-        .shadow(color: Color.black.opacity(0.15), radius: 8, x: 0, y: 4)
+        .shadow(color: Color.black.opacity(0.25), radius: 16, x: 0, y: 8)
         .onAppear {
             loadResources()
         }
         .onExitCommand(perform: onDismiss)
+        .background(
+            VStack {
+                Button("") {
+                    selectPreviousItem()
+                }
+                .keyboardShortcut(.upArrow, modifiers: [])
+
+                Button("") {
+                    selectNextItem()
+                }
+                .keyboardShortcut(.downArrow, modifiers: [])
+
+                Button("") {
+                    commitSelectedItem()
+                }
+                .keyboardShortcut(.return, modifiers: [])
+            }
+            .opacity(0.001)
+            .frame(width: 0, height: 0)
+        )
+    }
+
+    private var currentItemsCount: Int {
+        if isMetaCommandMode {
+            return metaCommandItems.count
+        } else if isSkillMode {
+            return skillItems.count
+        } else {
+            return resourceItems.count
+        }
+    }
+
+    private func selectPreviousItem() {
+        let count = currentItemsCount
+        guard count > 0 else { return }
+        selectedIndex = (selectedIndex - 1 + count) % count
+    }
+
+    private func selectNextItem() {
+        let count = currentItemsCount
+        guard count > 0 else { return }
+        selectedIndex = (selectedIndex + 1) % count
+    }
+
+    private func commitSelectedItem() {
+        if isMetaCommandMode {
+            guard selectedIndex >= 0 && selectedIndex < metaCommandItems.count else { return }
+            triggerMetaCommand(metaCommandItems[selectedIndex])
+        } else if isSkillMode {
+            guard selectedIndex >= 0 && selectedIndex < skillItems.count else { return }
+            onSelectSkill(skillItems[selectedIndex])
+        } else {
+            guard selectedIndex >= 0 && selectedIndex < resourceItems.count else { return }
+            let item = resourceItems[selectedIndex]
+            switch item.kind {
+            case .mcp:
+                onSelectMCP(item.title)
+            case .file:
+                if let url = item.fileURL {
+                    onSelectFile(url)
+                }
+            }
+        }
     }
 
     private var isMetaCommandMode: Bool {
@@ -318,66 +470,113 @@ public struct AssistComposerPopupView: View {
 
     private func metaCommandRow(command: MetaSlashCommand, isSelected: Bool) -> some View {
         Button {
-            if command.requiresArguments {
-                if let onRequestCommandArguments {
-                    onRequestCommandArguments(command)
-                } else if let onSelectMetaCommand {
-                    onSelectMetaCommand(command, nil)
-                }
-            } else {
-                onSelectMetaCommand?(command, nil)
-            }
+            triggerMetaCommand(command)
         } label: {
-            HStack(spacing: 8) {
-                Image(systemName: command.icon)
-                    .font(.system(size: 12))
-                    .foregroundColor(.orange)
-                    .frame(width: 20)
+            HStack(spacing: 10) {
+                // SF Symbol icon container
+                ZStack {
+                    RoundedRectangle(cornerRadius: 7)
+                        .fill(
+                            LinearGradient(
+                                colors: [Color.orange.opacity(isSelected ? 0.35 : 0.18), Color.pink.opacity(isSelected ? 0.25 : 0.10)],
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            )
+                        )
+                        .frame(width: 28, height: 28)
 
-                VStack(alignment: .leading, spacing: 2) {
+                    Image(systemName: command.icon)
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundColor(.orange)
+                }
+
+                VStack(alignment: .leading, spacing: 3) {
                     HStack(spacing: 6) {
                         Text(command.name)
                             .font(.system(size: 12, weight: .bold, design: .monospaced))
                             .foregroundColor(.orange)
 
                         Text(command.title)
-                            .font(.system(size: 11, weight: .medium))
+                            .font(.system(size: 11.5, weight: .semibold))
                             .foregroundColor(.primary)
 
+                        Spacer()
+
                         Text(command.category)
-                            .font(.system(size: 9))
+                            .font(.system(size: 8.5, weight: .bold))
                             .foregroundColor(.secondary)
-                            .padding(.horizontal, 4)
-                            .padding(.vertical, 1)
-                            .background(Color.primary.opacity(0.06), in: Capsule())
+                            .padding(.horizontal, 5)
+                            .padding(.vertical, 1.5)
+                            .background(Color.primary.opacity(0.07), in: Capsule())
+
+                        if command.requiresArguments {
+                            HStack(spacing: 2) {
+                                Image(systemName: "slider.horizontal.3")
+                                    .font(.system(size: 8))
+                                Text("Options")
+                                    .font(.system(size: 8.5, weight: .medium))
+                            }
+                            .foregroundColor(.orange)
+                            .padding(.horizontal, 5)
+                            .padding(.vertical, 1.5)
+                            .background(Color.orange.opacity(0.12), in: Capsule())
+                        }
                     }
 
                     Text(command.description)
-                        .font(.system(size: 10))
+                        .font(.system(size: 10.5))
                         .foregroundColor(.secondary)
                         .lineLimit(1)
+
+                    if !command.syntax.isEmpty && command.syntax != command.name {
+                        Text(command.syntax)
+                            .font(.system(size: 9, design: .monospaced))
+                            .foregroundColor(.secondary.opacity(0.8))
+                            .lineLimit(1)
+                    }
                 }
 
-                Spacer()
-
-                if command.requiresArguments {
-                    Image(systemName: "slider.horizontal.3")
-                        .font(.system(size: 10))
-                        .foregroundColor(.orange)
-                } else {
-                    Image(systemName: "arrow.up.left")
-                        .font(.system(size: 10))
-                        .foregroundColor(.secondary)
-                }
+                Image(systemName: command.requiresArguments ? "chevron.right" : "return")
+                    .font(.system(size: 10, weight: .semibold))
+                    .foregroundColor(isSelected ? .orange : .secondary.opacity(0.5))
+                    .padding(.leading, 2)
             }
-            .padding(.horizontal, 8)
-            .padding(.vertical, 5)
+            .padding(.horizontal, 10)
+            .padding(.vertical, 6)
             .background(
-                RoundedRectangle(cornerRadius: 5)
-                    .fill(isSelected ? Color.orange.opacity(0.12) : Color.clear)
+                RoundedRectangle(cornerRadius: 8)
+                    .fill(
+                        isSelected ?
+                            LinearGradient(
+                                colors: [Color.orange.opacity(0.18), Color.orange.opacity(0.06)],
+                                startPoint: .leading,
+                                endPoint: .trailing
+                            ) :
+                            LinearGradient(
+                                colors: [Color.clear, Color.clear],
+                                startPoint: .leading,
+                                endPoint: .trailing
+                            )
+                    )
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 8)
+                    .stroke(isSelected ? Color.orange.opacity(0.35) : Color.clear, lineWidth: 1)
             )
         }
         .buttonStyle(.plain)
+    }
+
+    private func triggerMetaCommand(_ command: MetaSlashCommand) {
+        if command.requiresArguments {
+            if let onRequestCommandArguments {
+                onRequestCommandArguments(command)
+            } else if let onSelectMetaCommand {
+                onSelectMetaCommand(command, nil)
+            }
+        } else {
+            onSelectMetaCommand?(command, nil)
+        }
     }
 
     private func emptyRow(text: String) -> some View {

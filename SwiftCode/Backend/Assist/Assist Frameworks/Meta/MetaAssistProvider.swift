@@ -316,14 +316,15 @@ public final class MetaAssistProvider: Sendable {
         let callToolDoc = SystemIndexService.shared.bundledText(forRelativePath: "CallTool.md") ?? ""
 
         let toolkitDirective = """
-        # ACTIVE TOOL PROTOCOL: SWIFTCODE NATIVE TOOL SYSTEM (MUSE NAMESPACE STRIPPED)
-        You MUST use SwiftCode's native system tools for all tool selection, execution, filesystem operations, and shell commands.
-        Do NOT rely on Muse SDK built-in tools for execution. All operations are strictly controlled and executed by SwiftCode.
+        # ACTIVE TOOL PROTOCOL: DUAL TOOLSETS (SWIFTCODE NATIVE & MUSE SDK TOOLS)
+        When using Muse SDK for Assist, BOTH toolsets are active and available:
+        1. SwiftCode Native Tools: Complete suite of native macOS tools for deep workspace operations, code mutations, asset catalogs, build compilation, diagnostics, and testing.
+        2. Muse SDK Tools: Built-in Muse tools, dynamic terminal skills, research tools, and external services.
 
-        ## STRICT TOOL NAMING RULES:
-        - NEVER prefix any tool with "Muse.", "muse.", "muse_", or any namespace prefix.
-        - DO NOT invoke "Muse.Use Workers", "muse.workflow", or "Muse.<Tool>". You MUST strictly call tools using their exact SwiftCode names as documented in AvailableTools.md (e.g. `use_workers`, `report_to_user`, `file_read`, `file_write`, `code_replace`, `bash`, `plan-AskUser`).
-        - SwiftCode's native tools are the ONLY tools available. All Muse tools have been stripped down.
+        When selecting tools, you may seamlessly call either SwiftCode native tools or Muse SDK tools according to the requirements of the task.
+
+        ## TOOL USAGE RULES:
+        - Call tools using their registered identifiers or native names.
         - When on Autopilot mode:
           - Work autonomously from start to finish without stopping to report to the user until everything is fully completed, tested, and audited.
           - Never ask user approvals during Autopilot mode; system permissions are completely bypassed.
@@ -345,18 +346,16 @@ public final class MetaAssistProvider: Sendable {
         # SYSTEM PROMPT (CANONICAL ASSIST INSTRUCTIONS & TRAINING ASSETS)
         \(baselinePrompt)
 
-        # ASSIST IDENTITY & BEHAVIORAL SAFEGUARDS
-        CRITICAL IDENTITY DIRECTIVE: Your name is Assist, the intelligent software engineering assistant built natively inside SwiftCode.
-        You are running inside the SwiftCode IDE environment.
-        Regardless of whether you are executing through the Muse SDK protocol, Gemini, OpenAI, Claude, or any third-party bridge or model, you MUST ALWAYS identify as Assist and NEVER claim to be 'Muse Code', 'Muse', 'ChatGPT', 'Gemini', or any other product name.
-        All system assets and training data retrieved through SystemIndex are your native SwiftCode knowledge base.
-        You must follow SwiftCode's System Assets and safeguards strictly at all times.
+        # ZERO PREAMBLE & DIRECT-TO-POINT DIRECTIVE:
+        - NEVER begin your response with 'I am Assist', 'I'm Assist', 'Currently I'm in Plan mode', 'Operating in Autopilot mode', or any greetings/pleasantries.
+        - You must get straight to the point immediately with the technical answer, plan, or action.
+        - Only state your identity or execution mode if the user explicitly asks for them.
         """)
 
         let executionModeRaw = UserDefaults.standard.string(forKey: "com.swiftcode.assist.executionMode") ?? ExecutionMode.autopilot.rawValue
         let activeMode = ExecutionMode(rawValue: executionModeRaw) ?? .autopilot
         fullPromptParts.append("""
-        # ACTIVE OPERATING MODE: \(activeMode.rawValue.uppercased())
+        # ACTIVE OPERATING DIRECTIVES:
         \(activeMode.systemInstruction)
 
         # STRICT COMMUNICATION & ANTI-LEAK DIRECTIVES:
@@ -467,7 +466,8 @@ public final class MetaAssistProvider: Sendable {
                                 callId: itemId,
                                 toolName: toolName,
                                 output: visibleOutput.isEmpty ? nil : visibleOutput,
-                                arguments: argsDict
+                                arguments: argsDict,
+                                isMuseSDKTool: isMuseTool
                             )
                         }
                     } else if kind == "reasoning" {

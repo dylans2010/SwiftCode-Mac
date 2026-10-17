@@ -142,6 +142,23 @@ public final class AssistToolRegistry {
         register(AssistOpenInFinderTool())
         register(AssistRevealInFinderTool())
         register(ReportToUserTool())
+
+        // 15 New Specialized Engineering Tools
+        register(AssistAssetCatalogTool())
+        register(AssistSwiftPackageTool())
+        register(AssistPlistTool())
+        register(AssistCodeMetricsTool())
+        register(AssistLocalizationTool())
+        register(AssistMemoryLeakDetectorTool())
+        register(AssistDeadCodeEliminatorTool())
+        register(AssistInterfaceSimulatorTool())
+        register(AssistDocStringGeneratorTool())
+        register(AssistEntitlementsTool())
+        register(AssistCodeSnippetTool())
+        register(AssistSecurityAuditTool())
+        register(AssistMigrationTool())
+        register(AssistGitStashTool())
+        register(AssistXcodeSchemeTool())
     }
 
     public var version: Int { registryVersion }
@@ -226,7 +243,22 @@ public final class AssistToolRegistry {
         "report_to_user": "report_to_user",
         "reporttouser": "report_to_user",
         "task_complete": "report_to_user",
-        "task_completion": "report_to_user"
+        "task_completion": "report_to_user",
+        "asset_catalog": "asset_catalog_manager",
+        "swift_package": "swift_package_manager",
+        "spm": "swift_package_manager",
+        "plist": "plist_editor",
+        "metrics": "code_metrics_analyzer",
+        "localization": "localization_manager",
+        "memory_leak": "memory_leak_detector",
+        "dead_code": "dead_code_eliminator",
+        "docstring": "docstring_generator",
+        "entitlements": "entitlements_manager",
+        "snippet": "code_snippet_manager",
+        "security_audit": "security_audit_scanner",
+        "migration_advisor": "swift_migration_advisor",
+        "git_stash": "git_stash_operator",
+        "xcode_scheme": "xcode_scheme_manager"
     ]
 
     public func getTool(_ id: String) -> AssistTool? {

@@ -896,6 +896,10 @@ public final class AssistManager: ObservableObject {
         saveHistory()
     }
 
+    public func clearSession() {
+        clearChat()
+    }
+
     public func clearChat() {
         // Invalidate the request generation FIRST, before cancelling anything:
         // any late callback, streaming event, tool result, or error update
