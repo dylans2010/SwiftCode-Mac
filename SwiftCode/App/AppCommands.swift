@@ -51,13 +51,6 @@ struct AppCommands: Commands {
             .disabled(sessionStore.activeProject == nil)
         }
 
-        CommandMenu("Workspace") {
-            Button("Open WorkspaceView") {
-                openWorkspaceView()
-            }
-            .keyboardShortcut("0", modifiers: [.command, .shift])
-        }
-
         CommandMenu("Window") {
             Button("Personal Documentation") {
                 if let project = ProjectSessionStore.shared.activeProject {
@@ -297,6 +290,20 @@ private struct EditorViewHelpCommands: Commands {
                 // Implementation would go here
             }
             .keyboardShortcut("-", modifiers: [.command])
+
+            Divider()
+
+            Button("Coding Tools") {
+                NotificationCenter.default.post(
+                    name: Notification.Name("TriggerCodingToolsContextAction"),
+                    object: nil,
+                    userInfo: [
+                        "action": CodingToolsUI.CodingAction.refactor,
+                        "code": "",
+                        "filePath": ""
+                    ]
+                )
+            }
         }
 
         CommandGroup(replacing: .help) {

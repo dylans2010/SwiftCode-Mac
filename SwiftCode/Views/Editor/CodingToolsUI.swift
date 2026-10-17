@@ -23,6 +23,7 @@ public struct CodingToolsUI: View {
         case documentation = "Document"
         case preview = "SwiftUI Preview"
         case custom = "Custom"
+        case view = "View"
 
         public var id: String { rawValue }
 
@@ -34,6 +35,7 @@ public struct CodingToolsUI: View {
             case .documentation: return "doc.text"
             case .preview: return "eye"
             case .custom: return "terminal"
+            case .view: return "eyes"
             }
         }
     }
@@ -79,7 +81,7 @@ public struct CodingToolsUI: View {
             .pickerStyle(.segmented)
 
             // Custom instruction field
-            if selectedAction == .custom || selectedAction == .refactor {
+            if selectedAction == .custom || selectedAction == .refactor || selectedAction == .view {
                 TextField(
                     selectedAction == .custom ? "Describe instruction (e.g., extract logic, optimize)..." : "Optional refactoring guidance...",
                     text: $customInstruction
@@ -186,6 +188,7 @@ public struct CodingToolsUI: View {
         case .documentation: return "Generate Docs"
         case .preview: return "Generate Preview"
         case .custom: return "Run Instruction"
+        case .view: return "View"
         }
     }
 
