@@ -49,11 +49,12 @@ public struct WorkersMainView: View {
                             workerRow(worker)
                         }
                     }
-                    .padding(16)
+                    .padding(12)
+                    .frame(maxWidth: .infinity, alignment: .center)
                 }
             }
         }
-        .frame(minWidth: 640, idealWidth: 760, minHeight: 480, idealHeight: 600)
+        .frame(minWidth: 460, idealWidth: 500, maxWidth: 540, minHeight: 380, idealHeight: 440, maxHeight: 520)
         .sheet(item: $selectedWorkerForDetails) { worker in
             WorkersInfoView(workerID: worker.id)
         }
@@ -98,6 +99,7 @@ public struct WorkersMainView: View {
 
     private var metricsBar: some View {
         HStack(spacing: 16) {
+            Spacer()
             metricItem(label: "Active", value: runtimeState.activeWorkers.count, color: .blue)
             metricItem(label: "Completed", value: runtimeState.completedWorkers.count, color: .green)
             metricItem(label: "Failed", value: runtimeState.failedWorkers.count, color: .red)
@@ -121,6 +123,7 @@ public struct WorkersMainView: View {
 
     private var filterBar: some View {
         HStack {
+            Spacer()
             Picker("Filter", selection: $filterMode) {
                 ForEach(FilterMode.allCases) { mode in
                     Text(mode.rawValue).tag(mode)
@@ -128,12 +131,7 @@ public struct WorkersMainView: View {
             }
             .pickerStyle(.segmented)
             .frame(maxWidth: 320)
-
             Spacer()
-
-            Text("\(filteredWorkers.count) workers")
-                .font(.caption)
-                .foregroundStyle(.secondary)
         }
     }
 
@@ -148,7 +146,7 @@ public struct WorkersMainView: View {
                 .font(.subheadline)
                 .foregroundStyle(.secondary)
         }
-        .frame(maxWidth: .infinity)
+        .frame(maxWidth: .infinity, alignment: .center)
         .padding(.vertical, 48)
     }
 

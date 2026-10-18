@@ -58,6 +58,7 @@
 		BBA200020000000000000031 /* AssistMemoryUI.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBA200010000000000000031 /* AssistMemoryUI.swift */; };
 		BBA200020000000000000032 /* AssistConversationsSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBA200010000000000000032 /* AssistConversationsSheet.swift */; };
 		BBA200020000000000000033 /* AssistInfoView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBA200010000000000000033 /* AssistInfoView.swift */; };
+		BBA200020000000000000034 /* ReverseFillOutView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBA200010000000000000034 /* ReverseFillOutView.swift */; };
 		004C550B01654D85AAC1AC9E /* MLXOptimizers in Frameworks */ = {isa = PBXBuildFile; productRef = BBB818A276304EA881DBF6E6 /* MLXOptimizers */; };
 		016298C4F533D83B2A4FB1B0 /* ApplicationDeploymentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CCF38596E6CBBF00108C7D98 /* ApplicationDeploymentView.swift */; };
 		0166E43D0F249661F65BDD62 /* AssistLogCaptureTool.swift in Sources */ = {isa = PBXBuildFile; fileRef = C63871C9F424ED65E6604B87 /* AssistLogCaptureTool.swift */; };
@@ -2935,6 +2936,7 @@
 		BBA200010000000000000031 /* AssistMemoryUI.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssistMemoryUI.swift; sourceTree = "<group>"; };
 		BBA200010000000000000032 /* AssistConversationsSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssistConversationsSheet.swift; sourceTree = "<group>"; };
 		BBA200010000000000000033 /* AssistInfoView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssistInfoView.swift; sourceTree = "<group>"; };
+		BBA200010000000000000034 /* ReverseFillOutView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReverseFillOutView.swift; sourceTree = "<group>"; };
 		AA9E000100000001 /* AssistIntentClassifier.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssistIntentClassifier.swift; sourceTree = "<group>"; };
 		AA9E000100000002 /* AssistConversationMemory.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssistConversationMemory.swift; sourceTree = "<group>"; };
 		AA9E000100000003 /* AssistParallelExecutionEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssistParallelExecutionEngine.swift; sourceTree = "<group>"; };
@@ -6501,6 +6503,7 @@
 				BBA200010000000000000031 /* AssistMemoryUI.swift */,
 				BBA200010000000000000032 /* AssistConversationsSheet.swift */,
 				BBA200010000000000000033 /* AssistInfoView.swift */,
+				BBA200010000000000000034 /* ReverseFillOutView.swift */,
 				EFF77F9E6B06ABB7FB6C0A4F /* AgentUseMCP.swift */,
 				CMPREF000000000000000003 /* AgentUseComposio.swift */,
 				3891332787254C0784D1C5AF /* CodeAssistUserView.swift */,
@@ -11672,6 +11675,7 @@
 				BBA200020000000000000031 /* AssistMemoryUI.swift in Sources */,
 				BBA200020000000000000032 /* AssistConversationsSheet.swift in Sources */,
 				BBA200020000000000000033 /* AssistInfoView.swift in Sources */,
+				BBA200020000000000000034 /* ReverseFillOutView.swift in Sources */,
 				A1000001B001000100000001 /* AssistRequestMetrics.swift in Sources */,
 				A1000002B001000100000002 /* AssistTaskContext.swift in Sources */,
 				A1000003B001000100000003 /* search_skills.swift in Sources */,

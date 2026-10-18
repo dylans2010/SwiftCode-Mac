@@ -139,7 +139,7 @@ public final class AssistConversationHistory: ObservableObject {
             conversations[idx].previewSnippet = preview
 
             // If the conversation title is still default, review with Apple Foundation Models!
-            if conversations[idx].title == "New Conversation" && !firstUserMsg.isEmpty {
+            if (conversations[idx].title == "New Conversation" || conversations[idx].title.isEmpty) && !firstUserMsg.isEmpty {
                 let currentId = conversationId
                 Task {
                     await reviewAndTitleConversation(id: currentId, firstMessage: firstUserMsg)
@@ -181,6 +181,7 @@ public final class AssistConversationHistory: ObservableObject {
         conversations[idx].title = clean
         conversations[idx].updatedAt = Date()
         saveIndex()
+        objectWillChange.send()
     }
 
     public func archiveConversation(id: UUID, archive: Bool = true) {
@@ -188,6 +189,7 @@ public final class AssistConversationHistory: ObservableObject {
         conversations[idx].isArchived = archive
         conversations[idx].updatedAt = Date()
         saveIndex()
+        objectWillChange.send()
     }
 
     public func deleteConversation(id: UUID) {
@@ -197,16 +199,17 @@ public final class AssistConversationHistory: ObservableObject {
         let contextFile = baseDirectoryURL.appendingPathComponent("\(id.uuidString).context.md")
         try? fileManager.removeItem(at: contextFile)
         if activeConversationID == id {
-            activeConversationID = nil
+            activeConversationID = activeConversations.first?.id
         }
         saveIndex()
+        objectWillChange.send()
     }
 
     // MARK: - Apple Foundation Models Review
 
     public func reviewAndTitleConversation(id: UUID, firstMessage: String) async {
         let prompt = """
-        Review this user request to an AI coding assistant and generate a very short, concise title (3 to 6 words maximum).
+        Review this user request to an AI coding assistant and generate a very short, concise title (under 25 characters, 2 to 4 words).
         Do not use quotation marks, do not include any preamble, output ONLY the title:
 
         User Request:
@@ -219,27 +222,84 @@ public final class AssistConversationHistory: ObservableObject {
             let cleaned = response.trimmingCharacters(in: .whitespacesAndNewlines)
                 .replacingOccurrences(of: "\"", with: "")
                 .replacingOccurrences(of: "\n", with: " ")
-            if !cleaned.isEmpty && cleaned.count < 60 {
-                generatedTitle = cleaned
+            if !cleaned.isEmpty {
+                if cleaned.count < 25 {
+                    generatedTitle = cleaned
+                } else {
+                    generatedTitle = FoundationModels.generateConciseTitle(from: cleaned)
+                }
             }
         } catch {
             logger.info("Apple Foundation Models review fallback: \(error.localizedDescription)")
         }
 
         if generatedTitle == nil || generatedTitle?.isEmpty == true {
-            // Intelligent fallback title generator
-            let words = firstMessage.components(separatedBy: .whitespacesAndNewlines).filter { !$0.isEmpty }
-            if !words.isEmpty {
-                generatedTitle = words.prefix(5).joined(separator: " ").capitalized
-            }
+            generatedTitle = FoundationModels.generateConciseTitle(from: firstMessage)
         }
 
         if let finalTitle = generatedTitle, !finalTitle.isEmpty {
-            if let idx = conversations.firstIndex(where: { $0.id == id }) {
-                conversations[idx].title = finalTitle
-                saveIndex()
+            let sanitized = String(finalTitle.prefix(24)).trimmingCharacters(in: .whitespacesAndNewlines)
+            await MainActor.run {
+                if let idx = self.conversations.firstIndex(where: { $0.id == id }) {
+                    self.conversations[idx].title = sanitized
+                    self.saveIndex()
+                    self.objectWillChange.send()
+                }
             }
         }
+    }
+
+    /// Generates and assigns an AI-suggested title under 25 characters for a conversation using AFM.
+    @discardableResult
+    public func suggestName(for id: UUID) async -> String? {
+        guard let item = conversations.first(where: { $0.id == id }) else { return nil }
+        var sampleText = item.previewSnippet
+        if let msgs = loadMessages(conversationId: id) {
+            if let userMsg = msgs.first(where: { $0.role == .user && !$0.content.isEmpty }) {
+                sampleText = userMsg.content
+            }
+        }
+        if sampleText.isEmpty {
+            sampleText = item.title
+        }
+
+        let prompt = """
+        Review this user request to an AI coding assistant and generate a very short, concise title (under 25 characters, 2 to 4 words).
+        Do not use quotation marks, do not include preamble, output ONLY the title:
+
+        User Request:
+        \(sampleText)
+        """
+
+        var suggested: String? = nil
+        do {
+            let response = try await FoundationModels.shared.generatePrivateResponse(prompt: prompt)
+            let cleaned = response.trimmingCharacters(in: .whitespacesAndNewlines)
+                .replacingOccurrences(of: "\"", with: "")
+                .replacingOccurrences(of: "\n", with: " ")
+            if !cleaned.isEmpty {
+                if cleaned.count < 25 {
+                    suggested = cleaned
+                } else {
+                    suggested = FoundationModels.generateConciseTitle(from: cleaned)
+                }
+            }
+        } catch {
+            logger.info("AFM suggest name fallback: \(error.localizedDescription)")
+        }
+
+        if suggested == nil || suggested?.isEmpty == true {
+            suggested = FoundationModels.generateConciseTitle(from: sampleText)
+        }
+
+        if let final = suggested, !final.isEmpty {
+            let sanitized = String(final.prefix(24)).trimmingCharacters(in: .whitespacesAndNewlines)
+            await MainActor.run {
+                self.renameConversation(id: id, newTitle: sanitized)
+            }
+            return sanitized
+        }
+        return nil
     }
 
     private func updateContextFile(conversationId: UUID, messages: [AssistMessage]) {
@@ -278,5 +338,8 @@ public final class AssistConversationHistory: ObservableObject {
             return
         }
         self.conversations = items
+        if activeConversationID == nil {
+            activeConversationID = activeConversations.first?.id
+        }
     }
 }

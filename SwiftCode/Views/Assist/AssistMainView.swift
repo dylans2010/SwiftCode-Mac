@@ -52,6 +52,7 @@ public struct AssistMainView: View {
     // Create New App Wizard Sheet
     @State private var showCreateNewAppSheet = false
     @State private var showConversationsSheet = false
+    @State private var showReverseFillOut = false
 
     // Composer @ and / systems
     @State private var selectedExplicitSkills: [SkillDescriptor] = []
@@ -1133,6 +1134,18 @@ public struct AssistMainView: View {
                 }
             }
         }
+        .popover(isPresented: $showReverseFillOut, arrowEdge: .top) {
+            ReverseFillOutView(
+                isPresented: $showReverseFillOut,
+                onInsert: { command in
+                    inputText = command
+                },
+                onSubmit: { command in
+                    inputText = command
+                    submitMessage()
+                }
+            )
+        }
         .overlay(alignment: .bottomLeading) {
             if let mode = composerTriggerMode {
                 AssistComposerPopupView(
@@ -1171,6 +1184,10 @@ public struct AssistMainView: View {
 
     private func submitMessage() {
         let text = inputText.trimmingCharacters(in: .whitespacesAndNewlines)
+        if text.lowercased() == "@reverse" {
+            showReverseFillOut = true
+            return
+        }
         guard !text.isEmpty && !isProcessingFiles else { return }
 
         let filesToSend = attachedFiles
@@ -1256,19 +1273,12 @@ public struct AssistMainView: View {
         composerTriggerMode = nil
     }
 
-    /// Inserts the `@Reverse` command token after the user picks it from
-    /// the @ completion popup, leaving the cursor after a trailing space
-    /// so the user can continue typing the target + investigation task.
+    /// Opens the ReverseFillOutView popover so the user can configure
+    /// target artifact, analysis operation, and investigation query via a Form.
     private func selectReverse() {
         consumeTrailingToken(prefix: "@")
-        if inputText.isEmpty {
-            inputText = "@Reverse "
-        } else if inputText.hasSuffix(" ") {
-            inputText += "@Reverse "
-        } else {
-            inputText += " @Reverse "
-        }
         composerTriggerMode = nil
+        showReverseFillOut = true
     }
 
     private func selectMCP(_ server: String) {

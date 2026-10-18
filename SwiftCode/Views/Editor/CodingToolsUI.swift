@@ -54,66 +54,99 @@ public struct CodingToolsUI: View {
     }
 
     public var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
+        VStack(alignment: .leading, spacing: 8) {
             // Header
-            HStack(spacing: 6) {
+            HStack(spacing: 5) {
                 Image(systemName: "sparkles")
-                    .font(.body.weight(.semibold))
-                    .foregroundStyle(Color.accentColor)
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(LinearGradient(colors: [.cyan, .purple], startPoint: .leading, endPoint: .trailing))
 
                 Text("Coding Tools")
-                    .font(.headline)
+                    .font(.system(size: 12, weight: .bold))
 
                 Spacer()
 
                 Text((filePath as NSString).lastPathComponent)
-                    .font(.caption)
+                    .font(.system(size: 10))
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
             }
 
-            // Action Picker
-            Picker("Action", selection: $selectedAction) {
-                ForEach(CodingAction.allCases) { action in
-                    Label(action.rawValue, systemImage: action.iconName)
-                        .tag(action)
+            // Compact Action Chips
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 4) {
+                    ForEach(CodingAction.allCases) { action in
+                        Button {
+                            selectedAction = action
+                        } label: {
+                            HStack(spacing: 3) {
+                                Image(systemName: action.iconName)
+                                    .font(.system(size: 9))
+                                Text(action.rawValue)
+                                    .font(.system(size: 10, weight: selectedAction == action ? .semibold : .regular))
+                            }
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 3)
+                            .background(
+                                selectedAction == action
+                                    ? Color.accentColor
+                                    : Color.secondary.opacity(0.12),
+                                in: Capsule()
+                            )
+                            .foregroundStyle(selectedAction == action ? Color.white : Color.primary)
+                        }
+                        .buttonStyle(.plain)
+                    }
                 }
+                .padding(.vertical, 1)
             }
-            .pickerStyle(.segmented)
 
             // Custom instruction field
             if selectedAction == .custom || selectedAction == .refactor || selectedAction == .view {
                 TextField(
-                    selectedAction == .custom ? "Describe instruction (e.g., extract logic, optimize)..." : "Optional refactoring guidance...",
+                    selectedAction == .custom ? "Describe instruction..." : "Optional refactoring guidance...",
                     text: $customInstruction
                 )
                 .textFieldStyle(.roundedBorder)
-                .font(.subheadline)
+                .font(.system(size: 11))
             }
 
             // Execution State / Error Banner
             if let error = errorMessage {
-                HStack(spacing: 6) {
+                HStack(spacing: 4) {
                     Image(systemName: "exclamationmark.triangle.fill")
                         .foregroundStyle(Color.red)
+                        .font(.system(size: 10))
                     Text(error)
-                        .font(.caption)
+                        .font(.system(size: 10))
                         .foregroundStyle(Color.red)
+                        .lineLimit(2)
                 }
-                .padding(6)
+                .padding(5)
                 .background(Color.red.opacity(0.1), in: RoundedRectangle(cornerRadius: 6))
             }
 
-            // Result or Code Preview Area
+            // Result Area with Copy, Replace, Retry and Gradient Highlight
             if !executionResult.isEmpty {
-                VStack(alignment: .leading, spacing: 4) {
+                VStack(alignment: .leading, spacing: 6) {
                     HStack {
-                        Text("Result:")
-                            .font(.caption.weight(.semibold))
-                            .foregroundStyle(.secondary)
+                        HStack(spacing: 3) {
+                            Image(systemName: "sparkles")
+                                .font(.system(size: 10, weight: .bold))
+                            Text("Generated Code")
+                                .font(.system(size: 10, weight: .bold))
+                        }
+                        .foregroundStyle(
+                            LinearGradient(
+                                colors: [.cyan, .purple, .pink],
+                                startPoint: .leading,
+                                endPoint: .trailing
+                            )
+                        )
 
                         Spacer()
 
+                        // Copy Button
                         Button {
                             NSPasteboard.general.clearContents()
                             NSPasteboard.general.setString(executionResult, forType: .string)
@@ -122,72 +155,136 @@ public struct CodingToolsUI: View {
                                 didCopy = false
                             }
                         } label: {
-                            Label(didCopy ? "Copied" : "Copy", systemImage: didCopy ? "checkmark" : "doc.on.doc")
-                                .font(.caption2)
+                            HStack(spacing: 2) {
+                                Image(systemName: didCopy ? "checkmark" : "doc.on.doc")
+                                Text(didCopy ? "Copied" : "Copy")
+                            }
+                            .font(.system(size: 9.5, weight: .medium))
+                            .padding(.horizontal, 5)
+                            .padding(.vertical, 2)
+                            .background(Color.secondary.opacity(0.12), in: RoundedRectangle(cornerRadius: 4))
                         }
                         .buttonStyle(.plain)
 
-                        if onApplyCode != nil && (selectedAction == .refactor || selectedAction == .documentation || selectedAction == .custom) {
-                            Button {
-                                onApplyCode?(executionResult)
-                                dismiss()
-                            } label: {
-                                Text("Apply")
-                                    .font(.caption2.bold())
-                                    .padding(.horizontal, 6)
-                                    .padding(.vertical, 2)
-                                    .background(Color.accentColor, in: RoundedRectangle(cornerRadius: 4))
-                                    .foregroundStyle(.white)
+                        // Retry Button
+                        Button {
+                            runAction()
+                        } label: {
+                            HStack(spacing: 2) {
+                                Image(systemName: "arrow.clockwise")
+                                Text("Retry")
                             }
-                            .buttonStyle(.plain)
+                            .font(.system(size: 9.5, weight: .medium))
+                            .padding(.horizontal, 5)
+                            .padding(.vertical, 2)
+                            .background(Color.secondary.opacity(0.12), in: RoundedRectangle(cornerRadius: 4))
                         }
+                        .buttonStyle(.plain)
+                        .disabled(isExecuting)
+
+                        // Replace Button: Replaces the selected code with the generated one
+                        Button {
+                            onApplyCode?(executionResult)
+                            dismiss()
+                        } label: {
+                            HStack(spacing: 2) {
+                                Image(systemName: "arrow.triangle.2.circlepath")
+                                Text("Replace")
+                            }
+                            .font(.system(size: 9.5, weight: .bold))
+                            .foregroundStyle(.white)
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 2)
+                            .background(
+                                LinearGradient(
+                                    colors: [Color.blue, Color.purple],
+                                    startPoint: .leading,
+                                    endPoint: .trailing
+                                ),
+                                in: RoundedRectangle(cornerRadius: 4)
+                            )
+                        }
+                        .buttonStyle(.plain)
                     }
 
+                    // Code text view highlighted with gradients
                     ScrollView {
                         Text(executionResult)
-                            .font(.system(.caption, design: .monospaced))
+                            .font(.system(size: 10.5, design: .monospaced))
                             .frame(maxWidth: .infinity, alignment: .leading)
                             .textSelection(.enabled)
+                            .padding(6)
                     }
-                    .frame(maxHeight: 160)
-                    .padding(6)
-                    .background(Color.secondary.opacity(0.06), in: RoundedRectangle(cornerRadius: 6))
+                    .frame(maxHeight: 130)
+                    .background(
+                        ZStack {
+                            Color(nsColor: .textBackgroundColor).opacity(0.65)
+                            LinearGradient(
+                                colors: [
+                                    Color.cyan.opacity(0.09),
+                                    Color.purple.opacity(0.11),
+                                    Color.indigo.opacity(0.08)
+                                ],
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            )
+                        }
+                    )
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 7)
+                            .stroke(
+                                LinearGradient(
+                                    colors: [
+                                        Color.cyan.opacity(0.75),
+                                        Color.purple.opacity(0.85),
+                                        Color.pink.opacity(0.65)
+                                    ],
+                                    startPoint: .topLeading,
+                                    endPoint: .bottomTrailing
+                                ),
+                                lineWidth: 1.4
+                            )
+                    )
+                    .clipShape(RoundedRectangle(cornerRadius: 7))
+                    .shadow(color: Color.purple.opacity(0.20), radius: 5, x: 0, y: 1)
                 }
             }
 
-            // Action Buttons
+            // Bottom Action Row
             HStack {
                 Button("Close") {
                     dismiss()
                 }
+                .font(.system(size: 11))
                 .keyboardShortcut(.cancelAction)
 
                 Spacer()
 
                 if isExecuting {
                     ProgressView()
-                        .scaleEffect(0.6)
-                        .frame(width: 16, height: 16)
+                        .scaleEffect(0.55)
+                        .frame(width: 14, height: 14)
                 }
 
                 Button(actionButtonTitle) {
                     runAction()
                 }
+                .font(.system(size: 11, weight: .semibold))
                 .keyboardShortcut(.defaultAction)
                 .disabled(isExecuting || (selectedAction == .custom && customInstruction.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty))
             }
         }
-        .padding(16)
-        .frame(width: 440)
+        .padding(10)
+        .frame(width: 330)
         .background {
             // Subtle ambient dynamic gradient wash
             AngularGradient(
                 colors: [
-                    Color.cyan.opacity(0.06),
-                    Color.purple.opacity(0.07),
+                    Color.cyan.opacity(0.05),
+                    Color.purple.opacity(0.06),
                     Color.blue.opacity(0.05),
-                    Color.indigo.opacity(0.07),
-                    Color.cyan.opacity(0.06)
+                    Color.indigo.opacity(0.06),
+                    Color.cyan.opacity(0.05)
                 ],
                 center: .center,
                 angle: .degrees(gradientRotation)
@@ -195,46 +292,46 @@ public struct CodingToolsUI: View {
         }
         .background(.ultraThinMaterial)
         .overlay(
-            // Soft atmospheric aura around popover border (subtle glow, not thick block)
-            RoundedRectangle(cornerRadius: 12)
+            // Soft atmospheric aura around popover border
+            RoundedRectangle(cornerRadius: 10)
                 .stroke(
                     AngularGradient(
                         colors: [
-                            Color.cyan.opacity(0.40),
-                            Color.indigo.opacity(0.35),
-                            Color.purple.opacity(0.45),
-                            Color.pink.opacity(0.30),
-                            Color.blue.opacity(0.35),
-                            Color.cyan.opacity(0.40)
+                            Color.cyan.opacity(0.35),
+                            Color.indigo.opacity(0.30),
+                            Color.purple.opacity(0.40),
+                            Color.pink.opacity(0.25),
+                            Color.blue.opacity(0.30),
+                            Color.cyan.opacity(0.35)
                         ],
                         center: .center,
                         angle: .degrees(gradientRotation)
                     ),
-                    lineWidth: 3.5
+                    lineWidth: 2.5
                 )
-                .blur(radius: 6)
-                .opacity(0.65)
+                .blur(radius: 5)
+                .opacity(0.6)
         )
         .overlay(
-            // Defined subtle moving gradient rim (smooth ~1.8pt stroke)
-            RoundedRectangle(cornerRadius: 12)
+            // Defined moving gradient rim
+            RoundedRectangle(cornerRadius: 10)
                 .stroke(
                     AngularGradient(
                         colors: [
-                            Color.cyan.opacity(0.60),
-                            Color.purple.opacity(0.55),
-                            Color.blue.opacity(0.50),
-                            Color.pink.opacity(0.40),
-                            Color.cyan.opacity(0.60)
+                            Color.cyan.opacity(0.55),
+                            Color.purple.opacity(0.50),
+                            Color.blue.opacity(0.45),
+                            Color.pink.opacity(0.35),
+                            Color.cyan.opacity(0.55)
                         ],
                         center: .center,
                         angle: .degrees(gradientRotation)
                     ),
-                    lineWidth: 1.8
+                    lineWidth: 1.4
                 )
         )
-        .clipShape(RoundedRectangle(cornerRadius: 12))
-        .padding(4)
+        .clipShape(RoundedRectangle(cornerRadius: 10))
+        .padding(3)
         .onAppear {
             withAnimation(.linear(duration: 8.0).repeatForever(autoreverses: false)) {
                 gradientRotation = 360

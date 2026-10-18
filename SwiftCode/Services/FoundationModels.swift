@@ -45,7 +45,12 @@ public final class FoundationModels: Sendable {
     public static let shared = FoundationModels()
 
     public var isEnabled: Bool {
-        get { UserDefaults.standard.bool(forKey: "apple_foundation_models_enabled") }
+        get {
+            if UserDefaults.standard.object(forKey: "apple_foundation_models_enabled") == nil {
+                return true
+            }
+            return UserDefaults.standard.bool(forKey: "apple_foundation_models_enabled")
+        }
         set { UserDefaults.standard.set(newValue, forKey: "apple_foundation_models_enabled") }
     }
 
@@ -91,12 +96,20 @@ public final class FoundationModels: Sendable {
         return response.content
         #else
         logger.log("[generatePrivateResponse] Creating generation session (Simulation).")
-        try await Task.sleep(nanoseconds: 300_000_000) // Realistic delay
+        try await Task.sleep(nanoseconds: 200_000_000) // Fast realistic delay
 
         logger.log("[generatePrivateResponse] Building simulated response contents.")
 
         let finalResponse: String
-        if prompt.contains("updatedPrompt") {
+        if prompt.localizedCaseInsensitiveContains("title") {
+            var targetText = prompt
+            if let rangeStart = prompt.range(of: "User Request:\n", options: .caseInsensitive) {
+                targetText = String(prompt[rangeStart.upperBound...])
+            } else if let rangeStart = prompt.range(of: "for:\n", options: .caseInsensitive) {
+                targetText = String(prompt[rangeStart.upperBound...])
+            }
+            finalResponse = FoundationModels.generateConciseTitle(from: targetText)
+        } else if prompt.contains("updatedPrompt") {
             // Extract the user prompt to professionally enhance it
             var userInputExtracted = ""
             if let rangeStart = prompt.range(of: "User Input:\n\""),
@@ -128,6 +141,50 @@ public final class FoundationModels: Sendable {
         logger.log("[generatePrivateResponse] Simulation generation completed. Duration: \(duration)s.")
         return finalResponse
         #endif
+    }
+
+    /// Generates a clean, concise title under 25 characters from prompt text
+    public static func generateConciseTitle(from raw: String) -> String {
+        var text = raw.replacingOccurrences(of: "```[a-zA-Z]*\n[\\s\\S]*?```", with: "", options: .regularExpression)
+        text = text.replacingOccurrences(of: "@[A-Za-z0-9_]+", with: "", options: .regularExpression)
+        text = text.replacingOccurrences(of: "\"", with: "").replacingOccurrences(of: "\n", with: " ")
+
+        let prefixesToRemove = [
+            "can you please help me with", "could you please help me with",
+            "can you please", "could you please", "please help me with",
+            "i want to", "i need to", "how do i", "can you", "help me with",
+            "please", "write a", "create a", "implement a", "fix the", "explain how",
+            "how to", "make the", "suggest a", "build a", "add a", "update the"
+        ]
+        var cleaned = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        let lower = cleaned.lowercased()
+        for prefix in prefixesToRemove {
+            if lower.hasPrefix(prefix) {
+                cleaned = String(cleaned.dropFirst(prefix.count)).trimmingCharacters(in: .whitespacesAndNewlines)
+                break
+            }
+        }
+
+        let words = cleaned.components(separatedBy: .whitespacesAndNewlines).filter { !$0.isEmpty }
+        var resultWords: [String] = []
+        var totalLength = 0
+
+        for word in words {
+            let cap = word.prefix(1).uppercased() + word.dropFirst()
+            let nextLength = totalLength + (resultWords.isEmpty ? 0 : 1) + cap.count
+            if nextLength <= 24 && resultWords.count < 4 {
+                resultWords.append(cap)
+                totalLength = nextLength
+            } else {
+                break
+            }
+        }
+
+        let title = resultWords.joined(separator: " ").trimmingCharacters(in: CharacterSet(charactersIn: " .,:;!?-"))
+        if title.isEmpty {
+            return "Swift Coding Task"
+        }
+        return String(title.prefix(24))
     }
 
     /// Executes streaming language processing using native or simulated response generation.
