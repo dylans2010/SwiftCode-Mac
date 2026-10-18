@@ -354,7 +354,12 @@ public final class AssistManager: ObservableObject {
 
         await MainActor.run {
             AssistEventNormalizer.shared.resetForNewTask()
-            messages.append(AssistMessage(role: .user, content: trimmed, attachments: attachments))
+            // Keep the submitted envelope on the stored message so
+            // the history / AssistInfoView can show which command or
+            // @Reverse invocation produced this turn. Previously the
+            // envelope was dropped here (only forwarded to provider
+            // paths), so the stored message lost the command context.
+            messages.append(AssistMessage(role: .user, content: trimmed, attachments: attachments, envelope: envelope))
             isProcessing = true
             setRequestPhase(.preparingRequest)
             lastError = nil

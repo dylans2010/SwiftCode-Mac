@@ -21,6 +21,9 @@ public struct AssistTaskEnvelope: Codable, Sendable, Equatable {
     public var executedResources: [String]?
     public var taskRule: String?
     public var metadata: [String: String]?
+    /// Structured `@Reverse` invocation parsed from the composer text
+    /// (see ReverseCommandParser). Nil for ordinary messages.
+    public var reverseInvocation: ReverseInvocation?
 
     public init(
         id: UUID = UUID(),
@@ -33,7 +36,8 @@ public struct AssistTaskEnvelope: Codable, Sendable, Equatable {
         commandArgument: String? = nil,
         executedResources: [String]? = nil,
         taskRule: String? = nil,
-        metadata: [String: String]? = nil
+        metadata: [String: String]? = nil,
+        reverseInvocation: ReverseInvocation? = nil
     ) {
         self.id = id
         self.userMessage = userMessage
@@ -46,6 +50,7 @@ public struct AssistTaskEnvelope: Codable, Sendable, Equatable {
         self.executedResources = executedResources
         self.taskRule = taskRule
         self.metadata = metadata
+        self.reverseInvocation = reverseInvocation
     }
 
     public var hasExecutedCommandOrResource: Bool {
@@ -53,6 +58,7 @@ public struct AssistTaskEnvelope: Codable, Sendable, Equatable {
         (executedResources != nil && !executedResources!.isEmpty) ||
         !explicitSkills.isEmpty ||
         !explicitMCPServers.isEmpty ||
-        taskRule != nil
+        taskRule != nil ||
+        reverseInvocation != nil
     }
 }

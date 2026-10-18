@@ -908,6 +908,14 @@
 		8579C5DD45C930E1F89B6EDC /* FileNavigatorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B0DD56DEFB90345901DD4F15 /* FileNavigatorView.swift */; };
 		8596C99775A5484AB7D84296 /* ConsoleCommandRunnerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 611069667F47F21CEE42B3C1 /* ConsoleCommandRunnerView.swift */; };
 		859910ACA75FF14DE04B57B9 /* AssistAPIRouter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2DE2AD52D7CB1DE3A9C82F5C /* AssistAPIRouter.swift */; };
+		35B19D05EF1C02ED82C9F7B9 /* ReverseModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6A83E65CAB7E22E961B4DC14 /* ReverseModels.swift */; };
+		B424CBFB0621E3AEA50007A0 /* ReverseBridge.swift in Sources */ = {isa = PBXBuildFile; fileRef = 876252F5CEE65306BC37ECB5 /* ReverseBridge.swift */; };
+		357AC956EE0F0163AF0632DA /* ReverseManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = E7D63EA3190FA24E8C016C04 /* ReverseManager.swift */; };
+		074949E9BE37C645CDE1213A /* ReverseToolAdapter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 38130582CC943E2D6C4DFB9A /* ReverseToolAdapter.swift */; };
+		88B4BB22CBA68961F28B2B38 /* ReverseCommandParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = D046BFCDABCC4CD304CDA510 /* ReverseCommandParser.swift */; };
+		98F16DF2591FAA1F97375191 /* ReverseEvidenceProcessor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7FA10C7174D6EC89DADFF35B /* ReverseEvidenceProcessor.swift */; };
+		5E4B6B169EB3311CF0F6FDEA /* ReverseTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8A3E2FAA33B2DBBFD7A91559 /* ReverseTests.swift */; };
+		29D4454DCCD93795FB363066 /* ReverseBridge.mjs in Resources */ = {isa = PBXBuildFile; fileRef = BCFA524F52375417E3955EEB /* ReverseBridge.mjs */; };
 		85C762B78F883AAD659A621E /* OnDeviceCapabilities.swift in Sources */ = {isa = PBXBuildFile; fileRef = E10B50602823F86F52DE6384 /* OnDeviceCapabilities.swift */; };
 		85C7A8E9924537EE42C58E16 /* NetlifyManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = A9FB8F45B5456444FEE6A487 /* NetlifyManager.swift */; };
 		85F3B6A41BC09FFB6878B0FD /* Views/DatabaseSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6D0E53B06E72482D48640959 /* Views/DatabaseSettingsView.swift */; };
@@ -3152,6 +3160,14 @@
 		2D9B5ECD6D804EFDBC2D0B28 /* SearchFiles.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SearchFiles.swift; sourceTree = "<group>"; };
 		2DA1A9EF90409DCFFB0ED343 /* CreateExtensionView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CreateExtensionView.swift; sourceTree = "<group>"; };
 		2DE2AD52D7CB1DE3A9C82F5C /* AssistAPIRouter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssistAPIRouter.swift; sourceTree = "<group>"; };
+		6A83E65CAB7E22E961B4DC14 /* ReverseModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReverseModels.swift; sourceTree = "<group>"; };
+		876252F5CEE65306BC37ECB5 /* ReverseBridge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReverseBridge.swift; sourceTree = "<group>"; };
+		E7D63EA3190FA24E8C016C04 /* ReverseManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReverseManager.swift; sourceTree = "<group>"; };
+		38130582CC943E2D6C4DFB9A /* ReverseToolAdapter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReverseToolAdapter.swift; sourceTree = "<group>"; };
+		D046BFCDABCC4CD304CDA510 /* ReverseCommandParser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReverseCommandParser.swift; sourceTree = "<group>"; };
+		7FA10C7174D6EC89DADFF35B /* ReverseEvidenceProcessor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReverseEvidenceProcessor.swift; sourceTree = "<group>"; };
+		8A3E2FAA33B2DBBFD7A91559 /* ReverseTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReverseTests.swift; sourceTree = "<group>"; };
+		BCFA524F52375417E3955EEB /* ReverseBridge.mjs */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.javascript; path = ReverseBridge.mjs; sourceTree = "<group>"; };
 		2EC799EB285661299D07765D /* InstalledOfflineModelsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InstalledOfflineModelsView.swift; sourceTree = "<group>"; };
 		2ECB37E969994856A07F71EE /* AIProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIProvider.swift; sourceTree = "<group>"; };
 		2F528A1C9D821FBF9997D180 /* DependencyManager/DependencyPlatformManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DependencyManager/DependencyPlatformManager.swift; sourceTree = "<group>"; };
@@ -9466,8 +9482,24 @@
 				5285E98355E0E25D79A98C0A /* AssistAPIRequest.swift */,
 				B677BC8749E2E39D89B0DE2A /* AssistAPIResponse.swift */,
 				2DE2AD52D7CB1DE3A9C82F5C /* AssistAPIRouter.swift */,
+				BCE7831840AF2716961B6597 /* Reverse */,
 			);
 			path = "Internal API";
+			sourceTree = "<group>";
+		};
+		BCE7831840AF2716961B6597 /* Reverse */ = {
+			isa = PBXGroup;
+			children = (
+				6A83E65CAB7E22E961B4DC14 /* ReverseModels.swift */,
+				876252F5CEE65306BC37ECB5 /* ReverseBridge.swift */,
+				E7D63EA3190FA24E8C016C04 /* ReverseManager.swift */,
+				38130582CC943E2D6C4DFB9A /* ReverseToolAdapter.swift */,
+				D046BFCDABCC4CD304CDA510 /* ReverseCommandParser.swift */,
+				7FA10C7174D6EC89DADFF35B /* ReverseEvidenceProcessor.swift */,
+				8A3E2FAA33B2DBBFD7A91559 /* ReverseTests.swift */,
+				BCFA524F52375417E3955EEB /* ReverseBridge.mjs */,
+			);
+			path = Reverse;
 			sourceTree = "<group>";
 		};
 		C0F300000000000000000001 /* Virtualization */ = {
@@ -11359,6 +11391,7 @@
 				F5F8BCAA8E945889ED30AB8A /* zlib-acknowledgement.txt in Resources */,
 				2d8ac922c9c89dd26cfcab38 /* SwiftCodeSDK.json in Resources */,
 				c31bf70d0f80bb034190e5d6 /* snippets.json in Resources */,
+				29D4454DCCD93795FB363066 /* ReverseBridge.mjs in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -13268,6 +13301,13 @@
 				2zjwDtGwbj9A5OaQnNManGqP /* SDKSecurityService.swift in Sources */,
 				cRPTa6lVZMwGABM1Pk3pki7f /* EnterSecuritySDKView.swift in Sources */,
 				VWpUnCxvUTkw0DfXmMy7u7Ow /* SDKSecurityManagerView.swift in Sources */,
+				35B19D05EF1C02ED82C9F7B9 /* ReverseModels.swift in Sources */,
+				B424CBFB0621E3AEA50007A0 /* ReverseBridge.swift in Sources */,
+				357AC956EE0F0163AF0632DA /* ReverseManager.swift in Sources */,
+				074949E9BE37C645CDE1213A /* ReverseToolAdapter.swift in Sources */,
+				88B4BB22CBA68961F28B2B38 /* ReverseCommandParser.swift in Sources */,
+				98F16DF2591FAA1F97375191 /* ReverseEvidenceProcessor.swift in Sources */,
+				5E4B6B169EB3311CF0F6FDEA /* ReverseTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

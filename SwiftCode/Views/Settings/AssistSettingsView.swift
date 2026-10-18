@@ -506,6 +506,11 @@ struct AssistSettingsView: View {
     @State private var selectedFetchProvider: FetchProviderOption = .openRouter
     @State private var autoFetchTask: Task<Void, Never>? = nil
 
+    // Reverse (native REA integration) readiness state.
+    @State private var reverseStatusText: String = "Not checked yet."
+    @State private var isCheckingReverse = false
+    @State private var reverseCapabilitiesText: String = ""
+
     // API Key states
     @State private var openRouterKey = ""
     @State private var openaiKey = ""
@@ -784,6 +789,100 @@ struct AssistSettingsView: View {
                             Divider()
                             metaSDKOtherModelsSection
                         }
+                    }
+                    .padding(14)
+                }
+                .groupBoxStyle(ModernGroupBoxStyle())
+
+                // Reverse (native REA integration) — readiness, versions,
+                // capabilities, and runtime locations.
+                GroupBox {
+                    VStack(alignment: .leading, spacing: 12) {
+                        HStack(spacing: 10) {
+                            ZStack {
+                                RoundedRectangle(cornerRadius: 8)
+                                    .fill(Color.orange.opacity(0.14))
+                                    .frame(width: 32, height: 32)
+                                Image(systemName: "magnifyingglass")
+                                    .font(.system(size: 14, weight: .bold))
+                                    .foregroundStyle(Color.orange)
+                            }
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("Reverse (@Reverse)")
+                                    .font(.system(size: 14, weight: .semibold))
+                                Text("Static reverse engineering via the native Reverse subsystem (REA rea-agents@6.5.0). No external agent, no MCP.")
+                                    .font(.caption2)
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
+
+                        Divider()
+
+                        Toggle("Enable Reverse", isOn: $settings.reverseEnabled)
+                            .font(.system(size: 12, weight: .medium))
+                        Text("When disabled, @Reverse and the reverse_analyze tool report that Reverse is unavailable.")
+                            .font(.system(size: 10))
+                            .foregroundStyle(.secondary)
+
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("Bridge script path (optional override; empty = bundled resource)")
+                                .font(.system(size: 11, weight: .medium))
+                            TextField("/path/to/ReverseBridge.mjs", text: $settings.reverseBridgePath)
+                                .textFieldStyle(.roundedBorder)
+                                .font(.system(size: 11, design: .monospaced))
+                        }
+
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("REA package directory (rea-agents@6.5.0; empty = auto-resolve)")
+                                .font(.system(size: 11, weight: .medium))
+                            TextField("/path/to/rea-agents", text: $settings.reverseReaDir)
+                                .textFieldStyle(.roundedBorder)
+                                .font(.system(size: 11, design: .monospaced))
+                            Text("SwiftCode never downloads or installs REA automatically. Place the pinned package in a folder and point here, or beside the bridge script.")
+                                .font(.system(size: 10))
+                                .foregroundStyle(.secondary)
+                        }
+
+                        Divider()
+
+                        HStack(spacing: 8) {
+                            Button {
+                                isCheckingReverse = true
+                                reverseStatusText = "Checking…"
+                                Task {
+                                    let snapshot = await ReverseManager.shared.statusSnapshot(refresh: true)
+                                    await MainActor.run {
+                                        var parts: [String] = []
+                                        parts.append(snapshot.ready ? "Ready" : "Not ready")
+                                        if let node = snapshot.nodeVersion { parts.append("Node \(node)") }
+                                        if let rea = snapshot.reaVersion { parts.append("REA \(rea)") }
+                                        if let error = snapshot.lastError { parts.append("Error: \(error)") }
+                                        reverseStatusText = parts.joined(separator: " · ")
+                                        let available = snapshot.capabilities.filter(\.available).map(\.displayName)
+                                        let unavailable = snapshot.capabilities.filter { !$0.available }.map { "\($0.displayName) (\($0.unavailableReason ?? "unavailable"))" }
+                                        reverseCapabilitiesText = "Available: " + (available.isEmpty ? "none" : available.joined(separator: ", ")) + "\nUnavailable: " + (unavailable.isEmpty ? "none" : unavailable.joined(separator: "; "))
+                                        isCheckingReverse = false
+                                    }
+                                }
+                            } label: {
+                                Text(isCheckingReverse ? "Checking…" : "Check readiness")
+                                    .font(.system(size: 11, weight: .medium))
+                            }
+                            .disabled(isCheckingReverse)
+                            .buttonStyle(.bordered)
+                            .controlSize(.small)
+                        }
+                        Text(reverseStatusText)
+                            .font(.system(size: 11))
+                            .foregroundStyle(.secondary)
+                        if !reverseCapabilitiesText.isEmpty {
+                            Text(reverseCapabilitiesText)
+                                .font(.system(size: 10, design: .monospaced))
+                                .foregroundStyle(.secondary)
+                        }
+                        Text("Scope: targets must be files inside the open project, ~/Downloads, ~/Desktop, or ~/Documents. All operations are static inspections — nothing executes the target. DRM / license-check / anti-cheat circumvention is refused.")
+                            .font(.system(size: 10))
+                            .foregroundStyle(.secondary)
                     }
                     .padding(14)
                 }

@@ -149,6 +149,31 @@ class AppSettings: ObservableObject {
         }
     }
 
+    // MARK: - Assist Reverse (native REA integration)
+    // reverseEnabled gates the whole subsystem. reverseBridgePath /
+    // reverseReaDir are optional overrides; empty means "auto-resolve"
+    // (bundle resource / Application Support, then settings).
+    @Published var reverseEnabled: Bool {
+        didSet {
+            debouncedSave("reverseEnabled", reverseEnabled)
+            UserDefaults.standard.set(reverseEnabled, forKey: "assist.reverseEnabled")
+        }
+    }
+
+    @Published var reverseBridgePath: String {
+        didSet {
+            debouncedSave("reverseBridgePath", reverseBridgePath)
+            UserDefaults.standard.set(reverseBridgePath, forKey: "assist.reverseBridgePath")
+        }
+    }
+
+    @Published var reverseReaDir: String {
+        didSet {
+            debouncedSave("reverseReaDir", reverseReaDir)
+            UserDefaults.standard.set(reverseReaDir, forKey: "assist.reverseReaDir")
+        }
+    }
+
     // MARK: - Assist User Memory
     @Published var enableUserMemory: Bool {
         didSet {
@@ -517,6 +542,9 @@ class AppSettings: ObservableObject {
         useMetaSlashCommands = UserDefaults.standard.object(forKey: "useMetaSlashCommands") as? Bool
             ?? UserDefaults.standard.object(forKey: "assist.useMetaSlashCommands") as? Bool
             ?? true
+        reverseEnabled = UserDefaults.standard.object(forKey: "assist.reverseEnabled") as? Bool ?? true
+        reverseBridgePath = UserDefaults.standard.string(forKey: "assist.reverseBridgePath") ?? ""
+        reverseReaDir = UserDefaults.standard.string(forKey: "assist.reverseReaDir") ?? ""
         enableUserMemory = UserDefaults.standard.object(forKey: "enableUserMemory") as? Bool
             ?? UserDefaults.standard.object(forKey: "assist.enableUserMemory") as? Bool
             ?? true

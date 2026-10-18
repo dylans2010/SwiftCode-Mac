@@ -374,6 +374,17 @@ public enum AssistToolActivityFormatter {
             )
         }
 
+        // 23. Reverse analysis
+        if ["reverse_analyze", "reverse"].contains(normalizedId) {
+            let target = extractFilename(from: arguments) ?? "artifact"
+            return ToolFormattedActivity(
+                runningLabel: "Reverse-analyzing \(target)...",
+                completedLabel: "Reverse-analyzed \(target)",
+                failedLabel: "Failed to reverse-analyze \(target)",
+                iconName: "magnifyingglass"
+            )
+        }
+
         // Fallback: Humanize snake_case or camelCase identifier
         let humanized = humanizeIdentifier(toolId)
         return ToolFormattedActivity(

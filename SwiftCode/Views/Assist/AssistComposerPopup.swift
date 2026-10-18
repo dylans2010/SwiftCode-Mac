@@ -24,6 +24,7 @@ public struct ComposerResourceItem: Identifiable, Hashable {
         case codeContext
         case rule
         case terminal
+        case reverse
     }
 
     public let id: String
@@ -41,6 +42,7 @@ public struct ComposerResourceItem: Identifiable, Hashable {
         case .codeContext: return "Code"
         case .rule: return "Rule"
         case .terminal: return "Terminal"
+        case .reverse: return "Reverse"
         }
     }
 }
@@ -174,6 +176,7 @@ public struct AssistComposerPopupView: View {
     public var onSelectFile: (URL) -> Void
     public var onSelectMetaCommand: ((MetaSlashCommand, String?) -> Void)?
     public var onRequestCommandArguments: ((MetaSlashCommand) -> Void)?
+    public var onSelectReverse: (() -> Void)?
     public var onDismiss: () -> Void
 
     @State private var selectedIndex: Int = 0
@@ -190,6 +193,7 @@ public struct AssistComposerPopupView: View {
         onSelectFile: @escaping (URL) -> Void,
         onSelectMetaCommand: ((MetaSlashCommand, String?) -> Void)? = nil,
         onRequestCommandArguments: ((MetaSlashCommand) -> Void)? = nil,
+        onSelectReverse: (() -> Void)? = nil,
         onDismiss: @escaping () -> Void
     ) {
         self.mode = mode
@@ -198,6 +202,7 @@ public struct AssistComposerPopupView: View {
         self.onSelectFile = onSelectFile
         self.onSelectMetaCommand = onSelectMetaCommand
         self.onRequestCommandArguments = onRequestCommandArguments
+        self.onSelectReverse = onSelectReverse
         self.onDismiss = onDismiss
     }
 
@@ -293,6 +298,19 @@ public struct AssistComposerPopupView: View {
                 title: "Recent Terminal Buffer",
                 subtitle: "Injects recent terminal command outputs and build diagnostics",
                 iconName: "terminal",
+                fileURL: nil
+            ))
+        }
+
+        // 4b. Reverse command (@Reverse) — native static analysis.
+        // Shown for an empty query or any query matching "reverse".
+        if trimmed.isEmpty || "reverse".contains(trimmed) || trimmed.contains("reverse") {
+            list.append(ComposerResourceItem(
+                id: "reverse-command",
+                kind: .reverse,
+                title: "@Reverse",
+                subtitle: "Static reverse engineering via the native Reverse subsystem (REA) — @Reverse <path> <what to investigate>",
+                iconName: "magnifyingglass",
                 fileURL: nil
             ))
         }
@@ -541,6 +559,8 @@ public struct AssistComposerPopupView: View {
                 onSelectMCP("@rule: \(item.title)")
             case .terminal:
                 onSelectMCP("@terminal: recent_buffer")
+            case .reverse:
+                onSelectReverse?()
             }
         }
     }
@@ -725,6 +745,8 @@ public struct AssistComposerPopupView: View {
                 onSelectMCP("@rule: \(item.title)")
             case .terminal:
                 onSelectMCP("@terminal: recent_buffer")
+            case .reverse:
+                onSelectReverse?()
             }
         } label: {
             HStack(spacing: 8) {

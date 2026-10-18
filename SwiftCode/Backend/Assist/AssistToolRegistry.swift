@@ -206,6 +206,9 @@ public final class AssistToolRegistry {
         register(AssistProcessMonitorTool())
         register(AssistDiskSpaceAnalyzerTool())
         register(AssistSystemNotificationTool())
+
+        // Native Reverse subsystem (REA, static inspection only).
+        register(ReverseToolAdapter())
     }
 
     public var version: Int { registryVersion }
@@ -349,6 +352,8 @@ public final class AssistToolRegistry {
         "yaml_parser": "yaml_parser_tool",
         "env_manager": "environment_variable_manager",
         "clipboard": "clipboard_manager_tool",
+        "reverse": "reverse_analyze",
+        "reverse_analyze": "reverse_analyze",
         "process_monitor": "process_monitor_tool",
         "disk_space": "disk_space_analyzer",
         "system_notification": "system_notification_tool"

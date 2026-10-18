@@ -1072,7 +1072,8 @@ public struct AssistMainView: View {
                                 userMessage: text,
                                 explicitSkills: selectedExplicitSkills,
                                 explicitMCPServers: selectedExplicitMCPServers,
-                                explicitFiles: selectedExplicitFiles + files
+                                explicitFiles: selectedExplicitFiles + files,
+                                reverseInvocation: ReverseCommandParser.parse(message: text)
                             )
                             attachedFiles = []
                             selectedExplicitSkills = []
@@ -1144,6 +1145,7 @@ public struct AssistMainView: View {
                         selectedMetaCommandForArgs = command
                         composerTriggerMode = nil
                     },
+                    onSelectReverse: { selectReverse() },
                     onDismiss: { composerTriggerMode = nil }
                 )
                 .padding(.bottom, 60)
@@ -1172,11 +1174,15 @@ public struct AssistMainView: View {
         guard !text.isEmpty && !isProcessingFiles else { return }
 
         let filesToSend = attachedFiles
+        // Parse @Reverse here so the structured invocation rides on the
+        // envelope (provider paths, history) in addition to the text the
+        // intent classifier routes on.
         let envelope = AssistTaskEnvelope(
             userMessage: text,
             explicitSkills: selectedExplicitSkills,
             explicitMCPServers: selectedExplicitMCPServers,
-            explicitFiles: selectedExplicitFiles + filesToSend
+            explicitFiles: selectedExplicitFiles + filesToSend,
+            reverseInvocation: ReverseCommandParser.parse(message: text)
         )
         attachedFiles = []
         selectedExplicitSkills = []
@@ -1247,6 +1253,21 @@ public struct AssistMainView: View {
             selectedExplicitSkills.append(skill)
         }
         consumeTrailingToken(prefix: "/")
+        composerTriggerMode = nil
+    }
+
+    /// Inserts the `@Reverse` command token after the user picks it from
+    /// the @ completion popup, leaving the cursor after a trailing space
+    /// so the user can continue typing the target + investigation task.
+    private func selectReverse() {
+        consumeTrailingToken(prefix: "@")
+        if inputText.isEmpty {
+            inputText = "@Reverse "
+        } else if inputText.hasSuffix(" ") {
+            inputText += "@Reverse "
+        } else {
+            inputText += " @Reverse "
+        }
         composerTriggerMode = nil
     }
 

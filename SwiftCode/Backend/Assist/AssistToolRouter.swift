@@ -127,6 +127,9 @@ public final class AssistToolRouter: Sendable {
         case "version_control_operator", "git":
             return ToolMetadata(id: toolId, name: "Version Control Operator", description: "Performs git operations including status, diff, commit, and branch.", capability: .gitOperations, riskLevel: .safeMutation, isReadOnly: false, isMutating: true, requiresVerificationAfterward: false)
 
+        case "reverse_analyze", "reverse":
+            return ToolMetadata(id: toolId, name: "Reverse Analyze", description: "Static reverse-engineering analysis of an authorized artifact via the native Reverse subsystem (REA).", capability: .diagnostics, riskLevel: .safeRead, isReadOnly: true, isMutating: false, requiresVerificationAfterward: false)
+
         case "use_workers":
             return ToolMetadata(id: toolId, name: "Use Workers", description: "Creates, schedules, and executes isolated concurrent/sequential Workers for complex tasks.", capability: .planning, riskLevel: .execution, isReadOnly: false, isMutating: true, requiresVerificationAfterward: true)
 

@@ -97,6 +97,35 @@ public final class AssistIntentClassifier: Sendable {
         // 1. Check for explicit tool priority requests
         let explicit = detectExplicitTool(lower: lower, original: trimmed, activeFile: activeFile)
 
+        // 1a. Explicit `@Reverse` invocation: deterministic route to the
+        // native Reverse subsystem. The parser only fires when the
+        // message STARTS with @Reverse, so incidental prose mentions
+        // never reach this branch. A missing/invalid target is NOT
+        // filtered here: the adapter returns an actionable error
+        // instead of silence.
+        if let reverse = ReverseCommandParser.parse(message: trimmed) {
+            var input: [String: Any] = [
+                "targetPath": reverse.targetPath ?? "",
+                "operation": reverse.operation.rawValue,
+                "task": reverse.task,
+            ]
+            if let objdump = reverse.objdumpOperation {
+                input["objdumpOperation"] = objdump.rawValue
+            }
+            if let symbol = reverse.symbol {
+                input["symbol"] = symbol
+            }
+            return IntentClassificationResult(
+                primaryIntent: .complexEngineering(goal: trimmed),
+                profile: .moderate,
+                explicitTool: ExplicitToolRequest(toolId: "reverse_analyze", suggestedInput: input, explanation: "Explicit @Reverse investigation routed to the native Reverse subsystem"),
+                deterministicToolId: "reverse_analyze",
+                deterministicInput: input,
+                confidence: 0.99,
+                explanation: "Explicit @Reverse command routed to reverse_analyze"
+            )
+        }
+
         // 2. High-confidence Git Operations
         if isGitStatusRequest(lower) {
             return IntentClassificationResult(

@@ -78,6 +78,7 @@ public final class AssistRuntimeTestSuite: Sendable {
         results.append(await testUseWorkersResilientDecodingAndStatePropagation())
         results.append(await testParallelExecutionEngineAndTerminalSessions())
         results.append(await testCodingToolsNativeContextMenuPayload())
+        results.append(contentsOf: await ReverseTestSuite.runAll())
         results.append(contentsOf: await AssistToolKnowledgeValidator.shared.runAllTests())
         results.append(contentsOf: await SystemIndexTestSuite.shared.runAllTests())
         results.append(contentsOf: await GoogleCloudSDKTests.shared.runAllTests())
