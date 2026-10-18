@@ -30,7 +30,7 @@ public struct AssistDependencyLicensesTool: AssistTool {
             }
         }
         let podLock = root.appendingPathComponent("Podfile.lock")
-        if fm.fileExists(atPath: podLock), let text = try? String(contentsOf: podLock, encoding: .utf8) {
+        if fm.fileExists(atPath: podLock.path), let text = try? String(contentsOf: podLock, encoding: .utf8) {
             var inPods = false
             for line in text.components(separatedBy: .newlines) {
                 if line == "PODS:" { inPods = true; continue }

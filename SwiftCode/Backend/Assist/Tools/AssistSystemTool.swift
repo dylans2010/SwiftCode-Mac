@@ -383,7 +383,7 @@ public struct AssistSystemTool: AssistTool {
         // Blocking POSIX connect/select runs off the main actor; execute()
         // is @MainActor and must never stall the UI thread.
         let reachable = await Task.detached(priority: .utility) {
-            self.tcpConnect(host: host, port: port, timeoutSeconds: timeout)
+            Self.tcpConnect(host: host, port: port, timeoutSeconds: timeout)
         }.value
         let latencyMs = Int(Date().timeIntervalSince(start) * 1000)
         let verdict = reachable ? "reachable" : "not reachable"
@@ -399,7 +399,6 @@ public struct AssistSystemTool: AssistTool {
     }
 
     private func opDiskInfo() -> AssistToolResult {
-        let fm = FileManager.default
         let url = URL(fileURLWithPath: "/")
         let keys: Set<URLResourceKey> = [.volumeTotalCapacityKey, .volumeAvailableCapacityKey, .volumeNameKey]
         guard let values = try? url.resourceValues(forKeys: keys),
@@ -620,8 +619,8 @@ public struct AssistSystemTool: AssistTool {
     }
 
     /// Bounded TCP connect using POSIX sockets: non-blocking connect +
-    /// select() with the requested timeout. No unbounded waits.
-    private func tcpConnect(host: String, port: Int, timeoutSeconds: TimeInterval) -> Bool {
+    /// poll() with the requested timeout. No unbounded waits.
+    nonisolated private static func tcpConnect(host: String, port: Int, timeoutSeconds: TimeInterval) -> Bool {
         var hints = addrinfo()
         hints.ai_socktype = Int32(SOCK_STREAM)
         var info: UnsafeMutablePointer<addrinfo>?
@@ -636,12 +635,10 @@ public struct AssistSystemTool: AssistTool {
         let rc = Darwin.connect(fd, aiAddr, list.pointee.ai_addrlen)
         if rc == 0 { return true }
         guard errno == EINPROGRESS else { return false }
-        var writeSet = fd_set()
-        FD_ZERO(&writeSet)
-        FD_SET(fd, &writeSet)
-        var tv = timeval(tv_sec: Int(timeoutSeconds), tv_usec: Int32((timeoutSeconds.truncatingRemainder(dividingBy: 1)) * 1_000_000))
-        let ready = select(fd + 1, nil, &writeSet, nil, &tv)
-        guard ready > 0 else { return false }
+        var pfd = pollfd(fd: fd, events: Int16(POLLOUT), revents: 0)
+        let timeoutMs = Int32(timeoutSeconds * 1000)
+        let ready = poll(&pfd, 1, timeoutMs)
+        guard ready > 0, (pfd.revents & Int16(POLLOUT)) != 0 else { return false }
         var soError: Int32 = 0
         var len = socklen_t(MemoryLayout<Int32>.size)
         guard getsockopt(fd, SOL_SOCKET, SO_ERROR, &soError, &len) == 0 else { return false }

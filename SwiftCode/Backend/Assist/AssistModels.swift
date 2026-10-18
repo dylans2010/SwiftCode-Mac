@@ -471,6 +471,8 @@ public struct ModelContextSection: Sendable {
     public let estimatedTokens: Int
     public let isCompacted: Bool
 
+    public var isFixed: Bool { priority == .p0 }
+
     public init(priority: ContextPriority, title: String, content: String, estimatedTokens: Int = 0, isCompacted: Bool = false) {
         self.priority = priority
         self.title = title

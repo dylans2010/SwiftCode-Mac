@@ -29,8 +29,8 @@ public struct AssistToolCapabilityLookupTool: AssistTool {
             return .failure("No registered tool with id '\(toolId)'.")
         }
         let schema = tool.parametersSchema
-        let required = schema.required.joined(separator: ", ")
-        let props = schema.properties.keys.sorted().joined(separator: ", ")
+        let required = (schema.required ?? []).joined(separator: ", ")
+        let props = (schema.properties?.keys.sorted() ?? []).joined(separator: ", ")
         let output = [
             "Tool: \(tool.id) — \(tool.name)",
             "Capability: \(tool.capability)",

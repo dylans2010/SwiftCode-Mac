@@ -321,7 +321,7 @@ public final class AssistArtifactStore: Sendable {
             sourceMessageID: updatedEntry.sourceMessageID
         )
         refresh(workspaceRoot: workspaceRoot)
-        logger.info("Artifact \(mode) -> \(filename)")
+        logger.info("Artifact \(mode.rawValue) -> \(filename)")
         return record
     }
 

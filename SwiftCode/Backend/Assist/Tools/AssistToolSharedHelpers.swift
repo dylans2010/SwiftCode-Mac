@@ -141,7 +141,7 @@ public enum AssistWorkspaceScan {
     }
 
     public static func readLines(_ url: URL) -> [String]? {
-        try? String(contentsOf: url, encoding: .utf8)?.components(separatedBy: .newlines)
+        (try? String(contentsOf: url, encoding: .utf8))?.components(separatedBy: .newlines)
     }
 
     public static func modificationDate(of url: URL) -> Date? {

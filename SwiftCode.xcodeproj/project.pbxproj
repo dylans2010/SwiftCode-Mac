@@ -6297,6 +6297,7 @@
 				C0DE00010000000000000060 /* AssistWorkspaceSettingsReadTool.swift */,
 				C0DE00010000000000000061 /* AssistXcodeToolchainInfoTool.swift */,
 				C0DE00010000000000000062 /* AssistXctestDiscoveryTool.swift */,
+				C0DE00010000000000000064 /* AssistSystemTool.swift */,
 			);
 			path = Tools;
 			sourceTree = "<group>";
@@ -6716,7 +6717,6 @@
 				A1000007F001000100000007 /* AssistComposerPopup.swift */,
 				8D9E0004000100010000000D /* MetaCommandArgumentPickerView.swift */,
 				C0DE00010000000000000063 /* AssistArtifactsView.swift */,
-				C0DE00010000000000000064 /* AssistSystemTool.swift */,
 			);
 			path = Assist;
 			sourceTree = "<group>";
