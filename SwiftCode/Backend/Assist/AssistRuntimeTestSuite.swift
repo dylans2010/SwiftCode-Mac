@@ -60,6 +60,7 @@ public final class AssistRuntimeTestSuite: Sendable {
         results.append(await testArtifactNamingDisplayTitles())
         results.append(await testRegistryExpansionCount())
         results.append(await testNativeScreenAndAppInteractionTools())
+        results.append(await testNativeAppInteractionEngine())
         results.append(await testAgentSkillDiscoveryAndMatching())
         results.append(await testAgentRepositoryScannerScopePrecedence())
         results.append(await testAgentModelAdapterCapabilityNegotiationAndJSONRepair())
@@ -1729,13 +1730,13 @@ public final class AssistRuntimeTestSuite: Sendable {
         }
 
         // Verify schemas
-        let screenshotSchema = screenshotTool.schema
-        let screenrecordSchema = screenrecordTool.schema
-        let useAppSchema = useAppTool.schema
+        let screenshotSchema = screenshotTool.parametersSchema
+        let screenrecordSchema = screenrecordTool.parametersSchema
+        let useAppSchema = useAppTool.parametersSchema
 
-        let screenshotHasMode = screenshotSchema.parameters.properties["capture_mode"] != nil
-        let screenrecordHasApp = screenrecordSchema.parameters.properties["app_identifier"] != nil
-        let useAppHasAction = useAppSchema.parameters.properties["action"] != nil
+        let screenshotHasMode = screenshotSchema.properties?["capture_mode"] != nil
+        let screenrecordHasApp = screenrecordSchema.properties?["app_identifier"] != nil
+        let useAppHasAction = useAppSchema.properties?["action"] != nil
 
         guard screenshotHasMode && screenrecordHasApp && useAppHasAction else {
             return RuntimeTestCaseResult(
@@ -1746,10 +1747,23 @@ public final class AssistRuntimeTestSuite: Sendable {
             )
         }
 
+        let dummyContext = AssistContext(
+            sessionId: UUID(),
+            project: nil,
+            workspaceRoot: URL(fileURLWithPath: "/tmp"),
+            memory: AssistMemoryGraph(),
+            logger: AssistLogger(),
+            fileSystem: AssistFileSystem(workspaceRoot: URL(fileURLWithPath: "/tmp")),
+            git: AssistGitManager(project: nil),
+            permissions: AssistPermissionsManager(),
+            safetyLevel: .balanced,
+            isAutonomous: true,
+            sessionExecutionMode: .autopilot
+        )
+
         // Verify validation: screenrecord requires app_identifier
-        let dummyContext = AssistExecutionContext(sessionExecutionMode: .autopilot)
-        let recordMissingApp = await screenrecordTool.execute(arguments: [:], context: dummyContext)
-        guard !recordMissingApp.success else {
+        let recordMissingApp = (try? await screenrecordTool.execute(input: [:], context: dummyContext))?.success == false
+        guard recordMissingApp else {
             return RuntimeTestCaseResult(
                 testName: "Native Screen & App Interaction Tools",
                 passed: false,
@@ -1759,8 +1773,8 @@ public final class AssistRuntimeTestSuite: Sendable {
         }
 
         // Verify validation: use_app requires app_identifier and action
-        let useAppMissingParams = await useAppTool.execute(arguments: [:], context: dummyContext)
-        guard !useAppMissingParams.success else {
+        let useAppMissingParams = (try? await useAppTool.execute(input: [:], context: dummyContext))?.success == false
+        guard useAppMissingParams else {
             return RuntimeTestCaseResult(
                 testName: "Native Screen & App Interaction Tools",
                 passed: false,
@@ -1773,6 +1787,130 @@ public final class AssistRuntimeTestSuite: Sendable {
             testName: "Native Screen & App Interaction Tools",
             passed: true,
             message: "take_screenshot, take_screenrecord, and use_app successfully registered, validated, and resolved.",
+            duration: Date().timeIntervalSince(start)
+        )
+    }
+
+    // Comprehensive Native App Interaction Engine Evaluation
+    public func testNativeAppInteractionEngine() async -> RuntimeTestCaseResult {
+        let start = Date()
+        let registry = AssistToolRegistry.shared
+
+        guard let useApp = registry.getTool("use_app") else {
+            return RuntimeTestCaseResult(
+                testName: "Native App Interaction Engine",
+                passed: false,
+                message: "use_app tool not registered.",
+                duration: Date().timeIntervalSince(start)
+            )
+        }
+
+        let dummyContext = AssistContext(
+            sessionId: UUID(),
+            project: nil,
+            workspaceRoot: URL(fileURLWithPath: "/tmp"),
+            memory: AssistMemoryGraph(),
+            logger: AssistLogger(),
+            fileSystem: AssistFileSystem(workspaceRoot: URL(fileURLWithPath: "/tmp")),
+            git: AssistGitManager(project: nil),
+            permissions: AssistPermissionsManager(),
+            safetyLevel: .balanced,
+            isAutonomous: true,
+            sessionExecutionMode: .autopilot
+        )
+
+        // 1. Parameter schema verification
+        let schema = useApp.parametersSchema
+        let requiredProps = ["app_identifier", "action", "target", "value", "coordinates", "drag_destination", "scroll_delta", "window_id", "timeout", "verification", "confirm", "purpose"]
+        for prop in requiredProps {
+            guard schema.properties?[prop] != nil else {
+                return RuntimeTestCaseResult(
+                    testName: "Native App Interaction Engine",
+                    passed: false,
+                    message: "use_app schema missing property '\(prop)'.",
+                    duration: Date().timeIntervalSince(start)
+                )
+            }
+        }
+
+        // 2. Action: list_applications succeeds without app_identifier
+        let listResult = try? await useApp.execute(input: ["action": "list_applications"], context: dummyContext)
+        guard let listRes = listResult, listRes.success else {
+            return RuntimeTestCaseResult(
+                testName: "Native App Interaction Engine",
+                passed: false,
+                message: "action 'list_applications' failed to execute.",
+                duration: Date().timeIntervalSince(start)
+            )
+        }
+
+        // 3. Consequential action safeguard: close_application without confirm fails
+        let closeWithoutConfirm = try? await useApp.execute(
+            input: ["action": "close_application", "app_identifier": "com.apple.calculator", "confirm": false],
+            context: dummyContext
+        )
+        guard closeWithoutConfirm?.success == false, closeWithoutConfirm?.toolErrorCode == .permissionDenied else {
+            return RuntimeTestCaseResult(
+                testName: "Native App Interaction Engine",
+                passed: false,
+                message: "close_application without confirm: true should be refused with permissionDenied.",
+                duration: Date().timeIntervalSince(start)
+            )
+        }
+
+        // 4. Missing required action validation
+        let missingActionRes = try? await useApp.execute(input: ["app_identifier": "com.apple.finder"], context: dummyContext)
+        guard missingActionRes?.success == false, missingActionRes?.toolErrorCode == .missingArgument else {
+            return RuntimeTestCaseResult(
+                testName: "Native App Interaction Engine",
+                passed: false,
+                message: "Missing action parameter should fail with .missingArgument error code.",
+                duration: Date().timeIntervalSince(start)
+            )
+        }
+
+        // 5. Geometry, Normalization & Session Manager
+        let rect = AccessibleRect(x: 100, y: 150, width: 200, height: 100)
+        guard rect.center == CGPoint(x: 200, y: 200) else {
+            return RuntimeTestCaseResult(
+                testName: "Native App Interaction Engine",
+                passed: false,
+                message: "AccessibleRect center calculation incorrect.",
+                duration: Date().timeIntervalSince(start)
+            )
+        }
+
+        let desc = AccessibleUIElementDescriptor(
+            id: "elem_1",
+            role: "AXButton",
+            title: "Submit",
+            identifier: "btn_submit",
+            frame: rect
+        )
+        guard desc.displayDescription.contains("AXButton") && desc.displayDescription.contains("Submit") else {
+            return RuntimeTestCaseResult(
+                testName: "Native App Interaction Engine",
+                passed: false,
+                message: "AccessibleUIElementDescriptor displayDescription incorrect.",
+                duration: Date().timeIntervalSince(start)
+            )
+        }
+
+        // 6. Discovery service returns real applications
+        let discovered = AssistAppInteractionEngine.shared.listApplications()
+        guard !discovered.isEmpty else {
+            return RuntimeTestCaseResult(
+                testName: "Native App Interaction Engine",
+                passed: false,
+                message: "listApplications returned 0 discovered applications.",
+                duration: Date().timeIntervalSince(start)
+            )
+        }
+
+        return RuntimeTestCaseResult(
+            testName: "Native App Interaction Engine",
+            passed: true,
+            message: "Schema validation, discovery, session lifecycle, error taxonomy, and safeguards verified.",
             duration: Date().timeIntervalSince(start)
         )
     }

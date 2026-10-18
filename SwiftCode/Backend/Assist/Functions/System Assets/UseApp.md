@@ -1,8 +1,10 @@
-<!-- system-index-depends: AvailableTools.md -->
+<!-- system-index-depends: AvailableTools.md, UsingApp.md -->
 
 # USE APP — Native macOS Application Interaction & Accessibility Automation
 
-The `use_app` tool enables Assist to launch, activate, inspect, operate, and verify the UI state of installed macOS applications through native macOS Accessibility APIs (`AXUIElement`) and `NSWorkspace`.
+The `use_app` tool enables Assist to launch, activate, inspect, operate, and verify the UI state of installed macOS applications through native macOS Accessibility APIs (`AXUIElement`), CoreGraphics synthetic events (`CGEvent`), `ScreenCaptureKit` visual perception, and `NSWorkspace`.
+
+For comprehensive operating guidelines, workflow patterns, and coordinate space details, see `UsingApp.md`.
 
 ---
 

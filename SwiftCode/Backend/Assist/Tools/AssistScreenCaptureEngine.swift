@@ -64,46 +64,26 @@ public final class AssistScreenCaptureEngine: Sendable {
 
         let targetDisplay = displayID ?? CGMainDisplayID()
 
-        // Attempt ScreenCaptureKit screenshot on macOS 14+
-        if #available(macOS 14.0, *) {
-            do {
-                let shareableContent = try await SCShareableContent.excludingDesktopWindows(false, onScreenWindowsOnly: true)
-                if let scDisplay = shareableContent.displays.first(where: { $0.displayID == targetDisplay }) ?? shareableContent.displays.first {
-                    let filter = SCContentFilter(display: scDisplay, excludingWindows: [])
-                    let config = SCStreamConfiguration()
-                    config.width = scDisplay.width * 2
-                    config.height = scDisplay.height * 2
-                    config.showsCursor = includeCursor
-                    config.captureResolution = .best
-
-                    let scImage = try await SCScreenshotManager.captureImage(contentFilter: filter, configuration: config)
-                    let pngData = try encodePNG(image: scImage)
-                    return ScreenCaptureResult(
-                        image: scImage,
-                        pngData: pngData,
-                        width: scImage.width,
-                        height: scImage.height,
-                        displayID: scDisplay.displayID,
-                        captureMode: "fullscreen"
-                    )
-                }
-            } catch {
-                logger.warning("ScreenCaptureKit screenshot capture failed, falling back to CoreGraphics: \(error.localizedDescription)")
-            }
+        let shareableContent = try await SCShareableContent.excludingDesktopWindows(false, onScreenWindowsOnly: true)
+        guard let scDisplay = shareableContent.displays.first(where: { $0.displayID == targetDisplay }) ?? shareableContent.displays.first else {
+            throw ScreenCaptureError.displayNotFound("Target display \(targetDisplay) was not found in shareable displays.")
         }
 
-        // CoreGraphics fallback
-        guard let cgImage = CGDisplayCreateImage(targetDisplay) else {
-            throw ScreenCaptureError.captureFailed("CGDisplayCreateImage returned null for display \(targetDisplay).")
-        }
+        let filter = SCContentFilter(display: scDisplay, excludingWindows: [])
+        let config = SCStreamConfiguration()
+        config.width = scDisplay.width * 2
+        config.height = scDisplay.height * 2
+        config.showsCursor = includeCursor
+        config.captureResolution = .best
 
-        let pngData = try encodePNG(image: cgImage)
+        let scImage = try await SCScreenshotManager.captureImage(contentFilter: filter, configuration: config)
+        let pngData = try encodePNG(image: scImage)
         return ScreenCaptureResult(
-            image: cgImage,
+            image: scImage,
             pngData: pngData,
-            width: cgImage.width,
-            height: cgImage.height,
-            displayID: targetDisplay,
+            width: scImage.width,
+            height: scImage.height,
+            displayID: scDisplay.displayID,
             captureMode: "fullscreen"
         )
     }
@@ -145,10 +125,8 @@ public final class AssistScreenCaptureEngine: Sendable {
             }
         }
 
-        guard let fullScreenImage = CGDisplayCreateImage(targetDisplay) else {
-            throw ScreenCaptureError.captureFailed("Failed to capture display for region cropping.")
-        }
-
+        let fullScreenResult = try await captureFullScreen(displayID: targetDisplay, includeCursor: false)
+        let fullScreenImage = fullScreenResult.image
         let dispBounds = CGDisplayBounds(targetDisplay)
         let scale = CGFloat(fullScreenImage.width) / dispBounds.width
 
@@ -160,11 +138,9 @@ public final class AssistScreenCaptureEngine: Sendable {
         ).integral
 
         guard let cropped = fullScreenImage.cropping(to: cropRect) else {
-            // Fallback to full screen if crop fails
-            let png = try encodePNG(image: fullScreenImage)
             return ScreenCaptureResult(
                 image: fullScreenImage,
-                pngData: png,
+                pngData: fullScreenResult.pngData,
                 width: fullScreenImage.width,
                 height: fullScreenImage.height,
                 displayID: targetDisplay,
