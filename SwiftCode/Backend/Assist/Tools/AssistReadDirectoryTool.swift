@@ -23,7 +23,7 @@ public struct AssistReadDirectoryTool: AssistTool {
 
     public func execute(input: [String: Any], context: AssistContext) async throws -> AssistToolResult {
         guard let path = input["path"] as? String else {
-            return .failure("Missing required parameter: path")
+            return .failure("Missing required parameter: path", code: .missingArgument)
         }
 
         do {
@@ -52,7 +52,7 @@ public struct AssistReadDirectoryTool: AssistTool {
                 ]
             )
         } catch {
-            return .failure("Failed to read directory at \(path): \(error.localizedDescription)")
+            return .failure("Failed to read directory at \(path): \(error.localizedDescription)", code: .executionFailed)
         }
     }
 }

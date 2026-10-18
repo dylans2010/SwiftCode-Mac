@@ -24,7 +24,7 @@ public struct AssistWriteFileTool: AssistTool {
     public func execute(input: [String: Any], context: AssistContext) async throws -> AssistToolResult {
         guard var path = (input["path"] ?? input["filePath"] ?? input["file_path"]) as? String,
               let content = (input["content"] ?? input["fileContent"] ?? input["file_content"] ?? input["code"]) as? String else {
-            return .failure("Missing required parameters: 'path' and 'content' are mandatory.")
+            return .failure("Missing required parameters: 'path' and 'content' are mandatory.", code: .missingArgument)
         }
 
         // Sandbox & Traversal Defense: Normalize workspace path
@@ -41,7 +41,7 @@ public struct AssistWriteFileTool: AssistTool {
             }
 
             if path.contains("..") {
-                return .failure("Path security error: Relative path traversal ('..') is prohibited for safety. Path: '\(path)'")
+                return .failure("Path security error: Relative path traversal ('..') is prohibited for safety. Path: '\(path)'", code: .permissionDenied)
             }
         }
 
@@ -123,7 +123,7 @@ public struct AssistWriteFileTool: AssistTool {
             )
         } catch {
             LiveDiffStreamer.shared.cancelStream(filePath: path)
-            return .failure("Failed to write file at \(path): \(error.localizedDescription)")
+            return .failure("Failed to write file at \(path): \(error.localizedDescription)", code: .executionFailed)
         }
     }
 }

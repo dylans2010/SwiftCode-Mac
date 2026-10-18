@@ -23,19 +23,19 @@ public struct AssistDeleteFileTool: AssistTool {
 
     public func execute(input: [String: Any], context: AssistContext) async throws -> AssistToolResult {
         guard let path = input["path"] as? String else {
-            return .failure("Missing required parameter: path")
+            return .failure("Missing required parameter: path", code: .missingArgument)
         }
 
         do {
             // Missing files are a failure, not a silent success: the caller
             // must be able to distinguish "deleted" from "was never there".
             guard context.fileSystem.exists(at: path) else {
-                return .failure("No file at \(path) — nothing to delete.")
+                return .failure("No file at \(path) — nothing to delete.", code: .notFound)
             }
             try context.fileSystem.deleteFile(at: path)
             return .success("Successfully deleted file: \(path)", data: ["path": path], filesChanged: [path])
         } catch {
-            return .failure("Failed to delete file at \(path): \(error.localizedDescription)")
+            return .failure("Failed to delete file at \(path): \(error.localizedDescription)", code: .executionFailed)
         }
     }
 }

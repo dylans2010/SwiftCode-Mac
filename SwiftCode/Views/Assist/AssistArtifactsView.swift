@@ -14,12 +14,32 @@ public struct AssistArtifactsView: View {
     @State private var detailContent: String = ""
     @State private var detailError: String?
     @State private var isLoadingDetail = false
+    @State private var isConfirmingDelete = false
+    /// The last artifact id logged to AssistUserActionLog, so refreshes
+    /// don't double-log the same open.
+    @State private var lastLoggedArtifactID: UUID?
 
     public init() {}
 
     private var workspaceRoot: URL? {
         ProjectSessionStore.shared.activeProject?.directoryURL
             ?? store.currentWorkspaceRoot
+    }
+
+    private var selectedRecord: AssistArtifactRecord? {
+        guard let selection else { return nil }
+        return store.records.first(where: { $0.id == selection })
+    }
+
+    private var selectedFileURL: URL? {
+        guard let record = selectedRecord, let root = workspaceRoot else { return nil }
+        return root.appendingPathComponent(record.relativePath)
+    }
+
+    /// `agent_notes.md` is protected: the store refuses to delete it.
+    private var canDeleteSelected: Bool {
+        guard let record = selectedRecord else { return false }
+        return record.filename != "agent_notes.md"
     }
 
     public var body: some View {
@@ -33,6 +53,39 @@ public struct AssistArtifactsView: View {
         .onAppear(perform: refresh)
         .toolbar {
             ToolbarItem(placement: .primaryAction) {
+                if let fileURL = selectedFileURL {
+                    ShareLink(item: fileURL)
+                        .help("Share artifact")
+                }
+            }
+            ToolbarItem(placement: .primaryAction) {
+                Button {
+                    copySelectedPath()
+                } label: {
+                    Image(systemName: "doc.on.clipboard")
+                }
+                .help("Copy artifact path")
+                .disabled(selectedFileURL == nil)
+            }
+            ToolbarItem(placement: .primaryAction) {
+                Button {
+                    revealSelectedInFinder()
+                } label: {
+                    Image(systemName: "folder")
+                }
+                .help("Reveal in Finder")
+                .disabled(selectedFileURL == nil)
+            }
+            ToolbarItem(placement: .primaryAction) {
+                Button(role: .destructive) {
+                    isConfirmingDelete = true
+                } label: {
+                    Image(systemName: "trash")
+                }
+                .help("Delete artifact")
+                .disabled(!canDeleteSelected)
+            }
+            ToolbarItem(placement: .primaryAction) {
                 Button {
                     refresh()
                 } label: {
@@ -40,6 +93,14 @@ public struct AssistArtifactsView: View {
                 }
                 .help("Refresh artifacts")
             }
+        }
+        .alert("Delete Artifact?", isPresented: $isConfirmingDelete) {
+            Button("Delete", role: .destructive) {
+                deleteSelectedArtifact()
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("'\(selectedRecord?.title ?? "this artifact")' will be permanently deleted. This cannot be undone.")
         }
     }
 
@@ -126,7 +187,9 @@ public struct AssistArtifactsView: View {
     }
 
     private func renderedMarkdown(_ markdown: String) -> Text {
-        if let attributed = try? AttributedString(markdown: markdown, options: .init(interpretedSyntax: .inlineOnlyPreservingWhitespace)) {
+        // Full interpreted syntax so headings, tables, lists, and code
+        // fences mandated by the artifacts guidelines actually render.
+        if let attributed = try? AttributedString(markdown: markdown, options: .init(interpretedSyntax: .full)) {
             return Text(attributed)
         }
         return Text(markdown)
@@ -156,11 +219,39 @@ public struct AssistArtifactsView: View {
         Task { @MainActor in
             defer { isLoadingDetail = false }
             do {
-                let (_, content, _) = try store.readArtifact(name: record.filename, workspaceRoot: root)
+                let (record, content, _) = try store.readArtifact(name: record.filename, workspaceRoot: root)
                 detailContent = content
+                if lastLoggedArtifactID != record.id {
+                    lastLoggedArtifactID = record.id
+                    AssistUserActionLog.record(.artifactOpened(artifactID: record.id, title: record.title))
+                }
             } catch {
                 detailError = error.localizedDescription
             }
+        }
+    }
+
+    // MARK: - Toolbar actions
+
+    private func copySelectedPath() {
+        guard let url = selectedFileURL else { return }
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(url.path, forType: .string)
+    }
+
+    private func revealSelectedInFinder() {
+        guard let url = selectedFileURL else { return }
+        NSWorkspace.shared.activateFileViewerSelecting([url])
+    }
+
+    private func deleteSelectedArtifact() {
+        guard let record = selectedRecord, let root = workspaceRoot else { return }
+        do {
+            _ = try store.deleteArtifact(name: record.filename, workspaceRoot: root)
+            selection = store.records.first?.id
+            loadDetail(for: selection)
+        } catch {
+            detailError = error.localizedDescription
         }
     }
 }

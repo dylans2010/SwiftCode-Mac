@@ -58,7 +58,7 @@ public struct UseTermFunction: AssistTool {
         }
 
         guard !command.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
-            return .failure("Command cannot be empty")
+            return .failure("Command cannot be empty", code: .missingArgument)
         }
 
         // 1. Resolve working directory URL through the filesystem layer so
@@ -71,11 +71,11 @@ public struct UseTermFunction: AssistTool {
             do {
                 workingDirURL = try context.fileSystem.resolve(relativeWorkDir)
             } catch {
-                return .failure("Invalid workingDirectory '\(relativeWorkDir)': \(error.localizedDescription)")
+                return .failure("Invalid workingDirectory '\(relativeWorkDir)': \(error.localizedDescription)", code: .invalidInput)
             }
             var isDir: ObjCBool = false
             guard FileManager.default.fileExists(atPath: workingDirURL.path, isDirectory: &isDir), isDir.boolValue else {
-                return .failure("workingDirectory does not exist or is not a directory: \(relativeWorkDir)")
+                return .failure("workingDirectory does not exist or is not a directory: \(relativeWorkDir)", code: .notFound)
             }
         }
 
@@ -113,7 +113,7 @@ public struct UseTermFunction: AssistTool {
         }
         if !approved {
             await context.logger.warning("Terminal command rejected by user: \(command)", toolId: id)
-            return .failure("Terminal execution rejected by user.")
+            return .failure("Terminal execution rejected by user.", code: .cancelled)
         }
 
         // 3. Execute command asynchronously with live output streaming via AgentTerminalService
@@ -169,7 +169,7 @@ public struct UseTermFunction: AssistTool {
                 )
             }
         } catch {
-            return .failure("Process execution failed: \(error.localizedDescription)")
+            return .failure("Process execution failed: \(error.localizedDescription)", code: .executionFailed)
         }
     }
 }

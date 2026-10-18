@@ -49,6 +49,11 @@ public final class AssistManager: ObservableObject {
     @Published public var hasCodeReviewBeenInvoked: Bool = false
     @Published public var queuedMessages: [QueuedAssistMessage] = []
     @Published public var currentActivityStatus: String = "Idle"
+    /// Per-turn request metrics keyed by the assistant response message ID.
+    /// Stored when a turn starts so the feedback package generator can attach
+    /// checkpoint/latency telemetry to each assistant message. Cleared with
+    /// the conversation in `clearChat()`.
+    public var requestMetricsByMessageID: [UUID: AssistRequestMetrics] = [:]
 
     private var activeChatTask: Task<Void, Never>?
 
@@ -644,6 +649,7 @@ public final class AssistManager: ObservableObject {
 
         let streamProgress = AssistStreamProgressMonitor()
         let messageID = responseMessage.id
+        requestMetricsByMessageID[messageID] = metrics
         let task = Task { @MainActor [weak self] in
             guard let self else { return }
             // Stale generation: a clear or newer request superseded this one.
@@ -664,7 +670,7 @@ public final class AssistManager: ObservableObject {
                 )
                 guard !Task.isCancelled else { return }
                 guard generation == self.currentGeneration else { return }
-                self.finishChatResponse(messageID: messageID)
+                self.finishChatResponse(messageID: messageID, modelID: modelId, providerID: selectedProvider.rawValue)
                 metrics.mark(.responseCompleted)
                 metrics.logSummary(modelName: modelId)
             } catch {
@@ -673,7 +679,9 @@ public final class AssistManager: ObservableObject {
                 self.finishChatResponse(
                     messageID: messageID,
                     error: error.localizedDescription,
-                    timedOut: error is AssistRequestTimeoutError
+                    timedOut: error is AssistRequestTimeoutError,
+                    modelID: modelId,
+                    providerID: selectedProvider.rawValue
                 )
                 metrics.mark(.responseCompleted)
                 metrics.logSummary(modelName: modelId)
@@ -696,7 +704,9 @@ public final class AssistManager: ObservableObject {
                     self?.finishChatResponse(
                         messageID: messageID,
                         error: AssistRequestTimeoutError.timedOut(180).localizedDescription,
-                        timedOut: true
+                        timedOut: true,
+                        modelID: modelId,
+                        providerID: self?.selectedProvider.rawValue
                     )
                 }
                 return
@@ -746,7 +756,7 @@ public final class AssistManager: ObservableObject {
         setRequestPhase(.receivingResponse)
     }
 
-    private func finishChatResponse(messageID: UUID, error: String? = nil, timedOut: Bool = false) {
+    private func finishChatResponse(messageID: UUID, error: String? = nil, timedOut: Bool = false, modelID: String? = nil, providerID: String? = nil, tokenUsage: AssistTokenUsage? = nil) {
         if let error {
             lastError = "AI request failed: \(error)"
             messages.append(AssistMessage(role: .system, content: lastError ?? "AI request failed."))
@@ -754,11 +764,57 @@ public final class AssistManager: ObservableObject {
         if let index = messages.firstIndex(where: { $0.id == messageID }), messages[index].content.isEmpty, error != nil {
             messages.remove(at: index)
         }
+        attributeFinishedMessage(messageID: messageID, modelID: modelID, providerID: providerID, tokenUsage: tokenUsage)
         isProcessing = false
         // Terminal state: the request is over and the UI must not show a
         // spinner for it anymore.
         setRequestPhase(timedOut ? .timedOut : (error != nil ? .failed : .completed))
         saveHistory()
+    }
+
+    // MARK: - Turn Attribution (model / provider / token usage)
+
+    /// Resolves the model/provider that actually minted a turn. A router
+    /// failover during the turn replaces the settings-selected model, so the
+    /// most recent failover since the turn started wins; otherwise the
+    /// requested model/provider is reported as-is.
+    private func resolvedTurnModel(
+        fallbackModelID: String?,
+        fallbackProviderID: String?,
+        turnStart: Date?
+    ) -> (modelID: String?, providerID: String?) {
+        let history = AssistModelRouter.shared.failoverHistory
+        let relevant: [ModelFailoverEvent]
+        if let turnStart {
+            relevant = history.filter { $0.timestamp >= turnStart }
+        } else {
+            relevant = history
+        }
+        if let last = relevant.last {
+            return (last.newModelID, last.newProviderID)
+        }
+        return (fallbackModelID, fallbackProviderID)
+    }
+
+    /// Records model/provider/token-usage attribution on a finished assistant
+    /// message, using the real model when a failover happened mid-turn.
+    /// No-op when the message no longer exists (e.g. removed empty error turn).
+    private func attributeFinishedMessage(
+        messageID: UUID,
+        modelID: String?,
+        providerID: String?,
+        tokenUsage: AssistTokenUsage?
+    ) {
+        guard let index = messages.firstIndex(where: { $0.id == messageID }) else { return }
+        var message = messages[index]
+        let turnStart = requestMetricsByMessageID[messageID]?.messageSubmitted
+        let resolved = resolvedTurnModel(fallbackModelID: modelID, fallbackProviderID: providerID, turnStart: turnStart)
+        message.modelId = resolved.modelID
+        if let provider = resolved.providerID ?? message.providerID {
+            message.providerID = provider
+        }
+        message.tokenUsage = tokenUsage
+        messages[index] = message
     }
 
     // MARK: - Message Queue System
@@ -977,6 +1033,7 @@ public final class AssistManager: ObservableObject {
         }
 
         messages.removeAll()
+        requestMetricsByMessageID.removeAll()
         modelContext = []
         contextPressure = nil
         contextEngine = nil
@@ -1112,6 +1169,9 @@ public final class AssistManager: ObservableObject {
         }
 
         let messageID = await MainActor.run { self.messages.last?.id }
+        if let messageID {
+            await MainActor.run { self.requestMetricsByMessageID[messageID] = metrics }
+        }
 
         let task = Task {
             defer {
@@ -1156,6 +1216,22 @@ public final class AssistManager: ObservableObject {
 
                 await MainActor.run {
                     guard generation == self.currentGeneration else { return }
+                    if let messageID {
+                        let metaModelID: String
+                        if AppSettings.shared.otherModelsWithMetaSDK || AppSettings.shared.swiftCodeCloudWithMetaSDK {
+                            metaModelID = MuseOtherModelsBridge.shared.resolveActiveModel().modelID
+                        } else {
+                            metaModelID = AppSettings.shared.metaAssistModelID.isEmpty
+                                ? MetaAssistProvider.defaultModelID
+                                : AppSettings.shared.metaAssistModelID
+                        }
+                        self.attributeFinishedMessage(
+                            messageID: messageID,
+                            modelID: metaModelID,
+                            providerID: MetaAssistProvider.providerID,
+                            tokenUsage: nil
+                        )
+                    }
                     self.setRequestPhase(.completed)
                     self.saveHistory()
                 }
@@ -1479,6 +1555,9 @@ public final class AssistManager: ObservableObject {
             var initialMsg = AssistMessage(role: .assistant, content: "")
             initialMsg.activityGroup = initialActivity
             self.messages.append(initialMsg)
+            if let lastID = self.messages.last?.id {
+                self.requestMetricsByMessageID[lastID] = metrics
+            }
             self.saveHistory()
         }
 
@@ -1659,7 +1738,7 @@ public final class AssistManager: ObservableObject {
                         case .workerFailed(_, let workerId, let error):
                             self.reportWorkerFailed(workerId: workerId, error: error)
 
-                        case .agentCompleted(_, let response, _, _):
+                        case .agentCompleted(_, let response, _, let sdkUsage):
                             metrics?.mark(.responseCompleted)
                             metrics?.logSummary()
 
@@ -1712,6 +1791,19 @@ public final class AssistManager: ObservableObject {
                             finalMessage.content = finalContent
                             self.messages[idx] = finalMessage
                             self.messages[idx].activityGroup?.isExecuting = false
+                            let turnTokenUsage = sdkUsage.map {
+                                AssistTokenUsage(
+                                    promptTokens: $0.promptTokens,
+                                    completionTokens: $0.completionTokens,
+                                    totalTokens: $0.totalTokens
+                                )
+                            }
+                            self.attributeFinishedMessage(
+                                messageID: self.messages[idx].id,
+                                modelID: self.activeGoogleCloudModelId ?? initialModelId,
+                                providerID: initialConfig.provider,
+                                tokenUsage: turnTokenUsage
+                            )
                             self.saveHistory()
                             self.setRequestPhase(.completed)
                             self.isProcessing = false

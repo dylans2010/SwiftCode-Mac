@@ -436,7 +436,8 @@ public final class AssistAgentSession: Sendable {
                 status: .running,
                 displayLabel: formatted.runningLabel,
                 completedLabel: formatted.completedLabel,
-                iconName: formatted.iconName
+                iconName: formatted.iconName,
+                argumentsSummary: ToolActivityItem.sanitizedArgumentsSummary(from: directInput)
             )
             currentActivityGroup.tools.append(toolItem)
             currentActivityGroup.isExecuting = true
@@ -559,7 +560,8 @@ public final class AssistAgentSession: Sendable {
                 status: .running,
                 displayLabel: formatted.runningLabel,
                 completedLabel: formatted.completedLabel,
-                iconName: formatted.iconName
+                iconName: formatted.iconName,
+                argumentsSummary: ToolActivityItem.sanitizedArgumentsSummary(from: explicit.suggestedInput)
             )
             currentActivityGroup.tools.append(toolItem)
             currentActivityGroup.isExecuting = true
@@ -995,12 +997,14 @@ public final class AssistAgentSession: Sendable {
                 currentActivityGroup.tools[toolActivityIndex].displayLabel = formatted.runningLabel
                 currentActivityGroup.tools[toolActivityIndex].completedLabel = formatted.completedLabel
                 currentActivityGroup.tools[toolActivityIndex].iconName = formatted.iconName
+                currentActivityGroup.tools[toolActivityIndex].argumentsSummary = ToolActivityItem.sanitizedArgumentsSummary(from: validatedInput)
             } else {
                 toolActivityIndex = currentActivityGroup.tools.count
                 currentActivityGroup.tools.append(ToolActivityItem(
                     toolId: toolId,
                     purpose: explanation,
-                    status: .running
+                    status: .running,
+                    argumentsSummary: ToolActivityItem.sanitizedArgumentsSummary(from: validatedInput)
                 ))
             }
             AssistManager.shared.currentActivityStatus = AssistToolActivityFormatter.format(toolId: toolId, arguments: validatedInput).runningLabel
@@ -1203,7 +1207,12 @@ public final class AssistAgentSession: Sendable {
         let path = input["path"] ?? input["filepath"] ?? input["target"] ?? "Unknown"
         let reason = explanation.isEmpty ? "Requested by task" : explanation
 
-        let activity = ToolActivityItem(toolId: toolId, purpose: reason, result: String(output.prefix(200)))
+        let activity = ToolActivityItem(
+            toolId: toolId,
+            purpose: reason,
+            result: String(output.prefix(200)),
+            argumentsSummary: ToolActivityItem.sanitizedArgumentsSummary(from: input)
+        )
         state.changeSummary.toolActivities.append(activity)
 
         switch toolId {

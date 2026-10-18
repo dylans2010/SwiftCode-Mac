@@ -23,7 +23,7 @@ public struct AssistSearchTool: AssistTool {
 
     public func execute(input: [String: Any], context: AssistContext) async throws -> AssistToolResult {
         guard let pattern = input["pattern"] as? String else {
-            return .failure("Missing required parameter: pattern")
+            return .failure("Missing required parameter: pattern", code: .missingArgument)
         }
 
         do {
@@ -35,7 +35,7 @@ public struct AssistSearchTool: AssistTool {
 
             return .success("Search results for '\(pattern)':", data: ["results": formattedResults])
         } catch {
-            return .failure("Search failed: \(error.localizedDescription)")
+            return .failure("Search failed: \(error.localizedDescription)", code: .executionFailed)
         }
     }
 }

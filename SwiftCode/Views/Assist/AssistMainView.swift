@@ -1792,9 +1792,11 @@ private struct AssistMessageActionBar: View {
     let message: AssistMessage
     @ObservedObject private var manager = AssistManager.shared
     @State private var isCopied: Bool = false
+    @State private var didThumbsUp: Bool = false
     @State private var isGeneratingFeedback: Bool = false
     @State private var generatedFeedbackURL: URL? = nil
     @State private var feedbackError: String? = nil
+    @State private var showFeedbackSheet: Bool = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
@@ -1804,6 +1806,7 @@ private struct AssistMessageActionBar: View {
                     let pasteboard = NSPasteboard.general
                     pasteboard.clearContents()
                     pasteboard.setString(message.content, forType: .string)
+                    AssistUserActionLog.record(.copied(messageID: message.id))
                     withAnimation(.easeInOut(duration: 0.2)) {
                         isCopied = true
                     }
@@ -1846,9 +1849,36 @@ private struct AssistMessageActionBar: View {
                 .disabled(manager.isProcessing)
                 .help("Regenerate response from preceding user prompt")
 
-                // Feedback Button
+                // Thumbs-up Button (positive feedback — no package generated)
                 Button {
-                    generateFeedback()
+                    AssistUserActionLog.record(.positiveFeedback(messageID: message.id))
+                    AssistFeedbackService.appendPositiveFeedbackEntry(messageID: message.id, modelId: message.modelId)
+                    withAnimation(.easeInOut(duration: 0.2)) {
+                        didThumbsUp = true
+                    }
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
+                        withAnimation(.easeInOut(duration: 0.2)) {
+                            didThumbsUp = false
+                        }
+                    }
+                } label: {
+                    HStack(spacing: 4) {
+                        Image(systemName: didThumbsUp ? "hand.thumbsup.fill" : "hand.thumbsup")
+                            .font(.system(size: 10, weight: .semibold))
+                        Text("Helpful")
+                            .font(.system(size: 11, weight: .medium))
+                    }
+                    .foregroundStyle(didThumbsUp ? Color.green : Color.secondary)
+                    .padding(.horizontal, 7)
+                    .padding(.vertical, 3.5)
+                    .background(Color.secondary.opacity(0.08), in: RoundedRectangle(cornerRadius: 5))
+                }
+                .buttonStyle(.plain)
+                .help("Mark this response as helpful")
+
+                // Feedback Button (thumbs-down: opens the feedback sheet)
+                Button {
+                    showFeedbackSheet = true
                 } label: {
                     HStack(spacing: 4) {
                         Image(systemName: "hand.thumbsdown")
@@ -1911,34 +1941,57 @@ private struct AssistMessageActionBar: View {
             }
         }
         .padding(.top, 4)
+        .sheet(isPresented: $showFeedbackSheet) {
+            AssistFeedbackSheet(message: message) { category, comment, severity in
+                submitFeedback(category: category, comment: comment, severity: severity)
+            }
+        }
     }
 
     private func retryMessage() {
         guard !manager.isProcessing else { return }
+        let retriedID = message.id
+        let priorRegenerationCount = message.regenerationCount
         if let index = manager.messages.firstIndex(where: { $0.id == message.id }) {
             let previousMessages = manager.messages[..<index]
             if let lastUserMessage = previousMessages.last(where: { $0.role == .user }) {
+                AssistUserActionLog.record(.retryRequested(messageID: retriedID))
                 Task {
+                    let knownIDs = Set(manager.messages.map { $0.id })
                     await manager.sendMessage(
                         lastUserMessage.content,
                         attachments: lastUserMessage.attachments ?? [],
                         envelope: lastUserMessage.envelope
                     )
+                    await MainActor.run {
+                        if let newMessage = manager.messages.last(where: { $0.role == .assistant && !knownIDs.contains($0.id) }),
+                           let newIndex = manager.messages.firstIndex(where: { $0.id == newMessage.id }) {
+                            var updated = manager.messages[newIndex]
+                            updated.retryOfMessageID = retriedID
+                            updated.regenerationCount = priorRegenerationCount + 1
+                            manager.messages[newIndex] = updated
+                        }
+                    }
                 }
             }
         }
     }
 
-    private func generateFeedback() {
+    private func submitFeedback(category: String, comment: String, severity: String) {
+        AssistUserActionLog.record(.negativeFeedback(messageID: message.id))
         isGeneratingFeedback = true
         feedbackError = nil
         generatedFeedbackURL = nil
 
+        let trimmedComment = comment.trimmingCharacters(in: .whitespacesAndNewlines)
+        let reason = "User feedback: \(category) (severity: \(severity))"
         Task {
             do {
                 let packageURL = try await AssistFeedbackService.shared.generateFeedbackPackage(
                     for: message,
-                    reason: "User clicked Feedback on assistant response"
+                    reason: reason,
+                    reasonCategory: category,
+                    userComment: trimmedComment.isEmpty ? nil : trimmedComment
                 )
                 await MainActor.run {
                     self.generatedFeedbackURL = packageURL
@@ -1951,6 +2004,104 @@ private struct AssistMessageActionBar: View {
                 }
             }
         }
+    }
+}
+
+// MARK: - Assist Feedback Sheet (thumbs-down: category + comment + severity)
+
+private struct AssistFeedbackSheet: View {
+    let message: AssistMessage
+    var onSubmit: (String, String, String) -> Void
+
+    @State private var selectedCategory: String = "Wrong code"
+    @State private var comment: String = ""
+    @State private var severity: String = "annoying"
+    @Environment(\.dismiss) private var dismiss
+
+    static let categories = [
+        "Wrong code",
+        "Hallucinated API",
+        "Incomplete or truncated",
+        "Too slow",
+        "Tool failure",
+        "Refused or apologized",
+        "Bad formatting",
+        "Other"
+    ]
+    static let severities = ["mild", "annoying", "blocking"]
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Report a problem with this response")
+                .font(.headline)
+
+            Text("What went wrong?")
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+
+            VStack(alignment: .leading, spacing: 2) {
+                ForEach(Self.categories, id: \.self) { category in
+                    Button {
+                        selectedCategory = category
+                    } label: {
+                        HStack {
+                            Text(category)
+                                .font(.system(size: 13))
+                                .foregroundStyle(.primary)
+                            Spacer()
+                            if selectedCategory == category {
+                                Image(systemName: "checkmark")
+                                    .font(.system(size: 12, weight: .semibold))
+                                    .foregroundStyle(Color.accentColor)
+                            }
+                        }
+                        .padding(.horizontal, 10)
+                        .padding(.vertical, 6)
+                        .background(
+                            selectedCategory == category
+                                ? Color.accentColor.opacity(0.12)
+                                : Color.secondary.opacity(0.06),
+                            in: RoundedRectangle(cornerRadius: 6)
+                        )
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+
+            Text("Severity")
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+            Picker("Severity", selection: $severity) {
+                ForEach(Self.severities, id: \.self) { level in
+                    Text(level.capitalized).tag(level)
+                }
+            }
+            .pickerStyle(.segmented)
+
+            Text("Comment (optional)")
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+            TextField("Add details about what went wrong…", text: $comment)
+                .textFieldStyle(.roundedBorder)
+                .font(.system(size: 13))
+
+            HStack {
+                Spacer()
+                Button("Cancel") {
+                    dismiss()
+                }
+                .buttonStyle(.plain)
+                .foregroundStyle(.secondary)
+                Button("Send Feedback") {
+                    onSubmit(selectedCategory, comment, severity)
+                    dismiss()
+                }
+                .buttonStyle(.borderedProminent)
+            }
+            .padding(.top, 4)
+        }
+        .padding(20)
+        .frame(width: 380)
     }
 }
 

@@ -9,6 +9,52 @@ import Foundation
 import AppKit
 import os
 
+// MARK: - Assist User Action Log
+
+/// Static, in-memory log of explicit user actions on Assist messages (copies,
+/// retries, feedback votes, artifact opens). Any view can record without an
+/// instance; the feedback package serializes the events into `user_actions.json`.
+@MainActor
+public enum AssistUserActionLog {
+    public enum AssistUserAction: Sendable {
+        case copied(messageID: UUID)
+        case retryRequested(messageID: UUID)
+        case artifactOpened(artifactID: UUID, title: String)
+        case editApplied(messageID: UUID)
+        case positiveFeedback(messageID: UUID)
+        case negativeFeedback(messageID: UUID)
+    }
+
+    private static var recordedEvents: [(action: AssistUserAction, recordedAt: Date)] = []
+
+    public static func record(_ action: AssistUserAction) {
+        recordedEvents.append((action, Date()))
+    }
+
+    public static func events() -> [AssistUserAction] {
+        recordedEvents.map { $0.action }
+    }
+
+    public static func reset() {
+        recordedEvents.removeAll()
+    }
+
+    /// Timestamped events for the feedback pipeline's `user_actions.json` and
+    /// retry-outcome correlation.
+    static func datedEvents() -> [(action: AssistUserAction, recordedAt: Date)] {
+        recordedEvents
+    }
+}
+
+// MARK: - Feedback Package Mode
+
+/// Feedback package generation mode: `.full` writes the complete diagnostic
+/// set; `.quick` writes only the essential triage files.
+public enum FeedbackPackageMode: String, Codable, Sendable {
+    case quick
+    case full
+}
+
 /// Dedicated diagnostic service that collects and compiles rich telemetry, execution logs,
 /// fine-tuning records, system asset audits, and session data into an organized "Feedback Info"
 /// directory with separate JSON files whenever a user reports dissatisfaction with an Assist response.
@@ -39,16 +85,22 @@ public final class AssistFeedbackService: ObservableObject {
     /// - Parameters:
     ///   - message: The specific AssistMessage the user clicked Feedback on (or nil for general feedback).
     ///   - reason: Optional user-provided reason or notes.
+    ///   - reasonCategory: Structured feedback category (e.g. "Wrong code") chosen in the feedback sheet.
+    ///   - userComment: Optional free-text comment from the feedback sheet.
+    ///   - mode: `.full` (default) writes the complete diagnostic set; `.quick` writes triage essentials only.
     /// - Returns: The URL to the newly created feedback package folder.
     public func generateFeedbackPackage(
         for message: AssistMessage? = nil,
-        reason: String? = nil
+        reason: String? = nil,
+        reasonCategory: String? = nil,
+        userComment: String? = nil,
+        mode: FeedbackPackageMode = .full
     ) async throws -> URL {
         isGenerating = true
         lastErrorMessage = nil
         defer { isGenerating = false }
 
-        logger.info("Starting Feedback Info diagnostic package generation...")
+        logger.info("Starting Feedback Info diagnostic package generation (mode: \(mode.rawValue))...")
 
         // Brief smooth loading delay so user sees visual progress
         try? await Task.sleep(nanoseconds: 350_000_000)
@@ -71,116 +123,146 @@ public final class AssistFeedbackService: ObservableObject {
             generatedFiles.append(filename)
         }
 
-        // 1. codebase_info.json
-        try saveAndRecord(collectCodebaseInfo(), filename: "codebase_info.json")
+        let isQuick = (mode == .quick)
 
-        // 2. user_requests.json
-        try saveAndRecord(collectUserRequests(from: messages), filename: "user_requests.json")
+        if isQuick {
+            // Quick mode: triage essentials only (flagged turn ±2 for the transcription).
+            try saveAndRecord(collectFeedbackMetadata(message: message, reason: reason, reasonCategory: reasonCategory, userComment: userComment, mode: mode), filename: "feedback_metadata.json")
+            try saveAndRecord(collectConversationMetadata(messages: messages, activeConvId: activeConvId, message: message), filename: "conversation_metadata.json")
+            try saveAndRecord(collectFullTranscription(from: messages, centeredOn: message, window: 2), filename: "full_transcription.json")
+            try saveAndRecord(collectTurnTelemetry(from: messages), filename: "turn_telemetry.json")
+            try saveAndRecord(collectToolCalls(from: messages), filename: "tool_calls.json")
+            try saveAndRecord(collectErrorDiagnostics(from: messages), filename: "error_diagnostics.json")
+        } else {
+            // 1. codebase_info.json
+            try saveAndRecord(collectCodebaseInfo(), filename: "codebase_info.json")
 
-        // 3. full_transcription.json
-        try saveAndRecord(collectFullTranscription(from: messages), filename: "full_transcription.json")
+            // 2. user_requests.json
+            try saveAndRecord(collectUserRequests(from: messages), filename: "user_requests.json")
 
-        // 4. tool_calls.json
-        try saveAndRecord(collectToolCalls(from: messages), filename: "tool_calls.json")
+            // 3. full_transcription.json
+            try saveAndRecord(collectFullTranscription(from: messages), filename: "full_transcription.json")
 
-        // 5. tool_metrics.json
-        try saveAndRecord(collectToolMetrics(from: messages), filename: "tool_metrics.json")
+            // 4. tool_calls.json
+            try saveAndRecord(collectToolCalls(from: messages), filename: "tool_calls.json")
 
-        // 6. assist_settings.json
-        try saveAndRecord(collectSettingsInfo(), filename: "assist_settings.json")
+            // 5. tool_metrics.json
+            try saveAndRecord(collectToolMetrics(from: messages), filename: "tool_metrics.json")
 
-        // 7. model_telemetry.json
-        try saveAndRecord(collectModelTelemetry(from: messages), filename: "model_telemetry.json")
+            // 6. assist_settings.json
+            try saveAndRecord(collectSettingsInfo(), filename: "assist_settings.json")
 
-        // 8. system_environment.json
-        try saveAndRecord(collectSystemEnvironment(), filename: "system_environment.json")
+            // 7. model_telemetry.json
+            try saveAndRecord(collectModelTelemetry(from: messages), filename: "model_telemetry.json")
 
-        // 9. error_diagnostics.json
-        try saveAndRecord(collectErrorDiagnostics(from: messages), filename: "error_diagnostics.json")
+            // 8. system_environment.json
+            try saveAndRecord(collectSystemEnvironment(), filename: "system_environment.json")
 
-        // 10. conversation_metadata.json
-        try saveAndRecord(collectConversationMetadata(messages: messages, activeConvId: activeConvId, message: message), filename: "conversation_metadata.json")
+            // 9. error_diagnostics.json
+            try saveAndRecord(collectErrorDiagnostics(from: messages), filename: "error_diagnostics.json")
 
-        // 11. feedback_metadata.json
-        try saveAndRecord(collectFeedbackMetadata(message: message, reason: reason), filename: "feedback_metadata.json")
+            // 10. conversation_metadata.json
+            try saveAndRecord(collectConversationMetadata(messages: messages, activeConvId: activeConvId, message: message), filename: "conversation_metadata.json")
 
-        // 12. fine_tuning_pairs.json (RLHF/SFT training-ready conversational dataset)
-        try saveAndRecord(collectFineTuningPairs(messages: messages, flaggedMessage: message, reason: reason), filename: "fine_tuning_pairs.json")
+            // 11. feedback_metadata.json
+            try saveAndRecord(collectFeedbackMetadata(message: message, reason: reason, reasonCategory: reasonCategory, userComment: userComment, mode: mode), filename: "feedback_metadata.json")
 
-        // 13. dpo_preference_dataset.json (Direct Preference Optimization dataset with rejected responses)
-        try saveAndRecord(collectDPOPreferenceDataset(messages: messages, flaggedMessage: message, reason: reason), filename: "dpo_preference_dataset.json")
+            // 12. fine_tuning_pairs.json (RLHF/SFT training-ready conversational dataset)
+            try saveAndRecord(collectFineTuningPairs(messages: messages, flaggedMessage: message, reason: reason), filename: "fine_tuning_pairs.json")
 
-        // 14. negative_feedback_analysis.json (Deep failure taxonomy & root cause classification)
-        try saveAndRecord(collectNegativeFeedbackAnalysis(flaggedMessage: message, reason: reason), filename: "negative_feedback_analysis.json")
+            // 13. dpo_preference_dataset.json (Direct Preference Optimization dataset with rejected responses)
+            try saveAndRecord(collectDPOPreferenceDataset(messages: messages, flaggedMessage: message, reason: reason), filename: "dpo_preference_dataset.json")
 
-        // 15. active_skills.json
-        try saveAndRecord(collectActiveSkills(), filename: "active_skills.json")
+            // 14. negative_feedback_analysis.json (Deep failure taxonomy & root cause classification)
+            try saveAndRecord(collectNegativeFeedbackAnalysis(flaggedMessage: message, reason: reason), filename: "negative_feedback_analysis.json")
 
-        // 16. developer_memory.json
-        try saveAndRecord(collectDeveloperMemory(), filename: "developer_memory.json")
+            // 15. active_skills.json
+            try saveAndRecord(collectActiveSkills(), filename: "active_skills.json")
 
-        // 17. tasks_execution_plan.json
-        try saveAndRecord(collectTasksExecutionPlan(), filename: "tasks_execution_plan.json")
+            // 16. developer_memory.json
+            try saveAndRecord(collectDeveloperMemory(), filename: "developer_memory.json")
 
-        // 18. phase_coordinator_state.json (All 55+ standard engineering phases and runtime state)
-        try saveAndRecord(collectPhaseCoordinatorState(), filename: "phase_coordinator_state.json")
+            // 17. tasks_execution_plan.json
+            try saveAndRecord(collectTasksExecutionPlan(), filename: "tasks_execution_plan.json")
 
-        // 19. agent_context_state.json (Model context window, compaction, tokens, pressure)
-        try saveAndRecord(collectAgentContextState(), filename: "agent_context_state.json")
+            // 18. phase_coordinator_state.json (All 55+ standard engineering phases and runtime state)
+            try saveAndRecord(collectPhaseCoordinatorState(), filename: "phase_coordinator_state.json")
 
-        // 20. system_assets_manifest.json (All 24 bundled System Asset instruction files)
-        try saveAndRecord(collectSystemAssetsManifest(), filename: "system_assets_manifest.json")
+            // 19. agent_context_state.json (Model context window, compaction, tokens, pressure)
+            try saveAndRecord(collectAgentContextState(), filename: "agent_context_state.json")
 
-        // 21. system_assets_retrieval_ledger.json (SystemIndex retrieval ledger & status)
-        try saveAndRecord(await collectSystemAssetsRetrievalLedger(), filename: "system_assets_retrieval_ledger.json")
+            // 20. system_assets_manifest.json (All 24 bundled System Asset instruction files)
+            try saveAndRecord(collectSystemAssetsManifest(), filename: "system_assets_manifest.json")
 
-        // 22. system_assets_coverage_audit.json (Audit of System Assets coverage and fine-tuning recommendations)
-        try saveAndRecord(collectSystemAssetsCoverageAudit(messages: messages), filename: "system_assets_coverage_audit.json")
+            // 21. system_assets_retrieval_ledger.json (SystemIndex retrieval ledger & status)
+            try saveAndRecord(await collectSystemAssetsRetrievalLedger(), filename: "system_assets_retrieval_ledger.json")
 
-        // 23. code_editor_context.json
-        try saveAndRecord(collectCodeEditorContext(), filename: "code_editor_context.json")
+            // 22. system_assets_coverage_audit.json (Audit of System Assets coverage and fine-tuning recommendations)
+            try saveAndRecord(collectSystemAssetsCoverageAudit(messages: messages), filename: "system_assets_coverage_audit.json")
 
-        // 24. runtime_performance_metrics.json (Execution latencies, thinking durations, averages)
-        try saveAndRecord(collectPerformanceMetrics(from: messages), filename: "runtime_performance_metrics.json")
+            // 23. code_editor_context.json
+            try saveAndRecord(collectCodeEditorContext(), filename: "code_editor_context.json")
 
-        // 25. framework_diagnostics.json (Autonomous decision engine, takeover session, goal graph)
-        try saveAndRecord(collectFrameworkDiagnostics(), filename: "framework_diagnostics.json")
+            // 24. runtime_performance_metrics.json (Execution latencies, thinking durations, averages)
+            try saveAndRecord(collectPerformanceMetrics(from: messages), filename: "runtime_performance_metrics.json")
 
-        // 26. api_endpoint_telemetry.json (Routing paths, backend models, failovers, quarantines)
-        try saveAndRecord(collectApiEndpointTelemetry(), filename: "api_endpoint_telemetry.json")
+            // 25. framework_diagnostics.json (Autonomous decision engine, takeover session, goal graph)
+            try saveAndRecord(collectFrameworkDiagnostics(), filename: "framework_diagnostics.json")
 
-        // 27. diagnostic_events_log.json (Full chronological DiagnosticEventBus event stream)
-        try saveAndRecord(collectDiagnosticEvents(), filename: "diagnostic_events_log.json")
+            // 26. api_endpoint_telemetry.json (Routing paths, backend models, failovers, quarantines)
+            try saveAndRecord(collectApiEndpointTelemetry(), filename: "api_endpoint_telemetry.json")
 
-        // 28. alternative_keys_state.json (Alternative credential rotation status & cooldowns)
-        try saveAndRecord(collectAlternativeKeysState(), filename: "alternative_keys_state.json")
+            // 27. diagnostic_events_log.json (Full chronological DiagnosticEventBus event stream)
+            try saveAndRecord(collectDiagnosticEvents(), filename: "diagnostic_events_log.json")
 
-        // 29. terminal_execution_telemetry.json (Approval settings, policy, execution logs, exit codes)
-        try saveAndRecord(collectTerminalTelemetry(), filename: "terminal_execution_telemetry.json")
+            // 28. alternative_keys_state.json (Alternative credential rotation status & cooldowns)
+            try saveAndRecord(collectAlternativeKeysState(), filename: "alternative_keys_state.json")
 
-        // 30. prompt_enhancement_telemetry.json (Apple Foundation Models prompt rewrite telemetry)
-        try saveAndRecord(collectPromptEnhancementTelemetry(messages: messages), filename: "prompt_enhancement_telemetry.json")
+            // 29. terminal_execution_telemetry.json (Approval settings, policy, execution logs, exit codes)
+            try saveAndRecord(collectTerminalTelemetry(), filename: "terminal_execution_telemetry.json")
 
-        // 31. user_intent_classification.json (Intent classification & profile breakdown)
-        try saveAndRecord(collectUserIntentClassification(messages: messages), filename: "user_intent_classification.json")
+            // 30. prompt_enhancement_telemetry.json (Apple Foundation Models prompt rewrite telemetry)
+            try saveAndRecord(collectPromptEnhancementTelemetry(messages: messages), filename: "prompt_enhancement_telemetry.json")
 
-        // 32. tool_routing_policy_eval.json (Tool routing compliance audit against ToolRoutingPolicy.md)
-        try saveAndRecord(collectToolRoutingPolicyEval(messages: messages), filename: "tool_routing_policy_eval.json")
+            // 31. user_intent_classification.json (Intent classification & profile breakdown)
+            try saveAndRecord(collectUserIntentClassification(messages: messages), filename: "user_intent_classification.json")
 
-        // 33. git_state_snapshot.json (Real-time git status, branch, remotes)
-        try saveAndRecord(collectGitStateSnapshot(), filename: "git_state_snapshot.json")
+            // 32. tool_routing_policy_eval.json (Tool routing compliance audit against ToolRoutingPolicy.md)
+            try saveAndRecord(collectToolRoutingPolicyEval(messages: messages), filename: "tool_routing_policy_eval.json")
 
-        // 34. repository_instructions.json (Discovered root and nested AGENTS.md instructions)
-        try saveAndRecord(collectRepositoryInstructions(), filename: "repository_instructions.json")
+            // 33. git_state_snapshot.json (Real-time git status, branch, remotes)
+            try saveAndRecord(collectGitStateSnapshot(), filename: "git_state_snapshot.json")
 
-        // 35. conversation_memory_graph.json (Multi-turn memory records, inspected & modified files)
-        try saveAndRecord(collectConversationMemoryGraph(), filename: "conversation_memory_graph.json")
+            // 34. repository_instructions.json (Discovered root and nested AGENTS.md instructions)
+            try saveAndRecord(collectRepositoryInstructions(), filename: "repository_instructions.json")
 
-        // 36. verification_pipeline_diagnostics.json (Syntax checks, placeholders, conflict markers)
-        try saveAndRecord(collectVerificationPipelineDiagnostics(), filename: "verification_pipeline_diagnostics.json")
+            // 35. conversation_memory_graph.json (Multi-turn memory records, inspected & modified files)
+            try saveAndRecord(collectConversationMemoryGraph(), filename: "conversation_memory_graph.json")
 
-        // 37. feedback_index.json (Package manifest index listing all generated telemetry files)
-        try saveAndRecord(collectFeedbackIndex(fileNames: generatedFiles, folderName: folderName), filename: "feedback_index.json")
+            // 36. verification_pipeline_diagnostics.json (Syntax checks, placeholders, conflict markers)
+            try saveAndRecord(collectVerificationPipelineDiagnostics(), filename: "verification_pipeline_diagnostics.json")
+
+            // 37. turn_telemetry.json (Per-turn model/provider/token-usage/request-metrics telemetry)
+            try saveAndRecord(collectTurnTelemetry(from: messages), filename: "turn_telemetry.json")
+
+            // 38. retry_outcomes.json (Regenerations and whether they followed user feedback)
+            try saveAndRecord(collectRetryOutcomes(from: messages), filename: "retry_outcomes.json")
+
+            // 39. user_actions.json (In-session user action log: copies, retries, votes, artifact opens)
+            try saveAndRecord(collectUserActions(), filename: "user_actions.json")
+
+            // 40. artifacts_linked.json (Artifacts created this session with source message linkage)
+            try saveAndRecord(collectArtifactsLinked(), filename: "artifacts_linked.json")
+
+            // 41. tool_schemas_snapshot.json (Parameter schemas for every tool invoked this session)
+            try saveAndRecord(collectToolSchemasSnapshot(from: messages), filename: "tool_schemas_snapshot.json")
+        }
+
+        // Privacy notice ships with every package (not counted as a JSON telemetry file).
+        try savePrivacyNotice(to: packageURL)
+
+        // feedback_index.json (Package manifest index listing all generated telemetry files — always last)
+        try saveAndRecord(collectFeedbackIndex(fileNames: generatedFiles, folderName: folderName, mode: mode), filename: "feedback_index.json")
 
         self.lastGeneratedURL = packageURL
         logger.info("Successfully generated Feedback Info package at: \(packageURL.path) with \(generatedFiles.count) JSON telemetry files.")
@@ -195,8 +277,92 @@ public final class AssistFeedbackService: ObservableObject {
     // MARK: - Private JSON Persistence Helper
 
     private func saveJSON(_ object: Any, to fileURL: URL) throws {
-        let data = try JSONSerialization.data(withJSONObject: object, options: [.prettyPrinted, .sortedKeys])
+        let redacted = redactForPrivacy(object)
+        let data = try JSONSerialization.data(withJSONObject: redacted, options: [.prettyPrinted, .sortedKeys])
         try data.write(to: fileURL, options: .atomic)
+    }
+
+    /// Privacy redaction pass applied to every object before it is written to
+    /// a feedback package: string values under credential-shaped keys
+    /// (`token`, `secret`, `password`, `key`, `auth` — case-insensitive) are
+    /// replaced with `<redacted>`, and occurrences of the user's home
+    /// directory path in any string collapse to `~`.
+    private func redactForPrivacy(_ value: Any) -> Any {
+        if let dict = value as? [String: Any] {
+            var redacted: [String: Any] = [:]
+            for (key, nested) in dict {
+                let loweredKey = key.lowercased()
+                let isCredentialKey = ["token", "secret", "password", "key", "auth"].contains(where: { loweredKey.contains($0) })
+                if isCredentialKey, nested is String {
+                    redacted[key] = "<redacted>"
+                } else {
+                    redacted[key] = redactForPrivacy(nested)
+                }
+            }
+            return redacted
+        }
+        if let array = value as? [Any] {
+            return array.map { redactForPrivacy($0) }
+        }
+        if let string = value as? String {
+            let homePath = FileManager.default.homeDirectoryForCurrentUser.path
+            if !homePath.isEmpty, string.contains(homePath) {
+                return string.replacingOccurrences(of: homePath, with: "~")
+            }
+            return string
+        }
+        return value
+    }
+
+    /// Writes the privacy notice shipped with every feedback package.
+    private func savePrivacyNotice(to packageURL: URL) throws {
+        let notice = """
+        ASSIST FEEDBACK PACKAGE — PRIVACY NOTICE
+        ========================================
+
+        This package contains the FULL TEXT of your Assist conversation in this
+        session (user prompts, assistant responses, tool inputs/outputs, file
+        paths, and error details), plus diagnostic telemetry about models,
+        tools, and system state.
+
+        Before sharing this package with anyone (including the SwiftCode
+        developers):
+
+        1. Open the JSON files and search for anything you would not want
+           shared: passwords, API keys, tokens, private file contents,
+           customer data, or internal project details.
+        2. Credential-shaped values are automatically replaced with
+           "<redacted>" and your home directory path is collapsed to "~",
+           but automatic redaction cannot catch everything — review manually.
+        3. Delete any file you are uncomfortable sharing, or redact the
+           sensitive portions before sending.
+        4. Share only through a channel you trust, and prefer private
+           support threads over public forums.
+
+        Generated: \(ISO8601DateFormatter().string(from: Date()))
+        """
+        try notice.write(to: packageURL.appendingPathComponent("privacy_notice.txt"), atomically: true, encoding: .utf8)
+    }
+
+    /// Appends a single-line JSON record to `positive_feedback.jsonl` in the
+    /// Feedback Info root. Used by the thumbs-up action — no package is generated.
+    public static func appendPositiveFeedbackEntry(messageID: UUID, modelId: String?) {
+        let url = shared.feedbackInfoRootDirectory.appendingPathComponent("positive_feedback.jsonl")
+        let entry: [String: Any] = [
+            "messageID": messageID.uuidString,
+            "modelId": modelId ?? "unknown",
+            "timestamp": ISO8601DateFormatter().string(from: Date())
+        ]
+        guard let data = try? JSONSerialization.data(withJSONObject: entry),
+              let line = String(data: data, encoding: .utf8),
+              let lineData = (line + "\n").data(using: .utf8) else { return }
+        if let existing = try? Data(contentsOf: url) {
+            var combined = existing
+            combined.append(lineData)
+            try? combined.write(to: url, options: .atomic)
+        } else {
+            try? lineData.write(to: url, options: .atomic)
+        }
     }
 
     // MARK: - Data Collectors
@@ -249,8 +415,16 @@ public final class AssistFeedbackService: ObservableObject {
         }
     }
 
-    private func collectFullTranscription(from messages: [AssistMessage]) -> [[String: Any]] {
-        messages.map { msg -> [String: Any] in
+    private func collectFullTranscription(from messages: [AssistMessage], centeredOn flagged: AssistMessage? = nil, window: Int? = nil) -> [[String: Any]] {
+        let visible: [AssistMessage]
+        if let flagged, let window, let flaggedIndex = messages.firstIndex(where: { $0.id == flagged.id }) {
+            let lower = max(0, flaggedIndex - window)
+            let upper = min(messages.count, flaggedIndex + window + 1)
+            visible = Array(messages[lower..<upper])
+        } else {
+            visible = messages
+        }
+        return visible.map { msg -> [String: Any] in
             var dict: [String: Any] = [
                 "id": msg.id.uuidString,
                 "role": msg.role.rawValue,
@@ -263,6 +437,21 @@ public final class AssistFeedbackService: ObservableObject {
                 "thinkingDuration": msg.thinkingDuration ?? 0,
                 "noticeLevel": msg.noticeLevel?.rawValue ?? "none"
             ]
+            if msg.role == .assistant {
+                dict["modelId"] = msg.modelId ?? "unknown"
+                dict["providerID"] = msg.providerID ?? "unknown"
+                if let usage = msg.tokenUsage {
+                    dict["tokenUsage"] = [
+                        "promptTokens": usage.promptTokens,
+                        "completionTokens": usage.completionTokens,
+                        "totalTokens": usage.totalTokens
+                    ]
+                }
+                if let retryOf = msg.retryOfMessageID {
+                    dict["retryOfMessageID"] = retryOf.uuidString
+                }
+                dict["regenerationCount"] = msg.regenerationCount
+            }
             if let serverErr = msg.serverError {
                 dict["serverErrorEndpoint"] = serverErr.endpoint
                 dict["serverErrorStatus"] = serverErr.statusCode
@@ -281,7 +470,7 @@ public final class AssistFeedbackService: ObservableObject {
         for msg in messages {
             if let group = msg.activityGroup {
                 for tool in group.tools {
-                    allTools.append([
+                    var entry: [String: Any] = [
                         "sequenceIndex": sequence,
                         "toolId": tool.toolId,
                         "purpose": tool.purpose,
@@ -291,7 +480,11 @@ public final class AssistFeedbackService: ObservableObject {
                         "resultLength": tool.result.count,
                         "timestamp": ISO8601DateFormatter().string(from: tool.timestamp),
                         "messageId": msg.id.uuidString
-                    ])
+                    ]
+                    if let summary = tool.argumentsSummary, !summary.isEmpty {
+                        entry["argumentsSummary"] = summary
+                    }
+                    allTools.append(entry)
                     sequence += 1
                 }
             }
@@ -480,13 +673,17 @@ public final class AssistFeedbackService: ObservableObject {
         ]
     }
 
-    private func collectFeedbackMetadata(message: AssistMessage?, reason: String?) -> [String: Any] {
+    private func collectFeedbackMetadata(message: AssistMessage?, reason: String?, reasonCategory: String?, userComment: String?, mode: FeedbackPackageMode) -> [String: Any] {
         [
             "feedbackId": UUID().uuidString,
             "createdAt": ISO8601DateFormatter().string(from: Date()),
             "targetedMessageId": message?.id.uuidString ?? "none",
             "targetedMessagePreview": String(message?.content.prefix(300) ?? ""),
             "userReason": reason ?? "User clicked Feedback on Assist response",
+            "reasonCategory": reasonCategory ?? "none",
+            "userComment": userComment ?? "",
+            "packageMode": mode.rawValue,
+            "appVersion": Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.0",
             "status": "dissatisfied_response_flagged",
             "suggestedAction": "Inspect response against system instructions and consider System Assets prompt refinement or fine-tuning adjustment"
         ]
@@ -1103,21 +1300,212 @@ public final class AssistFeedbackService: ObservableObject {
         ]
     }
 
-    private func collectFeedbackIndex(fileNames: [String], folderName: String) -> [String: Any] {
+    private func collectFeedbackIndex(fileNames: [String], folderName: String, mode: FeedbackPackageMode) -> [String: Any] {
         [
             "package": folderName,
             "generatedAt": ISO8601DateFormatter().string(from: Date()),
+            "packageMode": mode.rawValue,
             "totalJsonFiles": fileNames.count,
             "files": fileNames,
+            "privacyNotice": "privacy_notice.txt",
             "categories": [
                 "codebase": ["codebase_info.json", "code_editor_context.json", "git_state_snapshot.json", "repository_instructions.json"],
-                "conversation": ["user_requests.json", "full_transcription.json", "conversation_metadata.json", "conversation_memory_graph.json"],
-                "tools": ["tool_calls.json", "tool_metrics.json", "tool_routing_policy_eval.json"],
+                "conversation": ["user_requests.json", "full_transcription.json", "conversation_metadata.json", "conversation_memory_graph.json", "turn_telemetry.json", "retry_outcomes.json", "user_actions.json", "artifacts_linked.json"],
+                "tools": ["tool_calls.json", "tool_metrics.json", "tool_routing_policy_eval.json", "tool_schemas_snapshot.json"],
                 "model_and_finetuning": ["model_telemetry.json", "fine_tuning_pairs.json", "dpo_preference_dataset.json", "negative_feedback_analysis.json", "user_intent_classification.json", "prompt_enhancement_telemetry.json"],
                 "frameworks_and_phases": ["framework_diagnostics.json", "phase_coordinator_state.json", "tasks_execution_plan.json", "agent_context_state.json", "active_skills.json", "developer_memory.json"],
                 "system_assets": ["system_assets_manifest.json", "system_assets_retrieval_ledger.json", "system_assets_coverage_audit.json"],
                 "backend_and_system": ["assist_settings.json", "api_endpoint_telemetry.json", "diagnostic_events_log.json", "alternative_keys_state.json", "terminal_execution_telemetry.json", "error_diagnostics.json", "system_environment.json", "runtime_performance_metrics.json", "verification_pipeline_diagnostics.json", "feedback_metadata.json"]
             ]
         ]
+    }
+
+    // MARK: - New Collectors (turn telemetry, retries, user actions, artifacts, tool schemas)
+
+    /// Per-turn model/provider/token-usage/request-metrics telemetry for every
+    /// assistant message in the session.
+    private func collectTurnTelemetry(from messages: [AssistMessage]) -> [[String: Any]] {
+        let iso = ISO8601DateFormatter()
+        let manager = AssistManager.shared
+        return messages.filter { $0.role == .assistant }.map { msg in
+            var dict: [String: Any] = [
+                "messageId": msg.id.uuidString,
+                "timestamp": iso.string(from: msg.timestamp),
+                "modelId": msg.modelId ?? "unknown",
+                "providerID": msg.providerID ?? "unknown",
+                "regenerationCount": msg.regenerationCount,
+                "retryOfMessageID": msg.retryOfMessageID?.uuidString ?? "none",
+                "contentLength": msg.content.count,
+                "toolCallCount": msg.activityGroup?.tools.count ?? 0,
+                "noticeLevel": msg.noticeLevel?.rawValue ?? "none"
+            ]
+            if let usage = msg.tokenUsage {
+                dict["tokenUsage"] = [
+                    "promptTokens": usage.promptTokens,
+                    "completionTokens": usage.completionTokens,
+                    "totalTokens": usage.totalTokens
+                ]
+            }
+            if let metrics = manager.requestMetricsByMessageID[msg.id] {
+                var checkpoints: [String: String] = ["messageSubmitted": iso.string(from: metrics.messageSubmitted)]
+                let dated: [(String, Date?)] = [
+                    ("sessionResolved", metrics.sessionResolved),
+                    ("modelResolved", metrics.modelResolved),
+                    ("credentialsResolved", metrics.credentialsResolved),
+                    ("systemIndexRetrievalStarted", metrics.systemIndexRetrievalStarted),
+                    ("systemIndexRetrievalCompleted", metrics.systemIndexRetrievalCompleted),
+                    ("toolsPrepared", metrics.toolsPrepared),
+                    ("requestCreated", metrics.requestCreated),
+                    ("requestSent", metrics.requestSent),
+                    ("modelStarted", metrics.modelStarted),
+                    ("firstEventReceived", metrics.firstEventReceived),
+                    ("firstReasoningDelta", metrics.firstReasoningDelta),
+                    ("firstTextDelta", metrics.firstTextDelta),
+                    ("firstVisibleRender", metrics.firstVisibleRender),
+                    ("firstToolCall", metrics.firstToolCall),
+                    ("toolExecutionStarted", metrics.toolExecutionStarted),
+                    ("toolExecutionCompleted", metrics.toolExecutionCompleted),
+                    ("followUpRequestInitiated", metrics.followUpRequestInitiated),
+                    ("responseCompleted", metrics.responseCompleted)
+                ]
+                for (name, date) in dated {
+                    if let date { checkpoints[name] = iso.string(from: date) }
+                }
+                dict["requestCheckpoints"] = checkpoints
+                var latencies: [String: Double] = [:]
+                let timed: [(String, TimeInterval?)] = [
+                    ("timeToRequest", metrics.timeToRequest),
+                    ("timeToFirstEvent", metrics.timeToFirstEvent),
+                    ("timeToFirstReasoning", metrics.timeToFirstReasoning),
+                    ("timeToFirstText", metrics.timeToFirstText),
+                    ("timeToFirstVisibleRender", metrics.timeToFirstVisibleRender),
+                    ("timeToFirstToolCall", metrics.timeToFirstToolCall),
+                    ("preparationDuration", metrics.preparationDuration),
+                    ("systemIndexRetrievalDuration", metrics.systemIndexRetrievalDuration),
+                    ("totalResponseTime", metrics.totalResponseTime)
+                ]
+                for (name, value) in timed {
+                    if let value { latencies[name] = value }
+                }
+                dict["latenciesSeconds"] = latencies
+            } else {
+                dict["requestMetrics"] = "unavailable"
+            }
+            return dict
+        }
+    }
+
+    /// Messages that regenerate a previous response, with whether the retry
+    /// came after explicit user feedback on the retried message.
+    private func collectRetryOutcomes(from messages: [AssistMessage]) -> [[String: Any]] {
+        let iso = ISO8601DateFormatter()
+        let datedEvents = AssistUserActionLog.datedEvents()
+        return messages.filter { $0.retryOfMessageID != nil }.map { msg in
+            let retryOf = msg.retryOfMessageID!
+            let cameAfterFeedback = datedEvents.contains { entry in
+                switch entry.action {
+                case .negativeFeedback(let id), .positiveFeedback(let id):
+                    return id == retryOf && entry.recordedAt <= msg.timestamp
+                default:
+                    return false
+                }
+            }
+            return [
+                "messageId": msg.id.uuidString,
+                "retryOfMessageID": retryOf.uuidString,
+                "regenerationCount": msg.regenerationCount,
+                "timestamp": iso.string(from: msg.timestamp),
+                "modelId": msg.modelId ?? "unknown",
+                "cameAfterFeedback": cameAfterFeedback,
+                "contentLength": msg.content.count
+            ] as [String: Any]
+        }
+    }
+
+    /// In-session user action log: copies, retry requests, feedback votes,
+    /// artifact opens, and applied edits.
+    private func collectUserActions() -> [[String: Any]] {
+        let iso = ISO8601DateFormatter()
+        return AssistUserActionLog.datedEvents().map { entry in
+            var dict: [String: Any] = ["recordedAt": iso.string(from: entry.recordedAt)]
+            switch entry.action {
+            case .copied(let messageID):
+                dict["type"] = "copied"
+                dict["messageID"] = messageID.uuidString
+            case .retryRequested(let messageID):
+                dict["type"] = "retryRequested"
+                dict["messageID"] = messageID.uuidString
+            case .artifactOpened(let artifactID, let title):
+                dict["type"] = "artifactOpened"
+                dict["artifactID"] = artifactID.uuidString
+                dict["title"] = title
+            case .editApplied(let messageID):
+                dict["type"] = "editApplied"
+                dict["messageID"] = messageID.uuidString
+            case .positiveFeedback(let messageID):
+                dict["type"] = "positiveFeedback"
+                dict["messageID"] = messageID.uuidString
+            case .negativeFeedback(let messageID):
+                dict["type"] = "negativeFeedback"
+                dict["messageID"] = messageID.uuidString
+            }
+            return dict
+        }
+    }
+
+    /// Artifacts created this session, linked to their source message when
+    /// available. `sourceMessageID` is read defensively via Mirror so this
+    /// collector works with or without the Area 3 `AssistArtifactRecord`
+    /// extension.
+    private func collectArtifactsLinked() -> [[String: Any]] {
+        let iso = ISO8601DateFormatter()
+        return AssistArtifactStore.shared.records.map { record in
+            var dict: [String: Any] = [
+                "id": record.id.uuidString,
+                "filename": record.filename,
+                "title": record.title,
+                "kind": "\(record.kind)",
+                "relativePath": record.relativePath,
+                "createdAt": iso.string(from: record.createdAt),
+                "modifiedAt": iso.string(from: record.modifiedAt)
+            ]
+            var sourceMessageID = "unknown"
+            let mirror = Mirror(reflecting: record)
+            if let child = mirror.children.first(where: { $0.label == "sourceMessageID" }) {
+                if let uuid = child.value as? UUID {
+                    sourceMessageID = uuid.uuidString
+                } else {
+                    // Optional<UUID>: unwrap one level via Mirror.
+                    let inner = Mirror(reflecting: child.value)
+                    if inner.displayStyle == .optional,
+                       let first = inner.children.first,
+                       let uuid = first.value as? UUID {
+                        sourceMessageID = uuid.uuidString
+                    }
+                }
+            }
+            dict["sourceMessageID"] = sourceMessageID
+            return dict
+        }
+    }
+
+    /// Parameter schemas for every tool invoked this session (id + JSON schema).
+    private func collectToolSchemasSnapshot(from messages: [AssistMessage]) -> [[String: Any]] {
+        let invokedIDs = Set(messages.flatMap { $0.activityGroup?.tools.map { $0.toolId } ?? [] })
+        let schemasByName: [String: [String: Any]] = Dictionary(
+            uniqueKeysWithValues: AssistToolRegistry.shared.getToolSchemas().compactMap { dict -> (String, [String: Any])? in
+                guard let name = dict["name"] as? String else { return nil }
+                return (name, dict)
+            }
+        )
+        return invokedIDs.sorted().map { toolId in
+            var entry: [String: Any] = ["id": toolId]
+            if let schema = schemasByName[toolId], let params = schema["parameters"] {
+                entry["parametersSchema"] = params
+            } else {
+                entry["parametersSchema"] = "unavailable"
+            }
+            return entry
+        }
     }
 }

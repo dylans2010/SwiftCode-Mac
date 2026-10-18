@@ -25,14 +25,14 @@ public struct AssistCreateFileTool: AssistTool {
 
     public func execute(input: [String: Any], context: AssistContext) async throws -> AssistToolResult {
         guard let path = input["path"] as? String, !path.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
-            return .failure("Missing required parameter: path")
+            return .failure("Missing required parameter: path", code: .missingArgument)
         }
 
         let content = input["content"] as? String ?? ""
         let overwrite = input["overwrite"] as? Bool ?? false
 
         if context.fileSystem.exists(at: path) && !overwrite {
-            return .failure("File already exists at \(path). Set overwrite=true to replace it.")
+            return .failure("File already exists at \(path). Set overwrite=true to replace it.", code: .invalidInput)
         }
 
         do {
@@ -100,7 +100,7 @@ public struct AssistCreateFileTool: AssistTool {
             )
         } catch {
             LiveDiffStreamer.shared.cancelStream(filePath: path)
-            return .failure("Failed to create file at \(path): \(error.localizedDescription)")
+            return .failure("Failed to create file at \(path): \(error.localizedDescription)", code: .executionFailed)
         }
     }
 }

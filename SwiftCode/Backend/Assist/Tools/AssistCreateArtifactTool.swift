@@ -3,7 +3,7 @@ import Foundation
 public struct AssistCreateArtifactTool: AssistTool {
     public let id = "create_artifact"
     public let name = "Create Artifact"
-    public let description = "Creates (or updates/appends) a Markdown artifact in the native artifact store at .assist_temp/artifacts/<name>.md. The single way to produce durable deliverables."
+    public let description = "Creates (or updates/appends) a Markdown artifact in the native artifact store at .assist_temp/artifacts/<name>.md. The single way to produce durable deliverables. Optional kind parameter: \"artifact\" (default) or \"execution_plan\" for multi-phase plans/handoffs; when omitted, the store infers the kind from the filename. Keep content to a recommended ~25,000-character ceiling."
 
     public init() {}
 
@@ -18,7 +18,8 @@ public struct AssistCreateArtifactTool: AssistTool {
                 "name": JSONSchema(type: "string", description: "Artifact name, snake_case (.md added automatically). Example: repository_analysis"),
                 "content": JSONSchema(type: "string", description: "Full Markdown document content."),
                 "description": JSONSchema(type: "string", description: "One-line description shown in the artifact list. Default: first meaningful line."),
-                "mode": JSONSchema(type: "string", description: "create (default) | update | append.")
+                "mode": JSONSchema(type: "string", description: "create (default) | update | append."),
+                "kind": JSONSchema(type: "string", description: "artifact (default) | execution_plan. Use execution_plan for multi-phase work plans and handoff documents; use artifact for everything else. When omitted, the store infers the kind from the filename (contains _plan, or starts/ends with plan_).")
             ],
             required: ["name", "content"]
         )
@@ -40,17 +41,24 @@ public struct AssistCreateArtifactTool: AssistTool {
         case "append": mode = .append
         default: return .failure("Invalid mode '\(modeRaw)'. Use create, update, or append.")
         }
+        let kindRaw = ((input["kind"] as? String) ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        let kind: AssistArtifactKind?
+        switch kindRaw.lowercased() {
+        case "", "artifact": kind = kindRaw.isEmpty ? nil : .artifact
+        case "execution_plan": kind = .executionPlan
+        default: return .failure("Invalid kind '\(kindRaw)'. Use artifact or execution_plan.")
+        }
         do {
             let record = try AssistArtifactStore.shared.createArtifact(
                 name: name, content: content, description: description,
-                mode: mode, workspaceRoot: context.workspaceRoot
+                mode: mode, kind: kind, workspaceRoot: context.workspaceRoot
             )
             return .success(
                 "Artifact '\(record.title)' saved (\(modeRaw)) at \(record.relativePath).",
                 data: [
                     "filename": record.filename, "title": record.title,
                     "relativePath": record.relativePath, "mode": modeRaw,
-                    "contentLength": "\(content.count)"
+                    "kind": record.kind.rawValue, "contentLength": "\(content.count)"
                 ],
                 filesChanged: [record.relativePath]
             )

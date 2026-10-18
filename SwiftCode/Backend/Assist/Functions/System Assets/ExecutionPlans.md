@@ -119,6 +119,6 @@ Present a decision question when:
 
 ## 8. Plans as Artifacts & Progress Reporting
 
-- Multi-phase plans that the user should keep are saved with `create_artifact` (kind: execution plan), not left as chat text. See `ArtifactsGuidelines.md`.
+- Multi-phase plans that the user should keep are saved with `create_artifact` using the real `kind` parameter — pass `kind: "execution_plan"` (the parameter accepts `"artifact"` or `"execution_plan"`; when omitted the store infers from the filename) — not left as chat text. See `ArtifactsGuidelines.md`.
 - `session_progress_report` summarizes live engineering-phase state (completed / in-progress / failed / pending) plus the last agent-notes save — use it to answer "where are we?" without re-deriving state.
 - `agent_notes.md` remains the live scratch record during execution; promote finalized content to a proper artifact at session end when the user wants to keep it.

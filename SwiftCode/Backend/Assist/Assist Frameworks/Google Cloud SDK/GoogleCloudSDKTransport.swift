@@ -293,10 +293,21 @@ public actor GoogleCloudSDKTransport {
         }
     }
 
+    /// Absolute ceiling for a tool-result string crossing the transport boundary.
+    /// Canonical section caps (25k output / 8k diff) are applied upstream by
+    /// `AssistToolResultFormatter`; this guards any oversized string that
+    /// bypassed it (e.g. a legacy cache entry) from blowing up the bridge.
+    private static let maxTransportPayloadCharacters = 65_536
+
     private func executeTool(request: GoogleCloudSDKToolExecutionRequest, reqId: String) async {
         if let handler = self.toolExecutionHandler {
             let resultTuple = await handler(request)
-            sendToolExecutionResponse(reqId: reqId, success: resultTuple.success, result: resultTuple.result, error: resultTuple.error)
+            var toolResult = resultTuple.result
+            if let raw = toolResult, raw.count > Self.maxTransportPayloadCharacters {
+                toolResult = String(raw.prefix(Self.maxTransportPayloadCharacters))
+                    + "\n[truncated: showing first \(Self.maxTransportPayloadCharacters) of \(raw.count) characters — payload exceeded transport limit]"
+            }
+            sendToolExecutionResponse(reqId: reqId, success: resultTuple.success, result: toolResult, error: resultTuple.error)
         } else {
             sendToolExecutionResponse(reqId: reqId, success: false, result: nil, error: "No tool execution handler registered in Swift")
         }

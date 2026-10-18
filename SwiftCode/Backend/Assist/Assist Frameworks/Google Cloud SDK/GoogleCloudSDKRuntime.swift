@@ -184,23 +184,11 @@ public final class GoogleCloudSDKRuntime: Sendable {
             let effectiveArgs = validation.correctedInput ?? args
             let result = try await tool.execute(input: effectiveArgs, context: context)
             if result.success {
-                // Ensure model and UI receive the actual payload contents (e.g. file content, directory trees, structured data)
-                let fullPayload: String
-                if let data = result.data, !data.isEmpty {
-                    if let content = data["content"], !content.isEmpty {
-                        fullPayload = content
-                    } else if let tree = data["tree"], !tree.isEmpty {
-                        fullPayload = tree
-                    } else if let jsonData = try? JSONSerialization.data(withJSONObject: data, options: [.prettyPrinted, .sortedKeys]),
-                              let jsonStr = String(data: jsonData, encoding: .utf8) {
-                        fullPayload = result.output.isEmpty ? jsonStr : "\(result.output)\n\n\(jsonStr)"
-                    } else {
-                        let formatted = data.map { "\($0.key): \($0.value)" }.joined(separator: "\n")
-                        fullPayload = result.output.isEmpty ? formatted : "\(result.output)\n\n\(formatted)"
-                    }
-                } else {
-                    fullPayload = result.output
-                }
+                // Canonical model-facing payload: header, file-range metadata,
+                // capped output, structured data, diagnostics, files changed,
+                // diff. This replaces the ad-hoc flattening that dropped range
+                // metadata (path/start/end/totalLines/...) on the Gemini path.
+                let fullPayload = AssistToolResultFormatter.modelFacingPayload(toolId: toolName, result: result)
 
                 await MainActor.run {
                     let isTerminalOrMutation = meta.isMutating || toolName.lowercased() == "use_terminal" || toolName.lowercased() == "run_command"

@@ -31,7 +31,7 @@ public struct AssistReadFileTool: AssistTool {
 
     public func execute(input: [String: Any], context: AssistContext) async throws -> AssistToolResult {
         guard var path = (input["path"] ?? input["filePath"] ?? input["file_path"] ?? input["targetFile"] ?? input["file"]) as? String else {
-            return .failure("Missing required parameter: path")
+            return .failure("Missing required parameter: path", code: .missingArgument)
         }
 
         if !path.hasPrefix("/tmp/swiftcode/scripts") {
@@ -66,19 +66,19 @@ public struct AssistReadFileTool: AssistTool {
             if let range = linesArg {
                 if let rawStart = range["start"] {
                     guard let parsed = Self.parseLineNumber(rawStart) else {
-                        return .failure("Invalid lines.start: must be an integer >= 1 (got '\(rawStart)').")
+                        return .failure("Invalid lines.start: must be an integer >= 1 (got '\(rawStart)').", code: .invalidInput)
                     }
                     start = parsed
                 }
                 if let rawEnd = range["end"] {
                     guard let parsed = Self.parseLineNumber(rawEnd) else {
-                        return .failure("Invalid lines.end: must be an integer >= 1 (got '\(rawEnd)').")
+                        return .failure("Invalid lines.end: must be an integer >= 1 (got '\(rawEnd)').", code: .invalidInput)
                     }
                     end = parsed
                 }
             }
             if start > end {
-                return .failure("Invalid line range: start (\(start)) > end (\(end)). Lines are 1-based inclusive.")
+                return .failure("Invalid line range: start (\(start)) > end (\(end)). Lines are 1-based inclusive.)", code: .invalidInput)
             }
             if totalLines == 0 {
                 return .success("File is empty: \(path)", data: [
@@ -87,7 +87,7 @@ public struct AssistReadFileTool: AssistTool {
                 ])
             }
             if start > totalLines {
-                return .failure("Line range start (\(start)) exceeds total lines (\(totalLines)) in \(path). No content invented.")
+                return .failure("Line range start (\(start)) exceeds total lines (\(totalLines)) in \(path). No content invented.", code: .invalidInput)
             }
             let clampedEnd = min(end, totalLines)
             let slice = lines[(start - 1)...(clampedEnd - 1)]
@@ -104,7 +104,7 @@ public struct AssistReadFileTool: AssistTool {
                 "fullyAvailable": fullyAvailable ? "true" : "false"
             ])
         } catch {
-            return .failure("Failed to read file at \(path): \(error.localizedDescription)")
+            return .failure("Failed to read file at \(path): \(error.localizedDescription)", code: .executionFailed)
         }
     }
 

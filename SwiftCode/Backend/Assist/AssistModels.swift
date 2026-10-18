@@ -219,6 +219,10 @@ public struct AssistToolResult: Codable, Sendable {
     public let suggestedNextActions: [String]
     public let beforeContent: String?
     public let afterContent: String?
+    /// Structured tool error classification supplied by the Area 1 error-code
+    /// taxonomy (`AssistToolErrorCode`, same module). Nil when the tool did
+    /// not report a classified error. Synthesized Codable handles it.
+    public var toolErrorCode: AssistToolErrorCode? = nil
 
     public init(
         success: Bool,
@@ -275,18 +279,19 @@ public struct AssistToolResult: Codable, Sendable {
 
     public static func failure(
         _ error: String,
-        code: Int? = nil,
+        code: AssistToolErrorCode? = nil,
         diagnostics: [String] = [],
         suggestedNextActions: [String] = []
     ) -> AssistToolResult {
-        AssistToolResult(
+        var result = AssistToolResult(
             success: false,
             output: "Error: \(error)",
             error: error,
-            errorCode: code,
             diagnostics: diagnostics,
             suggestedNextActions: suggestedNextActions
         )
+        result.toolErrorCode = code
+        return result
     }
 }
 
@@ -300,6 +305,17 @@ public enum AssistToolDataKey {
     public static let searchResults = "results"
     public static let planId = "planId"
     public static let breakdown = "breakdown"
+    public static let count = "count"
+    public static let truncated = "truncated"
+    public static let path = "path"
+    public static let exitCode = "exitCode"
+    public static let durationMs = "durationMs"
+    public static let stdout = "stdout"
+    public static let stderr = "stderr"
+    public static let startLine = "startLine"
+    public static let endLine = "endLine"
+    public static let totalLines = "totalLines"
+    public static let fullyAvailable = "fullyAvailable"
 }
 
 // MARK: - Planning & Execution Models
@@ -551,6 +567,19 @@ public struct AssistMessage: Codable, Identifiable, Sendable {
     public var providerID: String?
     /// Structured task envelope submitted with the message (contains executed slash commands, resources, skills, and rules).
     public var envelope: AssistTaskEnvelope?
+    /// Actual model ID that minted this assistant turn. Resolved at turn
+    /// finish from the request path (chat / Meta / Google SDK) and the
+    /// router failover history — never the settings-selected model when a
+    /// failover occurred. Nil for user/system messages.
+    public var modelId: String?
+    /// Token accounting reported for this assistant turn, when the provider
+    /// surface exposes it (e.g. the Google Cloud SDK usage event).
+    public var tokenUsage: AssistTokenUsage?
+    /// When this message is a regeneration, the ID of the assistant message
+    /// it replaces. Nil for first attempts.
+    public var retryOfMessageID: UUID?
+    /// How many times this response has been regenerated (0 = first attempt).
+    public var regenerationCount: Int = 0
 
     public init(
         role: AssistRole,
@@ -564,7 +593,11 @@ public struct AssistMessage: Codable, Identifiable, Sendable {
         noticeLevel: AssistNoticeLevel? = nil,
         serverError: ServerErrorDetail? = nil,
         providerID: String? = nil,
-        envelope: AssistTaskEnvelope? = nil
+        envelope: AssistTaskEnvelope? = nil,
+        modelId: String? = nil,
+        tokenUsage: AssistTokenUsage? = nil,
+        retryOfMessageID: UUID? = nil,
+        regenerationCount: Int = 0
     ) {
         self.id = UUID()
         self.role = role
@@ -580,6 +613,23 @@ public struct AssistMessage: Codable, Identifiable, Sendable {
         self.serverError = serverError
         self.providerID = providerID
         self.envelope = envelope
+        self.modelId = modelId
+        self.tokenUsage = tokenUsage
+        self.retryOfMessageID = retryOfMessageID
+        self.regenerationCount = regenerationCount
+    }
+}
+
+/// Token accounting for a single assistant turn.
+public struct AssistTokenUsage: Codable, Sendable {
+    public var promptTokens: Int
+    public var completionTokens: Int
+    public var totalTokens: Int
+
+    public init(promptTokens: Int = 0, completionTokens: Int = 0, totalTokens: Int = 0) {
+        self.promptTokens = promptTokens
+        self.completionTokens = completionTokens
+        self.totalTokens = totalTokens
     }
 }
 

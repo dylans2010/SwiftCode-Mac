@@ -48,20 +48,20 @@ public struct AssistBuildProjectTool: AssistTool {
         let project: AssistXcodeProjectResolver.LocatedProject
         if let projectPath = input["projectPath"] as? String, !projectPath.isEmpty {
             guard let located = AssistXcodeProjectResolver.locate(relativePath: projectPath, in: context.workspaceRoot) else {
-                return .failure("No .xcodeproj/.xcworkspace found at workspace-relative path '\(projectPath)'.")
+                return .failure("No .xcodeproj/.xcworkspace found at workspace-relative path '\(projectPath)'.", code: .notFound)
             }
             project = located
         } else if let located = AssistXcodeProjectResolver.locate(in: context.workspaceRoot) {
             project = located
         } else {
-            return .failure("No Xcode project (.xcodeproj/.xcworkspace) found in the workspace root. Open a project first or pass projectPath.")
+            return .failure("No Xcode project (.xcodeproj/.xcworkspace) found in the workspace root. Open a project first or pass projectPath.", code: .notFound)
         }
 
         let scheme = await AssistXcodeProjectResolver.resolveScheme(for: project, explicit: explicitScheme)
 
         let xcodebuildURL = URL(fileURLWithPath: "/usr/bin/xcodebuild")
         guard FileManager.default.fileExists(atPath: xcodebuildURL.path) else {
-            return .failure("xcodebuild not found at /usr/bin/xcodebuild. Install Xcode command line tools first.")
+            return .failure("xcodebuild not found at /usr/bin/xcodebuild. Install Xcode command line tools first.", code: .executionFailed)
         }
 
         var env = ProcessInfo.processInfo.environment
@@ -141,10 +141,10 @@ public struct AssistBuildProjectTool: AssistTool {
                 )
             }
         } catch {
-            return .failure("xcodebuild execution failed: \(error.localizedDescription)")
+            return .failure("xcodebuild execution failed: \(error.localizedDescription)", code: .executionFailed)
         }
         #else
-        return .failure("Project builds require the macOS runtime.")
+        return .failure("Project builds require the macOS runtime.", code: .unsupportedOperation)
         #endif
     }
 }
@@ -299,7 +299,7 @@ public struct AssistGenerateXcodeprojTool: AssistTool {
         let useCache = ((input["useCache"] as? String)?.lowercased() == "true")
         let specURL = context.workspaceRoot.appendingPathComponent(spec)
         guard FileManager.default.fileExists(atPath: specURL.path) else {
-            return .failure("XcodeGen spec not found at '\(spec)' (resolved to \(specURL.path)). Create a project.yml first or pass the spec parameter.")
+            return .failure("XcodeGen spec not found at '\(spec)' (resolved to \(specURL.path)). Create a project.yml first or pass the spec parameter.", code: .notFound)
         }
 
         let startTime = Date()
@@ -309,7 +309,7 @@ public struct AssistGenerateXcodeprojTool: AssistTool {
         do {
             xcodegenURL = try await ensureXcodegen(context: context)
         } catch {
-            return .failure(error.localizedDescription)
+            return .failure(error.localizedDescription, code: .executionFailed)
         }
 
         // 2. Run xcodegen generate in the background.
@@ -352,10 +352,10 @@ public struct AssistGenerateXcodeprojTool: AssistTool {
                 )
             }
         } catch {
-            return .failure("xcodegen execution failed: \(error.localizedDescription)")
+            return .failure("xcodegen execution failed: \(error.localizedDescription)", code: .executionFailed)
         }
         #else
-        return .failure("Xcode project generation requires the macOS runtime.")
+        return .failure("Xcode project generation requires the macOS runtime.", code: .unsupportedOperation)
         #endif
     }
 

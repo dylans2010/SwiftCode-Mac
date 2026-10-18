@@ -961,6 +961,7 @@
 		8D6D49C5846DAA02809D2C78 /* PreviewBuildService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0A56D44A5CDC48288206C6F4 /* PreviewBuildService.swift */; };
 		8D9E00010001000100000002 /* AssistTaskModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8D9E00010001000100000001 /* AssistTaskModel.swift */; };
 		8D9E00010001000100000004 /* AssistToolRouter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8D9E00010001000100000003 /* AssistToolRouter.swift */; };
+		8D9E00010001000100000102 /* AssistToolResultFormatter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8D9E00010001000100000101 /* AssistToolResultFormatter.swift */; };
 		8D9E00010001000100000006 /* AssistDiffEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8D9E00010001000100000005 /* AssistDiffEngine.swift */; };
 		8D9E00010001000100000008 /* AssistVerificationPipeline.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8D9E00010001000100000007 /* AssistVerificationPipeline.swift */; };
 		8D9E0001000100010000000A /* AssistErrorRecoveryEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8D9E00010001000100000009 /* AssistErrorRecoveryEngine.swift */; };
@@ -3919,6 +3920,7 @@
 		8D95812727FAFBBB668DA815 /* ProjectTransferSerializer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProjectTransferSerializer.swift; sourceTree = "<group>"; };
 		8D9E00010001000100000001 /* AssistTaskModel.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = AssistTaskModel.swift; sourceTree = "<group>"; };
 		8D9E00010001000100000003 /* AssistToolRouter.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = AssistToolRouter.swift; sourceTree = "<group>"; };
+		8D9E00010001000100000101 /* AssistToolResultFormatter.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = AssistToolResultFormatter.swift; sourceTree = "<group>"; };
 		8D9E00010001000100000005 /* AssistDiffEngine.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = AssistDiffEngine.swift; sourceTree = "<group>"; };
 		8D9E00010001000100000007 /* AssistVerificationPipeline.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = AssistVerificationPipeline.swift; sourceTree = "<group>"; };
 		8D9E00010001000100000009 /* AssistErrorRecoveryEngine.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = AssistErrorRecoveryEngine.swift; sourceTree = "<group>"; };
@@ -8228,6 +8230,7 @@
 				8ECEC56FDC2B7FB96933295F /* Subagents */,
 				8D9E00010001000100000001 /* AssistTaskModel.swift */,
 				8D9E00010001000100000003 /* AssistToolRouter.swift */,
+				8D9E00010001000100000101 /* AssistToolResultFormatter.swift */,
 				8D9E00010001000100000005 /* AssistDiffEngine.swift */,
 				8D9E00010001000100000007 /* AssistVerificationPipeline.swift */,
 				8D9E00010001000100000009 /* AssistErrorRecoveryEngine.swift */,
@@ -11921,6 +11924,7 @@
 				8E2AFDBA9296CCB125068005 /* WorkersOnAssistView.swift in Sources */,
 				8D9E00010001000100000002 /* AssistTaskModel.swift in Sources */,
 				8D9E00010001000100000004 /* AssistToolRouter.swift in Sources */,
+				8D9E00010001000100000102 /* AssistToolResultFormatter.swift in Sources */,
 				8D9E00010001000100000006 /* AssistDiffEngine.swift in Sources */,
 				8D9E00010001000100000008 /* AssistVerificationPipeline.swift in Sources */,
 				8D9E0001000100010000000A /* AssistErrorRecoveryEngine.swift in Sources */,

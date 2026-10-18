@@ -26,7 +26,7 @@ public struct AssistTreeViewTool: AssistTool {
         var maxDepth = 3
         if let raw = input["maxDepth"] {
             guard let parsed = Self.parseDepth(raw) else {
-                return .failure("Invalid maxDepth: must be an integer >= 1 (got '\(raw)').")
+                return .failure("Invalid maxDepth: must be an integer >= 1 (got '\(raw)').", code: .invalidInput)
             }
             maxDepth = min(max(parsed, 1), 10)
         }
@@ -35,7 +35,7 @@ public struct AssistTreeViewTool: AssistTool {
         do {
             rootURL = try context.fileSystem.resolve(path)
         } catch {
-            return .failure("Failed to render tree at \(path): \(error.localizedDescription)")
+            return .failure("Failed to render tree at \(path): \(error.localizedDescription)", code: .notFound)
         }
 
         var visited = Set<String>()

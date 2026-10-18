@@ -21,6 +21,13 @@ runs in CI/Linux. Checks:
   7. isReadOnly honesty: safeRead tools must not call file-mutation APIs
      (known exception: project_snapshot copies the workspace to a
      snapshot directory, documented in AvailableTools.md).
+  8. data-dict key standardization (WARNING): data-dict keys used in Tools/
+     should come from the AssistToolDataKey standard set (parsed live from
+     AssistModels.swift) or be documented in AvailableTools.md.
+  9. silent output truncation (WARNING): .prefix() on tool output strings
+     without a nearby truncation marker.
+ 10. failure error codes (WARNING): .failure() calls without a code:
+     AssistToolErrorCode argument.
 
 Usage: python3 validate_tools.py [--repo <path>] [--strict]
 Exit code 1 on any FAIL (or WARN under --strict).
@@ -140,6 +147,60 @@ def parse_tool_file(path):
     if m:
         risk = m.group(1)
     return ids, risk, text
+
+
+def balanced_dict_keys(text, open_bracket_idx):
+    """String-literal keys of the [...] dict literal opening at open_bracket_idx.
+
+    Returns identifier-shaped literal keys only ("key":); AssistToolDataKey.xxx
+    references are standard by construction and are never returned.
+    """
+    keys = []
+    i = open_bracket_idx
+    depth = 0
+    in_str = False
+    esc = False
+    n = len(text)
+    while i < n:
+        ch = text[i]
+        if in_str:
+            if esc:
+                esc = False
+            elif ch == "\\":
+                esc = True
+            elif ch == '"':
+                in_str = False
+        elif ch == '"':
+            j = i + 1
+            lit_esc = False
+            lit = []
+            while j < n:
+                c = text[j]
+                if lit_esc:
+                    lit.append(c)
+                    lit_esc = False
+                elif c == "\\":
+                    lit_esc = True
+                elif c == '"':
+                    break
+                else:
+                    lit.append(c)
+                j += 1
+            k = j + 1
+            while k < n and text[k] in " \t\n":
+                k += 1
+            name = "".join(lit)
+            if k < n and text[k] == ":" and re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", name):
+                keys.append(name)
+            i = j
+        elif ch == "[":
+            depth += 1
+        elif ch == "]":
+            depth -= 1
+            if depth == 0:
+                return keys
+        i += 1
+    return keys
 
 
 def main():
@@ -337,6 +398,83 @@ def main():
         fail(f"readonly: {dishonest}")
     else:
         ok("readonly: no safeRead tool calls file-mutation APIs in execute()")
+
+    # --- 8. data-dict key standardization (WARNING) --------------------
+    # data-dict keys used in Tools/ should come from the AssistToolDataKey
+    # standard set (parsed live from AssistModels.swift so newly added keys
+    # are picked up) or be documented in AvailableTools.md. Ad-hoc keys
+    # silently break consumers that key off structured data (e.g.
+    # AssistToolResultFormatter's file-range metadata).
+    standard_keys = set()
+    models_text = (ASSIST / "AssistModels.swift").read_text()
+    m_key_enum = re.search(r"enum AssistToolDataKey[^{]*\{(.*?)\n\}", models_text, re.DOTALL)
+    if m_key_enum:
+        key_body = m_key_enum.group(1)
+        for sm in re.finditer(r'static let \w+\s*=\s*"([^"]+)"', key_body):
+            standard_keys.add(sm.group(1))
+        for cm in re.finditer(r'case\s+(\w+)(?:\s*=\s*"([^"]+)")?', key_body):
+            standard_keys.add(cm.group(2) or cm.group(1))
+    catalog_full = CATALOG.read_text()
+    nonstandard = {}
+    for path in sorted(TOOLS_DIR.glob("*.swift")):
+        # Strip //-comments (docs mention data: [...] to forbid it); only code counts.
+        code = "\n".join(line.split("//")[0] for line in path.read_text().splitlines())
+        for dm in re.finditer(r"(?:\bdata|\bresultData)\s*:\s*\[", code):
+            for key in balanced_dict_keys(code, dm.end() - 1):
+                if key in standard_keys or key in catalog_full:
+                    continue
+                nonstandard.setdefault(key, set()).add(path.name)
+    for key in sorted(nonstandard):
+        warn(f"datakeys: {key!r} in {sorted(nonstandard[key])} is not an AssistToolDataKey and is not documented in AvailableTools.md")
+    if not nonstandard:
+        ok("datakeys: all data-dict keys are standard or documented")
+
+    # --- 9. silent output truncation (WARNING) ------------------------
+    # .prefix() on tool output strings without a nearby truncation marker
+    # makes a cut payload look complete to the model. The canonical
+    # serializer (AssistToolResultFormatter) marks every truncation.
+    trunc_marker = re.compile(r"truncat|\[truncated|…", re.IGNORECASE)
+    outputish = re.compile(r"\boutput\s*:|\bdata\s*:|\.success\(|\.failure\(|reportToolCompleted|recap\b")
+    silent_trunc = 0
+    for path in sorted(TOOLS_DIR.glob("*.swift")):
+        lines = path.read_text().splitlines()
+        for i, line in enumerate(lines):
+            code = line.split("//")[0]
+            if not re.search(r"\.prefix\((?!while:)", code):
+                continue
+            window = "\n".join(lines[max(0, i - 8):i + 9])
+            if trunc_marker.search(window):
+                continue
+            if not outputish.search(window):
+                continue
+            silent_trunc += 1
+            warn(f"truncation: {path.name}:{i + 1} .prefix() on output-shaped data without a nearby truncation marker: {code.strip()[:110]}")
+    if not silent_trunc:
+        ok("truncation: no unmarked .prefix() truncation of tool output")
+
+    # --- 10. failure error codes (WARNING) ----------------------------
+    # .failure() calls should carry a machine-readable AssistToolErrorCode
+    # (code:) so AssistToolResultFormatter can render Error [...]/Recovery.
+    # Aggregated per file to keep the output readable.
+    missing_code = {}
+    for path in sorted(TOOLS_DIR.glob("*.swift")):
+        lines = path.read_text().splitlines()
+        stripped = "\n".join(line.split("//")[0] for line in lines)
+        matches = list(re.finditer(r"\.failure\s*\(", stripped))
+        bad_lines = []
+        for idx, m in enumerate(matches):
+            end = matches[idx + 1].start() if idx + 1 < len(matches) else len(stripped)
+            chunk = "\n".join(stripped[m.start():min(end, m.start() + 1500)].splitlines()[:12])
+            if not re.search(r"\bcode\s*:", chunk):
+                bad_lines.append(stripped[:m.start()].count("\n") + 1)
+        if bad_lines:
+            missing_code[path.name] = bad_lines
+    for fname in sorted(missing_code):
+        lnums = missing_code[fname]
+        shown = ", ".join(str(n) for n in lnums[:8]) + ("…" if len(lnums) > 8 else "")
+        warn(f"errorcode: {fname}: {len(lnums)} .failure() call(s) without code: (lines {shown})")
+    if not missing_code:
+        ok("errorcode: every .failure() carries an AssistToolErrorCode")
 
     print(f"\n{len(failures)} failure(s), {len(warnings)} warning(s)")
     if failures:

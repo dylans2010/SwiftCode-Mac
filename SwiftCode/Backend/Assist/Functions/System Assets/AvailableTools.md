@@ -429,12 +429,14 @@ Example F — Answering a general programming question. Answer directly when the
 - `markdown_link_check` (safeRead) — validate internal links in Markdown files.
 - `markdown_toc_generate` (safeMutation) — generate a table of contents and insert/update it between TOC markers.
 
-### Native artifacts
+### Native Markdown artifacts (deliverables)
 
-- `create_artifact` (safeMutation) — create/update/append a Markdown artifact in the native store at .assist_temp/artifacts/<name>.md. The single way to produce durable deliverables. See ArtifactsGuidelines.md.
-- `list_artifacts` (safeRead) — list all artifacts including agent_notes.md, newest first.
-- `read_artifact` (safeRead) — read an artifact's content (60k character cap, truncation marked).
-- `delete_artifact` (potentiallyDestructive) — permanently delete an artifact; requires confirm: true. agent_notes.md is protected.
+Not build artifacts: these tools manage Markdown deliverables (reports, analyses, plans) in the native store — durable session documents, not compiled binaries or caches.
+
+- `create_artifact` (safeMutation) — create/update/append a Markdown artifact (deliverable) in the native store at .assist_temp/artifacts/<name>.md. The single way to produce durable deliverables. Optional `kind` parameter: `"artifact"` (default, everything except plans) | `"execution_plan"` (multi-phase plans/handoffs); when omitted the store infers from the filename. Recommended write ceiling ~25,000 characters. See ArtifactsGuidelines.md.
+- `list_artifacts` (safeRead) — list all Markdown artifacts (deliverables) including agent_notes.md, newest first.
+- `read_artifact` (safeRead) — read a Markdown artifact's (deliverable's) content (60k character cap, truncation marked).
+- `delete_artifact` (potentiallyDestructive) — permanently delete a Markdown artifact (deliverable); requires confirm: true. agent_notes.md is protected.
 
 ### Workflow
 

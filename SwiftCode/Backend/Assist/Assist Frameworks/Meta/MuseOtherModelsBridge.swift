@@ -440,7 +440,9 @@ public final class MuseOtherModelsBridge: @unchecked Sendable {
                     )
                     let context = builder.buildContext(sessionId: UUID())
                     let result = try await tool.execute(input: args, context: context)
-                    let outputText = result.output.isEmpty ? "Success" : result.output
+                    // Canonical model-facing payload (sections, caps, range
+                    // metadata, error taxonomy) instead of output-only text.
+                    let outputText = AssistToolResultFormatter.modelFacingPayload(toolId: toolName, result: result)
                     AssistManager.shared.reportToolCompleted(callId: callId, toolName: toolName, output: outputText, arguments: args)
                 } catch {
                     AssistManager.shared.reportToolCompleted(callId: callId, toolName: toolName, output: "Error: \(error.localizedDescription)", arguments: args)

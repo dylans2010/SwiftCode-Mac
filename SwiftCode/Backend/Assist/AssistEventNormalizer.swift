@@ -108,6 +108,7 @@ public final class AssistEventNormalizer {
             existing.iconName = formatted.iconName
             existing.semanticKey = semKey
             existing.operationId = callId
+            existing.argumentsSummary = ToolActivityItem.sanitizedArgumentsSummary(from: arguments)
             activityGroup.tools[existingIdx] = existing
             if !callId.isEmpty {
                 activeCallToOperationId[callId] = existing.id
@@ -128,7 +129,8 @@ public final class AssistEventNormalizer {
                 retryCount: 0,
                 semanticKey: semKey,
                 operationId: callId,
-                isMuseSDKTool: isMuseSDKTool
+                isMuseSDKTool: isMuseSDKTool,
+                argumentsSummary: ToolActivityItem.sanitizedArgumentsSummary(from: arguments)
             )
             activityGroup.tools.append(newItem)
             if !callId.isEmpty {
@@ -185,6 +187,7 @@ public final class AssistEventNormalizer {
             item.result = output ?? ""
             item.purpose = formatted.completedLabel
             item.completedLabel = formatted.completedLabel
+            item.argumentsSummary = ToolActivityItem.sanitizedArgumentsSummary(from: arguments)
             activityGroup.tools[idx] = item
         } else {
             // Check if exact completed item already exists to avoid transport replay duplication
@@ -207,7 +210,8 @@ public final class AssistEventNormalizer {
                     retryCount: 0,
                     semanticKey: semKey,
                     operationId: callId,
-                    isMuseSDKTool: isMuseSDKTool
+                    isMuseSDKTool: isMuseSDKTool,
+                    argumentsSummary: ToolActivityItem.sanitizedArgumentsSummary(from: arguments)
                 )
                 activityGroup.tools.append(newItem)
             }
@@ -238,6 +242,7 @@ public final class AssistEventNormalizer {
             item.result = cleanError
             item.duration = max(0.1, Date().timeIntervalSince(item.timestamp))
             item.purpose = "\(formatted.failedLabel) — \(cleanError)"
+            item.argumentsSummary = ToolActivityItem.sanitizedArgumentsSummary(from: arguments)
             activityGroup.tools[idx] = item
         } else {
             let newItem = ToolActivityItem(
@@ -254,7 +259,8 @@ public final class AssistEventNormalizer {
                 attemptsCount: 1,
                 retryCount: 0,
                 semanticKey: semKey,
-                operationId: callId
+                operationId: callId,
+                argumentsSummary: ToolActivityItem.sanitizedArgumentsSummary(from: arguments)
             )
             activityGroup.tools.append(newItem)
         }

@@ -62,6 +62,10 @@ public struct ToolActivityItem: Codable, Identifiable, Sendable, Hashable {
     public var operationId: String?
     public var progressMessage: String?
     public var isMuseSDKTool: Bool
+    /// Redacted, path-collapsed summary of the raw tool arguments captured at
+    /// invocation time. Values whose keys look credential-shaped are replaced
+    /// with `<redacted>`; the user's home directory is collapsed to `~`.
+    public var argumentsSummary: [String: String]?
 
     public init(
         id: UUID = UUID(),
@@ -79,7 +83,8 @@ public struct ToolActivityItem: Codable, Identifiable, Sendable, Hashable {
         semanticKey: String? = nil,
         operationId: String? = nil,
         progressMessage: String? = nil,
-        isMuseSDKTool: Bool = false
+        isMuseSDKTool: Bool = false,
+        argumentsSummary: [String: String]? = nil
     ) {
         self.id = id
         self.toolId = toolId
@@ -97,6 +102,31 @@ public struct ToolActivityItem: Codable, Identifiable, Sendable, Hashable {
         self.operationId = operationId
         self.progressMessage = progressMessage
         self.isMuseSDKTool = isMuseSDKTool
+        self.argumentsSummary = argumentsSummary
+    }
+
+    /// Builds a privacy-safe summary of raw tool arguments for telemetry.
+    /// Values for keys containing `token`, `secret`, `password`, `key`, or
+    /// `auth` (case-insensitive) are replaced with `<redacted>`; occurrences
+    /// of the user's home directory in remaining values collapse to `~`.
+    public static func sanitizedArgumentsSummary(from arguments: [String: Any]) -> [String: String]? {
+        guard !arguments.isEmpty else { return nil }
+        let homePath = FileManager.default.homeDirectoryForCurrentUser.path
+        let sensitiveMarkers = ["token", "secret", "password", "key", "auth"]
+        var summary: [String: String] = [:]
+        for (argKey, rawValue) in arguments {
+            let loweredKey = argKey.lowercased()
+            if sensitiveMarkers.contains(where: { loweredKey.contains($0) }) {
+                summary[argKey] = "<redacted>"
+            } else {
+                var value = "\(rawValue)"
+                if !homePath.isEmpty {
+                    value = value.replacingOccurrences(of: homePath, with: "~")
+                }
+                summary[argKey] = value
+            }
+        }
+        return summary
     }
 }
 

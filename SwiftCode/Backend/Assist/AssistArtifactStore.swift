@@ -40,6 +40,9 @@ public struct AssistArtifactRecord: Codable, Sendable, Identifiable {
     public var relativePath: String
     public var createdAt: Date
     public var modifiedAt: Date
+    /// Chat message that produced this artifact, if known. Used to link
+    /// artifacts back to the conversation that requested them.
+    public var sourceMessageID: UUID? = nil
 
     public init(
         id: UUID = UUID(),
@@ -49,7 +52,8 @@ public struct AssistArtifactRecord: Codable, Sendable, Identifiable {
         kind: AssistArtifactKind,
         relativePath: String,
         createdAt: Date,
-        modifiedAt: Date
+        modifiedAt: Date,
+        sourceMessageID: UUID? = nil
     ) {
         self.id = id
         self.filename = filename
@@ -59,6 +63,7 @@ public struct AssistArtifactRecord: Codable, Sendable, Identifiable {
         self.relativePath = relativePath
         self.createdAt = createdAt
         self.modifiedAt = modifiedAt
+        self.sourceMessageID = sourceMessageID
     }
 }
 
@@ -108,9 +113,27 @@ public final class AssistArtifactStore: Sendable {
         var description: String
         var kind: AssistArtifactKind
         var createdAt: Date
+        /// Chat message that produced this artifact, if known.
+        var sourceMessageID: UUID? = nil
     }
 
     private init() {}
+
+    // MARK: - Kind inference
+
+    /// Strict kind inference from a normalized filename. A filename is an
+    /// execution plan only when it contains `_plan`, starts with `plan_`,
+    /// or ends with `_plan` — a bare `plan` substring (e.g.
+    /// `airplane_notes.md`) no longer classifies as a plan. An explicit
+    /// `kind` argument to `createArtifact` always wins over this inference.
+    private static func inferredKind(for filename: String) -> AssistArtifactKind {
+        var stem = filename.lowercased()
+        if stem.hasSuffix(".md") { stem = String(stem.dropLast(3)) }
+        if stem.contains("_plan") || stem.hasPrefix("plan_") || stem.hasSuffix("_plan") {
+            return .executionPlan
+        }
+        return .artifact
+    }
 
     // MARK: - Locations
 
@@ -157,7 +180,7 @@ public final class AssistArtifactStore: Sendable {
                 let fileCreated = values?.creationDate ?? modified
                 let entry = index[filename]
                 let description = entry?.description ?? Self.firstMeaningfulLine(of: url) ?? ""
-                let kind: AssistArtifactKind = entry?.kind ?? (filename.contains("plan") ? .executionPlan : .artifact)
+                let kind: AssistArtifactKind = entry?.kind ?? Self.inferredKind(for: filename)
                 found.append(AssistArtifactRecord(
                     id: entry?.id ?? UUID(),
                     filename: filename,
@@ -166,7 +189,8 @@ public final class AssistArtifactStore: Sendable {
                     kind: kind,
                     relativePath: ".assist_temp/artifacts/\(filename)",
                     createdAt: entry?.createdAt ?? fileCreated,
-                    modifiedAt: modified
+                    modifiedAt: modified,
+                    sourceMessageID: entry?.sourceMessageID
                 ))
             }
         }
@@ -209,12 +233,20 @@ public final class AssistArtifactStore: Sendable {
     // MARK: - CRUD
 
     /// Create, update, or append a Markdown artifact. Returns the record.
+    ///
+    /// - Parameter kind: Explicit artifact kind. When nil, the kind is
+    ///   inferred from the filename (strict `_plan` rules). An explicit
+    ///   kind always wins over filename inference.
+    /// - Parameter sourceMessageID: Optional chat message that produced
+    ///   this artifact; persisted in the sidecar index.
     @discardableResult
     public func createArtifact(
         name: String,
         content: String,
         description: String,
         mode: AssistArtifactMode,
+        kind: AssistArtifactKind? = nil,
+        sourceMessageID: UUID? = nil,
         workspaceRoot: URL
     ) throws -> AssistArtifactRecord {
         guard let filename = AssistArtifactNaming.normalize(name) else {
@@ -258,12 +290,20 @@ public final class AssistArtifactStore: Sendable {
         let entry = index[filename] ?? IndexEntry(
             id: UUID(),
             description: description.trimmingCharacters(in: .whitespacesAndNewlines),
-            kind: filename.contains("plan") ? .executionPlan : .artifact,
+            kind: Self.inferredKind(for: filename),
             createdAt: Date()
         )
         var updatedEntry = entry
         if !description.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             updatedEntry.description = description.trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+        // An explicit kind always wins, even over a previously stored kind.
+        if let kind {
+            updatedEntry.kind = kind
+        }
+        // Persist the producing message when the caller knows it.
+        if let sourceMessageID {
+            updatedEntry.sourceMessageID = sourceMessageID
         }
         index[filename] = updatedEntry
         saveIndex(index, workspaceRoot: workspaceRoot)
@@ -277,7 +317,8 @@ public final class AssistArtifactStore: Sendable {
             kind: updatedEntry.kind,
             relativePath: ".assist_temp/artifacts/\(filename)",
             createdAt: updatedEntry.createdAt,
-            modifiedAt: values?.contentModificationDate ?? Date()
+            modifiedAt: values?.contentModificationDate ?? Date(),
+            sourceMessageID: updatedEntry.sourceMessageID
         )
         refresh(workspaceRoot: workspaceRoot)
         logger.info("Artifact \(mode) -> \(filename)")
@@ -295,7 +336,7 @@ public final class AssistArtifactStore: Sendable {
             throw AssistArtifactError.readFailed("could not decode \(filename) as UTF-8")
         }
         if content.count > maxCharacters {
-            return (record, String(content.prefix(maxCharacters)) + "\n… [truncated: showing first \(maxCharacters) of \(content.count) characters]", true)
+            return (record, String(content.prefix(maxCharacters)) + "\n… [truncated: showing first \(maxCharacters) of \(content.count) characters. The recommended write ceiling for new artifacts is ~25,000 characters — link workspace files instead of pasting them whole.]", true)
         }
         return (record, content, false)
     }

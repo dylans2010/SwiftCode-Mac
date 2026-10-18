@@ -152,8 +152,11 @@ public final class WorkerEngine: Sendable {
                                 filesModifiedByWorker.append(file)
                             }
                         }
-                        completedWork.append("Executed \(toolId): \(result.output.prefix(200))")
-                        conversationHistory.append("- Action: Run \(toolId). Result: SUCCESS - \(result.output.prefix(300))")
+                        // Canonical model-facing payload replaces the silent prefix()
+                        // truncation: sections, caps, range metadata, error taxonomy.
+                        let modelPayload = AssistToolResultFormatter.modelFacingPayload(toolId: toolId, result: result)
+                        completedWork.append("Executed \(toolId):\n\(modelPayload)")
+                        conversationHistory.append("- Action: Run \(toolId). Result: SUCCESS\n\(modelPayload)")
                         progress.percentage = min(0.2 + Double(completedWork.count) * 0.1, 0.7)
                         progress.currentAction = "Executed \(completedWork.count) operations"
                         WorkerRuntimeState.shared.updateProgress(id: workerID, progress: progress)
