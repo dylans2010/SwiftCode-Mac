@@ -223,7 +223,7 @@ public struct AssistArtifactsView: View {
                     ScrollView {
                         if viewMode == .rendered {
                             let blocks = MarkdownParser.shared.parse(detailContent)
-                            MarkdownBlockListView(blocks: blocks)
+                            MarkdownBlockListView(blocks: blocks, showsLineNumbers: true)
                                 .textSelection(.enabled)
                                 .padding(24)
                                 .frame(maxWidth: .infinity, alignment: .leading)

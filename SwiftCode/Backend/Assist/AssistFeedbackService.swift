@@ -46,6 +46,79 @@ public enum AssistUserActionLog {
     }
 }
 
+// MARK: - Assist Feedback Vote Log
+
+/// Static, in-memory log of structured feedback votes: thumbs-up taps and
+/// the thumbs-down sheet's category/comment/severity. Recorded at the vote
+/// call sites in `AssistMainView`; the feedback package serializes the votes
+/// into `feedback_votes_history.json`, and the waterfall timeline correlates
+/// them with the turns they judged.
+@MainActor
+public enum AssistFeedbackVoteLog {
+    public struct AssistFeedbackVote: Sendable {
+        public let voteID: UUID
+        public let messageID: UUID
+        public let isPositive: Bool
+        public let modelId: String?
+        public let providerID: String?
+        public let conversationID: UUID?
+        public let reasonCategory: String?
+        public let userComment: String?
+        public let severity: String?
+        public let recordedAt: Date
+    }
+
+    private static var votes: [AssistFeedbackVote] = []
+
+    public static func recordPositive(
+        messageID: UUID,
+        modelId: String?,
+        providerID: String?,
+        conversationID: UUID? = nil
+    ) {
+        votes.append(AssistFeedbackVote(
+            voteID: UUID(),
+            messageID: messageID,
+            isPositive: true,
+            modelId: modelId,
+            providerID: providerID,
+            conversationID: conversationID,
+            reasonCategory: nil,
+            userComment: nil,
+            severity: nil,
+            recordedAt: Date()
+        ))
+    }
+
+    public static func recordNegative(
+        messageID: UUID,
+        category: String,
+        comment: String?,
+        severity: String
+    ) {
+        votes.append(AssistFeedbackVote(
+            voteID: UUID(),
+            messageID: messageID,
+            isPositive: false,
+            modelId: nil,
+            providerID: nil,
+            conversationID: nil,
+            reasonCategory: category,
+            userComment: comment,
+            severity: severity,
+            recordedAt: Date()
+        ))
+    }
+
+    public static func allVotes() -> [AssistFeedbackVote] {
+        votes
+    }
+
+    public static func reset() {
+        votes.removeAll()
+    }
+}
+
 // MARK: - Feedback Package Mode
 
 /// Feedback package generation mode: `.full` writes the complete diagnostic
@@ -256,6 +329,30 @@ public final class AssistFeedbackService: ObservableObject {
 
             // 41. tool_schemas_snapshot.json (Parameter schemas for every tool invoked this session)
             try saveAndRecord(collectToolSchemasSnapshot(from: messages), filename: "tool_schemas_snapshot.json")
+
+            // 42. session_timeline_waterfall.json (Single chronological event stream: messages, tools, actions, votes, diagnostics)
+            try saveAndRecord(collectSessionTimelineWaterfall(from: messages), filename: "session_timeline_waterfall.json")
+
+            // 43. message_revision_lineage.json (Regeneration chains: original → retries per retried message)
+            try saveAndRecord(collectMessageRevisionLineage(from: messages), filename: "message_revision_lineage.json")
+
+            // 44. prompt_context_snapshot.json (Prompt context assembly at feedback time)
+            try saveAndRecord(collectPromptContextSnapshot(), filename: "prompt_context_snapshot.json")
+
+            // 45. conversation_attachments.json (Every attachment with its message linkage)
+            try saveAndRecord(collectConversationAttachments(from: messages), filename: "conversation_attachments.json")
+
+            // 46. feedback_votes_history.json (Structured thumbs-up/down vote history)
+            try saveAndRecord(collectFeedbackVotes(), filename: "feedback_votes_history.json")
+
+            // 47. model_registry_snapshot.json (Full discovered-model registry state)
+            try saveAndRecord(collectModelRegistrySnapshot(), filename: "model_registry_snapshot.json")
+
+            // 48. tool_result_full_failures.json (Complete untruncated failed tool results)
+            try saveAndRecord(collectFullFailedToolResults(from: messages), filename: "tool_result_full_failures.json")
+
+            // 49. session_overview.json (Session-level aggregate summary)
+            try saveAndRecord(collectSessionOverview(from: messages), filename: "session_overview.json")
         }
 
         // Privacy notice ships with every package (not counted as a JSON telemetry file).
@@ -346,13 +443,26 @@ public final class AssistFeedbackService: ObservableObject {
 
     /// Appends a single-line JSON record to `positive_feedback.jsonl` in the
     /// Feedback Info root. Used by the thumbs-up action — no package is generated.
-    public static func appendPositiveFeedbackEntry(messageID: UUID, modelId: String?) {
+    /// The optional context parameters enrich the entry so a bare thumbs-up
+    /// still carries the model, provider, conversation, and a content preview.
+    public static func appendPositiveFeedbackEntry(
+        messageID: UUID,
+        modelId: String?,
+        providerID: String? = nil,
+        conversationID: UUID? = nil,
+        contentPreview: String? = nil,
+        toolCallCount: Int? = nil
+    ) {
         let url = shared.feedbackInfoRootDirectory.appendingPathComponent("positive_feedback.jsonl")
-        let entry: [String: Any] = [
+        var entry: [String: Any] = [
             "messageID": messageID.uuidString,
             "modelId": modelId ?? "unknown",
             "timestamp": ISO8601DateFormatter().string(from: Date())
         ]
+        if let providerID { entry["providerID"] = providerID }
+        if let conversationID { entry["conversationID"] = conversationID.uuidString }
+        if let contentPreview { entry["contentPreview"] = String(contentPreview.prefix(300)) }
+        if let toolCallCount { entry["toolCallCount"] = toolCallCount }
         guard let data = try? JSONSerialization.data(withJSONObject: entry),
               let line = String(data: data, encoding: .utf8),
               let lineData = (line + "\n").data(using: .utf8) else { return }
@@ -555,7 +665,18 @@ public final class AssistFeedbackService: ObservableObject {
             "metaReasoningEffort": s.metaReasoningEffort,
             "otherModelsWithMetaSDK": s.otherModelsWithMetaSDK,
             "swiftCodeCloudWithMetaSDK": s.swiftCodeCloudWithMetaSDK,
-            "selectedAssistModelID": s.selectedAssistModelID
+            "selectedAssistModelID": s.selectedAssistModelID,
+            "useOtherModelsWhenRateLimited": s.useOtherModelsWhenRateLimited,
+            "metaSelectedOtherModelID": s.metaSelectedOtherModelID,
+            "metaSelectedOtherModelProvider": s.metaSelectedOtherModelProvider,
+            "onlyUseFreeModels": s.onlyUseFreeModels,
+            "swiftCloudModelsEnabled": s.swiftCloudModelsEnabled,
+            "useSavedModels": s.useSavedModels,
+            "assistModelRoutingStrategy": s.assistModelRoutingStrategy,
+            "useSwiftCodeCloudModel": s.useSwiftCodeCloudModel,
+            "assistGoogleAuthMode": s.assistGoogleAuthMode,
+            "assistGoogleCloudProject": s.assistGoogleCloudProject,
+            "assistGoogleOAuthClientIDOverride": s.assistGoogleOAuthClientIDOverride
         ]
     }
 
@@ -1507,5 +1628,359 @@ public final class AssistFeedbackService: ObservableObject {
             }
             return entry
         }
+    }
+
+    /// Single chronological waterfall of the whole session: user/assistant
+    /// messages, tool calls, user actions, feedback votes, and diagnostic
+    /// events, sorted by timestamp. The first file to open when reconstructing
+    /// what happened and in what order.
+    private func collectSessionTimelineWaterfall(from messages: [AssistMessage]) -> [[String: Any]] {
+        let iso = ISO8601DateFormatter()
+        let manager = AssistManager.shared
+        var events: [(date: Date, kind: String, payload: [String: Any])] = []
+
+        for msg in messages {
+            var payload: [String: Any] = [
+                "messageID": msg.id.uuidString,
+                "role": msg.role.rawValue,
+                "contentLength": msg.content.count,
+                "contentPreview": String(msg.content.prefix(200))
+            ]
+            if msg.role == .assistant {
+                payload["modelId"] = msg.modelId ?? "unknown"
+                payload["providerID"] = msg.providerID ?? "unknown"
+                if let total = manager.requestMetricsByMessageID[msg.id]?.totalResponseTime {
+                    payload["totalResponseTimeSeconds"] = total
+                }
+            }
+            events.append((msg.timestamp, "message", payload))
+
+            if let tools = msg.activityGroup?.tools {
+                for tool in tools {
+                    events.append((tool.timestamp, "tool_call", [
+                        "messageID": msg.id.uuidString,
+                        "toolId": tool.toolId,
+                        "status": tool.status.rawValue,
+                        "durationSeconds": tool.duration,
+                        "purpose": tool.purpose
+                    ]))
+                }
+            }
+        }
+
+        for entry in AssistUserActionLog.datedEvents() {
+            let payload: [String: Any]
+            switch entry.action {
+            case .copied(let id):
+                payload = ["action": "copied", "messageID": id.uuidString]
+            case .retryRequested(let id):
+                payload = ["action": "retryRequested", "messageID": id.uuidString]
+            case .artifactOpened(let id, let title):
+                payload = ["action": "artifactOpened", "artifactID": id.uuidString, "title": title]
+            case .editApplied(let id):
+                payload = ["action": "editApplied", "messageID": id.uuidString]
+            case .positiveFeedback(let id):
+                payload = ["action": "positiveFeedback", "messageID": id.uuidString]
+            case .negativeFeedback(let id):
+                payload = ["action": "negativeFeedback", "messageID": id.uuidString]
+            }
+            events.append((entry.recordedAt, "user_action", payload))
+        }
+
+        for vote in AssistFeedbackVoteLog.allVotes() {
+            events.append((vote.recordedAt, "feedback_vote", [
+                "voteID": vote.voteID.uuidString,
+                "messageID": vote.messageID.uuidString,
+                "isPositive": vote.isPositive,
+                "reasonCategory": vote.reasonCategory ?? "none"
+            ]))
+        }
+
+        for e in DiagnosticEventBus.shared.events {
+            events.append((e.timestamp, "diagnostic_event", [
+                "component": e.component,
+                "severity": e.severity,
+                "category": e.category,
+                "message": e.message
+            ]))
+        }
+
+        return events.sorted { $0.date < $1.date }.map { entry in
+            var dict = entry.payload
+            dict["timestamp"] = iso.string(from: entry.date)
+            dict["eventKind"] = entry.kind
+            return dict
+        }
+    }
+
+    /// Regeneration chains: for every retried assistant message, the lineage
+    /// original → retries, with per-revision model, timestamps, content sizes,
+    /// and failure markers. Orphan retries (root outside this session) are
+    /// grouped under their nearest known ancestor.
+    private func collectMessageRevisionLineage(from messages: [AssistMessage]) -> [[String: Any]] {
+        let iso = ISO8601DateFormatter()
+        let assistants = messages.filter { $0.role == .assistant }
+        let byID = Dictionary(uniqueKeysWithValues: assistants.map { ($0.id, $0) })
+
+        func rootOf(_ msg: AssistMessage) -> AssistMessage {
+            var current = msg
+            var seen: Set<UUID> = [current.id]
+            while let parentID = current.retryOfMessageID,
+                  let parent = byID[parentID],
+                  !seen.contains(parentID) {
+                seen.insert(parentID)
+                current = parent
+            }
+            return current
+        }
+
+        var chains: [UUID: [AssistMessage]] = [:]
+        for msg in assistants where msg.retryOfMessageID != nil {
+            let root = rootOf(msg)
+            chains[root.id, default: []].append(msg)
+        }
+
+        return chains.map { rootID, retries in
+            let root = byID[rootID]
+            let ordered = retries.sorted { $0.timestamp < $1.timestamp }
+            return [
+                "rootMessageID": rootID.uuidString,
+                "rootTimestamp": root.map { iso.string(from: $0.timestamp) } ?? "unknown",
+                "rootModelId": root?.modelId ?? "unknown",
+                "rootProviderID": root?.providerID ?? "unknown",
+                "rootContentLength": root?.content.count ?? 0,
+                "revisionCount": ordered.count,
+                "revisions": ordered.map { rev -> [String: Any] in
+                    [
+                        "messageID": rev.id.uuidString,
+                        "timestamp": iso.string(from: rev.timestamp),
+                        "modelId": rev.modelId ?? "unknown",
+                        "providerID": rev.providerID ?? "unknown",
+                        "regenerationCount": rev.regenerationCount,
+                        "contentLength": rev.content.count,
+                        "toolCallCount": rev.activityGroup?.tools.count ?? 0,
+                        "hadServerError": rev.serverError != nil,
+                        "hadFailedTools": rev.activityGroup?.tools.contains(where: { $0.status == .failed }) ?? false,
+                        "noticeLevel": rev.noticeLevel?.rawValue ?? "none"
+                    ]
+                }
+            ] as [String: Any]
+        }
+    }
+
+    /// Snapshot of the prompt context assembly at feedback time: section
+    /// titles with token estimates and previews, plus the active SystemIndex
+    /// retrieval ledger. Honestly labeled as a snapshot — it reflects the
+    /// assembly when the package was generated, not per-turn history.
+    private func collectPromptContextSnapshot() -> [String: Any] {
+        let iso = ISO8601DateFormatter()
+        let manager = AssistManager.shared
+        let sections = manager.modelContext.map { s -> [String: Any] in
+            [
+                "title": s.title,
+                "estimatedTokens": s.estimatedTokens,
+                "contentLength": s.content.count,
+                "contentPreview": String(s.content.prefix(300)),
+                "isFixed": s.isFixed
+            ]
+        }
+        let ledger = manager.activeRetrievalLedger
+        return [
+            "capturedAt": iso.string(from: Date()),
+            "snapshotScope": "prompt-context at feedback-package generation time (not per-turn history)",
+            "sectionCount": sections.count,
+            "totalEstimatedTokens": sections.reduce(0) { $0 + ($1["estimatedTokens"] as? Int ?? 0) },
+            "sections": sections,
+            "retrievalLedger": [
+                "retrievalRounds": ledger?.retrievalRounds ?? 0,
+                "retrievedChunkIDs": Array(ledger?.retrievedChunkIDs ?? [])
+            ]
+        ]
+    }
+
+    /// Consolidated index of every attachment across the session, each linked
+    /// to its message — the single place to see what files rode along.
+    private func collectConversationAttachments(from messages: [AssistMessage]) -> [[String: Any]] {
+        let iso = ISO8601DateFormatter()
+        var out: [[String: Any]] = []
+        for msg in messages {
+            guard let atts = msg.attachments, !atts.isEmpty else { continue }
+            for att in atts {
+                out.append([
+                    "messageID": msg.id.uuidString,
+                    "role": msg.role.rawValue,
+                    "timestamp": iso.string(from: msg.timestamp),
+                    "filename": att.filename,
+                    "sizeBytes": att.size
+                ])
+            }
+        }
+        return out
+    }
+
+    /// Structured thumbs-up / thumbs-down vote history for the session, with
+    /// the down-vote category, comment, and severity captured at vote time.
+    private func collectFeedbackVotes() -> [[String: Any]] {
+        let iso = ISO8601DateFormatter()
+        return AssistFeedbackVoteLog.allVotes().map { vote in
+            var dict: [String: Any] = [
+                "voteID": vote.voteID.uuidString,
+                "messageID": vote.messageID.uuidString,
+                "isPositive": vote.isPositive,
+                "recordedAt": iso.string(from: vote.recordedAt)
+            ]
+            if let modelId = vote.modelId { dict["modelId"] = modelId }
+            if let providerID = vote.providerID { dict["providerID"] = providerID }
+            if let conversationID = vote.conversationID { dict["conversationID"] = conversationID.uuidString }
+            if let category = vote.reasonCategory { dict["reasonCategory"] = category }
+            if let comment = vote.userComment, !comment.isEmpty { dict["userComment"] = comment }
+            if let severity = vote.severity { dict["severity"] = severity }
+            return dict
+        }
+    }
+
+    /// Full snapshot of the discovered model registry: every model's identity,
+    /// capabilities, availability, and failure state at feedback time — so a
+    /// bad response can be correlated against what the router could choose.
+    private func collectModelRegistrySnapshot() -> [String: Any] {
+        let iso = ISO8601DateFormatter()
+        let service = AssistModelDiscoveryService.shared
+        let models = service.discoveredModels.map { m -> [String: Any] in
+            var dict: [String: Any] = [
+                "id": m.id,
+                "displayName": m.displayName,
+                "providerID": m.providerID,
+                "providerName": m.providerName,
+                "modelIdentifier": m.modelIdentifier,
+                "source": m.source.rawValue,
+                "isConfigured": m.isConfigured,
+                "isAvailable": m.isAvailable,
+                "supportsStreaming": m.supportsStreaming,
+                "supportsToolCalling": m.supportsToolCalling,
+                "supportsVision": m.supportsVision,
+                "supportsStructuredOutput": m.supportsStructuredOutput,
+                "supportsAgenticUse": m.supportsAgenticUse,
+                "supportsSubagents": m.supportsSubagents,
+                "priority": m.priority,
+                "status": m.status.rawValue,
+                "statusDescription": m.statusDescription,
+                "isCurrentlyRateLimited": m.isCurrentlyRateLimited,
+                "contextWindow": m.contextWindow
+            ]
+            if let until = m.rateLimitedUntil { dict["rateLimitedUntil"] = iso.string(from: until) }
+            if let reason = m.lastFailureReason { dict["lastFailureReason"] = reason }
+            if let url = m.endpointURL { dict["endpointURL"] = url }
+            return dict
+        }
+        return [
+            "capturedAt": iso.string(from: Date()),
+            "isDiscovering": service.isDiscovering,
+            "lastDiscoveryDate": service.lastDiscoveryDate.map { iso.string(from: $0) } ?? "never",
+            "lastDiscoveryErrors": service.lastDiscoveryErrors,
+            "hiddenProviderNames": Array(service.hiddenProviderNames),
+            "removedModelIDs": Array(service.removedModelIDs),
+            "totalModels": models.count,
+            "models": models
+        ]
+    }
+
+    /// Full (untruncated) results of every failed tool call this session —
+    /// the complete error text, where `tool_calls.json` only keeps a
+    /// 500-character preview.
+    private func collectFullFailedToolResults(from messages: [AssistMessage]) -> [[String: Any]] {
+        let iso = ISO8601DateFormatter()
+        var out: [[String: Any]] = []
+        var sequence = 1
+        for msg in messages {
+            guard let tools = msg.activityGroup?.tools else { continue }
+            for tool in tools where tool.status == .failed {
+                var entry: [String: Any] = [
+                    "sequenceIndex": sequence,
+                    "messageID": msg.id.uuidString,
+                    "timestamp": iso.string(from: tool.timestamp),
+                    "toolId": tool.toolId,
+                    "purpose": tool.purpose,
+                    "durationSeconds": tool.duration,
+                    "resultLength": tool.result.count,
+                    "fullResult": tool.result
+                ]
+                if let summary = tool.argumentsSummary, !summary.isEmpty {
+                    entry["argumentsSummary"] = summary
+                }
+                out.append(entry)
+                sequence += 1
+            }
+        }
+        return out
+    }
+
+    /// Session-level aggregates: the one-file summary of the whole session —
+    /// volume, models, tokens, latency, failures, and feedback activity.
+    private func collectSessionOverview(from messages: [AssistMessage]) -> [String: Any] {
+        let iso = ISO8601DateFormatter()
+        let manager = AssistManager.shared
+        let assistants = messages.filter { $0.role == .assistant }
+
+        var totalPrompt = 0
+        var totalCompletion = 0
+        var modelsUsed: Set<String> = []
+        var responseTimes: [Double] = []
+        var failedTools = 0
+        var totalTools = 0
+        var serverErrors = 0
+        for msg in assistants {
+            if let id = msg.modelId { modelsUsed.insert(id) }
+            if let usage = msg.tokenUsage {
+                totalPrompt += usage.promptTokens
+                totalCompletion += usage.completionTokens
+            }
+            if let total = manager.requestMetricsByMessageID[msg.id]?.totalResponseTime {
+                responseTimes.append(total)
+            }
+            if let tools = msg.activityGroup?.tools {
+                totalTools += tools.count
+                failedTools += tools.filter { $0.status == .failed }.count
+            }
+            if msg.serverError != nil { serverErrors += 1 }
+        }
+
+        let modelSequence = assistants.compactMap { $0.modelId }
+        var modelSwitches = 0
+        for i in 1..<modelSequence.count where modelSequence[i] != modelSequence[i - 1] {
+            modelSwitches += 1
+        }
+
+        let votes = AssistFeedbackVoteLog.allVotes()
+        let actions = AssistUserActionLog.datedEvents()
+        func actionCount(_ matches: (AssistUserActionLog.AssistUserAction) -> Bool) -> Int {
+            actions.filter { matches($0.action) }.count
+        }
+
+        return [
+            "capturedAt": iso.string(from: Date()),
+            "sessionStart": messages.first.map { iso.string(from: $0.timestamp) } ?? "unknown",
+            "sessionEnd": messages.last.map { iso.string(from: $0.timestamp) } ?? "unknown",
+            "totalMessages": messages.count,
+            "userMessages": messages.filter { $0.role == .user }.count,
+            "assistantMessages": assistants.count,
+            "modelsUsed": Array(modelsUsed).sorted(),
+            "modelSwitchCount": modelSwitches,
+            "totalPromptTokens": totalPrompt,
+            "totalCompletionTokens": totalCompletion,
+            "totalTokens": totalPrompt + totalCompletion,
+            "turnsWithLatencyMetrics": responseTimes.count,
+            "avgResponseTimeSeconds": responseTimes.isEmpty ? 0 : responseTimes.reduce(0, +) / Double(responseTimes.count),
+            "maxResponseTimeSeconds": responseTimes.max() ?? 0,
+            "totalToolCalls": totalTools,
+            "failedToolCalls": failedTools,
+            "serverErrors": serverErrors,
+            "retryCount": messages.filter { $0.retryOfMessageID != nil }.count,
+            "positiveVotes": votes.filter { $0.isPositive }.count,
+            "negativeVotes": votes.filter { !$0.isPositive }.count,
+            "copies": actionCount { if case .copied = $0 { return true }; return false },
+            "retryRequests": actionCount { if case .retryRequested = $0 { return true }; return false },
+            "artifactsOpened": actionCount { if case .artifactOpened = $0 { return true }; return false },
+            "activeConversationID": AssistConversationHistory.shared.activeConversationID?.uuidString ?? "none"
+        ]
     }
 }

@@ -330,17 +330,119 @@ private struct MarkdownASTVisitor: MarkupVisitor {
     }
 }
 
+/// Modern fenced-code-block presentation: a language header bar with a line
+/// count and copy action, plus an optional line-number gutter next to the
+/// code. Used by chat (no gutter) and the Artifacts viewer (gutter on).
+public struct MarkdownCodeBlockView: View {
+    let language: String?
+    let code: String
+    let showsLineNumbers: Bool
+
+    public init(language: String?, code: String, showsLineNumbers: Bool = false) {
+        self.language = language
+        self.code = code
+        self.showsLineNumbers = showsLineNumbers
+    }
+
+    private var lines: [String] {
+        code.components(separatedBy: "\n")
+    }
+
+    /// Gutter width sized to the digit count of the highest line number.
+    private var gutterWidth: CGFloat {
+        let digits = String(max(lines.count, 1)).count
+        return CGFloat(16 + digits * 8)
+    }
+
+    public var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            // Header bar: language chip, line count, copy action.
+            HStack(spacing: 8) {
+                Text((language ?? "code").uppercased())
+                    .font(.system(size: 11, weight: .bold, design: .monospaced))
+                    .foregroundStyle(.secondary)
+                    .padding(.horizontal, 7)
+                    .padding(.vertical, 2)
+                    .background(Color.secondary.opacity(0.14), in: Capsule())
+                Text("\(lines.count) lines")
+                    .font(.system(size: 10, design: .monospaced))
+                    .foregroundStyle(.tertiary)
+                Spacer()
+                Button {
+                    NSPasteboard.general.clearContents()
+                    NSPasteboard.general.setString(code, forType: .string)
+                } label: {
+                    HStack(spacing: 4) {
+                        Image(systemName: "doc.on.doc")
+                            .font(.caption2)
+                        Text("Copy")
+                            .font(.system(size: 10, weight: .bold))
+                    }
+                }
+                .buttonStyle(.plain)
+                .foregroundStyle(.secondary)
+                .help("Copy code to clipboard")
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 7)
+            .background(Color.secondary.opacity(0.08))
+
+            Divider()
+
+            // Body: line-number gutter + code, scrolling together.
+            ScrollView(.horizontal) {
+                HStack(alignment: .top, spacing: 0) {
+                    if showsLineNumbers {
+                        VStack(alignment: .trailing, spacing: 0) {
+                            ForEach(Array(lines.enumerated()), id: \.offset) { index, _ in
+                                Text("\(index + 1)")
+                                    .font(.system(.body, design: .monospaced))
+                                    .foregroundStyle(.tertiary)
+                                    .frame(maxWidth: .infinity, alignment: .trailing)
+                            }
+                        }
+                        .frame(width: gutterWidth, alignment: .trailing)
+                        .padding(.vertical, 10)
+                        .padding(.leading, 12)
+                        .padding(.trailing, 8)
+                        Rectangle()
+                            .fill(Color.secondary.opacity(0.25))
+                            .frame(width: 1)
+                            .padding(.vertical, 8)
+                    }
+                    Text(code)
+                        .font(.system(.body, design: .monospaced))
+                        .textSelection(.enabled)
+                        .padding(10)
+                        .padding(.leading, showsLineNumbers ? 2 : 0)
+                }
+            }
+            .background(Color.black.opacity(0.3))
+        }
+        .clipShape(RoundedRectangle(cornerRadius: 8))
+        .overlay(
+            RoundedRectangle(cornerRadius: 8)
+                .stroke(Color.secondary.opacity(0.25), lineWidth: 1)
+        )
+        .padding(.vertical, 4)
+    }
+}
+
 public struct MarkdownBlockListView: View {
     let blocks: [MarkdownBlock]
+    /// When true, fenced code blocks render with a line-number gutter.
+    /// Defaults to false so chat and other existing surfaces are unchanged.
+    let showsLineNumbers: Bool
 
-    public init(blocks: [MarkdownBlock]) {
+    public init(blocks: [MarkdownBlock], showsLineNumbers: Bool = false) {
         self.blocks = blocks
+        self.showsLineNumbers = showsLineNumbers
     }
 
     public var body: some View {
         VStack(alignment: .leading, spacing: 14) {
             ForEach(blocks) { block in
-                MarkdownBlockView(block: block)
+                MarkdownBlockView(block: block, showsLineNumbers: showsLineNumbers)
             }
         }
     }
@@ -348,6 +450,13 @@ public struct MarkdownBlockListView: View {
 
 public struct MarkdownBlockView: View {
     let block: MarkdownBlock
+    /// When true, fenced code blocks render with a line-number gutter.
+    let showsLineNumbers: Bool
+
+    public init(block: MarkdownBlock, showsLineNumbers: Bool = false) {
+        self.block = block
+        self.showsLineNumbers = showsLineNumbers
+    }
 
     public var body: some View {
         switch block {
@@ -362,46 +471,7 @@ public struct MarkdownBlockView: View {
                 .lineSpacing(4)
 
         case .codeBlock(let language, let code):
-            VStack(alignment: .leading, spacing: 0) {
-                HStack {
-                    if let language {
-                        Text(language.uppercased())
-                            .font(.system(size: 11, weight: .bold, design: .monospaced))
-                            .foregroundStyle(.secondary)
-                    } else {
-                        Text("CODE")
-                            .font(.system(size: 11, weight: .bold, design: .monospaced))
-                            .foregroundStyle(.secondary)
-                    }
-                    Spacer()
-                    Button {
-                        NSPasteboard.general.clearContents()
-                        NSPasteboard.general.setString(code, forType: .string)
-                    } label: {
-                        HStack(spacing: 4) {
-                            Image(systemName: "doc.on.doc")
-                                .font(.caption2)
-                            Text("Copy")
-                                .font(.system(size: 10, weight: .bold))
-                        }
-                    }
-                    .buttonStyle(.plain)
-                    .foregroundStyle(.secondary)
-                }
-                .padding(.horizontal, 10)
-                .padding(.vertical, 6)
-                .background(Color.secondary.opacity(0.1))
-
-                ScrollView(.horizontal) {
-                    Text(code)
-                        .font(.system(.body, design: .monospaced))
-                        .textSelection(.enabled)
-                        .padding(10)
-                }
-                .background(Color.black.opacity(0.3))
-            }
-            .cornerRadius(6)
-            .padding(.vertical, 4)
+            MarkdownCodeBlockView(language: language, code: code, showsLineNumbers: showsLineNumbers)
 
         case .blockQuote(let text):
             HStack(spacing: 12) {

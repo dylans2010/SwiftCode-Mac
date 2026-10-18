@@ -1852,7 +1852,20 @@ private struct AssistMessageActionBar: View {
                 // Thumbs-up Button (positive feedback — no package generated)
                 Button {
                     AssistUserActionLog.record(.positiveFeedback(messageID: message.id))
-                    AssistFeedbackService.appendPositiveFeedbackEntry(messageID: message.id, modelId: message.modelId)
+                    AssistFeedbackVoteLog.recordPositive(
+                        messageID: message.id,
+                        modelId: message.modelId,
+                        providerID: message.providerID,
+                        conversationID: AssistConversationHistory.shared.activeConversationID
+                    )
+                    AssistFeedbackService.appendPositiveFeedbackEntry(
+                        messageID: message.id,
+                        modelId: message.modelId,
+                        providerID: message.providerID,
+                        conversationID: AssistConversationHistory.shared.activeConversationID,
+                        contentPreview: String(message.content.prefix(300)),
+                        toolCallCount: message.activityGroup?.tools.count
+                    )
                     withAnimation(.easeInOut(duration: 0.2)) {
                         didThumbsUp = true
                     }
@@ -1984,6 +1997,12 @@ private struct AssistMessageActionBar: View {
         generatedFeedbackURL = nil
 
         let trimmedComment = comment.trimmingCharacters(in: .whitespacesAndNewlines)
+        AssistFeedbackVoteLog.recordNegative(
+            messageID: message.id,
+            category: category,
+            comment: trimmedComment.isEmpty ? nil : trimmedComment,
+            severity: severity
+        )
         let reason = "User feedback: \(category) (severity: \(severity))"
         Task {
             do {
