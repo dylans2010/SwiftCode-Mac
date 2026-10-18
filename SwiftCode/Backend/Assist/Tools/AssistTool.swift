@@ -137,6 +137,15 @@ public protocol AssistTool: Sendable {
     var prerequisites: [String] { get }
     var estimatedCost: Double { get }
 
+    // Unified capability extensions:
+    var outputFormat: ToolOutputFormat { get }
+    var requiredPermission: ToolPermissionRequirement { get }
+    var supportedOperations: [String] { get }
+    var knownLimitations: [String] { get }
+    var canChainResult: Bool { get }
+    var isDestructive: Bool { get }
+    var resourceScope: String { get }
+
     func execute(input: [String: Any], context: AssistContext) async throws -> AssistToolResult
 }
 
@@ -161,6 +170,10 @@ public extension AssistTool {
         riskLevel == .safeMutation || riskLevel == .potentiallyDestructive
     }
 
+    var isDestructive: Bool {
+        riskLevel == .potentiallyDestructive
+    }
+
     var prerequisites: [String] {
         []
     }
@@ -168,4 +181,57 @@ public extension AssistTool {
     var estimatedCost: Double {
         0.01
     }
+
+    var outputFormat: ToolOutputFormat {
+        if id == "take_screenshot" { return .image }
+        if id == "take_screenrecord" { return .video }
+        if isMutating { return .file }
+        return .text
+    }
+
+    var requiredPermission: ToolPermissionRequirement {
+        if id == "take_screenshot" || id == "take_screenrecord" { return .screenRecording }
+        if id == "use_app" { return .accessibility }
+        if id == "use_terminal" { return .terminalExecution }
+        if isMutating { return .fileSystem }
+        return .none
+    }
+
+    var supportedOperations: [String] {
+        if id == "use_app" {
+            return ["launch", "activate", "list_applications", "inspect_application", "list_windows", "select_window", "close_application", "inspect_ui", "get_accessibility_tree", "get_focused_element", "take_screenshot", "inspect_window", "click", "double_click", "right_click", "move_pointer", "drag", "scroll", "type_text", "press_key", "press_shortcut", "select_all", "copy", "paste", "activate_element", "set_element_value", "select_menu", "wait_for_element", "wait_for_window", "verify"]
+        }
+        if id == "take_screenshot" {
+            return ["fullscreen", "region"]
+        }
+        if id == "take_screenrecord" {
+            return ["window", "application_display"]
+        }
+        return []
+    }
+
+    var knownLimitations: [String] {
+        if id == "take_screenrecord" {
+            return ["Audio capture is not supported; captures video stream of target application only.", "Maximum duration is 60 seconds."]
+        }
+        if id == "take_screenshot" {
+            return ["Requires Screen Recording authorization in macOS System Settings."]
+        }
+        if id == "use_app" {
+            return ["Requires Accessibility authorization in macOS System Settings.", "Target app must expose standard macOS Accessibility elements."]
+        }
+        return []
+    }
+
+    var canChainResult: Bool {
+        return true
+    }
+
+    var resourceScope: String {
+        if id == "take_screenshot" || id == "take_screenrecord" || id == "use_app" {
+            return "macOS Desktop & Window System"
+        }
+        return "Workspace Project"
+    }
 }
+

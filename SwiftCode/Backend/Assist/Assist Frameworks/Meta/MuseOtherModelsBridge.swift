@@ -364,6 +364,8 @@ public final class MuseOtherModelsBridge: @unchecked Sendable {
         - In Autopilot mode, execute all work to completion without intermediate user prompting.
         - When all work is done, tested, and audited, call `report_to_user` to present the result.
         - All operations are strictly confined within the user's project workspace (\(workspaceRoot)).
+        - Interpret user requests expressed in natural language and select tools based on desired capabilities.
+        - If the user asks an informational or conceptual question (e.g. "What is a screenshot?", "Explain how screen recording works"), answer directly in text without calling any tools.
         """)
 
         if !retrievedInstructions.isEmpty {
@@ -383,36 +385,63 @@ public final class MuseOtherModelsBridge: @unchecked Sendable {
             onThinkingDelta?(initialThought)
         }
 
-        // 4. Stream response from LLMService using third-party/custom model
-        let state = GenerationState()
+        // 4. Stream response from LLMService with multi-turn tool continuation loop
+        var conversationMessages = messages
         let currentTask = Task {
-            try await LLMService.shared.streamChat(
-                messages: messages,
-                model: resolved.modelID,
-                systemPrompt: fullSystemPrompt,
-                providerOverride: nil,
-                onToken: { token in
-                    guard !state.isCancelled else { return }
-                    state.processToken(token, onThinkingDelta: onThinkingDelta, onTextDelta: onTextDelta)
-                }
-            )
+            var turnIndex = 0
+            let maxContinuationTurns = 5
 
-            // 5. Inspect and execute any tool calls embedded in the generation
-            await self.parseAndExecuteToolCalls(in: state.fullGeneratedText, workspaceRoot: workspaceRoot)
+            while turnIndex < maxContinuationTurns {
+                turnIndex += 1
+                let state = GenerationState()
+                try await LLMService.shared.streamChat(
+                    messages: conversationMessages,
+                    model: resolved.modelID,
+                    systemPrompt: fullSystemPrompt,
+                    providerOverride: nil,
+                    onToken: { token in
+                        guard !state.isCancelled else { return }
+                        state.processToken(token, onThinkingDelta: onThinkingDelta, onTextDelta: onTextDelta)
+                    }
+                )
+
+                // 5. Inspect and execute any tool calls embedded in the generation
+                let toolExecutions = await self.parseAndExecuteToolCalls(in: state.fullGeneratedText, workspaceRoot: workspaceRoot)
+                guard !toolExecutions.isEmpty else {
+                    // No further tool calls: the model produced its final response.
+                    break
+                }
+
+                // Append assistant response and tool feedback to conversation for continuation
+                conversationMessages.append(AIMessage(role: .assistant, content: state.fullGeneratedText))
+                let feedback = toolExecutions.map { "Tool \($0.toolName) result:\n\($0.output)" }.joined(separator: "\n\n")
+                conversationMessages.append(AIMessage(
+                    role: .user,
+                    content: "Tool execution completed with the following results:\n\n\(feedback)\n\nPlease evaluate these results, execute any next steps required, or report your final completion."
+                ))
+            }
         }
 
         self.activeTask = currentTask
         try await currentTask.value
     }
 
+    public struct ToolExecutionSummary: Sendable {
+        public let toolName: String
+        public let output: String
+    }
+
     /// Parses tool calls in the output (e.g. ```tool_call blocks) and triggers SwiftCode's native execution.
-    private func parseAndExecuteToolCalls(in text: String, workspaceRoot: String) async {
-        guard text.contains("```tool_call") || text.contains("<tool_call>") else { return }
+    @discardableResult
+    private func parseAndExecuteToolCalls(in text: String, workspaceRoot: String) async -> [ToolExecutionSummary] {
+        guard text.contains("```tool_call") || text.contains("<tool_call>") else { return [] }
 
         let pattern = "```tool_call\\s*([\\s\\S]*?)\\s*```"
-        guard let regex = try? NSRegularExpression(pattern: pattern, options: []) else { return }
+        guard let regex = try? NSRegularExpression(pattern: pattern, options: []) else { return [] }
         let nsText = text as NSString
         let matches = regex.matches(in: text, options: [], range: NSRange(location: 0, length: nsText.length))
+
+        var results: [ToolExecutionSummary] = []
 
         for match in matches {
             guard match.numberOfRanges > 1 else { continue }
@@ -444,13 +473,19 @@ public final class MuseOtherModelsBridge: @unchecked Sendable {
                     // metadata, error taxonomy) instead of output-only text.
                     let outputText = AssistToolResultFormatter.modelFacingPayload(toolId: toolName, result: result)
                     AssistManager.shared.reportToolCompleted(callId: callId, toolName: toolName, output: outputText, arguments: args)
+                    results.append(ToolExecutionSummary(toolName: toolName, output: outputText))
                 } catch {
-                    AssistManager.shared.reportToolCompleted(callId: callId, toolName: toolName, output: "Error: \(error.localizedDescription)", arguments: args)
+                    let errStr = "Error: \(error.localizedDescription)"
+                    AssistManager.shared.reportToolCompleted(callId: callId, toolName: toolName, output: errStr, arguments: args)
+                    results.append(ToolExecutionSummary(toolName: toolName, output: errStr))
                 }
             } else {
-                AssistManager.shared.reportToolCompleted(callId: callId, toolName: toolName, output: "Tool \(toolName) completed.", arguments: args)
+                let unavailStr = "Tool '\(toolName)' is not registered in SwiftCode Assist."
+                AssistManager.shared.reportToolCompleted(callId: callId, toolName: toolName, output: unavailStr, arguments: args)
+                results.append(ToolExecutionSummary(toolName: toolName, output: unavailStr))
             }
         }
+        return results
     }
 
     /// Cancels active turn execution.

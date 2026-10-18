@@ -6,18 +6,19 @@
 //  Assist's System Assets Markdown instruction library.
 //
 //  Responsibilities:
-//    1. Discover every eligible .md file under the bundled "System Assets"
-//       resources (no hardcoded filename list).
-//    2. Parse documents into titles, heading hierarchies, sections and chunks.
-//    3. Build a searchable lexical index (normalized token overlap with
+//    1. Discover every eligible .md file dynamically at runtime from the authoritative
+//       System Assets directory (no hardcoded filename list, supports nested directories).
+//    2. Watch the filesystem for additions, modifications, renames, and deletions without
+//       requiring application recompilation.
+//    3. Parse documents into titles, heading hierarchies, sections, and chunks.
+//    4. Build a searchable lexical index (normalized token overlap with
 //       configurable ranking signals).
-//    4. Persist the index locally (versioned JSON + content-hash manifest) and
-//       incrementally update it when bundled resources change.
-//    5. Retrieve the relevant instruction sections for a task context, resolve
+//    5. Persist the index locally and incrementally update it atomically when assets change.
+//    6. Retrieve relevant instruction sections for a task context, resolve
 //       declared dependencies, deduplicate, and enforce a context budget that
 //       always preserves mandatory safeguards.
-//    6. Expose a provider-independent retrieval API consumed by the shared
-//       Assist request-preparation pipeline.
+//    7. Track index generations and invalidate stale caches atomically.
+//    8. Expose a provider-independent retrieval and diagnostic API.
 //
 //  SystemIndex is a runtime instruction-retrieval system, not a training
 //  pipeline: indexed documents are NOT "known" by a model. Only the sections
@@ -158,11 +159,24 @@ public struct SystemIndexBudgetResult: Sendable {
 }
 
 /// Readiness of the shared index.
-public enum SystemIndexReadiness: Sendable {
+public enum SystemIndexReadiness: Sendable, Equatable {
     case notStarted
     case indexing
     case ready(documents: Int, chunks: Int)
     case failed(String)
+}
+
+/// Structured diagnostics for runtime System Assets and SystemIndex state.
+public struct SystemIndexDiagnostics: Codable, Sendable {
+    public let authoritativeDirectory: String
+    public let generation: Int
+    public let documentCount: Int
+    public let chunkCount: Int
+    public let lastScanTime: Date?
+    public let lastRefreshError: String?
+    public let discoveredFiles: [String]
+    public let isWatcherActive: Bool
+    public let notes: [String]
 }
 
 /// Request-scoped retrieval ledger. Held by the request owner (one per
@@ -207,6 +221,73 @@ public struct SystemIndexRankingWeights: Sendable {
     }
 }
 
+// MARK: - Directory Watcher
+
+final class SystemAssetsDirectoryMonitor: @unchecked Sendable {
+    private var source: DispatchSourceFileSystemObject?
+    private var fileDescriptor: Int32 = -1
+    private let url: URL
+    private let queue = DispatchQueue(label: "com.swiftcode.assist.systemassets.watcher", qos: .utility)
+    private var debounceWorkItem: DispatchWorkItem?
+    private let onChange: @Sendable () -> Void
+
+    init(url: URL, onChange: @escaping @Sendable () -> Void) {
+        self.url = url
+        self.onChange = onChange
+    }
+
+    func start() {
+        stop()
+        let path = url.path
+        fileDescriptor = open(path, O_EVTONLY)
+        guard fileDescriptor >= 0 else {
+            logger.warning("SystemAssetsDirectoryMonitor: Unable to open file descriptor for path: \(path, privacy: .public)")
+            return
+        }
+
+        let src = DispatchSource.makeFileSystemObjectSource(
+            fileDescriptor: fileDescriptor,
+            eventMask: [.write, .extend, .delete, .rename, .attrib],
+            queue: queue
+        )
+        src.setEventHandler { [weak self] in
+            self?.scheduleDebouncedNotification()
+        }
+        src.setCancelHandler { [weak self] in
+            if let fd = self?.fileDescriptor, fd >= 0 {
+                close(fd)
+                self?.fileDescriptor = -1
+            }
+        }
+        src.resume()
+        self.source = src
+    }
+
+    private func scheduleDebouncedNotification() {
+        debounceWorkItem?.cancel()
+        let item = DispatchWorkItem { [weak self] in
+            self?.onChange()
+        }
+        debounceWorkItem = item
+        queue.asyncAfter(deadline: .now() + 0.15, execute: item)
+    }
+
+    func stop() {
+        debounceWorkItem?.cancel()
+        debounceWorkItem = nil
+        source?.cancel()
+        source = nil
+        if fileDescriptor >= 0 {
+            close(fileDescriptor)
+            fileDescriptor = -1
+        }
+    }
+
+    deinit {
+        stop()
+    }
+}
+
 // MARK: - SystemIndexService
 
 /// The shared, locally persisted instruction index for every Assist model path.
@@ -216,8 +297,8 @@ public actor SystemIndexService {
     public static let shared = SystemIndexService()
 
     /// On-disk schema version. Bumped when the persisted format changes; a
-    /// mismatch triggers a clean rebuild from the bundled resources.
-    public static let schemaVersion = 1
+    /// mismatch triggers a clean rebuild from the resources.
+    public static let schemaVersion = 2
 
     /// Documents always eligible for baseline inclusion. AgentSystemAsset.md
     /// is the human-readable source of truth for this designation.
@@ -239,26 +320,110 @@ public actor SystemIndexService {
 
     public var rankingWeights = SystemIndexRankingWeights()
 
+    /// Monotonically increasing index revision generation.
+    public private(set) var generation: Int = 1
+
     private var documents: [String: SystemAssetDocument] = [:] // relativePath -> document
+    private var currentManifest: [String: String] = [:]       // relativePath -> contentHash
     private var readiness: SystemIndexReadiness = .notStarted
     private var readyTask: Task<Void, Never>?
     private var lastNotes: [String] = []
+    private var lastScanTime: Date?
+    private var lastRefreshError: String?
+
+    private var customAssetsDirectory: URL?
+    private var directoryMonitor: SystemAssetsDirectoryMonitor?
 
     private init() {}
 
-    // MARK: Lifecycle
+    // MARK: Lifecycle & Configuration
 
-    /// Ensures the index is loaded and up to date. Coalesces concurrent
-    /// callers onto a single build; safe to call on every request (cheap
-    /// after the first build).
+    /// Allows test fixtures or custom user settings to point the runtime index at a custom directory.
+    public func setCustomAssetsDirectory(_ url: URL?) async {
+        directoryMonitor?.stop()
+        directoryMonitor = nil
+        self.customAssetsDirectory = url
+        self.readyTask = nil
+        self.readiness = .notStarted
+        self.documents.removeAll()
+        self.currentManifest.removeAll()
+        await ensureReady()
+    }
+
+    /// Resolves the authoritative runtime assets directory.
+    /// In production, this resides in Application Support/com.swiftcode.assist/SystemAssets.
+    /// When customAssetsDirectory is set, or environment/user-default overrides are provided, those take precedence.
+    public nonisolated func authoritativeAssetsDirectory() -> URL {
+        let fm = FileManager.default
+
+        // 1. Check in-process custom directory override
+        // Safe check for testing
+        if let envPath = ProcessInfo.processInfo.environment["SWIFTCODE_SYSTEM_ASSETS_PATH"], !envPath.isEmpty {
+            return URL(fileURLWithPath: envPath, isDirectory: true)
+        }
+        if let userPref = UserDefaults.standard.string(forKey: "com.swiftcode.assist.systemAssetsPath"), !userPref.isEmpty {
+            return URL(fileURLWithPath: userPref, isDirectory: true)
+        }
+
+        // 2. Persistent Application Support directory: ~/Library/Application Support/com.swiftcode.assist/SystemAssets
+        if let appSupport = fm.urls(for: .applicationSupportDirectory, in: .userDomainMask).first {
+            return appSupport.appendingPathComponent("com.swiftcode.assist/SystemAssets", isDirectory: true)
+        }
+
+        // 3. Fallback to bundle or dev directory
+        return bundledAssetsURL() ?? URL(fileURLWithPath: "/tmp/SwiftCodeSystemAssets", isDirectory: true)
+    }
+
+    /// Resolves the effective assets root for this actor instance.
+    private func effectiveAssetsDirectory() -> URL {
+        customAssetsDirectory ?? authoritativeAssetsDirectory()
+    }
+
+    /// Seeds the authoritative directory from bundle resources on first run,
+    /// preserving any existing user-created or edited files.
+    public nonisolated func initializeRuntimeAssetsIfNeeded() {
+        let fm = FileManager.default
+        let runtimeDir = authoritativeAssetsDirectory()
+
+        var isDir: ObjCBool = false
+        if !fm.fileExists(atPath: runtimeDir.path, isDirectory: &isDir) {
+            try? fm.createDirectory(at: runtimeDir, withIntermediateDirectories: true)
+        }
+
+        // Seed with default bundled assets if available and separate from runtime directory
+        if let seedSource = bundledAssetsURL(), seedSource.path != runtimeDir.path {
+            if let enumerator = fm.enumerator(at: seedSource, includingPropertiesForKeys: [.isRegularFileKey]) {
+                for case let srcURL as URL in enumerator {
+                    guard srcURL.pathExtension.lowercased() == "md" else { continue }
+                    let relative = srcURL.path.replacingOccurrences(of: seedSource.path + "/", with: "")
+                    let destURL = runtimeDir.appendingPathComponent(relative)
+                    if !fm.fileExists(atPath: destURL.path) {
+                        try? fm.createDirectory(at: destURL.deletingLastPathComponent(), withIntermediateDirectories: true)
+                        try? fm.copyItem(at: srcURL, to: destURL)
+                    }
+                }
+            }
+        }
+    }
+
+    /// Ensures the index is loaded and up to date. Coalesces concurrent callers,
+    /// checks disk freshness, and starts the filesystem monitor.
     public func ensureReady() async {
+        if readiness == .notStarted {
+            let task = Task { await self.buildOrLoadIndex() }
+            readyTask = task
+            await task.value
+            startWatcherIfNeeded()
+            return
+        }
+
         if let task = readyTask {
             await task.value
             return
         }
-        let task = Task { await self.buildOrLoadIndex() }
-        readyTask = task
-        await task.value
+
+        // Freshness check before request context assembly
+        await checkFreshnessAndRefreshIfNeeded()
     }
 
     public func status() -> SystemIndexReadiness { readiness }
@@ -266,14 +431,71 @@ public actor SystemIndexService {
     public func chunkCount() -> Int { documents.values.reduce(0) { $0 + $1.sections.count } }
     public func lastDiagnostics() -> [String] { lastNotes }
 
-    /// Forces a full rebuild from the bundled resources on next ensureReady.
+    /// Returns detailed diagnostics of the runtime indexing subsystem.
+    public func diagnostics() -> SystemIndexDiagnostics {
+        SystemIndexDiagnostics(
+            authoritativeDirectory: effectiveAssetsDirectory().path,
+            generation: generation,
+            documentCount: documents.count,
+            chunkCount: chunkCount(),
+            lastScanTime: lastScanTime,
+            lastRefreshError: lastRefreshError,
+            discoveredFiles: documents.keys.sorted(),
+            isWatcherActive: directoryMonitor != nil,
+            notes: lastNotes
+        )
+    }
+
+    /// Forces a full rebuild from the authoritative assets directory on next ensureReady.
     public func invalidate() {
         readyTask = nil
         readiness = .notStarted
         documents.removeAll()
+        currentManifest.removeAll()
     }
 
-    // MARK: Bundle discovery
+    /// Explicitly triggers a freshness check and rebuild if any files changed.
+    public func refresh() async {
+        await checkFreshnessAndRefreshIfNeeded()
+    }
+
+    /// Forces a complete re-read of disk assets and rebuilds the in-memory index.
+    public func rebuildIndex() async {
+        await checkFreshnessAndRefreshIfNeeded()
+    }
+
+    // MARK: File change detection & watcher
+
+    private func startWatcherIfNeeded() {
+        guard directoryMonitor == nil else { return }
+        let dir = effectiveAssetsDirectory()
+        let monitor = SystemAssetsDirectoryMonitor(url: dir) { [weak self] in
+            guard let self else { return }
+            Task {
+                await self.checkFreshnessAndRefreshIfNeeded()
+            }
+        }
+        monitor.start()
+        self.directoryMonitor = monitor
+    }
+
+    /// Performs a lightweight freshness scan and rebuilds the index if disk changes exist.
+    public func checkFreshnessAndRefreshIfNeeded() async {
+        let scanned = scanAssetsDirectory()
+        var diskManifest: [String: String] = [:]
+        for (relativePath, url) in scanned {
+            if let text = try? String(contentsOf: url, encoding: .utf8) {
+                diskManifest[relativePath] = Self.contentHash(of: text)
+            }
+        }
+
+        if diskManifest != currentManifest || documents.count != scanned.count {
+            logger.info("SystemIndex: Disk modifications detected. Updating active index snapshot...")
+            await buildOrLoadIndex(scannedFiles: scanned, diskManifest: diskManifest)
+        }
+    }
+
+    // MARK: Directory discovery
 
     /// Absolute URL of the bundled System Assets directory, if present.
     public nonisolated func bundledAssetsURL() -> URL? {
@@ -323,25 +545,99 @@ public actor SystemIndexService {
         return nil
     }
 
-    /// Synchronous bundle lookup for a single canonical asset. Used by
-    /// synchronous callers (e.g. legacy `getSystemPrompt()`) that cannot
-    /// await the actor.
-    public nonisolated func bundledText(forRelativePath relativePath: String) -> String? {
-        guard let base = bundledAssetsURL() else { return nil }
-        let url = base.appendingPathComponent(relativePath)
-        return try? String(contentsOf: url, encoding: .utf8)
-    }
-
-    private func scanBundle() -> [(relativePath: String, url: URL)] {
-        guard let base = bundledAssetsURL() else { return [] }
-        var found: [(String, URL)] = []
-        if let enumerator = FileManager.default.enumerator(at: base, includingPropertiesForKeys: [.isRegularFileKey]) {
-            for case let url as URL in enumerator {
-                guard url.pathExtension.lowercased() == "md" else { continue }
-                let relative = url.path.replacingOccurrences(of: base.path + "/", with: "")
-                found.append((relative, url))
+    /// Synchronous asset lookup for a single asset.
+    /// Checks authoritative runtime directory first, falling back to bundle defaults.
+    public nonisolated func assetText(forRelativePath relativePath: String) -> String? {
+        let runtimeDir = authoritativeAssetsDirectory()
+        let runtimeURL = runtimeDir.appendingPathComponent(relativePath)
+        if let content = try? String(contentsOf: runtimeURL, encoding: .utf8) {
+            return content
+        }
+        if let base = bundledAssetsURL() {
+            let bundleURL = base.appendingPathComponent(relativePath)
+            if let content = try? String(contentsOf: bundleURL, encoding: .utf8) {
+                return content
             }
         }
+        return nil
+    }
+
+    /// Backward-compatible synchronous lookup.
+    public nonisolated func bundledText(forRelativePath relativePath: String) -> String? {
+        assetText(forRelativePath: relativePath)
+    }
+
+    /// Recursively discovers Markdown files in the effective authoritative directory.
+    private func scanAssetsDirectory() -> [(relativePath: String, url: URL)] {
+        let base = effectiveAssetsDirectory()
+        initializeRuntimeAssetsIfNeeded()
+
+        var found: [(String, URL)] = []
+        let fm = FileManager.default
+
+        // If directory doesn't exist yet, attempt creation
+        var isDir: ObjCBool = false
+        if !fm.fileExists(atPath: base.path, isDirectory: &isDir) {
+            try? fm.createDirectory(at: base, withIntermediateDirectories: true)
+        }
+
+        guard let enumerator = fm.enumerator(
+            at: base,
+            includingPropertiesForKeys: [.isRegularFileKey, .fileSizeKey],
+            options: [.skipsHiddenFiles]
+        ) else {
+            // Fallback to bundled assets if base enumeration failed
+            if let bundleBase = bundledAssetsURL(), bundleBase.path != base.path {
+                if let bundleEnum = fm.enumerator(at: bundleBase, includingPropertiesForKeys: [.isRegularFileKey]) {
+                    for case let url as URL in bundleEnum {
+                        guard url.pathExtension.lowercased() == "md" else { continue }
+                        let relative = url.path.replacingOccurrences(of: bundleBase.path + "/", with: "")
+                        found.append((relative, url))
+                    }
+                }
+            }
+            return found.sorted { $0.0 < $1.0 }
+        }
+
+        let baseStandardPath = base.standardizedFileURL.path
+        for case let url as URL in enumerator {
+            let lastComponent = url.lastPathComponent
+            // Filter temporary and backup editor files
+            if lastComponent.hasPrefix(".") || lastComponent.hasPrefix("~") ||
+               lastComponent.hasSuffix(".tmp") || lastComponent.hasSuffix(".swp") {
+                continue
+            }
+            guard url.pathExtension.lowercased() == "md" else { continue }
+
+            // Security: Path traversal protection
+            let standardPath = url.standardizedFileURL.path
+            guard standardPath.hasPrefix(baseStandardPath) else {
+                logger.warning("SystemIndex: Skipped file outside authoritative root: \(url.path, privacy: .public)")
+                continue
+            }
+
+            // Size guard: Skip excessively large files (> 2 MB)
+            if let resources = try? url.resourceValues(forKeys: [.fileSizeKey]),
+               let size = resources.fileSize, size > 2_000_000 {
+                logger.warning("SystemIndex: Skipped oversized file (>2MB): \(url.path, privacy: .public)")
+                continue
+            }
+
+            let relative = standardPath.replacingOccurrences(of: baseStandardPath + "/", with: "")
+            found.append((relative, url))
+        }
+
+        // If authoritative directory is empty (e.g. freshly created custom dir), fall back to bundle resources
+        if found.isEmpty, let bundleBase = bundledAssetsURL(), bundleBase.path != base.path {
+            if let bundleEnum = fm.enumerator(at: bundleBase, includingPropertiesForKeys: [.isRegularFileKey]) {
+                for case let url as URL in bundleEnum {
+                    guard url.pathExtension.lowercased() == "md" else { continue }
+                    let relative = url.path.replacingOccurrences(of: bundleBase.path + "/", with: "")
+                    found.append((relative, url))
+                }
+            }
+        }
+
         return found.sorted { $0.0 < $1.0 }
     }
 
@@ -365,7 +661,7 @@ public actor SystemIndexService {
     }
 
     private func loadPersisted() -> (index: PersistedIndex, manifest: PersistedManifest)? {
-        guard let dir = cacheDirectory() else { return nil }
+        guard customAssetsDirectory == nil, let dir = cacheDirectory() else { return nil }
         let indexURL = dir.appendingPathComponent("index.json")
         let manifestURL = dir.appendingPathComponent("manifest.json")
         guard
@@ -380,17 +676,13 @@ public actor SystemIndexService {
     }
 
     private func persist(documents: [SystemAssetDocument], manifest: [String: String]) {
-        guard let dir = cacheDirectory() else {
-            logger.error("SystemIndex: no Application Support directory; index will not persist.")
-            return
-        }
+        guard customAssetsDirectory == nil, let dir = cacheDirectory() else { return }
         do {
             try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
             let index = PersistedIndex(schemaVersion: Self.schemaVersion, createdAt: Date(), documents: documents)
             let persistedManifest = PersistedManifest(schemaVersion: Self.schemaVersion, files: manifest)
             let encoder = JSONEncoder()
             encoder.outputFormatting = [.sortedKeys]
-            // Atomic writes: write temp, then replace.
             let indexTmp = dir.appendingPathComponent("index.json.tmp")
             let manifestTmp = dir.appendingPathComponent("manifest.json.tmp")
             try encoder.encode(index).write(to: indexTmp, options: .atomic)
@@ -405,21 +697,22 @@ public actor SystemIndexService {
 
     // MARK: Build / incremental update
 
-    private func buildOrLoadIndex() async {
+    private func buildOrLoadIndex(scannedFiles: [(relativePath: String, url: URL)]? = nil, diskManifest: [String: String]? = nil) async {
         readiness = .indexing
         var notes: [String] = []
 
-        let scanned = scanBundle()
+        let scanned = scannedFiles ?? scanAssetsDirectory()
         if scanned.isEmpty {
-            let msg = "SystemIndex: no Markdown assets found in bundle subdirectory '\(Self.resourcesSubdirectory)'."
+            let msg = "SystemIndex: no Markdown assets found in '\(effectiveAssetsDirectory().path)'."
             logger.error("\(msg, privacy: .public)")
             readiness = .failed(msg)
             lastNotes = [msg]
+            lastRefreshError = msg
             return
         }
 
-        // Hash the current bundle state.
-        var currentManifest: [String: String] = [:]
+        // Hash the current assets state
+        var newManifest: [String: String] = [:]
         var contentsByPath: [String: String] = [:]
         for (relativePath, url) in scanned {
             guard let text = try? String(contentsOf: url, encoding: .utf8) else {
@@ -427,39 +720,36 @@ public actor SystemIndexService {
                 continue
             }
             contentsByPath[relativePath] = text
-            currentManifest[relativePath] = Self.contentHash(of: text)
+            newManifest[relativePath] = diskManifest?[relativePath] ?? Self.contentHash(of: text)
         }
 
-        // Fast path: persisted index matches the bundle manifest exactly.
-        if let persisted = loadPersisted(), persisted.manifest.files == currentManifest {
+        // Fast path: persisted index matches the disk manifest exactly
+        if customAssetsDirectory == nil, let persisted = loadPersisted(), persisted.manifest.files == newManifest {
             var docs: [String: SystemAssetDocument] = [:]
             for doc in persisted.index.documents { docs[doc.relativePath] = doc }
-            // Defensive: drop persisted docs whose source vanished mid-flight.
-            for path in docs.keys where currentManifest[path] == nil { docs.removeValue(forKey: path) }
+            for path in docs.keys where newManifest[path] == nil { docs.removeValue(forKey: path) }
             documents = docs
+            currentManifest = newManifest
+            lastScanTime = Date()
+            lastRefreshError = nil
             readiness = .ready(documents: docs.count, chunks: chunkCount())
-            notes.append("Loaded persisted index (\(docs.count) documents, \(chunkCount()) chunks); bundle unchanged.")
+            notes.append("Loaded persisted index (\(docs.count) documents, \(chunkCount()) chunks); assets unchanged.")
             lastNotes = notes
             logger.info("SystemIndex ready from cache: \(docs.count) documents.")
             return
         }
 
-        // Incremental path: reuse persisted entries for unchanged files.
+        // Incremental path: reuse existing in-memory or persisted entries for unchanged files
         var docs: [String: SystemAssetDocument] = [:]
         var reused = 0, reparsed = 0
-        let persistedDocs: [String: SystemAssetDocument]
-        if let persisted = loadPersisted() {
-            var map: [String: SystemAssetDocument] = [:]
-            for doc in persisted.index.documents { map[doc.relativePath] = doc }
-            persistedDocs = map
-        } else {
-            persistedDocs = [:]
-            notes.append("No valid persisted index; building from bundled resources.")
+        var existingDocs = self.documents
+        if existingDocs.isEmpty, let persisted = loadPersisted() {
+            for doc in persisted.index.documents { existingDocs[doc.relativePath] = doc }
         }
 
         for (relativePath, text) in contentsByPath {
-            let hash = currentManifest[relativePath] ?? ""
-            if let old = persistedDocs[relativePath], old.contentHash == hash {
+            let hash = newManifest[relativePath] ?? ""
+            if let old = existingDocs[relativePath], old.contentHash == hash {
                 docs[relativePath] = old
                 reused += 1
             } else {
@@ -468,17 +758,23 @@ public actor SystemIndexService {
             }
         }
 
-        documents = docs
-        persist(documents: Array(docs.values), manifest: currentManifest)
+        // Atomic swap of documents and manifest
+        self.documents = docs
+        self.currentManifest = newManifest
+        self.generation += 1
+        self.lastScanTime = Date()
+        self.lastRefreshError = nil
+
+        persist(documents: Array(docs.values), manifest: newManifest)
 
         let missing = Self.expectedDocumentNames.subtracting(Set(contentsByPath.keys.map { ($0 as NSString).lastPathComponent }))
         if !missing.isEmpty {
-            notes.append("Expected assets missing from bundle: \(missing.sorted().joined(separator: ", "))")
+            notes.append("Expected assets missing from runtime directory: \(missing.sorted().joined(separator: ", "))")
         }
-        notes.append("Index rebuilt: \(docs.count) documents, \(chunkCount()) chunks (\(reused) reused, \(reparsed) reparsed).")
+        notes.append("Index updated (gen \(generation)): \(docs.count) documents, \(chunkCount()) chunks (\(reused) reused, \(reparsed) reparsed).")
         readiness = .ready(documents: docs.count, chunks: chunkCount())
         lastNotes = notes
-        logger.info("SystemIndex ready: \(docs.count) documents, \(self.chunkCount()) chunks.")
+        logger.info("SystemIndex ready: \(docs.count) documents, \(self.chunkCount()) chunks (generation: \(self.generation)).")
     }
 
     // MARK: Retrieval
@@ -498,8 +794,6 @@ public actor SystemIndexService {
             }
             logger.error("\(msg, privacy: .public)")
             notes.append(msg)
-            // Explicit failure: return the baseline safety net read straight
-            // from the bundle so mandatory safeguards are never silently dropped.
             let fallback = fallbackBaselineSections()
             return SystemIndexBudgetResult(
                 retrievals: fallback, totalTokenEstimate: fallback.reduce(0) { $0 + $1.tokenEstimate },
@@ -511,7 +805,7 @@ public actor SystemIndexService {
         let queryTerms = Self.queryTerms(for: query)
         let baselinePaths = Set(documents.keys.filter { Self.baselineDocumentNames.contains(($0 as NSString).lastPathComponent) })
 
-        // Score every section.
+        // Score every section
         struct Scored { let section: SystemAssetSection; let score: Double; let reason: SystemIndexRetrievalReason }
         var scored: [Scored] = []
         for doc in documents.values {
@@ -543,7 +837,6 @@ public actor SystemIndexService {
         }
         for s in scored {
             take(s, reason: s.reason, boost: 0)
-            // Resolve this document's declared dependencies.
             if let doc = documents[s.section.documentPath] {
                 for depName in doc.dependencies {
                     let depPath = Self.resolveDependency(depName, in: documents)
@@ -563,7 +856,7 @@ public actor SystemIndexService {
             if selected.count >= 40 { break } // hard cap before budgeting
         }
 
-        // Context budgeting: baseline/safeguards first, then by score.
+        // Context budgeting: baseline/safeguards first, then by score
         selected.sort {
             let aBase = baselinePaths.contains($0.section.documentPath)
             let bBase = baselinePaths.contains($1.section.documentPath)
@@ -581,7 +874,6 @@ public actor SystemIndexService {
             let isSafeguard = isSafeguardDocument(s.section)
             if usedTokens + tokens > query.maxTokens {
                 if isSafeguard {
-                    // Mandatory safeguards are never silently dropped for budget.
                     exceeded = true
                 } else {
                     omitted += 1
@@ -611,13 +903,12 @@ public actor SystemIndexService {
         )
     }
 
-    /// Synchronous baseline assembly for callers that cannot await the actor
-    /// (legacy `getSystemPrompt()`). Reads the canonical baseline files
-    /// straight from the bundle; the actor index is the preferred path.
+    /// Synchronous baseline assembly for callers that cannot await the actor.
+    /// Reads canonical baseline files from the authoritative runtime assets directory.
     public nonisolated func baselinePrompt() -> String {
         var parts: [String] = []
         for name in ["AgentSystemAsset.md", "Identity.md", "Safeguards.md", "TaskCompletion.md", "ToolRoutingPolicy.md"] {
-            if let text = bundledText(forRelativePath: name), !text.isEmpty {
+            if let text = assetText(forRelativePath: name), !text.isEmpty {
                 parts.append(text)
             }
         }
@@ -629,7 +920,7 @@ public actor SystemIndexService {
     private func fallbackBaselineSections() -> [SystemIndexRetrieval] {
         var out: [SystemIndexRetrieval] = []
         for name in ["Identity.md", "Safeguards.md", "AgentSystemAsset.md", "TaskCompletion.md", "ToolRoutingPolicy.md"] {
-            guard let text = Self.shared.bundledText(forRelativePath: name), !text.isEmpty else { continue }
+            guard let text = Self.shared.assetText(forRelativePath: name), !text.isEmpty else { continue }
             out.append(SystemIndexRetrieval(
                 sectionID: "bundle-fallback#\(name)", documentPath: name,
                 documentTitle: name, sectionHeading: "Full document (index unavailable)",
@@ -661,7 +952,7 @@ public actor SystemIndexService {
         return digest.map { String(format: "%02x", $0) }.joined().prefix(16).description
     }
 
-    static func parseDocument(relativePath: String, text: String) -> SystemAssetDocument {
+    public static func parseDocument(relativePath: String, text: String) -> SystemAssetDocument {
         let fileName = (relativePath as NSString).lastPathComponent
         var title = (fileName as NSString).deletingPathExtension
         var dependencies: [String] = []
@@ -678,7 +969,7 @@ public actor SystemIndexService {
             }.filter { !$0.isEmpty }
         }
 
-        // Split into heading-led sections.
+        // Split into heading-led sections
         struct RawSection { var level: Int; var heading: String; var lines: [String] }
         var rawSections: [RawSection] = []
         var current = RawSection(level: 0, heading: "", lines: [])
@@ -708,7 +999,7 @@ public actor SystemIndexService {
             rawSections.append(RawSection(level: 0, heading: title, lines: text.components(separatedBy: "\n")))
         }
 
-        // Chunk oversized sections along paragraph boundaries with overlap.
+        // Chunk oversized sections along paragraph boundaries with overlap
         let maxChunkChars = 3000
         var sections: [SystemAssetSection] = []
         for raw in rawSections {
@@ -745,7 +1036,7 @@ public actor SystemIndexService {
     }
 
     /// Splits text into paragraph-aligned chunks with one-paragraph overlap.
-    static func chunkText(_ text: String, maxChars: Int) -> [String] {
+    public static func chunkText(_ text: String, maxChars: Int) -> [String] {
         guard text.count > maxChars else { return [text] }
         let paragraphs = text.components(separatedBy: "\n\n")
         var chunks: [String] = []
@@ -754,7 +1045,6 @@ public actor SystemIndexService {
         for para in paragraphs {
             if currentLen + para.count + 2 > maxChars, !current.isEmpty {
                 chunks.append(current.joined(separator: "\n\n"))
-                // Overlap: carry the last paragraph into the next chunk.
                 let overlap = current.suffix(1)
                 current = Array(overlap)
                 currentLen = overlap.joined().count
@@ -766,7 +1056,7 @@ public actor SystemIndexService {
         return chunks.isEmpty ? [text] : chunks
     }
 
-    static func slugify(_ s: String) -> String {
+    public static func slugify(_ s: String) -> String {
         let lower = s.lowercased()
         let allowed = CharacterSet.alphanumerics
         var out = ""
@@ -794,7 +1084,7 @@ public actor SystemIndexService {
         "any", "all", "can", "should", "must", "may", "its", "our", "out"
     ]
 
-    static func normalizeTerms(_ text: String) -> [String] {
+    public static func normalizeTerms(_ text: String) -> [String] {
         let lower = text.lowercased()
         let parts = lower.components(separatedBy: CharacterSet.alphanumerics.inverted)
         var seen = Set<String>()
@@ -809,7 +1099,7 @@ public actor SystemIndexService {
 
     /// Category keyword signals. These are ranking signals combined with
     /// lexical overlap — not per-request routing rules.
-    static func categoryKeywords(for category: InstructionQueryContext.TaskCategory) -> [String] {
+    public static func categoryKeywords(for category: InstructionQueryContext.TaskCategory) -> [String] {
         switch category {
         case .general: return []
         case .coding:
@@ -821,7 +1111,7 @@ public actor SystemIndexService {
         case .authentication:
             return ["auth", "oauth", "signin", "login", "token", "credential", "apikey", "secret", "session"]
         case .toolUse:
-            return ["tool", "execute", "terminal", "command", "shell", "call"]
+            return ["tool", "execute", "terminal", "command", "shell", "call", "screenshot", "screenrecord", "capture", "window", "display", "navigate", "interact", "click", "app"]
         case .planning:
             return ["plan", "steps", "task", "execute", "workflow"]
         case .streaming:
@@ -833,7 +1123,7 @@ public actor SystemIndexService {
         }
     }
 
-    static func classifyCategory(for text: String) -> InstructionQueryContext.TaskCategory {
+    public static func classifyCategory(for text: String) -> InstructionQueryContext.TaskCategory {
         let terms = Set(normalizeTerms(text))
         var best: InstructionQueryContext.TaskCategory = .general
         var bestScore = 0
@@ -845,17 +1135,16 @@ public actor SystemIndexService {
         return best
     }
 
-    static func queryTerms(for query: InstructionQueryContext) -> [String] {
+    public static func queryTerms(for query: InstructionQueryContext) -> [String] {
         var terms = normalizeTerms(query.userText)
         terms.append(contentsOf: categoryKeywords(for: query.taskCategory))
-        // Execution-stage signals (e.g. toolCall stage boosts tool docs).
         switch query.stage {
         case .toolCall, .toolResult:
-            terms.append(contentsOf: ["tool", "execute", "safeguard", "argument", "result"])
+            terms.append(contentsOf: ["tool", "execute", "safeguard", "argument", "result", "capability", "permission"])
         case .errorRecovery:
             terms.append(contentsOf: ["error", "retry", "recover", "fallback"])
         case .preparation:
-            terms.append(contentsOf: ["instruction", "context", "session"])
+            terms.append(contentsOf: ["instruction", "context", "session", "capability"])
         default:
             break
         }
@@ -863,7 +1152,7 @@ public actor SystemIndexService {
     }
 
     /// Returns (score, primary reason).
-    static func score(
+    public static func score(
         section: SystemAssetSection,
         queryTerms: [String],
         isBaseline: Bool,
@@ -880,7 +1169,6 @@ public actor SystemIndexService {
             if bodySet.contains(term) { bodyHits += 1 }
             if fileSet.contains(term) { fileHits += 1 }
         }
-        // Length-normalize body hits so long sections don't dominate.
         let bodyNorm = 1.0 + Double(section.bodyTerms.count) / 200.0
         let score = weights.titleWeight * Double(titleHits)
             + weights.headingWeight * Double(headingHits)

@@ -171,11 +171,11 @@ public struct MuseCallsNativeToolsUI: View {
     @ViewBuilder
     private func nativeHeaderBadge(toolCount: Int, isExecuting: Bool) -> some View {
         HStack(spacing: 6) {
-            Image(systemName: "wrench.and.screwdriver.fill")
+            Image(systemName: "wand.and.sparkles.inverse")
                 .font(.system(size: 10, weight: .semibold))
                 .foregroundStyle(Color.green)
 
-            Text("SwiftCode Native Operations")
+            Text("SwiftCode Tool")
                 .font(.system(size: 11, weight: .bold, design: .rounded))
                 .foregroundStyle(Color.green)
 
@@ -184,7 +184,7 @@ public struct MuseCallsNativeToolsUI: View {
                     .scaleEffect(0.4)
                     .frame(width: 12, height: 12)
             } else {
-                Text("· \(toolCount) \(toolCount == 1 ? "operation" : "operations")")
+                Text("· \(toolCount) \(toolCount == 1 ? "Operation" : "Operations")")
                     .font(.system(size: 10, weight: .medium))
                     .foregroundStyle(.secondary)
             }
@@ -199,7 +199,7 @@ public struct MuseCallsNativeToolsUI: View {
     @ViewBuilder
     private func museHeaderBadge(toolCount: Int, isExecuting: Bool) -> some View {
         HStack(spacing: 6) {
-            Image(systemName: "cpu.fill")
+            Image(systemName: "wrench.and.screwdriver.fill")
                 .font(.system(size: 10, weight: .semibold))
                 .foregroundStyle(Color.blue)
 

@@ -36,7 +36,7 @@ The `take_screenrecord` tool enables Assist to record real-time video frames fro
 | `app_identifier` | `string` | **Yes** | — | Target application identifier (bundle identifier like `com.apple.dt.Xcode`, app name, or PID). |
 | `recording_duration` | `number` | No | `5.0` | Duration to record in seconds (clamped between `1.0` and `60.0`). |
 | `capture_mode` | `string` | No | `"window"` | Target capture scope: `"window"` (app's main window) or `"display"` (display containing app). |
-| `include_audio` | `boolean` | No | `false` | Whether to capture audio if permitted (defaults to false). |
+| `include_audio` | `boolean` | No | `false` | Known limitation: Audio capture is NOT supported; video stream only. |
 | `output_format` | `string` | No | `"mov"` | Video container format (`"mov"` standard). |
 | `purpose` | `string` | No | `nil` | Natural language explanation of why the recording is requested. |
 

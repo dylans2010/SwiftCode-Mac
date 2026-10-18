@@ -247,11 +247,11 @@ public struct NewProjectSheetView: View {
                 title: "Open Xcode Target Project",
                 description: "Import any native Xcode target .xcodeproj or .xcworkspace. Perfect for seamless side-by-side transition and compilation within SwiftCode.",
                 tint: .pink,
-                actionTitle: "Select .xcodeproj File",
+                actionTitle: "Select Xcode Project",
                 actionIcon: "app.badge"
             ) {
                 Button { importXcodeProject() } label: {
-                    Label("Select .xcodeproj File", systemImage: "app.badge")
+                    Label("Select Xcode Project", systemImage: "app.badge")
                         .font(.headline)
                         .foregroundColor(.white)
                         .padding(.vertical, 10)

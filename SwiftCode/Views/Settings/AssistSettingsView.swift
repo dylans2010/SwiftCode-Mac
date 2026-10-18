@@ -1573,13 +1573,13 @@ struct AssistSettingsView: View {
                 GroupBox {
                     VStack(alignment: .leading, spacing: 14) {
                         HStack {
-                            Label("Custom Model Setup", systemImage: "cube.transparent")
+                            Label("Custom Models", systemImage: "apple.intelligence")
                                 .font(.headline)
                                 .foregroundColor(.cyan)
                             Spacer()
 
                             Button(action: openAddEndpoint) {
-                                Label("Add Custom", systemImage: "plus")
+                                Label("Add New", systemImage: "plus")
                             }
                             .buttonStyle(.bordered)
                             .disabled(isEditingEndpoint)
@@ -1886,13 +1886,13 @@ struct AssistSettingsView: View {
                                 RoundedRectangle(cornerRadius: 8)
                                     .fill(Color.purple.opacity(0.14))
                                     .frame(width: 32, height: 32)
-                                Image(systemName: "brain.head.profile")
+                                Image(systemName: "append.page")
                                     .font(.system(size: 14, weight: .bold))
                                     .foregroundStyle(Color.purple)
                             }
 
                             VStack(alignment: .leading, spacing: 2) {
-                                Text("Assist Memory (UserMemory.md)")
+                                Text("Assist Memory")
                                     .font(.system(size: 14, weight: .semibold))
                                 Text("Save context, preferences, and remember technical instructions across sessions")
                                     .font(.caption2)
@@ -1916,7 +1916,7 @@ struct AssistSettingsView: View {
                             VStack(alignment: .leading, spacing: 2) {
                                 Text("Enable Memory Recording")
                                     .font(.system(size: 13, weight: .medium))
-                                Text("When enabled, Assist automatically records valuable context into UserMemory.md and references it in future tasks.")
+                                Text("When enabled, Assist automatically records valuable context into it's Memory and references it in future tasks.")
                                     .font(.caption2)
                                     .foregroundStyle(.secondary)
                             }
@@ -1924,7 +1924,7 @@ struct AssistSettingsView: View {
                         .toggleStyle(.switch)
 
                         HStack {
-                            Text("Memory File: ~/Library/Application Support/SwiftCode/UserMemory.md")
+                            Text("Memory is saved on device and Assist can access it for any future tasks.")
                                 .font(.system(size: 11, design: .monospaced))
                                 .foregroundStyle(.secondary)
                             Spacer()
@@ -1949,7 +1949,7 @@ struct AssistSettingsView: View {
                             Spacer()
                         }
 
-                        Text("Assist allows you to use AI to help you write code, explain concepts, and perform complex refactorings.")
+                        Text("Assist is your personal AI assistant for SwiftCode.")
                             .font(.body)
                             .foregroundStyle(.secondary)
                     }
@@ -1979,7 +1979,7 @@ struct AssistSettingsView: View {
                     ComposioSettingsView()
                         .padding()
                 }
-                .navigationTitle("Composio Integrations")
+                .navigationTitle("Integrations")
                 .toolbar {
                     ToolbarItem(placement: .confirmationAction) {
                         Button("Done") {
@@ -1997,7 +1997,7 @@ struct AssistSettingsView: View {
         .sheet(isPresented: $showSkillsSheet) {
             VStack(spacing: 0) {
                 HStack {
-                    Label("Agent Skills", systemImage: "sparkles")
+                    Label("Skills", systemImage: "sparkles")
                         .font(.headline)
                     Spacer()
                     Button("Done") {

@@ -15,9 +15,17 @@ public struct AssistArtifactsView: View {
     @State private var detailError: String?
     @State private var isLoadingDetail = false
     @State private var isConfirmingDelete = false
+    @State private var viewMode: ArtifactViewMode = .rendered
     /// The last artifact id logged to AssistUserActionLog, so refreshes
     /// don't double-log the same open.
     @State private var lastLoggedArtifactID: UUID?
+
+    public enum ArtifactViewMode: String, CaseIterable, Identifiable {
+        case rendered = "Rendered"
+        case source = "Source"
+
+        public var id: String { rawValue }
+    }
 
     public init() {}
 
@@ -176,23 +184,60 @@ public struct AssistArtifactsView: View {
                     description: Text("Choose an artifact from the list to read it.")
                 )
             } else {
-                ScrollView {
-                    renderedMarkdown(detailContent)
-                        .textSelection(.enabled)
-                        .padding(20)
-                        .frame(maxWidth: .infinity, alignment: .leading)
+                VStack(spacing: 0) {
+                    if let record = selectedRecord {
+                        HStack(spacing: 12) {
+                            VStack(alignment: .leading, spacing: 3) {
+                                HStack(spacing: 8) {
+                                    Text(record.title)
+                                        .font(.title3)
+                                        .fontWeight(.bold)
+                                    Text(record.kind.displayName)
+                                        .font(.caption2.weight(.medium))
+                                        .foregroundStyle(.secondary)
+                                        .padding(.horizontal, 8)
+                                        .padding(.vertical, 3)
+                                        .background(Color.accentColor.opacity(0.12), in: Capsule())
+                                }
+                                if !record.description.isEmpty {
+                                    Text(record.description)
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                }
+                            }
+                            Spacer()
+                            Picker("Mode", selection: $viewMode) {
+                                ForEach(ArtifactViewMode.allCases) { mode in
+                                    Text(mode.rawValue).tag(mode)
+                                }
+                            }
+                            .pickerStyle(.segmented)
+                            .frame(width: 170)
+                        }
+                        .padding(.horizontal, 20)
+                        .padding(.vertical, 12)
+                        .background(.thinMaterial)
+                        Divider()
+                    }
+
+                    ScrollView {
+                        if viewMode == .rendered {
+                            let blocks = MarkdownParser.shared.parse(detailContent)
+                            MarkdownBlockListView(blocks: blocks)
+                                .textSelection(.enabled)
+                                .padding(24)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                        } else {
+                            Text(detailContent)
+                                .font(.system(size: 12, design: .monospaced))
+                                .textSelection(.enabled)
+                                .padding(24)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                        }
+                    }
                 }
             }
         }
-    }
-
-    private func renderedMarkdown(_ markdown: String) -> Text {
-        // Full interpreted syntax so headings, tables, lists, and code
-        // fences mandated by the artifacts guidelines actually render.
-        if let attributed = try? AttributedString(markdown: markdown, options: .init(interpretedSyntax: .full)) {
-            return Text(attributed)
-        }
-        return Text(markdown)
     }
 
     // MARK: - Loading

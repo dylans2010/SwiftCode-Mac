@@ -84,6 +84,7 @@ public final class AssistRuntimeTestSuite: Sendable {
         results.append(await testUseWorkersResilientDecodingAndStatePropagation())
         results.append(await testParallelExecutionEngineAndTerminalSessions())
         results.append(await testCodingToolsNativeContextMenuPayload())
+        results.append(await testNaturalLanguageIntentMatrixAndCapabilityCatalog())
         results.append(contentsOf: await ReverseTestSuite.runAll())
         results.append(contentsOf: await AssistToolKnowledgeValidator.shared.runAllTests())
         results.append(contentsOf: await SystemIndexTestSuite.shared.runAllTests())
@@ -1911,6 +1912,219 @@ public final class AssistRuntimeTestSuite: Sendable {
             testName: "Native App Interaction Engine",
             passed: true,
             message: "Schema validation, discovery, session lifecycle, error taxonomy, and safeguards verified.",
+            duration: Date().timeIntervalSince(start)
+        )
+    }
+
+    // MARK: - Natural-Language Intent Test Matrix & Tool Capability Catalog (Objective A)
+
+    public func testNaturalLanguageIntentMatrixAndCapabilityCatalog() async -> RuntimeTestCaseResult {
+        let start = Date()
+        let classifier = AssistIntentClassifier.shared
+        let router = AssistToolRouter.shared
+        let registry = AssistToolRegistry()
+
+        // 1. Screenshot Intent Matrix
+        let screenshotPrompts = [
+            "Take a screenshot of Finder.",
+            "Show me what Finder looks like right now.",
+            "Look at the current Finder window.",
+            "Can you inspect what's on my desktop?",
+            "Capture the Xcode editor so you can analyze it.",
+            "Take a picture of the selected part of my screen."
+        ]
+        for prompt in screenshotPrompts {
+            let res = classifier.classify(prompt: prompt)
+            guard case .screenshot = res.primaryIntent else {
+                return RuntimeTestCaseResult(
+                    testName: "Natural-Language Intent Matrix & Capability Catalog",
+                    passed: false,
+                    message: "Failed to classify screenshot intent for prompt: '\(prompt)', got: \(res.primaryIntent)",
+                    duration: Date().timeIntervalSince(start)
+                )
+            }
+        }
+        // Verify target app extracted
+        let finderScreenshot = classifier.classify(prompt: "Take a screenshot of Finder.")
+        if case .screenshot(let target, _, _) = finderScreenshot.primaryIntent {
+            guard target?.lowercased() == "finder" else {
+                return RuntimeTestCaseResult(
+                    testName: "Natural-Language Intent Matrix & Capability Catalog",
+                    passed: false,
+                    message: "Target application Finder not extracted from screenshot prompt, got: \(String(describing: target))",
+                    duration: Date().timeIntervalSince(start)
+                )
+            }
+        }
+        // Verify ranked tool top choice
+        let rankedScreenshotTools = router.rankTools(for: .screenshot(targetApp: "Finder", isRegion: false, purpose: nil), in: registry.allTools)
+        guard rankedScreenshotTools.first?.id == "take_screenshot" else {
+            return RuntimeTestCaseResult(
+                testName: "Natural-Language Intent Matrix & Capability Catalog",
+                passed: false,
+                message: "take_screenshot was not ranked first for screenshot intent, top was: \(rankedScreenshotTools.first?.id ?? "none")",
+                duration: Date().timeIntervalSince(start)
+            )
+        }
+
+        // 2. Screen-recording Intent Matrix
+        let recordingPrompts = [
+            "Record Xcode for ten seconds.",
+            "Capture a video of what happens in this application.",
+            "Record the specified application window while I reproduce the bug.",
+            "I need a recording of this application's visible behavior."
+        ]
+        for prompt in recordingPrompts {
+            let res = classifier.classify(prompt: prompt)
+            guard case .screenRecording = res.primaryIntent else {
+                return RuntimeTestCaseResult(
+                    testName: "Natural-Language Intent Matrix & Capability Catalog",
+                    passed: false,
+                    message: "Failed to classify screen recording intent for prompt: '\(prompt)', got: \(res.primaryIntent)",
+                    duration: Date().timeIntervalSince(start)
+                )
+            }
+        }
+        let xcodeRecord = classifier.classify(prompt: "Record Xcode for ten seconds.")
+        if case .screenRecording(let target, let duration, _) = xcodeRecord.primaryIntent {
+            guard target?.lowercased() == "xcode" && duration == 10 else {
+                return RuntimeTestCaseResult(
+                    testName: "Natural-Language Intent Matrix & Capability Catalog",
+                    passed: false,
+                    message: "Target Xcode and duration 10s not parsed properly: target=\(String(describing: target)), duration=\(String(describing: duration))",
+                    duration: Date().timeIntervalSince(start)
+                )
+            }
+        }
+        let rankedRecordTools = router.rankTools(for: .screenRecording(targetApp: "Xcode", duration: 10, purpose: nil), in: registry.allTools)
+        guard rankedRecordTools.first?.id == "take_screenrecord" else {
+            return RuntimeTestCaseResult(
+                testName: "Natural-Language Intent Matrix & Capability Catalog",
+                passed: false,
+                message: "take_screenrecord was not ranked first for screen recording intent, top was: \(rankedRecordTools.first?.id ?? "none")",
+                duration: Date().timeIntervalSince(start)
+            )
+        }
+
+        // 3. Application-interaction Intent Matrix
+        let appPrompts = [
+            "Open Finder.",
+            "Navigate to the Downloads folder in Finder.",
+            "Open System Settings and inspect the current pane.",
+            "Click the appropriate control and tell me whether it worked."
+        ]
+        for prompt in appPrompts {
+            let res = classifier.classify(prompt: prompt)
+            guard case .appInteraction = res.primaryIntent else {
+                return RuntimeTestCaseResult(
+                    testName: "Natural-Language Intent Matrix & Capability Catalog",
+                    passed: false,
+                    message: "Failed to classify app interaction intent for prompt: '\(prompt)', got: \(res.primaryIntent)",
+                    duration: Date().timeIntervalSince(start)
+                )
+            }
+        }
+        let rankedAppTools = router.rankTools(for: .appInteraction(targetApp: "Finder", action: "open", targetElement: nil, purpose: nil), in: registry.allTools)
+        guard rankedAppTools.first?.id == "use_app" else {
+            return RuntimeTestCaseResult(
+                testName: "Natural-Language Intent Matrix & Capability Catalog",
+                passed: false,
+                message: "use_app was not ranked first for app interaction intent, top was: \(rankedAppTools.first?.id ?? "none")",
+                duration: Date().timeIntervalSince(start)
+            )
+        }
+
+        // 4. Mixed-intent Multi-step Requests
+        let multiStepPrompt = "Open Finder, navigate to Downloads, and take a screenshot."
+        let multiStepRes = classifier.classify(prompt: multiStepPrompt)
+        guard case .multiStep(let subIntents) = multiStepRes.primaryIntent else {
+            return RuntimeTestCaseResult(
+                testName: "Natural-Language Intent Matrix & Capability Catalog",
+                passed: false,
+                message: "Failed to classify multiStep intent for prompt: '\(multiStepPrompt)', got: \(multiStepRes.primaryIntent)",
+                duration: Date().timeIntervalSince(start)
+            )
+        }
+        let hasAppSub = subIntents.contains { if case .appInteraction = $0 { true } else { false } }
+        let hasScreenshotSub = subIntents.contains { if case .screenshot = $0 { true } else { false } }
+        guard hasAppSub && hasScreenshotSub else {
+            return RuntimeTestCaseResult(
+                testName: "Natural-Language Intent Matrix & Capability Catalog",
+                passed: false,
+                message: "Multi-step sub-intents missing app interaction or screenshot: \(subIntents)",
+                duration: Date().timeIntervalSince(start)
+            )
+        }
+
+        // 5. Informational Queries (Negative Test: Must NOT execute tools)
+        let informationalPrompts = [
+            "Explain how screen recording works.",
+            "What does the screenshot tool do?",
+            "How can I navigate Finder using keyboard shortcuts?"
+        ]
+        for prompt in informationalPrompts {
+            let res = classifier.classify(prompt: prompt)
+            guard case .informational = res.primaryIntent else {
+                return RuntimeTestCaseResult(
+                    testName: "Natural-Language Intent Matrix & Capability Catalog",
+                    passed: false,
+                    message: "Informational prompt misclassified: '\(prompt)', got: \(res.primaryIntent)",
+                    duration: Date().timeIntervalSince(start)
+                )
+            }
+        }
+        let filteredInfoTools = router.filterTools(for: .informational(topic: "screen recording"), status: .planning, in: registry)
+        guard filteredInfoTools.isEmpty else {
+            return RuntimeTestCaseResult(
+                testName: "Natural-Language Intent Matrix & Capability Catalog",
+                passed: false,
+                message: "Informational intent must produce 0 tool calls in filterTools, got: \(filteredInfoTools.map(\.id))",
+                duration: Date().timeIntervalSince(start)
+            )
+        }
+
+        // 6. Capability Catalog Validation
+        let catalog = ToolCapabilityCatalog.shared
+        let validationIssues = catalog.validateRegistration(in: registry)
+        guard validationIssues.isEmpty else {
+            return RuntimeTestCaseResult(
+                testName: "Natural-Language Intent Matrix & Capability Catalog",
+                passed: false,
+                message: "Catalog validation issues: \(validationIssues)",
+                duration: Date().timeIntervalSince(start)
+            )
+        }
+
+        // Truthful permissions check
+        let screenshotMeta = router.metadata(for: "take_screenshot")
+        let recordMeta = router.metadata(for: "take_screenrecord")
+        let appMeta = router.metadata(for: "use_app")
+
+        guard screenshotMeta.requiredPermission == .screenRecording,
+              recordMeta.requiredPermission == .screenRecording,
+              appMeta.requiredPermission == .accessibility else {
+            return RuntimeTestCaseResult(
+                testName: "Natural-Language Intent Matrix & Capability Catalog",
+                passed: false,
+                message: "Permission requirements incorrect: screenshot=\(screenshotMeta.requiredPermission), record=\(recordMeta.requiredPermission), app=\(appMeta.requiredPermission)",
+                duration: Date().timeIntervalSince(start)
+            )
+        }
+
+        // Truthful limitations check: recordMeta audio limitation
+        guard recordMeta.knownLimitations.contains(where: { $0.contains("Audio capture is not supported") }) else {
+            return RuntimeTestCaseResult(
+                testName: "Natural-Language Intent Matrix & Capability Catalog",
+                passed: false,
+                message: "take_screenrecord did not truthfully state audio recording limitation: \(recordMeta.knownLimitations)",
+                duration: Date().timeIntervalSince(start)
+            )
+        }
+
+        return RuntimeTestCaseResult(
+            testName: "Natural-Language Intent Matrix & Capability Catalog",
+            passed: true,
+            message: "Intent paraphrases (screenshot, recording, app, multi-step), informational zero-tool suppression, catalog validation, and truthful capability boundaries verified.",
             duration: Date().timeIntervalSince(start)
         )
     }

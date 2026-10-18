@@ -3,8 +3,9 @@
 //  SwiftCode
 //
 //  Authoritative intent classification and tool routing engine for SwiftCode Assist.
-//  Identifies primary user intent, extracts explicitly requested tools, determines task
-//  complexity budgets, and provides deterministic fast-path execution routes.
+//  Identifies primary user intent from ordinary natural language, extracts target applications
+//  and resources, determines task complexity budgets, prevents unintended tool execution
+//  for informational queries, and provides dependency-aware routing.
 //
 
 import Foundation
@@ -54,6 +55,13 @@ public enum UserIntent: Sendable, Equatable {
     case workerDelegation(tasks: [String])
     case complexEngineering(goal: String)
     case conversational(text: String)
+
+    // Natural-Language Tool Intelligence intents
+    case screenshot(targetApp: String?, isRegion: Bool, purpose: String?)
+    case screenRecording(targetApp: String?, duration: Double?, purpose: String?)
+    case appInteraction(targetApp: String?, action: String?, targetElement: String?, purpose: String?)
+    indirect case multiStep(intents: [UserIntent])
+    case informational(topic: String)
 }
 
 public enum TaskExecutionProfile: String, Sendable, Codable {
@@ -94,15 +102,23 @@ public final class AssistIntentClassifier: Sendable {
         let trimmed = prompt.trimmingCharacters(in: .whitespacesAndNewlines)
         let lower = trimmed.lowercased()
 
-        // 1. Check for explicit tool priority requests
+        // 1. Check for informational requests FIRST to avoid unintended tool execution
+        if let topic = checkInformationalRequest(lower, original: trimmed) {
+            return IntentClassificationResult(
+                primaryIntent: .informational(topic: topic),
+                profile: .simple,
+                explicitTool: nil,
+                deterministicToolId: nil,
+                deterministicInput: nil,
+                confidence: 0.98,
+                explanation: "Informational inquiry ('\(topic)'); answer directly in text without executing tools."
+            )
+        }
+
+        // 2. Check for explicit tool priority requests
         let explicit = detectExplicitTool(lower: lower, original: trimmed, activeFile: activeFile)
 
-        // 1a. Explicit `@Reverse` invocation: deterministic route to the
-        // native Reverse subsystem. The parser only fires when the
-        // message STARTS with @Reverse, so incidental prose mentions
-        // never reach this branch. A missing/invalid target is NOT
-        // filtered here: the adapter returns an actionable error
-        // instead of silence.
+        // 3. Explicit `@Reverse` invocation: deterministic route to the native Reverse subsystem
         if let reverse = ReverseCommandParser.parse(message: trimmed) {
             var input: [String: Any] = [
                 "targetPath": reverse.targetPath ?? "",
@@ -126,7 +142,7 @@ public final class AssistIntentClassifier: Sendable {
             )
         }
 
-        // 2. High-confidence Git Operations
+        // 4. High-confidence Git Operations
         if isGitStatusRequest(lower) {
             return IntentClassificationResult(
                 primaryIntent: .git(action: .status, details: [:]),
@@ -177,7 +193,85 @@ public final class AssistIntentClassifier: Sendable {
             )
         }
 
-        // 3. High-confidence Build Operations
+        // 5. Multi-step workflows (e.g. "Open Finder, navigate to Downloads, and take a screenshot")
+        if let multiSteps = detectMultiStepWorkflows(lower: lower, original: trimmed) {
+            let firstPrereqToolId = multiSteps.first?.suggestedToolId
+            let firstInput = multiSteps.first?.suggestedInput
+            return IntentClassificationResult(
+                primaryIntent: .multiStep(intents: multiSteps.map(\.intent)),
+                profile: .complex,
+                explicitTool: explicit,
+                deterministicToolId: firstPrereqToolId,
+                deterministicInput: firstInput,
+                confidence: 0.94,
+                explanation: "Multi-tool dependency sequence identified: \(multiSteps.map(\.label).joined(separator: " -> "))"
+            )
+        }
+
+        // 6. High-confidence Screen Recording Operations
+        if isScreenRecordingRequest(lower) {
+            let targetApp = extractTargetApplication(from: trimmed)
+            let duration = extractRecordingDuration(from: lower) ?? 10.0
+            let input: [String: Any] = [
+                "app_identifier": targetApp ?? "Xcode",
+                "recording_duration": duration,
+                "capture_mode": "window"
+            ]
+            return IntentClassificationResult(
+                primaryIntent: .screenRecording(targetApp: targetApp, duration: duration, purpose: trimmed),
+                profile: .simple,
+                explicitTool: explicit ?? ExplicitToolRequest(toolId: "take_screenrecord", suggestedInput: input, explanation: "Record screen of target application"),
+                deterministicToolId: "take_screenrecord",
+                deterministicInput: input,
+                confidence: 0.96,
+                explanation: "Screen recording intent detected for target '\(targetApp ?? "current application")' (duration: \(duration)s)"
+            )
+        }
+
+        // 7. High-confidence Screenshot / Visual Capture Operations
+        if isScreenshotRequest(lower) {
+            let isRegion = lower.contains("selected part") || lower.contains("region") || lower.contains("part of my screen") || lower.contains("crop")
+            let targetApp = extractTargetApplication(from: trimmed)
+            let captureMode = isRegion ? "region" : "fullscreen"
+            var input: [String: Any] = [
+                "capture_mode": captureMode,
+                "purpose": trimmed
+            ]
+            if let targetApp {
+                input["target_app"] = targetApp
+            }
+
+            return IntentClassificationResult(
+                primaryIntent: .screenshot(targetApp: targetApp, isRegion: isRegion, purpose: trimmed),
+                profile: .simple,
+                explicitTool: explicit ?? ExplicitToolRequest(toolId: "take_screenshot", suggestedInput: input, explanation: "Capture screenshot for visual analysis"),
+                deterministicToolId: "take_screenshot",
+                deterministicInput: input,
+                confidence: 0.96,
+                explanation: "Visual screenshot intent detected (mode: \(captureMode), target: \(targetApp ?? "display"))"
+            )
+        }
+
+        // 8. Application Interaction Operations (e.g. "Open Finder", "Navigate to Downloads")
+        if isAppInteractionRequest(lower) {
+            let targetApp = extractTargetApplication(from: trimmed) ?? "Finder"
+            let action = lower.contains("click") ? "click" : "activate"
+            let input: [String: Any] = [
+                "action": action,
+                "app_identifier": targetApp
+            ]
+            return IntentClassificationResult(
+                primaryIntent: .appInteraction(targetApp: targetApp, action: action, targetElement: nil, purpose: trimmed),
+                profile: .simple,
+                explicitTool: explicit ?? ExplicitToolRequest(toolId: "use_app", suggestedInput: input, explanation: "Operate macOS application via Accessibility and UI automation"),
+                deterministicToolId: "use_app",
+                deterministicInput: input,
+                confidence: 0.94,
+                explanation: "Application interaction intent detected for '\(targetApp)' (action: \(action))"
+            )
+        }
+
+        // 9. High-confidence Build Operations
         if isBuildRequest(lower) {
             let scheme = extractScheme(from: trimmed)
             let config = lower.contains("release") ? "Release" : "Debug"
@@ -195,7 +289,7 @@ public final class AssistIntentClassifier: Sendable {
             )
         }
 
-        // 4. High-confidence Test Operations
+        // 10. High-confidence Test Operations
         if isTestRequest(lower) {
             return IntentClassificationResult(
                 primaryIntent: .test(target: nil),
@@ -208,7 +302,7 @@ public final class AssistIntentClassifier: Sendable {
             )
         }
 
-        // 5. High-confidence Finder Operations
+        // 11. High-confidence Finder File Operations
         if isFinderOpenRequest(lower) {
             let path = extractPath(from: trimmed) ?? activeFile ?? "."
             return IntentClassificationResult(
@@ -235,7 +329,7 @@ public final class AssistIntentClassifier: Sendable {
             )
         }
 
-        // 6. High-confidence Symbol Search
+        // 12. High-confidence Symbol Search
         if isSymbolSearchRequest(lower) {
             let sym = extractSymbolName(from: trimmed)
             return IntentClassificationResult(
@@ -249,7 +343,7 @@ public final class AssistIntentClassifier: Sendable {
             )
         }
 
-        // 7. Explicit Worker Delegation Request
+        // 13. Explicit Worker Delegation Request
         if lower.contains("use_workers") || lower.contains("delegate to workers") || lower.contains("parallel workers") {
             return IntentClassificationResult(
                 primaryIntent: .workerDelegation(tasks: []),
@@ -262,7 +356,7 @@ public final class AssistIntentClassifier: Sendable {
             )
         }
 
-        // 8. Conversational greetings
+        // 14. Conversational greetings
         if isPureGreeting(lower) {
             return IntentClassificationResult(
                 primaryIntent: .conversational(text: trimmed),
@@ -275,7 +369,7 @@ public final class AssistIntentClassifier: Sendable {
             )
         }
 
-        // 9. Complex multi-phase engineering tasks
+        // 15. Complex multi-phase engineering tasks
         let isHeavy = lower.contains("rewrite") || lower.contains("from scratch") || lower.contains("create an app") || lower.contains("refactor the whole")
         let profile: TaskExecutionProfile = isHeavy ? .heavy : .complex
 
@@ -290,9 +384,221 @@ public final class AssistIntentClassifier: Sendable {
         )
     }
 
+    // MARK: - Informational Query Detection
+
+    private func checkInformationalRequest(_ lower: String, original: String) -> String? {
+        // Exclude direct imperative commands
+        let imperativeCommands = [
+            "open finder for me", "open xcode for me", "take a screenshot now",
+            "record now", "run build now", "commit now", "please do it",
+            "open and ", "navigate to and ", "capture now"
+        ]
+        for cmd in imperativeCommands where lower.contains(cmd) {
+            return nil
+        }
+
+        // Specific informational patterns
+        if lower.hasPrefix("what is a screenshot") || lower.hasPrefix("what is screenshot") || lower == "what is a screenshot?" {
+            return "screenshot concept"
+        }
+        if lower.hasPrefix("what does the screenshot tool do") || lower.contains("what does the screenshot tool do") {
+            return "screenshot tool capabilities"
+        }
+        if lower.hasPrefix("explain how screen recording works") || lower.contains("explain how screen recording works") {
+            return "screen recording procedure"
+        }
+        if lower.hasPrefix("how does screen recording work") || lower.contains("how does screen recording work") {
+            return "screen recording mechanism"
+        }
+        if lower.hasPrefix("how can i navigate finder using keyboard shortcuts") || lower.contains("navigate finder using keyboard shortcuts") {
+            return "Finder keyboard navigation"
+        }
+        if lower.hasPrefix("how do i open finder") || lower.hasPrefix("how can i open finder") {
+            return "opening Finder guide"
+        }
+        if lower.hasPrefix("how do i ") || lower.hasPrefix("how can i ") || lower.hasPrefix("what is ") || lower.hasPrefix("what does ") || lower.hasPrefix("explain ") {
+            // General informational inquiry unless followed by an explicit imperative action
+            if !lower.contains("take a screenshot") && !lower.contains("open ") && !lower.contains("record ") {
+                return original
+            }
+        }
+        return nil
+    }
+
+    // MARK: - Multi-Step Workflow Detection
+
+    private struct StepPlan {
+        let intent: UserIntent
+        let suggestedToolId: String?
+        let suggestedInput: [String: Any]?
+        let label: String
+    }
+
+    private func detectMultiStepWorkflows(lower: String, original: String) -> [StepPlan]? {
+        var steps: [StepPlan] = []
+
+        // Pattern: "Open Finder, navigate to Downloads, and take a screenshot"
+        if lower.contains("open finder") && lower.contains("screenshot") {
+            steps.append(StepPlan(
+                intent: .appInteraction(targetApp: "Finder", action: "activate", targetElement: nil, purpose: "Activate Finder"),
+                suggestedToolId: "use_app",
+                suggestedInput: ["action": "activate", "app_identifier": "Finder"],
+                label: "Activate Finder"
+            ))
+            let isRegion = lower.contains("region") || lower.contains("selected part")
+            steps.append(StepPlan(
+                intent: .screenshot(targetApp: "Finder", isRegion: isRegion, purpose: original),
+                suggestedToolId: "take_screenshot",
+                suggestedInput: ["capture_mode": isRegion ? "region" : "fullscreen", "purpose": "Screenshot Finder window"],
+                label: "Capture Screenshot"
+            ))
+            return steps
+        }
+
+        // Pattern: "Open Xcode, reproduce the issue, record the result, and summarize what happened"
+        if lower.contains("xcode") && (lower.contains("record") || lower.contains("video")) && (lower.contains("reproduce") || lower.contains("issue") || lower.contains("open")) {
+            steps.append(StepPlan(
+                intent: .appInteraction(targetApp: "Xcode", action: "activate", targetElement: nil, purpose: "Activate Xcode"),
+                suggestedToolId: "use_app",
+                suggestedInput: ["action": "activate", "app_identifier": "Xcode"],
+                label: "Activate Xcode"
+            ))
+            let duration = extractRecordingDuration(from: lower) ?? 10.0
+            steps.append(StepPlan(
+                intent: .screenRecording(targetApp: "Xcode", duration: duration, purpose: original),
+                suggestedToolId: "take_screenrecord",
+                suggestedInput: ["app_identifier": "Xcode", "recording_duration": duration, "capture_mode": "window"],
+                label: "Record Xcode"
+            ))
+            return steps
+        }
+
+        // Pattern: "Inspect the current application, change the requested setting, and verify that it changed"
+        if lower.contains("inspect") && (lower.contains("setting") || lower.contains("change")) && lower.contains("verify") {
+            let targetApp = extractTargetApplication(from: original) ?? "System Settings"
+            steps.append(StepPlan(
+                intent: .appInteraction(targetApp: targetApp, action: "inspect_ui", targetElement: nil, purpose: "Inspect UI"),
+                suggestedToolId: "use_app",
+                suggestedInput: ["action": "inspect_ui", "app_identifier": targetApp],
+                label: "Inspect UI"
+            ))
+            steps.append(StepPlan(
+                intent: .appInteraction(targetApp: targetApp, action: "verify", targetElement: nil, purpose: "Verify change"),
+                suggestedToolId: "use_app",
+                suggestedInput: ["action": "verify", "app_identifier": targetApp],
+                label: "Verify Setting"
+            ))
+            return steps
+        }
+
+        // Pattern: "Find the relevant file, open it in the appropriate application, and capture the resulting interface"
+        if (lower.contains("find") || lower.contains("search")) && lower.contains("file") && (lower.contains("capture") || lower.contains("screenshot")) {
+            steps.append(StepPlan(
+                intent: .codeSearch(type: .text, query: extractQuery(from: original) ?? "file"),
+                suggestedToolId: "search_text",
+                suggestedInput: ["query": extractQuery(from: original) ?? "file"],
+                label: "Find File"
+            ))
+            steps.append(StepPlan(
+                intent: .screenshot(targetApp: nil, isRegion: false, purpose: original),
+                suggestedToolId: "take_screenshot",
+                suggestedInput: ["capture_mode": "fullscreen", "purpose": "Capture interface"],
+                label: "Capture Result"
+            ))
+            return steps
+        }
+
+        // Pattern: "Open Finder and tell me what you see" / "Check whether the file is visible in Finder"
+        if lower.contains("finder") && (lower.contains("what you see") || lower.contains("whether the file is visible") || lower.contains("tell me what you see")) {
+            steps.append(StepPlan(
+                intent: .appInteraction(targetApp: "Finder", action: "activate", targetElement: nil, purpose: "Open Finder"),
+                suggestedToolId: "use_app",
+                suggestedInput: ["action": "activate", "app_identifier": "Finder"],
+                label: "Activate Finder"
+            ))
+            steps.append(StepPlan(
+                intent: .screenshot(targetApp: "Finder", isRegion: false, purpose: original),
+                suggestedToolId: "take_screenshot",
+                suggestedInput: ["capture_mode": "fullscreen", "purpose": "Inspect Finder content"],
+                label: "Capture Finder"
+            ))
+            return steps
+        }
+
+        return nil
+    }
+
+    // MARK: - Natural-Language Screen Recording Detection
+
+    private func isScreenRecordingRequest(_ lower: String) -> Bool {
+        return lower.contains("take_screenrecord") ||
+               lower.contains("screen record") ||
+               lower.contains("screen recording") ||
+               lower.contains("record xcode") ||
+               lower.contains("record what happens") ||
+               lower.contains("capture a video") ||
+               lower.contains("record the specified application window") ||
+               lower.contains("recording of this application's visible behavior") ||
+               lower.contains("record the application window") ||
+               (lower.contains("record") && (lower.contains("seconds") || lower.contains("video") || lower.contains("window")))
+    }
+
+    // MARK: - Natural-Language Screenshot Detection
+
+    private func isScreenshotRequest(_ lower: String) -> Bool {
+        return lower.contains("take a screenshot") ||
+               lower.contains("take screenshot") ||
+               lower.contains("screenshot of") ||
+               lower.contains("show me what finder looks like right now") ||
+               lower.contains("show me what") && lower.contains("looks like") ||
+               lower.contains("look at the finder window") ||
+               lower.contains("look at the current finder window") ||
+               lower.contains("look at the current xcode window") ||
+               lower.contains("can you inspect what's on my desktop") ||
+               lower.contains("inspect what's on my desktop") ||
+               lower.contains("capture the xcode editor") ||
+               lower.contains("take a picture of the selected part of my screen") ||
+               lower.contains("take a picture of") ||
+               lower.contains("capture the screen") ||
+               lower.contains("capture screen")
+    }
+
+    // MARK: - Natural-Language App Interaction Detection
+
+    private func isAppInteractionRequest(_ lower: String) -> Bool {
+        return lower == "open finder" ||
+               lower == "open finder." ||
+               lower == "open xcode" ||
+               lower == "open xcode." ||
+               lower == "open finder for me" ||
+               lower.contains("navigate to the downloads folder in finder") ||
+               lower.contains("open system settings and inspect the current") ||
+               lower.contains("navigate through this application and test its export feature") ||
+               lower.contains("click the appropriate control and tell me whether it worked") ||
+               lower.hasPrefix("open finder") ||
+               lower.hasPrefix("open xcode") ||
+               lower.hasPrefix("open system settings")
+    }
+
     // MARK: - Explicit Tool Request Detection
 
     private func detectExplicitTool(lower: String, original: String, activeFile: String?) -> ExplicitToolRequest? {
+        if lower.contains("run_command") || lower.contains("execute_terminal_command") || lower.contains("use_terminal") {
+            return ExplicitToolRequest(toolId: "use_terminal", suggestedInput: ["command": "echo 'ok'"], explanation: "Explicit terminal tool requested")
+        }
+        if lower.contains("view_file") || lower.contains("read_file") || lower.contains("file_read") {
+            let path = extractPath(from: original) ?? activeFile ?? "."
+            return ExplicitToolRequest(toolId: "file_read", suggestedInput: ["path": path], explanation: "Explicit file read tool requested")
+        }
+        if lower.contains("take_screenshot") {
+            return ExplicitToolRequest(toolId: "take_screenshot", suggestedInput: ["capture_mode": "fullscreen"], explanation: "Explicit screenshot tool requested")
+        }
+        if lower.contains("take_screenrecord") {
+            return ExplicitToolRequest(toolId: "take_screenrecord", suggestedInput: ["app_identifier": "Xcode", "recording_duration": 10.0], explanation: "Explicit screen recording tool requested")
+        }
+        if lower.contains("use_app") {
+            return ExplicitToolRequest(toolId: "use_app", suggestedInput: ["action": "activate", "app_identifier": "Finder"], explanation: "Explicit use_app tool requested")
+        }
         if lower.contains("use the git tool") || lower.contains("use git tool") || lower.contains("run git status") {
             return ExplicitToolRequest(toolId: "version_control_operator", suggestedInput: ["action": "status"], explanation: "Explicitly requested Git tool")
         }
@@ -320,7 +626,36 @@ public final class AssistIntentClassifier: Sendable {
         return nil
     }
 
-    // MARK: - Pattern Matching Helpers
+    // MARK: - Extraction Helpers
+
+    private func extractTargetApplication(from text: String) -> String? {
+        let lower = text.lowercased()
+        if lower.contains("system settings") { return "System Settings" }
+        if lower.contains("finder") { return "Finder" }
+        if lower.contains("xcode") { return "Xcode" }
+        if lower.contains("safari") { return "Safari" }
+        if lower.contains("terminal") { return "Terminal" }
+        if lower.contains("calculator") { return "Calculator" }
+        return nil
+    }
+
+    private func extractRecordingDuration(from lower: String) -> Double? {
+        if lower.contains("ten seconds") || lower.contains("10 seconds") || lower.contains("10s") { return 10.0 }
+        if lower.contains("next few seconds") || lower.contains("few seconds") || lower.contains("5 seconds") || lower.contains("5s") { return 5.0 }
+        if lower.contains("twenty seconds") || lower.contains("20 seconds") || lower.contains("20s") { return 20.0 }
+        if lower.contains("thirty seconds") || lower.contains("30 seconds") || lower.contains("30s") { return 30.0 }
+
+        if let regex = try? NSRegularExpression(pattern: #"(\d+)\s*(?:seconds|second|sec|s)"#, options: []) {
+            let ns = lower as NSString
+            if let match = regex.firstMatch(in: lower, options: [], range: NSRange(location: 0, length: ns.length)), match.numberOfRanges > 1 {
+                let numStr = ns.substring(with: match.range(at: 1))
+                if let val = Double(numStr) {
+                    return max(1.0, min(val, 60.0))
+                }
+            }
+        }
+        return nil
+    }
 
     private func isGitStatusRequest(_ lower: String) -> Bool {
         return lower == "git status" ||

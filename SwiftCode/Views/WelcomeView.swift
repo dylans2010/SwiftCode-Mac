@@ -128,7 +128,7 @@ struct SwiftCodeWelcomeView: View {
             AdaptivePage {
                 mainDashboard
             }
-            .searchable(text: $searchText, prompt: "Search projects...")
+            .searchable(text: $searchText, prompt: "Search Projects")
             .toolbar {
                 ToolbarItemGroup(placement: .primaryAction) {
                     Button {

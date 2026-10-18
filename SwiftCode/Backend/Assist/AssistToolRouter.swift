@@ -38,6 +38,22 @@ public enum ToolRiskLevel: String, Codable, Sendable, Comparable {
     }
 }
 
+public enum ToolOutputFormat: String, Codable, Sendable {
+    case text = "Text"
+    case image = "Image"
+    case video = "Video"
+    case file = "File"
+    case structuredData = "Structured Data"
+}
+
+public enum ToolPermissionRequirement: String, Codable, Sendable {
+    case none = "None"
+    case screenRecording = "Screen Recording"
+    case accessibility = "Accessibility"
+    case fileSystem = "File System"
+    case terminalExecution = "Terminal Execution"
+}
+
 public struct ToolMetadata: Codable, Sendable {
     public let id: String
     public let name: String
@@ -48,6 +64,16 @@ public struct ToolMetadata: Codable, Sendable {
     public let isMutating: Bool
     public let requiresVerificationAfterward: Bool
 
+    // Unified capability extensions:
+    public let outputFormat: ToolOutputFormat
+    public let requiredPermission: ToolPermissionRequirement
+    public let prerequisites: [String]
+    public let supportedOperations: [String]
+    public let knownLimitations: [String]
+    public let canChainResult: Bool
+    public let isDestructive: Bool
+    public let resourceScope: String
+
     public init(
         id: String,
         name: String,
@@ -56,7 +82,15 @@ public struct ToolMetadata: Codable, Sendable {
         riskLevel: ToolRiskLevel,
         isReadOnly: Bool,
         isMutating: Bool,
-        requiresVerificationAfterward: Bool
+        requiresVerificationAfterward: Bool,
+        outputFormat: ToolOutputFormat = .text,
+        requiredPermission: ToolPermissionRequirement = .none,
+        prerequisites: [String] = [],
+        supportedOperations: [String] = [],
+        knownLimitations: [String] = [],
+        canChainResult: Bool = true,
+        isDestructive: Bool = false,
+        resourceScope: String = "Workspace Project"
     ) {
         self.id = id
         self.name = name
@@ -66,6 +100,14 @@ public struct ToolMetadata: Codable, Sendable {
         self.isReadOnly = isReadOnly
         self.isMutating = isMutating
         self.requiresVerificationAfterward = requiresVerificationAfterward
+        self.outputFormat = outputFormat
+        self.requiredPermission = requiredPermission
+        self.prerequisites = prerequisites
+        self.supportedOperations = supportedOperations
+        self.knownLimitations = knownLimitations
+        self.canChainResult = canChainResult
+        self.isDestructive = isDestructive
+        self.resourceScope = resourceScope
     }
 }
 
@@ -156,11 +198,62 @@ public final class AssistToolRouter: Sendable {
             return ToolMetadata(id: toolId, name: "Report to User", description: "Reports completed task summary and verified results to the user.", capability: .general, riskLevel: .safeRead, isReadOnly: true, isMutating: false, requiresVerificationAfterward: false)
 
         case "take_screenshot", "screenshot":
-            return ToolMetadata(id: toolId, name: "Take Screenshot", description: "Captures full screen or region as PNG for visual analysis.", capability: .diagnostics, riskLevel: .safeRead, isReadOnly: true, isMutating: false, requiresVerificationAfterward: false)
+            return ToolMetadata(
+                id: toolId,
+                name: "Take Screenshot",
+                description: "Captures full screen or region as PNG for visual analysis.",
+                capability: .diagnostics,
+                riskLevel: .safeRead,
+                isReadOnly: true,
+                isMutating: false,
+                requiresVerificationAfterward: false,
+                outputFormat: .image,
+                requiredPermission: .screenRecording,
+                prerequisites: ["Screen Recording permission granted"],
+                supportedOperations: ["fullscreen", "region"],
+                knownLimitations: ["Requires Screen Recording authorization in macOS System Settings."],
+                canChainResult: true,
+                isDestructive: false,
+                resourceScope: "macOS Screen / Window"
+            )
         case "take_screenrecord", "screenrecord":
-            return ToolMetadata(id: toolId, name: "Take Screen Recording", description: "Records screen of a specifically identified application.", capability: .diagnostics, riskLevel: .safeRead, isReadOnly: true, isMutating: false, requiresVerificationAfterward: false)
+            return ToolMetadata(
+                id: toolId,
+                name: "Take Screen Recording",
+                description: "Records screen of a specifically identified application.",
+                capability: .diagnostics,
+                riskLevel: .safeRead,
+                isReadOnly: true,
+                isMutating: false,
+                requiresVerificationAfterward: false,
+                outputFormat: .video,
+                requiredPermission: .screenRecording,
+                prerequisites: ["Screen Recording permission granted", "Target application identified and running"],
+                supportedOperations: ["window", "application_display"],
+                knownLimitations: ["Audio capture is not supported; captures video stream of target application only.", "Maximum duration is 60 seconds."],
+                canChainResult: true,
+                isDestructive: false,
+                resourceScope: "Target macOS Application Window"
+            )
         case "use_app", "interact_app":
-            return ToolMetadata(id: toolId, name: "Use App", description: "Interacts with macOS applications via Accessibility and UI automation.", capability: .systemExecution, riskLevel: .safeMutation, isReadOnly: false, isMutating: true, requiresVerificationAfterward: true)
+            return ToolMetadata(
+                id: toolId,
+                name: "Use App",
+                description: "Interacts with macOS applications via Accessibility and UI automation.",
+                capability: .systemExecution,
+                riskLevel: .safeMutation,
+                isReadOnly: false,
+                isMutating: true,
+                requiresVerificationAfterward: true,
+                outputFormat: .structuredData,
+                requiredPermission: .accessibility,
+                prerequisites: ["Accessibility permission granted", "Target application running"],
+                supportedOperations: ["launch", "activate", "list_applications", "inspect_application", "list_windows", "select_window", "close_application", "inspect_ui", "get_accessibility_tree", "get_focused_element", "take_screenshot", "inspect_window", "click", "double_click", "right_click", "move_pointer", "drag", "scroll", "type_text", "press_key", "press_shortcut", "select_all", "copy", "paste", "activate_element", "set_element_value", "select_menu", "wait_for_element", "wait_for_window", "verify"],
+                knownLimitations: ["Requires Accessibility authorization in macOS System Settings.", "Target app must expose standard macOS Accessibility elements."],
+                canChainResult: true,
+                isDestructive: false,
+                resourceScope: "Target macOS Application"
+            )
 
         default:
             // Fail closed: unknown tools must never default to safe/read-only,
@@ -185,7 +278,15 @@ public final class AssistToolRouter: Sendable {
             riskLevel: tool.riskLevel,
             isReadOnly: tool.isReadOnly,
             isMutating: tool.isMutating,
-            requiresVerificationAfterward: tool.isMutating
+            requiresVerificationAfterward: tool.isMutating,
+            outputFormat: tool.outputFormat,
+            requiredPermission: tool.requiredPermission,
+            prerequisites: tool.prerequisites,
+            supportedOperations: tool.supportedOperations,
+            knownLimitations: tool.knownLimitations,
+            canChainResult: tool.canChainResult,
+            isDestructive: tool.isDestructive,
+            resourceScope: tool.resourceScope
         )
     }
 
@@ -218,6 +319,16 @@ public final class AssistToolRouter: Sendable {
                     if action == .openInFinder || action == .revealInFinder {
                         return all.filter { $0.id == "open_in_finder" || $0.id == "reveal_in_finder" || $0.capability == .systemExecution || $0.capability == .planning }
                     }
+                case .screenshot:
+                    return rankTools(for: intent, in: all.filter { $0.id == "take_screenshot" || $0.id == "use_app" || $0.capability == .diagnostics })
+                case .screenRecording:
+                    return rankTools(for: intent, in: all.filter { $0.id == "take_screenrecord" || $0.id == "use_app" || $0.capability == .diagnostics })
+                case .appInteraction:
+                    return rankTools(for: intent, in: all.filter { $0.id == "use_app" || $0.id == "open_in_finder" || $0.id == "reveal_in_finder" || $0.capability == .systemExecution })
+                case .multiStep:
+                    return rankTools(for: intent, in: all.filter { $0.id == "use_app" || $0.id == "take_screenshot" || $0.id == "take_screenrecord" || $0.capability == .systemExecution || $0.capability == .diagnostics || $0.capability == .planning })
+                case .informational:
+                    return []
                 default:
                     break
                 }
@@ -235,6 +346,22 @@ public final class AssistToolRouter: Sendable {
             }
 
         case .executingTools, .updatingRepository, .executingStrategy:
+            if let intent = intent {
+                switch intent {
+                case .screenshot:
+                    return rankTools(for: intent, in: all.filter { $0.id == "take_screenshot" || $0.id == "use_app" || $0.capability == .diagnostics })
+                case .screenRecording:
+                    return rankTools(for: intent, in: all.filter { $0.id == "take_screenrecord" || $0.id == "use_app" || $0.capability == .diagnostics })
+                case .appInteraction:
+                    return rankTools(for: intent, in: all.filter { $0.id == "use_app" || $0.id == "open_in_finder" || $0.id == "reveal_in_finder" || $0.capability == .systemExecution })
+                case .multiStep:
+                    return rankTools(for: intent, in: all.filter { $0.id == "use_app" || $0.id == "take_screenshot" || $0.id == "take_screenrecord" || $0.capability == .systemExecution || $0.capability == .diagnostics || $0.capability == .planning })
+                case .informational:
+                    return []
+                default:
+                    break
+                }
+            }
             return all.filter { tool in
                 return tool.capability == .fileModification ||
                        tool.capability == .fileReading ||
@@ -317,6 +444,29 @@ public final class AssistToolRouter: Sendable {
             if action == .replace && tool.id == "code_replace" { return 100 }
             if tool.capability == .fileModification || tool.capability == .fileReading { return 50 }
             return 0
+        case .screenshot:
+            if tool.id == "take_screenshot" { return 100 }
+            if tool.id == "use_app" { return 70 }
+            if tool.capability == .diagnostics { return 50 }
+            return 0
+        case .screenRecording:
+            if tool.id == "take_screenrecord" { return 100 }
+            if tool.id == "use_app" { return 70 }
+            if tool.capability == .diagnostics { return 50 }
+            return 0
+        case .appInteraction:
+            if tool.id == "use_app" { return 100 }
+            if tool.id == "open_in_finder" || tool.id == "reveal_in_finder" { return 60 }
+            if tool.capability == .systemExecution { return 50 }
+            return 0
+        case .multiStep(let subIntents):
+            var maxScore = 0
+            for sub in subIntents {
+                maxScore = max(maxScore, capabilityScore(for: tool, intent: sub))
+            }
+            return maxScore
+        case .informational:
+            return 0
         case .workerDelegation:
             if tool.id == "use_workers" { return 100 }
             if tool.capability == .planning { return 50 }
@@ -380,6 +530,57 @@ public final class AssistToolRouter: Sendable {
             if let ids = capMap[capability.rawValue], !ids.isEmpty {
                 lines.append("\(capability.rawValue): \(ids.joined(separator: ", "))")
             }
+        }
+        return lines.joined(separator: "\n")
+    }
+}
+
+// MARK: - Unified Tool Capability Catalog
+
+@MainActor
+public final class ToolCapabilityCatalog: Sendable {
+    public static let shared = ToolCapabilityCatalog()
+
+    public init() {}
+
+    public func catalog(for registry: AssistToolRegistry) -> [ToolMetadata] {
+        return registry.allTools.map { AssistToolRouter.shared.metadata(for: $0) }
+    }
+
+    public func validateRegistration(in registry: AssistToolRegistry) -> [String] {
+        var issues: [String] = []
+        var seenIds = Set<String>()
+        for tool in registry.allTools {
+            if seenIds.contains(tool.id) {
+                issues.append("Duplicate tool identifier registered: \(tool.id)")
+            }
+            seenIds.insert(tool.id)
+            if tool.name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                issues.append("Tool \(tool.id) has empty name")
+            }
+            if tool.description.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                issues.append("Tool \(tool.id) has empty description")
+            }
+        }
+        return issues
+    }
+
+    public func generateCompactCatalogPrompt(for registry: AssistToolRegistry) -> String {
+        let tools = registry.allTools
+        var lines: [String] = ["Available Tools and Capabilities:"]
+        for tool in tools {
+            let meta = AssistToolRouter.shared.metadata(for: tool)
+            var line = "- `\(tool.id)`: \(meta.name) — \(meta.description)"
+            if meta.requiredPermission != .none {
+                line += " [Permission: \(meta.requiredPermission.rawValue)]"
+            }
+            if !meta.supportedOperations.isEmpty {
+                line += " [Operations: \(meta.supportedOperations.prefix(5).joined(separator: ", "))]"
+            }
+            if !meta.knownLimitations.isEmpty {
+                line += " [Limitation: \(meta.knownLimitations[0])]"
+            }
+            lines.append(line)
         }
         return lines.joined(separator: "\n")
     }

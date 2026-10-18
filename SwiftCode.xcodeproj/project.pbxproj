@@ -1899,6 +1899,7 @@
 		ECAAA1260294B0DD15620205 /* Symbols/sfsymbol5.txt in Resources */ = {isa = PBXBuildFile; fileRef = ECAAA1260294B0DD15620105 /* Symbols/sfsymbol5.txt */; };
 		ECAAA1260294B0DD15620206 /* Symbols/sfsymbol6.txt in Resources */ = {isa = PBXBuildFile; fileRef = ECAAA1260294B0DD15620106 /* Symbols/sfsymbol6.txt */; };
 		ECB20424C641963C04DC73C1 /* GeneralSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 089B1CE7F469330E3B904175 /* GeneralSettingsView.swift */; };
+		AAECB204C641963C04DC73C1 /* AppPermsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA9B1CE7F469330E3B904175 /* AppPermsView.swift */; };
 		ECDB8F4B1422407E18814214 /* PermissionsCheckerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6EDA931005139E6A1492943E /* PermissionsCheckerView.swift */; };
 		ED05F14191BE0987B76454C0 /* Core/DatabaseTemplateManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = FD690FE999C6751A228E5DCE /* Core/DatabaseTemplateManager.swift */; };
 		ED281289A79A89E1ED8EBD1E /* SimulatorRuntimeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0D4CE672BE7419F56DEF1964 /* SimulatorRuntimeView.swift */; };
@@ -2980,6 +2981,7 @@
 		07A8427AE9D75862E67726E3 /* AssistDiffTool.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssistDiffTool.swift; sourceTree = "<group>"; };
 		084278DC9B45E64C71F095A4 /* CodeReviewView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CodeReviewView.swift; sourceTree = "<group>"; };
 		089B1CE7F469330E3B904175 /* GeneralSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GeneralSettingsView.swift; sourceTree = "<group>"; };
+		AA9B1CE7F469330E3B904175 /* AppPermsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppPermsView.swift; sourceTree = "<group>"; };
 		08A076E6BEE2C611AA68ED5C /* AssistTestDataFactoryTool.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssistTestDataFactoryTool.swift; sourceTree = "<group>"; };
 		08C0893DD6303723C51721E5 /* CollaborationConflictResolverView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CollaborationConflictResolverView.swift; sourceTree = "<group>"; };
 		08D883D1A78AA7F79D1CC1FE /* JSONStringEscaperView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JSONStringEscaperView.swift; sourceTree = "<group>"; };
@@ -9552,6 +9554,7 @@
 				057EAE735A7C77DB1A01F4B0 /* PluginManagerView.swift */,
 				08968ED253EE45E40E03838E /* Custom Tools */,
 				089B1CE7F469330E3B904175 /* GeneralSettingsView.swift */,
+				AA9B1CE7F469330E3B904175 /* AppPermsView.swift */,
 				SPKREF000000000000000001 /* SoundPickerView.swift */,
 				96FD4605BB1845F7A9771771 /* SoundPreviewView.swift */,
 				A1C0100229F01A0100000002 /* AppIconManager.swift */,
@@ -12868,6 +12871,7 @@
 				028210A2C2DF33D15EF2B37A /* ProjectTemplateView.swift in Sources */,
 				A8FD9A8F81B051310C62E986 /* CustomToolBuilderView.swift in Sources */,
 				ECB20424C641963C04DC73C1 /* GeneralSettingsView.swift in Sources */,
+				AAECB204C641963C04DC73C1 /* AppPermsView.swift in Sources */,
 				SPKBLD000000000000000001 /* SoundPickerView.swift in Sources */,
 				C7AEAE25727E423B9CE45920 /* AlertTone.swift in Sources */,
 				0CF39455D3434725B1A992CA /* ToneSynthesizer.swift in Sources */,

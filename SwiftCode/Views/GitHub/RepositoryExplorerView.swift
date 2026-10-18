@@ -198,7 +198,7 @@ public struct RepositoryExplorerView: View {
                 HStack {
                     Image(systemName: "magnifyingglass")
                         .foregroundStyle(.secondary)
-                    TextField("Search projects...", text: $projectSearchText)
+                    TextField("Search Projects", text: $projectSearchText)
                         .textFieldStyle(.plain)
                     if !projectSearchText.isEmpty {
                         Button { projectSearchText = "" } label: {

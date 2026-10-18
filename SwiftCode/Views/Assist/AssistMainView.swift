@@ -2520,7 +2520,7 @@ struct ExecutionModeSheet: View {
                         VStack(alignment: .leading, spacing: 2) {
                             Text("Chat Mode")
                                 .font(.subheadline.weight(.medium))
-                            Text("Read-only conversational assistant")
+                            Text("Chat with Assist with no tools.")
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
                         }
@@ -2542,7 +2542,7 @@ struct ExecutionModeSheet: View {
                     dismiss()
                 } label: {
                     HStack(spacing: 8) {
-                        Image(systemName: "cpu")
+                        Image(systemName: "book.and.wrench")
                             .font(.caption)
                             .frame(width: 20)
                         VStack(alignment: .leading, spacing: 2) {
@@ -2572,7 +2572,7 @@ struct ExecutionModeSheet: View {
                     .padding(.vertical, 4)
 
                 VStack(alignment: .leading, spacing: 4) {
-                    Text("Agent Execution Mode")
+                    Text("Agent Mode")
                         .font(.caption.weight(.medium))
                         .foregroundStyle(.secondary)
                         .padding(.horizontal, 12)
@@ -2740,7 +2740,7 @@ struct DiagnosticsSheet: View {
                             HStack {
                                 Image(systemName: "magnifyingglass")
                                     .foregroundColor(.secondary)
-                                TextField("Filter logs...", text: $searchText)
+                                TextField("Filter Logs", text: $searchText)
                                     .textFieldStyle(.plain)
                                 if !searchText.isEmpty {
                                     Button {

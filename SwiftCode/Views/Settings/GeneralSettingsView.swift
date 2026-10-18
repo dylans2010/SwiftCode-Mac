@@ -579,6 +579,8 @@ struct GeneralSettingsView: View {
     @State private var showDeveloperModeEnabledAlert = false
     @State private var showAppIconSelectSheet = false
     @State private var showSoundLibrarySheet = false
+    @State private var showPermissionsSheet = false
+    @ObservedObject private var permsManager = AppPermissionsManager.shared
     @ObservedObject private var iconManager = AppIconManager.shared
     @ObservedObject private var soundManager = SoundManager.shared
     @State private var soundInstallStatus = SoundInstaller.shared.systemSettingsStatus()
@@ -600,6 +602,60 @@ struct GeneralSettingsView: View {
             ScrollView {
                 VStack(spacing: 24) {
                     proSection
+
+                    // System Permissions (AppPermsView) Section
+                    SettingsCardSection {
+                        VStack(alignment: .leading, spacing: 14) {
+                            HStack(spacing: 16) {
+                                ZStack {
+                                    Circle()
+                                        .fill(permsManager.allGranted ? Color.green.opacity(0.15) : Color.blue.opacity(0.15))
+                                        .frame(width: 48, height: 48)
+
+                                    Image(systemName: "hand.raised.fill")
+                                        .font(.title2)
+                                        .foregroundStyle(permsManager.allGranted ? Color.green : Color.blue)
+                                }
+
+                                VStack(alignment: .leading, spacing: 4) {
+                                    HStack(spacing: 8) {
+                                        Text("System Permissions & Authorizations")
+                                            .font(.headline)
+                                            .fontWeight(.bold)
+
+                                        Text("\(permsManager.grantedCount)/\(permsManager.totalCount) Granted")
+                                            .font(.caption2.bold())
+                                            .padding(.horizontal, 8)
+                                            .padding(.vertical, 3)
+                                            .background(Capsule().fill(permsManager.allGranted ? Color.green.opacity(0.15) : Color.orange.opacity(0.15)))
+                                            .foregroundStyle(permsManager.allGranted ? Color.green : Color.orange)
+                                    }
+
+                                    Text("Accessibility, Screen Recording, Full Disk Access, and Developer Tools required for tools like use_app, take_screenshot, and take_screenrecord.")
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                }
+
+                                Spacer()
+
+                                Button {
+                                    showPermissionsSheet = true
+                                } label: {
+                                    HStack(spacing: 6) {
+                                        Image(systemName: "slider.horizontal.3")
+                                        Text("Manage Permissions")
+                                    }
+                                    .fontWeight(.semibold)
+                                }
+                                .buttonStyle(.borderedProminent)
+                                .tint(.accentColor)
+                            }
+                        }
+                    } header: {
+                        Label("App Permissions", systemImage: "hand.raised.fill")
+                    } footer: {
+                        Text("Audit and grant macOS permissions to allow Assist to interact with desktop apps, capture screens, and execute terminal tools.")
+                    }
 
                     // Save Location Configuration Section
                     SettingsCardSection {
@@ -902,6 +958,9 @@ struct GeneralSettingsView: View {
                     }
             }
             .environmentObject(settings)
+        }
+        .sheet(isPresented: $showPermissionsSheet) {
+            AppPermsView()
         }
         .alert("Developer Mode Enabled", isPresented: $showDeveloperModeEnabledAlert) {
             Button("OK", role: .cancel) { }

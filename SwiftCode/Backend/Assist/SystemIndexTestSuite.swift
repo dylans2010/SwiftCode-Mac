@@ -38,6 +38,7 @@ public final class SystemIndexTestSuite: Sendable {
         results.append(testTimeoutErrorLocalizedDescription())
         results.append(testRequestGenerationEquality())
         results.append(testQueuedMessagePreservesEnvelope())
+        results.append(await testDynamicRuntimeAssetsFileAddModifyDelete())
         return results
     }
 
@@ -400,5 +401,125 @@ public final class SystemIndexTestSuite: Sendable {
                       message: passed ? "Envelope survived queueing and Codable round-trip."
                                       : "Envelope lost (preserved=\(preserved), roundTripped=\(roundTripped)).",
                       start: start)
+    }
+
+    // MARK: - Dynamic Runtime Assets (Objective B)
+
+    func testDynamicRuntimeAssetsFileAddModifyDelete() async -> RuntimeTestCaseResult {
+        let start = Date()
+        let fm = FileManager.default
+        let tempDir = fm.temporaryDirectory.appendingPathComponent("test_system_assets_\(UUID().uuidString)", isDirectory: true)
+
+        do {
+            try fm.createDirectory(at: tempDir, withIntermediateDirectories: true)
+            defer {
+                try? fm.removeItem(at: tempDir)
+                Task {
+                    await SystemIndexService.shared.setCustomAssetsDirectory(nil)
+                }
+            }
+
+            // 1. Configure custom assets directory
+            await SystemIndexService.shared.setCustomAssetsDirectory(tempDir)
+
+            // 2. Add initial file: UsingApp.md
+            let usingAppURL = tempDir.appendingPathComponent("UsingApp.md")
+            let initialContent = "# UsingApp\n\nInitial version for app interaction."
+            try initialContent.write(to: usingAppURL, atomically: true, encoding: .utf8)
+
+            await SystemIndexService.shared.rebuildIndex()
+            let initialGen = await SystemIndexService.shared.generation
+            let initialDiag = await SystemIndexService.shared.diagnostics()
+            guard initialDiag.documentCount == 1 else {
+                return result(testName: "SystemIndex: Dynamic Runtime Assets", passed: false,
+                              message: "Expected 1 document, found \(initialDiag.documentCount)", start: start)
+            }
+
+            // 3. Edit UsingApp.md
+            let updatedContent = "# UsingApp\n\nUpdated version with custom workflow for Finder navigation."
+            try updatedContent.write(to: usingAppURL, atomically: true, encoding: .utf8)
+            await SystemIndexService.shared.checkFreshnessAndRefreshIfNeeded()
+
+            let updatedGen = await SystemIndexService.shared.generation
+            guard updatedGen > initialGen else {
+                return result(testName: "SystemIndex: Dynamic Runtime Assets", passed: false,
+                              message: "Generation did not increment after modifying UsingApp.md", start: start)
+            }
+            let updatedText = await SystemIndexService.shared.assetText(forRelativePath: "UsingApp.md")
+            guard updatedText?.contains("Finder navigation") == true else {
+                return result(testName: "SystemIndex: Dynamic Runtime Assets", passed: false,
+                              message: "Updated content not reflected in assetText", start: start)
+            }
+
+            // 4. Add a brand new file without recompiling: UsingSystem.md
+            let usingSystemURL = tempDir.appendingPathComponent("UsingSystem.md")
+            let newDocContent = "# UsingSystem\n\nSystem capabilities and environment instructions."
+            try newDocContent.write(to: usingSystemURL, atomically: true, encoding: .utf8)
+            await SystemIndexService.shared.checkFreshnessAndRefreshIfNeeded()
+
+            let afterAddDiag = await SystemIndexService.shared.diagnostics()
+            guard afterAddDiag.documentCount == 2 else {
+                return result(testName: "SystemIndex: Dynamic Runtime Assets", passed: false,
+                              message: "Expected 2 documents after adding UsingSystem.md, found \(afterAddDiag.documentCount)", start: start)
+            }
+
+            // 5. Add a nested file in a subdirectory
+            let subDir = tempDir.appendingPathComponent("nested", isDirectory: true)
+            try fm.createDirectory(at: subDir, withIntermediateDirectories: true)
+            let nestedDocURL = subDir.appendingPathComponent("AdvancedTools.md")
+            try "# AdvancedTools\n\nAdvanced tool documentation.".write(to: nestedDocURL, atomically: true, encoding: .utf8)
+            await SystemIndexService.shared.checkFreshnessAndRefreshIfNeeded()
+
+            let afterNestedDiag = await SystemIndexService.shared.diagnostics()
+            guard afterNestedDiag.documentCount == 3 else {
+                return result(testName: "SystemIndex: Dynamic Runtime Assets", passed: false,
+                              message: "Expected 3 documents after adding nested document, found \(afterNestedDiag.documentCount)", start: start)
+            }
+
+            // 6. Delete a file: delete UsingApp.md
+            try fm.removeItem(at: usingAppURL)
+            await SystemIndexService.shared.checkFreshnessAndRefreshIfNeeded()
+
+            let afterDeleteDiag = await SystemIndexService.shared.diagnostics()
+            guard afterDeleteDiag.documentCount == 2 else {
+                return result(testName: "SystemIndex: Dynamic Runtime Assets", passed: false,
+                              message: "Expected 2 documents after deleting UsingApp.md, found \(afterDeleteDiag.documentCount)", start: start)
+            }
+            let deletedDocText = await SystemIndexService.shared.assetText(forRelativePath: "UsingApp.md")
+            guard deletedDocText == nil else {
+                return result(testName: "SystemIndex: Dynamic Runtime Assets", passed: false,
+                              message: "Deleted document still returned by assetText", start: start)
+            }
+
+            // 7. Rename UsingSystem.md -> SystemGuide.md
+            let renamedURL = tempDir.appendingPathComponent("SystemGuide.md")
+            try fm.moveItem(at: usingSystemURL, to: renamedURL)
+            await SystemIndexService.shared.checkFreshnessAndRefreshIfNeeded()
+
+            let renamedDiag = await SystemIndexService.shared.diagnostics()
+            guard renamedDiag.documentCount == 2 else {
+                return result(testName: "SystemIndex: Dynamic Runtime Assets", passed: false,
+                              message: "Expected 2 documents after rename, found \(renamedDiag.documentCount)", start: start)
+            }
+            guard await SystemIndexService.shared.assetText(forRelativePath: "UsingSystem.md") == nil,
+                  await SystemIndexService.shared.assetText(forRelativePath: "SystemGuide.md") != nil else {
+                return result(testName: "SystemIndex: Dynamic Runtime Assets", passed: false,
+                              message: "Renamed document identity not updated", start: start)
+            }
+
+            // Reset back to default
+            await SystemIndexService.shared.setCustomAssetsDirectory(nil)
+
+            return result(
+                testName: "SystemIndex: Dynamic Runtime Assets (Add, Modify, Delete, Rename, Nested)",
+                passed: true,
+                message: "Dynamic discovery, modification refresh, file creation, deletion, renaming, nested discovery, and generation tracking verified.",
+                start: start
+            )
+        } catch {
+            await SystemIndexService.shared.setCustomAssetsDirectory(nil)
+            return result(testName: "SystemIndex: Dynamic Runtime Assets", passed: false,
+                          message: "Unexpected error: \(error.localizedDescription)", start: start)
+        }
     }
 }
