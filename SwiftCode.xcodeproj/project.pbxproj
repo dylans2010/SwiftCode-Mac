@@ -136,7 +136,6 @@
 		0BA8F18F78D6B7AEC931616E /* Base64DecoderDevToolView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 550B64920AC9F441E95A2F1A /* Base64DecoderDevToolView.swift */; };
 		0BD074F75134568ADCD88A0A /* ProjectDependencyGraphView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 45D3741257D15CB4624B50BC /* ProjectDependencyGraphView.swift */; };
 		0BE35F8A85F541ACA48E04DF /* SwiftPackageManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 429999223B964512B43B2A57 /* SwiftPackageManager.swift */; };
-		0BE4D5FC56AAB92D76D71D4D /* (null) in Resources */ = {isa = PBXBuildFile; };
 		0C437FA4D07343E78775C3AA /* JavaMaven.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7A6A7D93E7A74C9CB434289A /* JavaMaven.swift */; };
 		0C6ED9114F51E9CD928C56C8 /* TransferPermission.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2D5EEB9F6D5CC645B8B0C549 /* TransferPermission.swift */; };
 		0CA037E38E71437889CF0E49 /* DeleteFile.swift in Sources */ = {isa = PBXBuildFile; fileRef = 48E609E1E2A64EAFA7815E9D /* DeleteFile.swift */; };
@@ -228,7 +227,6 @@
 		1C2086B027DB03E061B8C473 /* AssistSearchTool.swift in Sources */ = {isa = PBXBuildFile; fileRef = 91BB7E8BF140C06AFA054F3B /* AssistSearchTool.swift */; };
 		1C2A3C59D58B4DBCA5E4E182 /* SwiftCodeWorkflows/WorkflowExecutionView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 83A4C69FD4C74FB6B42453E2 /* SwiftCodeWorkflows/WorkflowExecutionView.swift */; };
 		1C396296FCFCDE25DB4816CC /* FileSystemInspectorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EB9A6AD34CA572BAD609827F /* FileSystemInspectorView.swift */; };
-		1C3E8B2C17FD280625E1852A /* (null) in Resources */ = {isa = PBXBuildFile; };
 		1C9E1D4AF6D9422785D48BB1 /* AssistAppendFileTool.swift in Sources */ = {isa = PBXBuildFile; fileRef = FBB200E77D8947F2430853AC /* AssistAppendFileTool.swift */; };
 		1CAE176A43BA4793A2DCD9D5 /* GitChangesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 25379D97984683C3F0FBF856 /* GitChangesView.swift */; };
 		1CFD1E65BA74A6C5404BA0B5 /* JSONToRustView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 17383B7FE1B939DEA6233922 /* JSONToRustView.swift */; };
@@ -341,7 +339,6 @@
 		2DD90577F45F4E967BB45212 /* AssistDependencyGraphTool.swift in Sources */ = {isa = PBXBuildFile; fileRef = F19119E35A57CDC60057F2B6 /* AssistDependencyGraphTool.swift */; };
 		2E066257F678F9F74ED15026 /* AdvancedRegexDebuggerDevToolView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 37BF064D1F2B5D378D261440 /* AdvancedRegexDebuggerDevToolView.swift */; };
 		2E0A7FB1BC5F4001B2AEAD30 /* MLXRandom in Frameworks */ = {isa = PBXBuildFile; productRef = F58AD0F3D29C45FCA7AE5130 /* MLXRandom */; };
-		2E2133821B894ACC39AEA97C /* (null) in Resources */ = {isa = PBXBuildFile; };
 		2E260D21EC954BE0B34CD4C5 /* GitService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9227B7E4C6D695B8600E3170 /* GitService.swift */; };
 		2E76DFBAC08C4A37928D095E /* GitCommit.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8399992DC054EE07E0402ACE /* GitCommit.swift */; };
 		2E8290FB620551542D4B4A89 /* AssistCodeIntegrityScanner.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1647B0EEBE86E22B995D730C /* AssistCodeIntegrityScanner.swift */; };
@@ -428,7 +425,6 @@
 		3D19BA4589DBF1FA614E5839 /* CPUMonitorDevToolView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 73996596A2AF339A46D69DCA /* CPUMonitorDevToolView.swift */; };
 		3D39286E47FC4A938275A4E1 /* SkillsValidator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 59EC48033CCA4A84AD0A1952 /* SkillsValidator.swift */; };
 		3D5794D133E743EFB92BC22E /* RuntimeLogsCommand.swift in Sources */ = {isa = PBXBuildFile; fileRef = AFA30B67E2CD497A878D91ED /* RuntimeLogsCommand.swift */; };
-		3DC197DCD24235054EB2B0C9 /* (null) in Resources */ = {isa = PBXBuildFile; };
 		3E2C1AC901184D9BB2407376 /* Grep.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6D8076D0C8E04083A66BE57C /* Grep.swift */; };
 		3E60A40239914AEA8F6385E0 /* DeviceConnectSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C8B77C7E02DE4624B53D7325 /* DeviceConnectSettingsView.swift */; };
 		3E752BE39CBD767C338A64F8 /* PullRequestView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E2568535BF61BCCDCC5AE027 /* PullRequestView.swift */; };
@@ -515,7 +511,6 @@
 		4CE7FB283C884733951FF908 /* TodoManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 875FDBBD73914B1EA31DE5C0 /* TodoManager.swift */; };
 		4D0C45E14A9542299B24A0D1 /* GitHubSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 54E3478E2D9B4055BF14720A /* GitHubSettingsView.swift */; };
 		4D5961FA61F24ECE95ED16ED /* SigningStatus.swift in Sources */ = {isa = PBXBuildFile; fileRef = 85C3E264C32142EF9793EA86 /* SigningStatus.swift */; };
-		4DA729FA3687B1695C21CC75 /* (null) in Resources */ = {isa = PBXBuildFile; };
 		4DE6FF1B2E004428B3D0EACB /* CrashAnalyzer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9C87D1B712494E4B90302BED /* CrashAnalyzer.swift */; };
 		4DE8690161C9DC1E57063671 /* BatteryStatusDevToolView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A8CBF3504E3D75E7C4ADD865 /* BatteryStatusDevToolView.swift */; };
 		4E160B50FE1394D033587371 /* DeviceCapabilityAnalyzer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 287AA726E98D4D06A1B84E1A /* DeviceCapabilityAnalyzer.swift */; };
@@ -712,7 +707,6 @@
 		6D6C79D173711DA5BD4F504D /* ToolbarCustomizationView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B64BBFEADA10E5A599D72F4F /* ToolbarCustomizationView.swift */; };
 		6D8152677AC1E26BB1C4B12A /* AssistGoalExpansionEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = AAA4FA6B6B2A61662CA78CDB /* AssistGoalExpansionEngine.swift */; };
 		6D89DA4BE0CE4FE5853E6062 /* AgentChecklistState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 164C3B2390CB4CD5B68B5DC1 /* AgentChecklistState.swift */; };
-		6D94E1AD310954D4608755CC /* (null) in Resources */ = {isa = PBXBuildFile; };
 		6E08D7C341FB0A8EE9B26778 /* PushPullManagerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 55499AA69755D101C20D43B0 /* PushPullManagerView.swift */; };
 		6E3DE3432E247AF688FB519D /* _AssistCriticalValidationEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 00573C77C75B8076494A575A /* _AssistCriticalValidationEngine.swift */; };
 		6E5DCD4814F02800937FC07E /* CollaborationMainView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A977BA9D804F72737F28D146 /* CollaborationMainView.swift */; };
@@ -867,7 +861,6 @@
 		7C53538E1CAD48FF8CE1C819 /* RepositoryDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EC4B92277E814949ACC6FC6E /* RepositoryDetailView.swift */; };
 		7C6AD44635D541C396B3A27E /* AgentToolRegistry.swift in Sources */ = {isa = PBXBuildFile; fileRef = FD199B0FD6644340A3C609DC /* AgentToolRegistry.swift */; };
 		7C8A0631AC0A475EA06989CF /* RSAKeyGeneratorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7810EC1128924A86AE466690 /* RSAKeyGeneratorView.swift */; };
-		7CC1A9610E244CE62FF4899C /* (null) in Resources */ = {isa = PBXBuildFile; };
 		7CCB591DFB49C209F98B5C53 /* AccessibilityContrastGridDevToolView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 31A115C8EB97B1463E9150AE /* AccessibilityContrastGridDevToolView.swift */; };
 		7CCCE570024CA7491440C88D /* AssistPerformanceProfilingEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0A5637044E24A76F2FE3611F /* AssistPerformanceProfilingEngine.swift */; };
 		7D06FF1D62687ADDEDB5C348 /* SimulatorSidebar.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9AC87E03E32F06B8801E206B /* SimulatorSidebar.swift */; };
@@ -889,8 +882,6 @@
 		7F9C73617D4640A9AF123697 /* Flutter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5F0DB7955E5145F4BC97F095 /* Flutter.swift */; };
 		7FA89801A8BC466F8A986409 /* SwiftCodeWorkflows/WorkflowDashboardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E53E7857AD064FBD8038EB3E /* SwiftCodeWorkflows/WorkflowDashboardView.swift */; };
 		7FAF9817817DA514A76B38ED /* AssistDiffTool.swift in Sources */ = {isa = PBXBuildFile; fileRef = 07A8427AE9D75862E67726E3 /* AssistDiffTool.swift */; };
-		8011D22065A4C22503627407 /* (null) in Resources */ = {isa = PBXBuildFile; };
-		8017E2EF385AAF768E93733B /* (null) in Resources */ = {isa = PBXBuildFile; };
 		80731BB9BDE8F0EFCA0E5613 /* AssistToolRegistry.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3DA027F921B35AA14DC9842C /* AssistToolRegistry.swift */; };
 		8087CB836AF9457A9BCC36CA /* GenerateUnitTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E128D0A623594699BA9D10AD /* GenerateUnitTests.swift */; };
 		809FF001EC946D34B3885F21 /* CollaborationDashboardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0DB12E2478CCB57F5CB12C9E /* CollaborationDashboardView.swift */; };
@@ -993,7 +984,6 @@
 		8D9E0004000100010000000E /* MetaCommandArgumentPickerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8D9E0004000100010000000D /* MetaCommandArgumentPickerView.swift */; };
 		8DA2FD4C6BBD0AF84E0FFDD8 /* FilePermissionView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6160E9FC707A9B07E04C2B81 /* FilePermissionView.swift */; };
 		8E03DBB467F75893FCBCF8FA /* WorkerPersistenceStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8EE85E4A3CB85D595FA6A604 /* WorkerPersistenceStore.swift */; };
-		8E0D89B2DEE6321A0CA019C7 /* (null) in Resources */ = {isa = PBXBuildFile; };
 		8E0E69CD6E58E6F88F27FFC7 /* WorkerEvent.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8E3EDACA1831B2DA97BFB826 /* WorkerEvent.swift */; };
 		8E0EBBA7E3D8D02985DB10B5 /* WorkerModelSelector.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8EC38D0F62781C99CC0270C8 /* WorkerModelSelector.swift */; };
 		8E20E41E923E96D526CE6D2A /* WorkerRecoveryEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8E11DEFE4BEC3802EF3B919D /* WorkerRecoveryEngine.swift */; };
@@ -1040,7 +1030,6 @@
 		91C57D4180C743E5957C4DCA /* AgentPendingQuestion.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5BED3DCDAD1C461198313D7C /* AgentPendingQuestion.swift */; };
 		91E6FD9903EFF4F612B75870 /* JSONTypeAnalyzerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 52C009EEF1196B3EBAAC9610 /* JSONTypeAnalyzerView.swift */; };
 		9227C6BE8B64DD541EB5E75D /* Services/DatabaseAIService.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2A0663053E20E73EB83A29D /* Services/DatabaseAIService.swift */; };
-		922EAF88070F54CCF9132259 /* (null) in Resources */ = {isa = PBXBuildFile; };
 		9253E27B880A488BBD7F50C9 /* AgentTurnState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2A2C1D88F8A848CEA608C302 /* AgentTurnState.swift */; };
 		928CC79442554A6398AD5761 /* ReadPullRequest.swift in Sources */ = {isa = PBXBuildFile; fileRef = B37929C28D0143BDA990754C /* ReadPullRequest.swift */; };
 		92DDC59A2B8A403C8B70B2EC /* DeviceInfoCommand.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3CF1E16F94DE47FFB3564AA1 /* DeviceInfoCommand.swift */; };
@@ -1073,7 +1062,6 @@
 		9801BDFFF3D64FA48D7FD75A /* TextCounterView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 32808B47F39D48AB8F1A6630 /* TextCounterView.swift */; };
 		980e0e68fd8f1c151876b93e /* SDKCloudModelAdapter.swift in Sources */ = {isa = PBXBuildFile; fileRef = fe2ae3d7389d2f4c56b81c13 /* SDKCloudModelAdapter.swift */; };
 		9842ADAFCAE846D0AF8E562A /* GitCloneSheetView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 58C22324AECE138382A52873 /* GitCloneSheetView.swift */; };
-		984E8D57AA3D15FE678FA50A /* (null) in Resources */ = {isa = PBXBuildFile; };
 		9861323D014D48C9A11D4989 /* ReviewCode.swift in Sources */ = {isa = PBXBuildFile; fileRef = FE266D10FFA543278D1B02A3 /* ReviewCode.swift */; };
 		989DBDB50EE2A8A5F88148B4 /* ExtensionManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5137E17705BB41D95B0892BA /* ExtensionManager.swift */; };
 		990C413DAFE7B52CFA3EB0D0 /* CodexBridgeManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6CA7A848357D2ACAAAD50481 /* CodexBridgeManager.swift */; };
@@ -1109,7 +1097,6 @@
 		9CBD35FE23994B1B9FC2D124 /* GitPorcelainParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = 93E220430C6ABA49BCBDCD5E /* GitPorcelainParser.swift */; };
 		9CBD4B74D7BB62038AC77E08 /* CodexFileHistoryView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7440C84347DA47DCE1FBB9CF /* CodexFileHistoryView.swift */; };
 		9CDFBF71EC5244E7B693B8EE /* FixBugs.swift in Sources */ = {isa = PBXBuildFile; fileRef = 41C9496BAFDD4F94937011F2 /* FixBugs.swift */; };
-		9D36AEE3EDE977A669292F07 /* (null) in Resources */ = {isa = PBXBuildFile; };
 		9DAA96211F47F52CB2352F38 /* AssistContextBuilder.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8F7AF962365084FDCA75C37D /* AssistContextBuilder.swift */; };
 		B3E445E089654FAE8254456B /* AssistWorkingDirectoryStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2105F78141F945D4A238E8C3 /* AssistWorkingDirectoryStore.swift */; };
 		9DBDFB2B81DB9786FA4DD381 /* _AssistCriticalExecutionEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = CBD4B8235148450A38577497 /* _AssistCriticalExecutionEngine.swift */; };
@@ -1195,7 +1182,6 @@
 		A4BFA67CBFE8DCE500D86CA9 /* Core/SyncQueue.swift in Sources */ = {isa = PBXBuildFile; fileRef = 768E07667E513A95DCF5277B /* Core/SyncQueue.swift */; };
 		A4D283ADC4BC7A34EECCD6FE /* PluginManagerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 057EAE735A7C77DB1A01F4B0 /* PluginManagerView.swift */; };
 		A5023013A70FBEA0811769D8 /* DependencyManager/PackageAnalyticsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 024AA7C746C3B03EE4FE8CD5 /* DependencyManager/PackageAnalyticsView.swift */; };
-		A5428FFABC47203D23223068 /* (null) in Resources */ = {isa = PBXBuildFile; };
 		A5463CE76B07EA245CA3C773 /* Menu Bar/NSRebaseView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1C87B1CEAA45F6D39EB18B9A /* Menu Bar/NSRebaseView.swift */; };
 		A57E2AE2CDAA4F5FB2630855 /* GitCheckout.swift in Sources */ = {isa = PBXBuildFile; fileRef = 30B3DBAE05FB4B92A2FEAB22 /* GitCheckout.swift */; };
 		A5EAB529722A29225853FE2E /* PreviewConfigurationView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 46F7538D7F5CAACB96BC6E6F /* PreviewConfigurationView.swift */; };
@@ -1210,7 +1196,6 @@
 		A80B186C94F34CC3A04E7FF6 /* DockerCompose.swift in Sources */ = {isa = PBXBuildFile; fileRef = 88BBE910B79C4AC388DD6E08 /* DockerCompose.swift */; };
 		A82B7FBA9D92E6280C98B9B7 /* AssistRefactorTool.swift in Sources */ = {isa = PBXBuildFile; fileRef = 79B4B38ACD3166E79B4F58E3 /* AssistRefactorTool.swift */; };
 		A83491FC57C3309ECF4AD14 /* AppConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = A83491FC57C3309ECF4AD13 /* AppConfig.swift */; };
-		A86E05AE18E72DD58DDAB824 /* (null) in Resources */ = {isa = PBXBuildFile; };
 		A87E481638E239A88830D3F1 /* FeatureFlagsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 412C9B2E63F95F94E5A8B8A8 /* FeatureFlagsView.swift */; };
 		A88A50E312FC4CADFE5C91B4 /* CollaborationBranchManagementView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5BA427DBE07802D79F01231F /* CollaborationBranchManagementView.swift */; };
 		A8BF90F0F0B34148A088DA1C /* AgentChecklistTaskStatus.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4B944907F5E84650BAF4C820 /* AgentChecklistTaskStatus.swift */; };
@@ -1424,14 +1409,12 @@
 		BA908212F9D1F9C5B565BB57 /* Views/AIReportsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A528DB7ABFCD9E8ACBA6D34E /* Views/AIReportsView.swift */; };
 		BAD9EA9BF8024736BEB8E69B /* GitClone.swift in Sources */ = {isa = PBXBuildFile; fileRef = EA169C54BB884FA49C2DA452 /* GitClone.swift */; };
 		BADB6ED13CC84FBDBF12FACA /* CodeForArtboard.swift in Sources */ = {isa = PBXBuildFile; fileRef = A49A854E91254367A9FA01E0 /* CodeForArtboard.swift */; };
-		BAF244683820123C1E08045F /* (null) in Resources */ = {isa = PBXBuildFile; };
 		BAF717825B359E2734352887 /* Views/OperationsSecurityCenterView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A6D6183F17DDC592C03423C0 /* Views/OperationsSecurityCenterView.swift */; };
 		BB1AB07B06944BC2A8114097 /* EditorTheme.swift in Sources */ = {isa = PBXBuildFile; fileRef = 51AA1874F985B55BE93595D3 /* EditorTheme.swift */; };
 		BB398050B72F433F8BA8FD9B /* ImageBase64View.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1C7F5F427AE64C48BFE72B98 /* ImageBase64View.swift */; };
 		BB482AD1C14D21F0BBF21668 /* TodoHighlighterExtensionView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 982D7FE460FD439B66834515 /* TodoHighlighterExtensionView.swift */; };
 		BB4D81CDB6C14885876650F4 /* CreateIssue.swift in Sources */ = {isa = PBXBuildFile; fileRef = E5F5D572C8434836889B0F20 /* CreateIssue.swift */; };
 		BB54434875A749E5805FF188 /* SyntaxTokenKind.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6446920A9778A4A738E8FD60 /* SyntaxTokenKind.swift */; };
-		BB8F121861E164387167C33F /* (null) in Resources */ = {isa = PBXBuildFile; };
 		BB96E2D43CBC4BBE94035D65 /* IssueNavigatorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D392D5F47EE76B75952DBE05 /* IssueNavigatorView.swift */; };
 		BBAE30C55740484D944B7966 /* TokenizedLine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2CFB02C257E0B52A5E0DBC65 /* TokenizedLine.swift */; };
 		BBCF536338494CD28F74125E /* DeviceService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 86F6541830C947129BEC445C /* DeviceService.swift */; };
@@ -1636,7 +1619,6 @@
 		D8FF736DA11C3AB85E1E930A /* AppStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8706905C703FA9C5060857F4 /* AppStore.swift */; };
 		D90FF3777B3A3B3C18BC2823 /* CharacterEscaperDevToolView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C7370D2FC4DD8416F197DFA5 /* CharacterEscaperDevToolView.swift */; };
 		D911499E1B3F965BC8BAD0ED /* ModelDownloadProgressView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F41E7F18C6B47F81E7C1872A /* ModelDownloadProgressView.swift */; };
-		D972D60E5221BE489DFD05F5 /* (null) in Resources */ = {isa = PBXBuildFile; };
 		D9B250D963E120CA6EF9CC04 /* MultiCursorExtensionView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E6667D90FCA317DE3700C420 /* MultiCursorExtensionView.swift */; };
 		D9DEF097276E4A2AB835D5E2 /* AssistSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E5C09D1515DC441A8619FDB6 /* AssistSettingsView.swift */; };
 		MTA00197276E4A2AB835D5E1 /* MetaAssistModelsUI.swift in Sources */ = {isa = PBXBuildFile; fileRef = MTA0011515DC441A8619FDB1 /* MetaAssistModelsUI.swift */; };
@@ -1667,11 +1649,7 @@
 		DE345C1BC3A64D2EBBD3D9D5 /* HMACGeneratorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 95B2A459CF23437B8E0C3F2E /* HMACGeneratorView.swift */; };
 		DE5ECE000000000000000002 /* FileTemplateManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = DE5ECE000000000000000001 /* FileTemplateManager.swift */; };
 		DE5ECE000000000000000012 /* BuildDestinationResolver.swift in Sources */ = {isa = PBXBuildFile; fileRef = DE5ECE000000000000000011 /* BuildDestinationResolver.swift */; };
-		DEC001DFB00C0DEB12345672 /* (null) in Sources */ = {isa = PBXBuildFile; };
-		DEC001DFB00C0DEB12345674 /* (null) in Sources */ = {isa = PBXBuildFile; };
-		DEC001DFB00C0DEB12345676 /* (null) in Sources */ = {isa = PBXBuildFile; };
 		DED268B9F6AF452B8F7DBDB9 /* ThemeStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 672513D68EBA48D9312D3761 /* ThemeStore.swift */; };
-		DF16B1833A6E85D380484DEF /* (null) in Resources */ = {isa = PBXBuildFile; };
 		DF3E96DB06DA49249DDA4818 /* PullRequestDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D396F843AB894E5895B61AFA /* PullRequestDetailView.swift */; };
 		DF4AE93F9CBF4C59A47FA4B7 /* CommandExecutor.swift in Sources */ = {isa = PBXBuildFile; fileRef = 30BB0B71F46147DDA50C4B91 /* CommandExecutor.swift */; };
 		DF6104A5140886C9E46B751F /* SkillsInfoView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 60AC2D4C28DFAB7C4DA01E8E /* SkillsInfoView.swift */; };
@@ -1788,7 +1766,6 @@
 		EED87D3CC82B43988BA5F326 /* FileSystemWatcher.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB4FA6E15DD02F2A7F4CB4F8 /* FileSystemWatcher.swift */; };
 		EEEA84A630243791F49E4F53 /* ErrorsPanelView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4E9720E95DFD220962A55F0E /* ErrorsPanelView.swift */; };
 		EF1ACDC12F8B3E1D05941474 /* DatabaseExplorerSplitViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0A79C13484AD40A8EF4A5661 /* DatabaseExplorerSplitViewController.swift */; };
-		EF37D5CCA672576FA5988226 /* (null) in Resources */ = {isa = PBXBuildFile; };
 		EF6D742FD164E3E07C53AC3A /* TypeScriptSupportExtensionView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 93DBB344B70D93A88269B581 /* TypeScriptSupportExtensionView.swift */; };
 		EF9C2FA49CA95C5ACB644C8A /* PreviewError.swift in Sources */ = {isa = PBXBuildFile; fileRef = A06B95D6658714343840EB13 /* PreviewError.swift */; };
 		F04CD25E4AD54200ADA72728 /* AgentAttachmentPickerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D8033A3313244A9593648EF6 /* AgentAttachmentPickerView.swift */; };
@@ -2681,7 +2658,6 @@
 		FAF3AD19117A7A382B4B2F26 /* CacheViewerDevToolView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6DADA2D3C31BF48545AD8991 /* CacheViewerDevToolView.swift */; };
 		FB32DC43E574B0E6196B4562 /* GitHubImportManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 88AEE2956F5498AB9BFAD98A /* GitHubImportManager.swift */; };
 		FB4A6B1CB5F845948EB9E951 /* ReadBuildLogs.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7FFEDA7C82F5408BAAAABFCD /* ReadBuildLogs.swift */; };
-		FB62122203D15A969AA60052 /* (null) in Resources */ = {isa = PBXBuildFile; };
 		FB65951A37BF4B27B987915F /* VisualUIInspector.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2351285C038947659A338E2C /* VisualUIInspector.swift */; };
 		FB7E26DBCF5817A602A7BB59 /* LLMService.swift in Sources */ = {isa = PBXBuildFile; fileRef = F0193EDC1925FB3D998793E7 /* LLMService.swift */; };
 		FB8F42680983C38CD18A6492 /* AssistReadDirectoryTool.swift in Sources */ = {isa = PBXBuildFile; fileRef = 06F2018DB65748AA6C5F4BE9 /* AssistReadDirectoryTool.swift */; };
@@ -5762,8 +5738,6 @@
 		sbwizh8HgT46lk1WQ3AeqfKV /* SDKSecurityManagerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SDKSecurityManagerView.swift; sourceTree = "<group>"; };
 		wwccAQFYbISAtwf1CI176wfp /* SDKSecurityService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SDKSecurityService.swift; sourceTree = "<group>"; };
 		x8YuGALvCUjh1T3rP6BpwaEI /* SDKExtensionManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SDKExtensionManager.swift; sourceTree = "<group>"; };
-		99AjgY1lrGunB1oR7RQOyjdo /* Security-Keychain.md */ = {isa = PBXFileReference; lastKnownFileType = text.markdown; path = Security-Keychain.md; sourceTree = "<group>"; };
-		dE6cAF3Dddd17c207cb37d46 /* Assist-Access.md */ = {isa = PBXFileReference; lastKnownFileType = text.markdown; path = Assist-Access.md; sourceTree = "<group>"; };
 		9C0D414E3A2372A595375F90 /* AssistProjectSchemeListTool.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssistProjectSchemeListTool.swift; sourceTree = "<group>"; };
 		55D27F28D273BDFB0FD216D4 /* AssistProjectTargetListTool.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssistProjectTargetListTool.swift; sourceTree = "<group>"; };
 		18526EFE84813CDB7C4B4910 /* AssistProjectBuildSettingsTool.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssistProjectBuildSettingsTool.swift; sourceTree = "<group>"; };
@@ -5821,7 +5795,8 @@
 		8FEC571A90E872C7848598E6 /* AssistSecretsScanTool.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssistSecretsScanTool.swift; sourceTree = "<group>"; };
 		E571D24CE7D2584DFE8F5DF0 /* AssistPermissionsAuditTool.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssistPermissionsAuditTool.swift; sourceTree = "<group>"; };
 		E12BA39964DE3A4EB5CEBCC8 /* AssistAccessibilityAuditTool.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssistAccessibilityAuditTool.swift; sourceTree = "<group>"; };
-		0DE4BCC8F14C6628D3E4A2C7 /* AssistSessionExportTool.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssistSessionExportTool.swift; sourceTree = "<group>"; };		C0DE00010000000000000001 /* AssistToolSharedHelpers.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssistToolSharedHelpers.swift; sourceTree = "<group>"; };
+		0DE4BCC8F14C6628D3E4A2C7 /* AssistSessionExportTool.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssistSessionExportTool.swift; sourceTree = "<group>"; };
+		C0DE00010000000000000001 /* AssistToolSharedHelpers.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssistToolSharedHelpers.swift; sourceTree = "<group>"; };
 		C0DE00010000000000000002 /* AssistArtifactStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssistArtifactStore.swift; sourceTree = "<group>"; };
 		C0DE00010000000000000003 /* AssistApiDocsCoverageTool.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssistApiDocsCoverageTool.swift; sourceTree = "<group>"; };
 		C0DE00010000000000000004 /* AssistApiEndpointAuditTool.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssistApiEndpointAuditTool.swift; sourceTree = "<group>"; };
@@ -10905,27 +10880,6 @@
 				SNDBLD000000000000000055 /* SwiftCode_Notification_Arrival.aiff in Resources */,
 				SNDBLD000000000000000056 /* SwiftCode_Warning_Caution.aiff in Resources */,
 				SNDBLD000000000000000057 /* SwiftCode_Error_Attention.aiff in Resources */,
-				8011D22065A4C22503627407 /* (null) in Resources */,
-				A5428FFABC47203D23223068 /* (null) in Resources */,
-				6D94E1AD310954D4608755CC /* (null) in Resources */,
-				8017E2EF385AAF768E93733B /* (null) in Resources */,
-				BAF244683820123C1E08045F /* (null) in Resources */,
-				FB62122203D15A969AA60052 /* (null) in Resources */,
-				2E2133821B894ACC39AEA97C /* (null) in Resources */,
-				8E0D89B2DEE6321A0CA019C7 /* (null) in Resources */,
-				3DC197DCD24235054EB2B0C9 /* (null) in Resources */,
-				1C3E8B2C17FD280625E1852A /* (null) in Resources */,
-				7CC1A9610E244CE62FF4899C /* (null) in Resources */,
-				984E8D57AA3D15FE678FA50A /* (null) in Resources */,
-				922EAF88070F54CCF9132259 /* (null) in Resources */,
-				4DA729FA3687B1695C21CC75 /* (null) in Resources */,
-				EF37D5CCA672576FA5988226 /* (null) in Resources */,
-				D972D60E5221BE489DFD05F5 /* (null) in Resources */,
-				BB8F121861E164387167C33F /* (null) in Resources */,
-				A86E05AE18E72DD58DDAB824 /* (null) in Resources */,
-				0BE4D5FC56AAB92D76D71D4D /* (null) in Resources */,
-				DF16B1833A6E85D380484DEF /* (null) in Resources */,
-				9D36AEE3EDE977A669292F07 /* (null) in Resources */,
 				D48EB73DDC4EC7ADD58C1CAA /* DocSymbols.json in Resources */,
 				600B4ED1612FABB403A598E2 /* package.json in Resources */,
 				4B170D36F9DA274C8C143C69 /* bridge.js in Resources */,
@@ -12141,9 +12095,6 @@
 				FC57A09E301F297F00BD1BCB /* DictionaryManager.swift in Sources */,
 				FC57A09C301F28AE00BD1BCB /* CodingDictionaryView.swift in Sources */,
 				FC57A09E301F28AE00BD1BCD /* CodeDictionarySearch.swift in Sources */,
-				DEC001DFB00C0DEB12345672 /* (null) in Sources */,
-				DEC001DFB00C0DEB12345674 /* (null) in Sources */,
-				DEC001DFB00C0DEB12345676 /* (null) in Sources */,
 				60A73D1E8BE8B5E078E10AEF /* DependencyManager/ProjectCompatibilityView.swift in Sources */,
 				141D05674E5129028B13B931 /* DependencyManager/DependencySecurityCenterView.swift in Sources */,
 				4F97C1A7F1889B690CC843F8 /* DependencyManager/DependencyVisualizerView.swift in Sources */,
@@ -13769,7 +13720,71 @@
 				D60589E37762A1A93286AEA0 /* AssistSecretsScanTool.swift in Sources */,
 				26AF0AC0F158BFEA6C09C205 /* AssistPermissionsAuditTool.swift in Sources */,
 				B2E95DFD1668DBAF129D8AB4 /* AssistAccessibilityAuditTool.swift in Sources */,
-				F6D49130DEBEE83CF10E6D3F /* AssistSessionExportTool.swift in Sources */,			);
+				F6D49130DEBEE83CF10E6D3F /* AssistSessionExportTool.swift in Sources */,
+				C0DE00020000000000000001 /* AssistToolSharedHelpers.swift in Sources */,
+				C0DE00020000000000000002 /* AssistArtifactStore.swift in Sources */,
+				C0DE00020000000000000003 /* AssistApiDocsCoverageTool.swift in Sources */,
+				C0DE00020000000000000004 /* AssistApiEndpointAuditTool.swift in Sources */,
+				C0DE00020000000000000005 /* AssistBuildConfigurationListTool.swift in Sources */,
+				C0DE00020000000000000006 /* AssistBuildLogAnalyzeTool.swift in Sources */,
+				C0DE00020000000000000007 /* AssistBuildPhaseScriptsListTool.swift in Sources */,
+				C0DE00020000000000000008 /* AssistBuildSettingsDiffTool.swift in Sources */,
+				C0DE00020000000000000009 /* AssistBuildSystemDetectTool.swift in Sources */,
+				C0DE00020000000000000010 /* AssistCallHierarchyTool.swift in Sources */,
+				C0DE00020000000000000011 /* AssistChangeImpactEstimateTool.swift in Sources */,
+				C0DE00020000000000000012 /* AssistCodeCommentExtractTool.swift in Sources */,
+				C0DE00020000000000000013 /* AssistCodeSigningDiagnoseTool.swift in Sources */,
+				C0DE00020000000000000014 /* AssistColorUsageAuditTool.swift in Sources */,
+				C0DE00020000000000000015 /* AssistCommentDensityReportTool.swift in Sources */,
+				C0DE00020000000000000016 /* AssistConflictMarkerScanTool.swift in Sources */,
+				C0DE00020000000000000017 /* AssistCrashLogParseTool.swift in Sources */,
+				C0DE00020000000000000018 /* AssistCreateArtifactTool.swift in Sources */,
+				C0DE00020000000000000019 /* AssistDeleteArtifactTool.swift in Sources */,
+				C0DE00020000000000000020 /* AssistDependencyLicensesTool.swift in Sources */,
+				C0DE00020000000000000021 /* AssistDeprecationUsageScanTool.swift in Sources */,
+				C0DE00020000000000000022 /* AssistDerivedDataLocateTool.swift in Sources */,
+				C0DE00020000000000000023 /* AssistDirSizeReportTool.swift in Sources */,
+				C0DE00020000000000000024 /* AssistDocsIndexBuildTool.swift in Sources */,
+				C0DE00020000000000000025 /* AssistEmptyDirsFindTool.swift in Sources */,
+				C0DE00020000000000000026 /* AssistEntitlementsDiffTool.swift in Sources */,
+				C0DE00020000000000000027 /* AssistEntryPointsDiscoverTool.swift in Sources */,
+				C0DE00020000000000000028 /* AssistExecutableFilesScanTool.swift in Sources */,
+				C0DE00020000000000000029 /* AssistFileBackupTool.swift in Sources */,
+				C0DE00020000000000000030 /* AssistFileHeadPreviewTool.swift in Sources */,
+				C0DE00020000000000000031 /* AssistFileTypeBreakdownTool.swift in Sources */,
+				C0DE00020000000000000032 /* AssistFindDuplicateFilesTool.swift in Sources */,
+				C0DE00020000000000000033 /* AssistForceUnwrapScanTool.swift in Sources */,
+				C0DE00020000000000000034 /* AssistFunctionSizeReportTool.swift in Sources */,
+				C0DE00020000000000000035 /* AssistImageAssetSizeReportTool.swift in Sources */,
+				C0DE00020000000000000036 /* AssistImportGraphTool.swift in Sources */,
+				C0DE00020000000000000037 /* AssistInfoPlistAuditTool.swift in Sources */,
+				C0DE00020000000000000038 /* AssistListArtifactsTool.swift in Sources */,
+				C0DE00020000000000000039 /* AssistMarkdownLinkCheckTool.swift in Sources */,
+				C0DE00020000000000000040 /* AssistMarkdownTocGenerateTool.swift in Sources */,
+				C0DE00020000000000000041 /* AssistPbxprojLintTool.swift in Sources */,
+				C0DE00020000000000000042 /* AssistPreflightChecksTool.swift in Sources */,
+				C0DE00020000000000000043 /* AssistProjectStructureMapTool.swift in Sources */,
+				C0DE00020000000000000044 /* AssistProtocolConformanceListTool.swift in Sources */,
+				C0DE00020000000000000045 /* AssistReadArtifactTool.swift in Sources */,
+				C0DE00020000000000000046 /* AssistReadmeGenerateTool.swift in Sources */,
+				C0DE00020000000000000047 /* AssistReadmeLocateTool.swift in Sources */,
+				C0DE00020000000000000048 /* AssistRecentChangesTool.swift in Sources */,
+				C0DE00020000000000000049 /* AssistRepoOverviewTool.swift in Sources */,
+				C0DE00020000000000000050 /* AssistSchemeTestPlanListTool.swift in Sources */,
+				C0DE00020000000000000051 /* AssistSessionProgressReportTool.swift in Sources */,
+				C0DE00020000000000000052 /* AssistStaleFilesReportTool.swift in Sources */,
+				C0DE00020000000000000053 /* AssistStringLiteralAuditTool.swift in Sources */,
+				C0DE00020000000000000054 /* AssistStringsFileValidateTool.swift in Sources */,
+				C0DE00020000000000000055 /* AssistSymlinkAuditTool.swift in Sources */,
+				C0DE00020000000000000056 /* AssistTargetDependenciesListTool.swift in Sources */,
+				C0DE00020000000000000057 /* AssistTargetSourceListTool.swift in Sources */,
+				C0DE00020000000000000058 /* AssistToolCapabilityLookupTool.swift in Sources */,
+				C0DE00020000000000000059 /* AssistTypeHierarchyTool.swift in Sources */,
+				C0DE00020000000000000060 /* AssistWorkspaceSettingsReadTool.swift in Sources */,
+				C0DE00020000000000000061 /* AssistXcodeToolchainInfoTool.swift in Sources */,
+				C0DE00020000000000000062 /* AssistXctestDiscoveryTool.swift in Sources */,
+				C0DE00020000000000000063 /* AssistArtifactsView.swift in Sources */,
+			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXSourcesBuildPhase section */
@@ -13964,69 +13979,6 @@
 			buildConfigurations = (
 				B5BAF5E53768F7A4E6398644 /* Debug */,
 				CCBF82BD9691DFDB610FD9AC /* Release */,
-				C0DE00020000000000000001 /* AssistToolSharedHelpers.swift in Sources */,
-				C0DE00020000000000000002 /* AssistArtifactStore.swift in Sources */,
-				C0DE00020000000000000003 /* AssistApiDocsCoverageTool.swift in Sources */,
-				C0DE00020000000000000004 /* AssistApiEndpointAuditTool.swift in Sources */,
-				C0DE00020000000000000005 /* AssistBuildConfigurationListTool.swift in Sources */,
-				C0DE00020000000000000006 /* AssistBuildLogAnalyzeTool.swift in Sources */,
-				C0DE00020000000000000007 /* AssistBuildPhaseScriptsListTool.swift in Sources */,
-				C0DE00020000000000000008 /* AssistBuildSettingsDiffTool.swift in Sources */,
-				C0DE00020000000000000009 /* AssistBuildSystemDetectTool.swift in Sources */,
-				C0DE00020000000000000010 /* AssistCallHierarchyTool.swift in Sources */,
-				C0DE00020000000000000011 /* AssistChangeImpactEstimateTool.swift in Sources */,
-				C0DE00020000000000000012 /* AssistCodeCommentExtractTool.swift in Sources */,
-				C0DE00020000000000000013 /* AssistCodeSigningDiagnoseTool.swift in Sources */,
-				C0DE00020000000000000014 /* AssistColorUsageAuditTool.swift in Sources */,
-				C0DE00020000000000000015 /* AssistCommentDensityReportTool.swift in Sources */,
-				C0DE00020000000000000016 /* AssistConflictMarkerScanTool.swift in Sources */,
-				C0DE00020000000000000017 /* AssistCrashLogParseTool.swift in Sources */,
-				C0DE00020000000000000018 /* AssistCreateArtifactTool.swift in Sources */,
-				C0DE00020000000000000019 /* AssistDeleteArtifactTool.swift in Sources */,
-				C0DE00020000000000000020 /* AssistDependencyLicensesTool.swift in Sources */,
-				C0DE00020000000000000021 /* AssistDeprecationUsageScanTool.swift in Sources */,
-				C0DE00020000000000000022 /* AssistDerivedDataLocateTool.swift in Sources */,
-				C0DE00020000000000000023 /* AssistDirSizeReportTool.swift in Sources */,
-				C0DE00020000000000000024 /* AssistDocsIndexBuildTool.swift in Sources */,
-				C0DE00020000000000000025 /* AssistEmptyDirsFindTool.swift in Sources */,
-				C0DE00020000000000000026 /* AssistEntitlementsDiffTool.swift in Sources */,
-				C0DE00020000000000000027 /* AssistEntryPointsDiscoverTool.swift in Sources */,
-				C0DE00020000000000000028 /* AssistExecutableFilesScanTool.swift in Sources */,
-				C0DE00020000000000000029 /* AssistFileBackupTool.swift in Sources */,
-				C0DE00020000000000000030 /* AssistFileHeadPreviewTool.swift in Sources */,
-				C0DE00020000000000000031 /* AssistFileTypeBreakdownTool.swift in Sources */,
-				C0DE00020000000000000032 /* AssistFindDuplicateFilesTool.swift in Sources */,
-				C0DE00020000000000000033 /* AssistForceUnwrapScanTool.swift in Sources */,
-				C0DE00020000000000000034 /* AssistFunctionSizeReportTool.swift in Sources */,
-				C0DE00020000000000000035 /* AssistImageAssetSizeReportTool.swift in Sources */,
-				C0DE00020000000000000036 /* AssistImportGraphTool.swift in Sources */,
-				C0DE00020000000000000037 /* AssistInfoPlistAuditTool.swift in Sources */,
-				C0DE00020000000000000038 /* AssistListArtifactsTool.swift in Sources */,
-				C0DE00020000000000000039 /* AssistMarkdownLinkCheckTool.swift in Sources */,
-				C0DE00020000000000000040 /* AssistMarkdownTocGenerateTool.swift in Sources */,
-				C0DE00020000000000000041 /* AssistPbxprojLintTool.swift in Sources */,
-				C0DE00020000000000000042 /* AssistPreflightChecksTool.swift in Sources */,
-				C0DE00020000000000000043 /* AssistProjectStructureMapTool.swift in Sources */,
-				C0DE00020000000000000044 /* AssistProtocolConformanceListTool.swift in Sources */,
-				C0DE00020000000000000045 /* AssistReadArtifactTool.swift in Sources */,
-				C0DE00020000000000000046 /* AssistReadmeGenerateTool.swift in Sources */,
-				C0DE00020000000000000047 /* AssistReadmeLocateTool.swift in Sources */,
-				C0DE00020000000000000048 /* AssistRecentChangesTool.swift in Sources */,
-				C0DE00020000000000000049 /* AssistRepoOverviewTool.swift in Sources */,
-				C0DE00020000000000000050 /* AssistSchemeTestPlanListTool.swift in Sources */,
-				C0DE00020000000000000051 /* AssistSessionProgressReportTool.swift in Sources */,
-				C0DE00020000000000000052 /* AssistStaleFilesReportTool.swift in Sources */,
-				C0DE00020000000000000053 /* AssistStringLiteralAuditTool.swift in Sources */,
-				C0DE00020000000000000054 /* AssistStringsFileValidateTool.swift in Sources */,
-				C0DE00020000000000000055 /* AssistSymlinkAuditTool.swift in Sources */,
-				C0DE00020000000000000056 /* AssistTargetDependenciesListTool.swift in Sources */,
-				C0DE00020000000000000057 /* AssistTargetSourceListTool.swift in Sources */,
-				C0DE00020000000000000058 /* AssistToolCapabilityLookupTool.swift in Sources */,
-				C0DE00020000000000000059 /* AssistTypeHierarchyTool.swift in Sources */,
-				C0DE00020000000000000060 /* AssistWorkspaceSettingsReadTool.swift in Sources */,
-				C0DE00020000000000000061 /* AssistXcodeToolchainInfoTool.swift in Sources */,
-				C0DE00020000000000000062 /* AssistXctestDiscoveryTool.swift in Sources */,
-				C0DE00020000000000000063 /* AssistArtifactsView.swift in Sources */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
