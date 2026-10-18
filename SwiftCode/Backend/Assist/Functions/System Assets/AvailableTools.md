@@ -115,6 +115,86 @@ Capability-level reference for the tools Assist can actually call. This document
 
 ---
 
+## Xcode Project & Build (60-tool expansion)
+
+- `project_scheme_list` (safeRead) — list schemes via `xcodebuild -list -json` for the workspace project.
+- `project_target_list` (safeRead) — list targets from pbxproj + `xcodebuild -list -json`.
+- `project_build_settings` (safeMutation) — read (`action: read`) or set (`action: set`, `key`/`value`) build settings for a target/configuration.
+- `project_target_add` (safeMutation) — add an app/framework/test target: creates source file + inserts PBXNativeTarget blocks, verified on re-read.
+- `project_entitlements` (safeRead) — parse `*.entitlements` files, return keys/values.
+- `project_info_plist` (safeMutation) — get/set/delete Info.plist keys via plist serialization.
+- `project_capabilities` (safeMutation) — list/enable/disable capabilities via entitlements + SystemCapabilities.
+- `project_signing` (safeRead) — CODE_SIGN_STYLE / DEVELOPMENT_TEAM / bundle ID + provisioning profile filenames (never profile contents).
+- `project_clean` (potentiallyDestructive) — requires `confirm: "true"`; removes workspace `build/` and/or runs `xcodebuild clean`.
+- `project_archive` (execution) — `xcodebuild archive` for `scheme` to in-workspace `archivePath`; verifies `.xcarchive`.
+
+## SwiftPM, Assets & Resources
+
+- `package_manifest_read` (safeRead) — parse Package.swift: name, platforms, products, targets, dependencies.
+- `package_dependency_add` (safeMutation) — insert `.package(url:from:)` + optional product/target wiring; verifies on re-read.
+- `package_dependency_update` (execution) — `swift package update [package]` in workspace root.
+- `package_manifest_validate` (safeRead) — `swift package dump-package`, exit 0 + name/target count.
+- `package_dependency_audit` (safeRead) — Package.swift vs Package.resolved: missing resolved, non-exact requirements, deps missing from resolved + `show-dependencies`.
+- `asset_catalog_list` (safeRead) — enumerate `*.xcassets`, list image/color/icon/dataset/symbol sets + counts.
+- `asset_image_add` (safeMutation) — create `imageName.imageset/` + valid Contents.json + copy workspace image, verified.
+- `strings_localization` (safeMutation) — get/set/delete one key in `.strings` or `.xcstrings` (per-locale).
+- `localization_audit` (safeRead) — missing keys per locale + keys never referenced in Swift.
+- `plist_edit` (safeMutation) — get/set/delete plist keys via plist serialization, atomic write + verify.
+
+## Code Quality & Analysis
+
+- `dead_code_scan` (safeRead) — heuristic: declarations with zero references (overloads excluded).
+- `duplicate_code_scan` (safeRead) — normalized sliding-window duplicate blocks, file:line pairs.
+- `todo_scan` (safeRead) — TODO/FIXME/XXX/HACK inventory, file:line:text + counts.
+- `license_header_check` (safeRead) — files missing `requiredText` (default Copyright) in first 15 lines.
+- `api_surface_extract` (safeRead) — public/open declarations grouped by file + count.
+- `symbol_rename_project` (safeMutation) — whole-word project-wide rename across Swift files.
+- `symbol_move_file` (safeMutation) — move brace-balanced symbol block from source to destination file, verified + restore on failure.
+- `import_cleanup` (safeMutation) — remove unused `import X` lines (protected modules never removed).
+- `access_level_audit` (safeRead) — declaration counts by public/open/internal/private/fileprivate.
+- `concurrency_audit` (safeRead) — heuristic: DispatchQueue.main.sync, nonisolated(unsafe), Task without await, shared mutable statics, force-unwraps in async contexts.
+
+## Testing & QA (expansion)
+
+- `test_coverage_report` (execution) — `xcodebuild test -enableCodeCoverage YES`, parses coverage % + TEST SUCCEEDED/FAILED, result bundle path.
+- `test_flaky_detect` (safeRead) — parse test logs for tests with both pass and fail outcomes.
+- `test_snapshot_manage` (safeMutation) — list `__Snapshots__` refs; `clean` only with `confirm: "true"`, deletes only unreferenced snapshots (heuristic).
+- `ui_test_scaffold` (safeMutation) — write real XCTest UI test file; refuses overwrite unless `overwrite: "true"`.
+- `test_data_factory` (safeMutation) — write real JSON/Swift fixture from `fields` (e.g. `id:Int,name:String`); refuses overwrite unless `overwrite: "true"`.
+- `test_target_add` (safeMutation) — add unit/UI test target: test file + pbxproj blocks, all anchors verified before writing.
+- `test_run_single` (execution) — `xcodebuild test -only-testing:<testId>`, pass/fail + output tail.
+- `test_log_parse` (safeRead) — parse test log: Test Case pass/fail, suite summaries, `: error:` lines, failed list.
+- `performance_benchmark` (execution) — run allow-listed command 1–10 times, avg/min/max wall time + exit codes.
+- `binary_size_report` (safeRead) — `.app` bundles under workspace `build/` only (never DerivedData): total + 10 largest files.
+
+## Git Advanced & Structured Files
+
+- `git_stash` (safeMutation) — `git stash` list/push/pop/apply/drop with validation.
+- `git_blame` (safeRead) — `git blame --line-porcelain`, optional line range, max 2000 lines.
+- `git_bisect` (execution) — `git bisect` start/good/bad/skip/reset/log with ref validation.
+- `git_cherry_pick` (safeMutation) — `git cherry-pick [--no-commit] <commit>` (SHA/ref validated); on conflict reports conflicted files, never auto-aborts.
+- `git_branch_compare` (safeRead) — `git diff --stat base...head` + `git log base..head`.
+- `git_pr_summary` (safeRead) — local-only markdown PR summary: commits + diff stat, no GitHub API.
+- `file_metadata` (safeRead) — size, dates, permissions, type via FileManager.
+- `file_hash_verify` (safeRead) — `shasum`/`md5`, compare to `expectedHash`; mismatch is `match: "false"`, not a tool error.
+- `json_validate` (safeMutation) — validate / format (pretty + sorted keys); writes back only when `write: "true"`.
+- `yaml_validate` (safeMutation) — heuristic validator (tabs, unbalanced brackets/quotes, duplicate top-level keys); format normalizes to 2-space indent, writes only when `write: "true"` + validation passes.
+
+## Environment, Devices, Docs & Security
+
+- `simulator_list` (safeRead) — `xcrun simctl list devices -j`, grouped by runtime with state + UDID.
+- `simulator_boot` (execution) — `simctl boot/shutdown <udid>` (UUID validated), verified via `simctl list`.
+- `device_list` (safeRead) — `devicectl list devices -j` with `xctrace` fallback; fails clearly when unavailable.
+- `provisioning_check` (safeRead) — decode provisioning profiles via `security cms -D` + plist, flags expired/expiring (30d), compares App ID to `bundleId` (wildcard `*` matches).
+- `docc_build` (execution) — `xcodebuild docbuild` for `scheme`, verifies `.doccarchive`.
+- `docs_generate` (safeMutation) — generate real markdown API docs from public declarations; refuses overwrite unless `overwrite: "true"`.
+- `secrets_scan` (safeRead) — scan for AWS/GitHub/sk- keys, api_key/password assignments, private-key blocks. Reports ONLY file:line:pattern — never matched values or line contents.
+- `permissions_audit` (safeRead) — Info.plist usage descriptions, entitlements, PrivacyInfo.xcprivacy + heuristic missing-description checks.
+- `accessibility_audit` (safeRead) — heuristic: Button/Image without accessibility label, unlabeled TextField, color-only state.
+- `session_export` (safeMutation) — write markdown export with title, timestamp, sessionId, workspace, notes. Never reads conversation history. Refuses overwrite unless `overwrite: "true"`.
+
+---
+
 ## Cloud Toolkit (Antigravity SDK Built-ins — Cloud Mode ONLY)
 
 When the **"Cloud"** toolkit is active, the session uses Google Antigravity SDK's built-in cloud runtime tools instead of the System tools above. These IDs are **not** in `AssistToolRegistry`; they are provided by the Antigravity cloud runtime and may only be called in Cloud mode:
