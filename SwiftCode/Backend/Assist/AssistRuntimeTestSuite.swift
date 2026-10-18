@@ -283,7 +283,7 @@ public final class AssistRuntimeTestSuite: Sendable {
             // hasPrefix-without-trailing-slash bypass target).
             try fm.createDirectory(at: base.appendingPathComponent("Proj-evil"), withIntermediateDirectories: true)
             // Symlink inside the workspace pointing outside it.
-            try fm.createSymbolicLink(at: root.appendingPathComponent("escape"), withDestinationPath: "/etc")
+            try fm.createSymbolicLink(at: root.appendingPathComponent("escape"), withDestinationURL: URL(fileURLWithPath: "/etc"))
         } catch {
             return RuntimeTestCaseResult(testName: "Path Sandbox Security", passed: false, message: "Fixture setup failed: \(error)", duration: Date().timeIntervalSince(start))
         }
@@ -334,7 +334,7 @@ public final class AssistRuntimeTestSuite: Sendable {
             try fm.createDirectory(at: root.appendingPathComponent("sub"), withIntermediateDirectories: true)
             try "nested\n".write(to: root.appendingPathComponent("sub/nested.txt"), atomically: true, encoding: .utf8)
             try fm.createDirectory(at: root.appendingPathComponent("cyc"), withIntermediateDirectories: true)
-            try fm.createSymbolicLink(at: root.appendingPathComponent("cyc/loop"), withDestinationPath: root.appendingPathComponent("cyc").path)
+            try fm.createSymbolicLink(at: root.appendingPathComponent("cyc/loop"), withDestinationURL: root.appendingPathComponent("cyc"))
         } catch {
             return RuntimeTestCaseResult(testName: "Tool Ecosystem: file_read lines + governance", passed: false, message: "Fixture setup failed: \(error)", duration: Date().timeIntervalSince(start))
         }

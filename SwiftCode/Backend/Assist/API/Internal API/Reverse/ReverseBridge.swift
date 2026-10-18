@@ -124,12 +124,13 @@ public final class ReverseBridge: @unchecked Sendable {
     /// mark is recorded only when a live process exists, so late
     /// cancels cannot accumulate stale entries.
     public func cancel(requestID: String) {
-        lock.lock()
-        let box = running[requestID]
-        if box != nil {
-            cancelledIDs.insert(requestID)
+        let box = lock.withLock { () -> ProcessBox? in
+            let b = running[requestID]
+            if b != nil {
+                cancelledIDs.insert(requestID)
+            }
+            return b
         }
-        lock.unlock()
         box?.process?.terminate()
         // Escalate to SIGKILL if the child ignores SIGTERM. The
         // @Sendable closure captures only the Sendable box.
@@ -145,9 +146,9 @@ public final class ReverseBridge: @unchecked Sendable {
 
     /// Whether `requestID` was cancelled via `cancel(_:)`.
     public func wasCancelled(_ requestID: String) -> Bool {
-        lock.lock()
-        defer { lock.unlock() }
-        return cancelledIDs.contains(requestID)
+        lock.withLock {
+            cancelledIDs.contains(requestID)
+        }
     }
 
     // MARK: - Resolution
@@ -301,9 +302,9 @@ public final class ReverseBridge: @unchecked Sendable {
         // Clear this request's cancelled mark on exit (success or throw)
         // so the set stays bounded to genuinely in-flight requests.
         defer {
-            lock.lock()
-            cancelledIDs.remove(request.id)
-            lock.unlock()
+            lock.withLock {
+                _ = cancelledIDs.remove(request.id)
+            }
         }
         guard let bridgeURL = Self.resolveBridgeURL() else {
             throw ReverseError.unavailable(
@@ -448,13 +449,13 @@ public final class ReverseBridge: @unchecked Sendable {
         // capture only this box, never the non-Sendable Process.
         let box = ProcessBox(process)
 
-        lock.lock()
-        running[requestID] = box
-        lock.unlock()
+        lock.withLock {
+            running[requestID] = box
+        }
         defer {
-            lock.lock()
-            running.removeValue(forKey: requestID)
-            lock.unlock()
+            lock.withLock {
+                _ = running.removeValue(forKey: requestID)
+            }
         }
 
         do {
@@ -546,17 +547,15 @@ private final class BoundedDataBox: @unchecked Sendable {
     private var buffer = Data()
     init(limit: Int) { self.limit = limit }
     func append(_ data: Data) {
-        lock.lock()
-        defer { lock.unlock() }
-        buffer.append(data)
-        if buffer.count > limit {
-            buffer = buffer.suffix(limit)
+        lock.withLock {
+            buffer.append(data)
+            if buffer.count > limit {
+                buffer = buffer.suffix(limit)
+            }
         }
     }
     var data: Data {
-        lock.lock()
-        defer { lock.unlock() }
-        return buffer
+        lock.withLock { buffer }
     }
 }
 
@@ -564,23 +563,19 @@ private final class FlagBox: @unchecked Sendable {
     private let lock = NSLock()
     private var flag = false
     func set(_ value: Bool) {
-        lock.lock()
-        defer { lock.unlock() }
-        flag = value
+        lock.withLock { flag = value }
     }
     var value: Bool {
-        lock.lock()
-        defer { lock.unlock() }
-        return flag
+        lock.withLock { flag }
     }
     /// Returns true to the single first caller; false afterwards.
     /// Guards a CheckedContinuation against double-resume races.
     func claim() -> Bool {
-        lock.lock()
-        defer { lock.unlock() }
-        guard !flag else { return false }
-        flag = true
-        return true
+        lock.withLock {
+            guard !flag else { return false }
+            flag = true
+            return true
+        }
     }
 }
 
@@ -592,8 +587,6 @@ private final class ProcessBox: @unchecked Sendable {
     private var _process: Process?
     init(_ process: Process) { _process = process }
     var process: Process? {
-        lock.lock()
-        defer { lock.unlock() }
-        return _process
+        lock.withLock { _process }
     }
 }

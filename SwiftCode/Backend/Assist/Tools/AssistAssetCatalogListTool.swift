@@ -41,7 +41,7 @@ public struct AssistAssetCatalogListTool: AssistTool {
                 continue
             }
             guard let enumerator = FileManager.default.enumerator(at: searchRoot, includingPropertiesForKeys: [.isDirectoryKey], options: [.skipsHiddenFiles]) else { continue }
-            for case let url as URL in enumerator {
+            while let url = enumerator.nextObject() as? URL {
                 if url.lastPathComponent.hasSuffix(".xcassets") {
                     catalogs.append(url)
                     enumerator.skipDescendants()

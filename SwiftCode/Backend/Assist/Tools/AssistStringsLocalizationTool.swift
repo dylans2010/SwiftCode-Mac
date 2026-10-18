@@ -207,7 +207,7 @@ public struct AssistStringsLocalizationTool: AssistTool {
         return (key: key, value: rawValue)
     }
 
-    private func unquote(_ text: Substring) -> String? {
+    private func unquote(_ text: String) -> String? {
         var value = String(text)
         if value.hasSuffix(";") {
             value = String(value.dropLast())

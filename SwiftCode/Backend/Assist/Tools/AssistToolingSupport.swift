@@ -59,6 +59,65 @@ public enum AssistToolingSupport {
             partial + content.components(separatedBy: keyword).count - 1
         }
     }
+
+    public static func runProcess(executablePath: String, arguments: [String], workingDirectory: URL?) -> (exitCode: Int32, stdout: String, stderr: String) {
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: executablePath)
+        process.arguments = arguments
+        if let workingDirectory = workingDirectory {
+            process.currentDirectoryURL = workingDirectory
+        }
+        let outPipe = Pipe()
+        let errPipe = Pipe()
+        process.standardOutput = outPipe
+        process.standardError = errPipe
+
+        final class Accumulator: @unchecked Sendable {
+            private let lock = NSLock()
+            private var content = ""
+            func append(_ string: String) {
+                lock.withLock { content += string }
+            }
+            var text: String {
+                lock.withLock { content }
+            }
+        }
+
+        let outAccumulator = Accumulator()
+        let errAccumulator = Accumulator()
+
+        outPipe.fileHandleForReading.readabilityHandler = { handle in
+            let chunk = handle.availableData
+            if !chunk.isEmpty, let text = String(data: chunk, encoding: .utf8) {
+                outAccumulator.append(text)
+            }
+        }
+        errPipe.fileHandleForReading.readabilityHandler = { handle in
+            let chunk = handle.availableData
+            if !chunk.isEmpty, let text = String(data: chunk, encoding: .utf8) {
+                errAccumulator.append(text)
+            }
+        }
+        do {
+            try process.run()
+        } catch {
+            outPipe.fileHandleForReading.readabilityHandler = nil
+            errPipe.fileHandleForReading.readabilityHandler = nil
+            return (-1, "", "Failed to launch \(executablePath): \(error.localizedDescription)")
+        }
+        process.waitUntilExit()
+        outPipe.fileHandleForReading.readabilityHandler = nil
+        errPipe.fileHandleForReading.readabilityHandler = nil
+        let outRemainder = outPipe.fileHandleForReading.readDataToEndOfFile()
+        let errRemainder = errPipe.fileHandleForReading.readDataToEndOfFile()
+        if let remainder = String(data: outRemainder, encoding: .utf8), !remainder.isEmpty {
+            outAccumulator.append(remainder)
+        }
+        if let remainder = String(data: errRemainder, encoding: .utf8), !remainder.isEmpty {
+            errAccumulator.append(remainder)
+        }
+        return (process.terminationStatus, outAccumulator.text, errAccumulator.text)
+    }
 }
 
 /// Argument-vector process runner for Assist tools.

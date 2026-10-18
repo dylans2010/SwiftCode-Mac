@@ -28,7 +28,7 @@ public struct AssistLocalizationAuditTool: AssistTool {
             return .failure("Failed to enumerate workspace.")
         }
         var swiftFiles: [URL] = []
-        for case let url as URL in enumerator {
+        while let url = enumerator.nextObject() as? URL {
             let name = url.lastPathComponent
             if name == "Localizable.strings" {
                 let locale = localeFor(url: url) ?? "unknown"

@@ -63,7 +63,7 @@ public struct AssistDoccBuildTool: AssistTool {
             return .failure("xcodebuild docbuild failed (exit \(exitCode), scheme: \(scheme)): \(stderr.trimmingCharacters(in: .whitespacesAndNewlines).suffix(2000))")
         }
         let archives = findDoccArchives(under: derivedDataURL)
-        guard let archive = archives.sorted().first else {
+        guard let archive = archives.sorted(by: { $0.path < $1.path }).first else {
             return .failure("xcodebuild docbuild succeeded but no .doccarchive was found under \(derivedDataURL.path).")
         }
         let relativeArchive = relativePath(for: archive, workspaceRoot: context.workspaceRoot)
@@ -111,49 +111,6 @@ public struct AssistDoccBuildTool: AssistTool {
     }
 
     private func runProcess(executablePath: String, arguments: [String], workingDirectory: URL?) -> (exitCode: Int32, stdout: String, stderr: String) {
-        let process = Process()
-        process.executableURL = URL(fileURLWithPath: executablePath)
-        process.arguments = arguments
-        if let workingDirectory = workingDirectory {
-            process.currentDirectoryURL = workingDirectory
-        }
-        let outPipe = Pipe()
-        let errPipe = Pipe()
-        process.standardOutput = outPipe
-        process.standardError = errPipe
-        var outText = ""
-        var errText = ""
-        let lock = NSLock()
-        outPipe.fileHandleForReading.readabilityHandler = { handle in
-            let chunk = handle.availableData
-            if !chunk.isEmpty, let text = String(data: chunk, encoding: .utf8) {
-                lock.lock(); outText += text; lock.unlock()
-            }
-        }
-        errPipe.fileHandleForReading.readabilityHandler = { handle in
-            let chunk = handle.availableData
-            if !chunk.isEmpty, let text = String(data: chunk, encoding: .utf8) {
-                lock.lock(); errText += text; lock.unlock()
-            }
-        }
-        do {
-            try process.run()
-        } catch {
-            outPipe.fileHandleForReading.readabilityHandler = nil
-            errPipe.fileHandleForReading.readabilityHandler = nil
-            return (-1, "", "Failed to launch \(executablePath): \(error.localizedDescription)")
-        }
-        process.waitUntilExit()
-        outPipe.fileHandleForReading.readabilityHandler = nil
-        errPipe.fileHandleForReading.readabilityHandler = nil
-        let outRemainder = outPipe.fileHandleForReading.readDataToEndOfFile()
-        let errRemainder = errPipe.fileHandleForReading.readDataToEndOfFile()
-        if let remainder = String(data: outRemainder, encoding: .utf8), !remainder.isEmpty {
-            outText += remainder
-        }
-        if let remainder = String(data: errRemainder, encoding: .utf8), !remainder.isEmpty {
-            errText += remainder
-        }
-        return (process.terminationStatus, outText, errText)
+        AssistToolingSupport.runProcess(executablePath: executablePath, arguments: arguments, workingDirectory: workingDirectory)
     }
 }
