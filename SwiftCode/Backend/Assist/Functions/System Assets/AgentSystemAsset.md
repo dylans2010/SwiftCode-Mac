@@ -47,6 +47,7 @@ Rules that govern this library:
 | `CreatingAppAsset.md` | Autonomous app-creation specification | "Build me an app" tasks |
 | `TaskCompletion.md` | Autonomous task completion protocol, executive reporting, markdown formatting, and `report_to_user` rules | Task finalization, calling report_to_user |
 | `ArtifactsGuidelines.md` | Native Markdown artifact workflow: when to create artifacts, quality standards, display titles, Plan/Autopilot integration | Any durable deliverable: reports, analyses, plans, summaries |
+| `UsingSystem.md` | Operating instructions for the `use_system` tool: when to diagnose vs. not, tool-selection priority, authorization limits, error handling, verification | macOS system diagnostics, dev-environment failures, network/service/log investigation, authorized config changes |
 
 ---
 

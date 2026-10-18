@@ -334,6 +334,7 @@ public final class AssistToolRegistry {
         register(AssistSymlinkAuditTool())
         register(AssistExecutableFilesScanTool())
         // Diagnostics
+        register(AssistSystemTool())
         register(AssistBuildLogAnalyzeTool())
         register(AssistSchemeTestPlanListTool())
         register(AssistCodeSigningDiagnoseTool())

@@ -2929,6 +2929,7 @@
 		C0DE00020000000000000061 /* AssistXcodeToolchainInfoTool.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0DE00010000000000000061 /* AssistXcodeToolchainInfoTool.swift */; };
 		C0DE00020000000000000062 /* AssistXctestDiscoveryTool.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0DE00010000000000000062 /* AssistXctestDiscoveryTool.swift */; };
 		C0DE00020000000000000063 /* AssistArtifactsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0DE00010000000000000063 /* AssistArtifactsView.swift */; };
+		C0DE00020000000000000064 /* AssistSystemTool.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0DE00010000000000000064 /* AssistSystemTool.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -5859,6 +5860,7 @@
 		C0DE00010000000000000061 /* AssistXcodeToolchainInfoTool.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssistXcodeToolchainInfoTool.swift; sourceTree = "<group>"; };
 		C0DE00010000000000000062 /* AssistXctestDiscoveryTool.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssistXctestDiscoveryTool.swift; sourceTree = "<group>"; };
 		C0DE00010000000000000063 /* AssistArtifactsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssistArtifactsView.swift; sourceTree = "<group>"; };
+		C0DE00010000000000000064 /* AssistSystemTool.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssistSystemTool.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -6714,6 +6716,7 @@
 				A1000007F001000100000007 /* AssistComposerPopup.swift */,
 				8D9E0004000100010000000D /* MetaCommandArgumentPickerView.swift */,
 				C0DE00010000000000000063 /* AssistArtifactsView.swift */,
+				C0DE00010000000000000064 /* AssistSystemTool.swift */,
 			);
 			path = Assist;
 			sourceTree = "<group>";
@@ -13784,6 +13787,7 @@
 				C0DE00020000000000000061 /* AssistXcodeToolchainInfoTool.swift in Sources */,
 				C0DE00020000000000000062 /* AssistXctestDiscoveryTool.swift in Sources */,
 				C0DE00020000000000000063 /* AssistArtifactsView.swift in Sources */,
+				C0DE00020000000000000064 /* AssistSystemTool.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

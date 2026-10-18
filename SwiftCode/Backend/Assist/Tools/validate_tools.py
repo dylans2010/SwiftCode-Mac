@@ -102,6 +102,7 @@ PROCESS_ALLOWLIST = {
     "AssistXcodeDeviceDestinationTool.swift": "xcode_device_destination_finder — fixed /usr/bin/xcrun (simctl), argv array",
     "AssistXcodeSchemeTool.swift": "xcode_scheme_manager — fixed /usr/bin/xcodebuild, argv array",
     "AssistCodeSigningDiagnoseTool.swift": "code_signing_diagnose — fixed /usr/bin/codesign via AssistArgvRunner, argv array",
+    "AssistSystemTool.swift": "use_system — fixed /bin/ps, /sbin/ifconfig, /usr/sbin/lsof, /usr/bin/log, /bin/launchctl, /usr/bin/defaults, /usr/bin/xcodebuild, /usr/bin/xcrun, /usr/bin/swift via AssistArgvRunner, argv arrays only; model-supplied values only as argv elements, no shell",
     "AssistXcodeToolchainInfoTool.swift": "xcode_toolchain_info — fixed /usr/bin/xcodebuild via AssistArgvRunner, argv array",
 }
 
