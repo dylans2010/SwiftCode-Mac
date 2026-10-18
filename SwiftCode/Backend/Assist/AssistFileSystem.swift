@@ -135,7 +135,7 @@ public final class AssistFileSystem: @unchecked Sendable, AssistFileSystemProtoc
         // (see dir_cd); the containment check below still clamps to the root.
         let base: URL
         let normalizedPath: String
-        if path.hasPrefix(workspaceRoot.path) {
+        if path == workspaceRoot.path || path.hasPrefix(workspaceRoot.path + "/") {
             base = workspaceRoot
             normalizedPath = String(path.dropFirst(workspaceRoot.path.count)).trimmingCharacters(in: CharacterSet(charactersIn: "/"))
         } else if path.hasPrefix("/") {

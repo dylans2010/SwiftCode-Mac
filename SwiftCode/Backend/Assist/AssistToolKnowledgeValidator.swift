@@ -44,16 +44,20 @@ public final class AssistToolKnowledgeValidator: Sendable {
     }
 
     /// Parses catalog lines of the form `` - `tool_id` (riskPosture) — description ``
-    /// into tool ids in document order.
+    /// into tool ids in document order. Stops at the Cloud Toolkit section:
+    /// those IDs are provided by the Antigravity cloud runtime, not the
+    /// registry, and must not be reported as orphans. The ID pattern accepts
+    /// `plan-AskUser` (hyphen + uppercase), which the old pattern rejected.
     private func catalogToolIds(in catalog: String) -> [String] {
         var ids: [String] = []
         for line in catalog.components(separatedBy: "\n") {
             let trimmed = line.trimmingCharacters(in: .whitespaces)
+            if trimmed.hasPrefix("## Cloud Toolkit") { break }
             guard trimmed.hasPrefix("- `") else { continue }
             let afterTick = trimmed.dropFirst(3)
             guard let end = afterTick.firstIndex(of: "`") else { continue }
             let id = String(afterTick[..<end]).trimmingCharacters(in: .whitespacesAndNewlines)
-            guard !id.isEmpty, id.range(of: "^[a-z0-9_]+$", options: .regularExpression) != nil else { continue }
+            guard !id.isEmpty, id.range(of: "^[A-Za-z0-9_-]+$", options: .regularExpression) != nil else { continue }
             ids.append(id)
         }
         return ids

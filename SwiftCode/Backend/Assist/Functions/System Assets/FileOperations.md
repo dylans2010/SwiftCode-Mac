@@ -36,7 +36,7 @@ File system modification protocols, targeted code edits, directory operations, X
 ## 4. Preserve File Structure & Xcode Project Registration (`project_mutation_controller`)
 
 - Align changes with the project's existing structure, naming, and conventions. Do not introduce redundant files, managers, or dependencies when existing abstractions cover the need.
-- **New Swift files must be registered in the Xcode project/target.** Use `project_mutation_controller` (`action: "add"`) to register newly created `.swift` files in `SwiftCode.xcodeproj/project.pbxproj`. A file that is not part of a target does not compile, does not test, and does not ship. Prefer `project_mutation_controller` over editing `project.pbxproj` with text replace tools.
+- **New Swift files must be registered in the Xcode project/target.** Use `project_mutation_controller` (`action: "add"`) to register newly created `.swift` files in the USER's project `project.pbxproj` (resolved from the workspace root — never SwiftCode's own bundle). A file that is not part of a target does not compile, does not test, and does not ship. Prefer `project_mutation_controller` over editing `project.pbxproj` with text replace tools.
 - Match indentation, trailing newlines, and formatting of the surrounding file; keep edits surgical so the diff shows exactly what the task required and nothing else.
 
 ---
