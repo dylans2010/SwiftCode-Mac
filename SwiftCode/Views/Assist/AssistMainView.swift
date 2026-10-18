@@ -150,6 +150,9 @@ public struct AssistMainView: View {
                     .transition(.scale.combined(with: .opacity))
                 }
 
+                // Feedback Trigger
+                AssistHeaderFeedbackButton()
+
                 // Diagnostics Trigger
                 Button {
                     showDiagnosticsSheet = true
@@ -1750,9 +1753,239 @@ private struct AssistChatBubble: View {
                 .padding(12)
                 .background(bubbleColor, in: RoundedRectangle(cornerRadius: 12))
                 }
+
+                if message.role == .assistant && !isCurrentlyThinking && (!message.content.isEmpty || message.activityGroup?.hasContent == true) {
+                    AssistMessageActionBar(message: message)
+                }
             }
             .padding(.horizontal, 12)
             .frame(maxWidth: .infinity, alignment: message.role == .user ? .trailing : .leading)
+        }
+    }
+}
+
+// MARK: - Assist Message Action Bar (Copy, Retry, Feedback)
+
+private struct AssistMessageActionBar: View {
+    let message: AssistMessage
+    @ObservedObject private var manager = AssistManager.shared
+    @State private var isCopied: Bool = false
+    @State private var isGeneratingFeedback: Bool = false
+    @State private var generatedFeedbackURL: URL? = nil
+    @State private var feedbackError: String? = nil
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(spacing: 8) {
+                // Copy Button
+                Button {
+                    let pasteboard = NSPasteboard.general
+                    pasteboard.clearContents()
+                    pasteboard.setString(message.content, forType: .string)
+                    withAnimation(.easeInOut(duration: 0.2)) {
+                        isCopied = true
+                    }
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
+                        withAnimation(.easeInOut(duration: 0.2)) {
+                            isCopied = false
+                        }
+                    }
+                } label: {
+                    HStack(spacing: 4) {
+                        Image(systemName: isCopied ? "checkmark" : "doc.on.doc")
+                            .font(.system(size: 10, weight: .semibold))
+                        Text(isCopied ? "Copied" : "Copy")
+                            .font(.system(size: 11, weight: .medium))
+                    }
+                    .foregroundStyle(isCopied ? Color.green : Color.secondary)
+                    .padding(.horizontal, 7)
+                    .padding(.vertical, 3.5)
+                    .background(Color.secondary.opacity(0.08), in: RoundedRectangle(cornerRadius: 5))
+                }
+                .buttonStyle(.plain)
+                .help("Copy message content to clipboard")
+
+                // Retry Button
+                Button {
+                    retryMessage()
+                } label: {
+                    HStack(spacing: 4) {
+                        Image(systemName: "arrow.clockwise")
+                            .font(.system(size: 10, weight: .semibold))
+                        Text("Retry")
+                            .font(.system(size: 11, weight: .medium))
+                    }
+                    .foregroundStyle(Color.secondary)
+                    .padding(.horizontal, 7)
+                    .padding(.vertical, 3.5)
+                    .background(Color.secondary.opacity(0.08), in: RoundedRectangle(cornerRadius: 5))
+                }
+                .buttonStyle(.plain)
+                .disabled(manager.isProcessing)
+                .help("Regenerate response from preceding user prompt")
+
+                // Feedback Button
+                Button {
+                    generateFeedback()
+                } label: {
+                    HStack(spacing: 4) {
+                        Image(systemName: "hand.thumbsdown")
+                            .font(.system(size: 10, weight: .semibold))
+                        Text("Feedback")
+                            .font(.system(size: 11, weight: .medium))
+                    }
+                    .foregroundStyle(isGeneratingFeedback ? Color.accentColor : Color.secondary)
+                    .padding(.horizontal, 7)
+                    .padding(.vertical, 3.5)
+                    .background(Color.secondary.opacity(0.08), in: RoundedRectangle(cornerRadius: 5))
+                }
+                .buttonStyle(.plain)
+                .disabled(isGeneratingFeedback)
+                .help("Generate diagnostic files in Feedback Info for this response")
+
+                // Open in Finder Button (when feedback is ready)
+                if let url = generatedFeedbackURL {
+                    Button {
+                        AssistFeedbackService.shared.openInFinder(url: url)
+                    } label: {
+                        HStack(spacing: 4) {
+                            Image(systemName: "folder.fill.badge.gearshape")
+                                .font(.system(size: 10, weight: .semibold))
+                            Text("Open in Finder")
+                                .font(.system(size: 11, weight: .semibold))
+                        }
+                        .foregroundStyle(Color.accentColor)
+                        .padding(.horizontal, 7)
+                        .padding(.vertical, 3.5)
+                        .background(Color.accentColor.opacity(0.12), in: RoundedRectangle(cornerRadius: 5))
+                    }
+                    .buttonStyle(.plain)
+                    .transition(.opacity.combined(with: .scale))
+                    .help("Open the generated Feedback Info package in macOS Finder")
+                }
+            }
+
+            // Loading bar while generating feedback files
+            if isGeneratingFeedback {
+                VStack(alignment: .leading, spacing: 3) {
+                    HStack(spacing: 6) {
+                        ProgressView()
+                            .scaleEffect(0.6)
+                            .frame(width: 12, height: 12)
+                        Text("Generating diagnostic files in Feedback Info...")
+                            .font(.system(size: 10))
+                            .foregroundStyle(.secondary)
+                    }
+                    ProgressView(value: 0.75)
+                        .progressViewStyle(.linear)
+                        .frame(width: 220)
+                }
+                .padding(.top, 2)
+                .transition(.opacity)
+            } else if let error = feedbackError {
+                Text("Feedback generation error: \(error)")
+                    .font(.caption2)
+                    .foregroundStyle(.red)
+            }
+        }
+        .padding(.top, 4)
+    }
+
+    private func retryMessage() {
+        guard !manager.isProcessing else { return }
+        if let index = manager.messages.firstIndex(where: { $0.id == message.id }) {
+            let previousMessages = manager.messages[..<index]
+            if let lastUserMessage = previousMessages.last(where: { $0.role == .user }) {
+                Task {
+                    await manager.sendMessage(
+                        lastUserMessage.content,
+                        attachments: lastUserMessage.attachments ?? [],
+                        envelope: lastUserMessage.envelope
+                    )
+                }
+            }
+        }
+    }
+
+    private func generateFeedback() {
+        isGeneratingFeedback = true
+        feedbackError = nil
+        generatedFeedbackURL = nil
+
+        Task {
+            do {
+                let packageURL = try await AssistFeedbackService.shared.generateFeedbackPackage(
+                    for: message,
+                    reason: "User clicked Feedback on assistant response"
+                )
+                await MainActor.run {
+                    self.generatedFeedbackURL = packageURL
+                    self.isGeneratingFeedback = false
+                }
+            } catch {
+                await MainActor.run {
+                    self.feedbackError = error.localizedDescription
+                    self.isGeneratingFeedback = false
+                }
+            }
+        }
+    }
+}
+
+// MARK: - Assist Header Feedback Button
+
+private struct AssistHeaderFeedbackButton: View {
+    @ObservedObject private var feedbackService = AssistFeedbackService.shared
+    @State private var generatedURL: URL? = nil
+
+    var body: some View {
+        HStack(spacing: 6) {
+            Button {
+                Task {
+                    do {
+                        let url = try await feedbackService.generateFeedbackPackage(reason: "User initiated conversation feedback")
+                        await MainActor.run {
+                            self.generatedURL = url
+                        }
+                    } catch {
+                        print("[AssistHeaderFeedbackButton] Error: \(error.localizedDescription)")
+                    }
+                }
+            } label: {
+                HStack(spacing: 4) {
+                    Image(systemName: "hand.thumbsdown")
+                        .font(.body)
+                    Text("Feedback")
+                        .font(.caption.weight(.medium))
+                }
+                .foregroundStyle(feedbackService.isGenerating ? Color.accentColor : Color.secondary)
+            }
+            .buttonStyle(.plain)
+            .disabled(feedbackService.isGenerating)
+            .help("Generate full session diagnostics package in Feedback Info")
+
+            if feedbackService.isGenerating {
+                ProgressView()
+                    .scaleEffect(0.6)
+                    .frame(width: 14, height: 14)
+            } else if let url = generatedURL {
+                Button {
+                    feedbackService.openInFinder(url: url)
+                } label: {
+                    HStack(spacing: 4) {
+                        Image(systemName: "folder.fill.badge.gearshape")
+                            .font(.caption2)
+                        Text("Open")
+                            .font(.caption.weight(.semibold))
+                    }
+                    .foregroundStyle(Color.accentColor)
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 2)
+                    .background(Color.accentColor.opacity(0.12), in: Capsule())
+                }
+                .buttonStyle(.plain)
+                .help("Open Feedback Info in Finder")
+            }
         }
     }
 }

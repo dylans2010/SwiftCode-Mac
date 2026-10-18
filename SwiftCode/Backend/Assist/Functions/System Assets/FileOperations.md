@@ -72,3 +72,26 @@ File system modification protocols, targeted code edits, directory operations, X
 - **Never push to the wrong remote.** Re-verify the remote at push time, not just when the session started.
 - Commits stage deliberately: review uncommitted diffs before committing. Commit messages must describe what changed and why.
 - Rollbacks and snapshot restores discard state — they are destructive operations under `Safeguards.md` and are never a first resort without attempting targeted fixes first.
+
+---
+
+## 8. Archive, Image & Data Tool Specializations
+
+- **Archive Operations:** Always use `zip_file` and `unzip_file` for .zip archive creation and extraction, `tar_archive_create` and `tar_archive_extract` for tarballs, and `gzip_compress_file` / `gzip_decompress_file` for single-file compression. Never run raw shell `zip`, `unzip`, or `tar` through the terminal when these native tools are available.
+- **Image Operations:**
+  - When given Base64 image data or generating icons, decode directly to disk using `image_decode_base64`.
+  - To read image contents into text context or data URIs, use `image_encode_base64`.
+  - To inspect resolution, dimensions, bit depth, or color model without memory overhead, invoke `image_get_dimensions`.
+  - Use `image_convert_format` to convert between PNG, JPEG, TIFF, BMP, and GIF.
+  - Generate app icon thumbnails and previews using `image_generate_thumbnail`.
+  - Render vector SVGs into crisp raster PNGs using `svg_to_png`.
+- **Data & Structure Operations:**
+  - Validate and pretty-print JSON files using `format_json_file`.
+  - Convert tabular datasets effortlessly with `csv_to_json` and `json_to_csv`.
+  - Convert macOS property lists with `plist_to_json` and `json_to_plist`.
+  - Inspect differences between files using `file_compare_diff`.
+  - Perform bulk file renames using `batch_rename_files`.
+  - Gather accurate line-count metrics across workspaces using `count_file_lines`.
+  - Extract symbol declarations and signatures from source files with `extract_code_symbols`.
+  - Verify file integrity using `generate_file_checksum`.
+

@@ -327,6 +327,38 @@ Example F — Answering a general programming question. Answer directly when the
 - `accessibility_audit` (safeRead) — heuristic: Button/Image without accessibility label, unlabeled TextField, color-only state.
 - `session_export` (safeMutation) — write markdown export with title, timestamp, sessionId, workspace, notes. Never reads conversation history. Refuses overwrite unless `overwrite: "true"`.
 
+## Archive & Compression Tools
+
+- `zip_file` (safeMutation) — compress a file or directory into a .zip archive via system ditto.
+- `unzip_file` (safeMutation) — extract a .zip archive into a target directory via system ditto.
+- `tar_archive_create` (safeMutation) — create a .tar or .tar.gz archive from a directory or file.
+- `tar_archive_extract` (safeMutation) — extract a .tar or .tar.gz archive into a destination directory.
+- `gzip_compress_file` (safeMutation) — compress a single file to a .gz file via system gzip.
+- `gzip_decompress_file` (safeMutation) — decompress a .gz file into a destination file via system gzip.
+
+## Image Processing & Media Tools
+
+- `image_decode_base64` (safeMutation) — decode a Base64 string into an image file (PNG/JPEG/TIFF/GIF) on disk.
+- `image_encode_base64` (safeRead) — read an image file from disk and return its Base64 encoded string or Data URI.
+- `image_get_dimensions` (safeRead) — inspect image dimensions (width, height), color model, bit depth, and DPI via ImageIO.
+- `image_convert_format` (safeMutation) — convert an image between PNG, JPEG, TIFF, BMP, and GIF with optional quality.
+- `image_generate_thumbnail` (safeMutation) — generate a scaled thumbnail preserving aspect ratio with max pixel size.
+- `image_extract_metadata` (safeRead) — extract embedded EXIF, TIFF, GPS, and camera metadata dictionary as JSON.
+- `svg_to_png` (safeMutation) — render an SVG vector file into a raster PNG image file at specified scale or dimensions.
+
+## Structured Data & Analysis Tools
+
+- `format_json_file` (safeMutation) — pretty-print and validate JSON file with consistent indentation and sorted keys.
+- `csv_to_json` (safeMutation) — parse a tabular CSV file and convert records to a structured JSON array of objects.
+- `json_to_csv` (safeMutation) — convert a JSON array of objects into standard RFC 4180 CSV format.
+- `plist_to_json` (safeMutation) — convert Apple Property List (.plist) file directly into formatted JSON file.
+- `json_to_plist` (safeMutation) — convert JSON file into Apple Property List format (XML or Binary).
+- `file_compare_diff` (safeRead) — compare two files line-by-line and produce unified diff with added/removed stats.
+- `batch_rename_files` (safeMutation) — rename multiple files matching a pattern or substring in a directory with dryRun option.
+- `count_file_lines` (safeRead) — calculate total, code, comment, and blank lines across workspace files or directories.
+- `extract_code_symbols` (safeRead) — extract declarations (class, struct, enum, protocol, actor, func, extension) from source code.
+- `generate_file_checksum` (safeRead) — compute SHA-256, SHA-512, SHA-1, and MD5 cryptographic checksums of a file.
+
 ---
 
 ## Cloud Toolkit (Antigravity SDK Built-ins — Cloud Mode ONLY)

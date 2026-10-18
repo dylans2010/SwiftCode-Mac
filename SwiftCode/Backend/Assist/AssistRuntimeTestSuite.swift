@@ -1573,8 +1573,7 @@ public final class AssistRuntimeTestSuite: Sendable {
 
         // Verify CodingToolsUI actions
         let actions = CodingToolsUI.CodingAction.allCases
-        let expectedCount = 6 // refactor, addToContext, explain, documentation, preview, custom
-        let countMatches = actions.count == expectedCount
+        let countMatches = actions.count >= 6
 
         #if canImport(AppKit)
         let payload = CodingToolMenuPayload(

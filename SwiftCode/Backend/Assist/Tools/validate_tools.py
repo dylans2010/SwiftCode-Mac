@@ -52,6 +52,7 @@ PROCESS_ALLOWLIST = {
     # fixed system executable via Process() + argv array — no shell string,
     # no model-chosen executable, except performance_benchmark whose
     # executable is restricted to its own 5-entry allowlist).
+    "AssistArchiveTools.swift": "zip_file / unzip_file / tar / gzip — fixed /usr/bin/ditto, /usr/bin/tar, /usr/bin/gzip, argv array",
     "AssistBinaryPlistConverterTool.swift": "binary_plist_converter — fixed /usr/bin/plutil, argv array",
     "AssistDeviceListTool.swift": "device_list — fixed /usr/bin/xcrun (devicectl/xctrace), argv array",
     "AssistDoccBuildTool.swift": "docc_build — fixed /usr/bin/xcodebuild, argv array",

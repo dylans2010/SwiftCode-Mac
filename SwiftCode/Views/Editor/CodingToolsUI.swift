@@ -5,6 +5,7 @@ import AppKit
 /// Displays contextual actions for selected code (Refactor, Add to Context, Explain, Documentation, Preview, Custom).
 public struct CodingToolsUI: View {
     public let selectedCode: String
+    public let fullFileContent: String
     public let filePath: String
     public let onApplyCode: ((String) -> Void)?
     @Environment(\.dismiss) private var dismiss
@@ -43,11 +44,13 @@ public struct CodingToolsUI: View {
 
     public init(
         selectedCode: String,
+        fullFileContent: String? = nil,
         filePath: String,
         initialAction: CodingAction = .refactor,
         onApplyCode: ((String) -> Void)? = nil
     ) {
         self.selectedCode = selectedCode
+        self.fullFileContent = fullFileContent ?? selectedCode
         self.filePath = filePath
         self._selectedAction = State(initialValue: initialAction)
         self.onApplyCode = onApplyCode
@@ -63,6 +66,17 @@ public struct CodingToolsUI: View {
 
                 Text("Coding Tools")
                     .font(.system(size: 12, weight: .bold))
+
+                HStack(spacing: 3) {
+                    Image(systemName: "apple.logo")
+                        .font(.system(size: 8))
+                    Text("Foundation Models")
+                        .font(.system(size: 9, weight: .medium))
+                }
+                .foregroundStyle(.secondary)
+                .padding(.horizontal, 5)
+                .padding(.vertical, 1.5)
+                .background(Color.secondary.opacity(0.12), in: Capsule())
 
                 Spacer()
 
@@ -274,8 +288,8 @@ public struct CodingToolsUI: View {
                 .disabled(isExecuting || (selectedAction == .custom && customInstruction.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty))
             }
         }
-        .padding(10)
-        .frame(width: 330)
+        .padding(12)
+        .frame(width: 380)
         .background {
             // Subtle ambient dynamic gradient wash
             AngularGradient(
@@ -293,7 +307,7 @@ public struct CodingToolsUI: View {
         .background(.ultraThinMaterial)
         .overlay(
             // Soft atmospheric aura around popover border
-            RoundedRectangle(cornerRadius: 10)
+            RoundedRectangle(cornerRadius: 12)
                 .stroke(
                     AngularGradient(
                         colors: [
@@ -307,14 +321,14 @@ public struct CodingToolsUI: View {
                         center: .center,
                         angle: .degrees(gradientRotation)
                     ),
-                    lineWidth: 2.5
+                    lineWidth: 2.0
                 )
-                .blur(radius: 5)
-                .opacity(0.6)
+                .blur(radius: 4)
+                .opacity(0.5)
         )
         .overlay(
             // Defined moving gradient rim
-            RoundedRectangle(cornerRadius: 10)
+            RoundedRectangle(cornerRadius: 12)
                 .stroke(
                     AngularGradient(
                         colors: [
@@ -327,11 +341,10 @@ public struct CodingToolsUI: View {
                         center: .center,
                         angle: .degrees(gradientRotation)
                     ),
-                    lineWidth: 1.4
+                    lineWidth: 1.2
                 )
         )
-        .clipShape(RoundedRectangle(cornerRadius: 10))
-        .padding(3)
+        .clipShape(RoundedRectangle(cornerRadius: 12))
         .onAppear {
             withAnimation(.linear(duration: 8.0).repeatForever(autoreverses: false)) {
                 gradientRotation = 360
@@ -355,6 +368,7 @@ public struct CodingToolsUI: View {
         if selectedAction == .addToContext {
             CodingToolsService.shared.addToAssistContext(
                 code: selectedCode,
+                fullFileContent: fullFileContent,
                 filePath: filePath
             )
             dismiss()
@@ -371,34 +385,40 @@ public struct CodingToolsUI: View {
                 case .refactor:
                     result = try await CodingToolsService.shared.refactorCode(
                         code: selectedCode,
+                        fullFileContent: fullFileContent,
                         filePath: filePath,
                         instructions: customInstruction.isEmpty ? nil : customInstruction
                     )
                 case .explain:
                     result = try await CodingToolsService.shared.explainCode(
                         code: selectedCode,
+                        fullFileContent: fullFileContent,
                         filePath: filePath
                     )
                 case .documentation:
                     result = try await CodingToolsService.shared.writeDocumentation(
                         code: selectedCode,
+                        fullFileContent: fullFileContent,
                         filePath: filePath
                     )
                 case .preview:
                     result = try await CodingToolsService.shared.generateSwiftUIPreview(
                         code: selectedCode,
+                        fullFileContent: fullFileContent,
                         filePath: filePath
                     )
                 case .custom:
                     result = try await CodingToolsService.shared.executeCustomInstruction(
                         instruction: customInstruction,
                         code: selectedCode,
+                        fullFileContent: fullFileContent,
                         filePath: filePath
                     )
                 case .view:
                     result = try await CodingToolsService.shared.executeCustomInstruction(
                         instruction: customInstruction.isEmpty ? "View and explain the architectural structure and visual rendering of this component." : customInstruction,
                         code: selectedCode,
+                        fullFileContent: fullFileContent,
                         filePath: filePath
                     )
                 case .addToContext:

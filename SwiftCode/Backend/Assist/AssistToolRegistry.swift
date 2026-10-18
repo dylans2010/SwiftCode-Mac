@@ -276,6 +276,35 @@ public final class AssistToolRegistry {
         register(AssistPermissionsAuditTool())
         register(AssistAccessibilityAuditTool())
         register(AssistSessionExportTool())
+
+        // Archive & Compression tools
+        register(AssistZipFileTool())
+        register(AssistUnzipFileTool())
+        register(AssistTarArchiveCreateTool())
+        register(AssistTarArchiveExtractTool())
+        register(AssistGzipCompressTool())
+        register(AssistGzipDecompressTool())
+
+        // Image & Decoder tools
+        register(AssistImageDecodeBase64Tool())
+        register(AssistImageEncodeBase64Tool())
+        register(AssistImageGetDimensionsTool())
+        register(AssistImageConvertFormatTool())
+        register(AssistImageGenerateThumbnailTool())
+        register(AssistImageExtractMetadataTool())
+        register(AssistSvgToPngTool())
+
+        // Data & Structured file tools
+        register(AssistFormatJsonFileTool())
+        register(AssistCsvToJsonTool())
+        register(AssistJsonToCsvTool())
+        register(AssistPlistToJsonTool())
+        register(AssistJsonToPlistTool())
+        register(AssistFileCompareDiffTool())
+        register(AssistBatchRenameFilesTool())
+        register(AssistCountFileLinesTool())
+        register(AssistExtractCodeSymbolsTool())
+        register(AssistGenerateFileChecksumTool())
     }
 
     public var version: Int { registryVersion }

@@ -138,6 +138,7 @@ struct CodeEditorView: View {
             if action == .addToContext {
                 CodingToolsService.shared.addToAssistContext(
                     code: code.isEmpty ? sessionStore.activeFileContent : code,
+                    fullFileContent: sessionStore.activeFileContent,
                     filePath: filePath
                 )
                 return
@@ -146,7 +147,6 @@ struct CodeEditorView: View {
             self.contextualCodingToolsAction = action
             self.contextualSelectedCode = code.isEmpty ? sessionStore.activeFileContent : code
             self.contextualSelectionRange = range
-            self.showAssist = true
         }
     }
 
@@ -386,6 +386,7 @@ struct CodeEditorView: View {
             .popover(isPresented: $showAssist, arrowEdge: .bottom) {
                 CodingToolsUI(
                     selectedCode: contextualSelectedCode.isEmpty ? sessionStore.activeFileContent : contextualSelectedCode,
+                    fullFileContent: sessionStore.activeFileContent,
                     filePath: sessionStore.activeFileNode?.path ?? sessionStore.activeFileNode?.name ?? "File.swift",
                     initialAction: contextualCodingToolsAction,
                     onApplyCode: { newCode in
@@ -406,6 +407,7 @@ struct CodeEditorView: View {
                         contextualSelectedCode = ""
                     }
                 )
+                .fixedSize()
             }
             .padding(.trailing, 10)
         }

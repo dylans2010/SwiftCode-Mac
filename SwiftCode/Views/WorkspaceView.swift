@@ -42,6 +42,7 @@ struct WorkspaceView: View {
     @State private var showCodingToolsModal = false
     @State private var codingToolsAction: CodingToolsUI.CodingAction = .refactor
     @State private var codingToolsCode = ""
+    @State private var codingToolsRange: NSRange? = nil
     @State private var codingToolsFilePath = ""
 
     // Workflow Editor States
@@ -353,26 +354,43 @@ struct WorkspaceView: View {
             let userInfo = notification.userInfo
             let action = userInfo?["action"] as? CodingToolsUI.CodingAction ?? .refactor
             let code = userInfo?["code"] as? String ?? ""
+            let range = userInfo?["range"] as? NSRange
             let path = userInfo?["filePath"] as? String ?? sessionStore.activeFileNode?.path ?? "File.swift"
 
             self.codingToolsAction = action
             self.codingToolsCode = code.isEmpty ? sessionStore.activeFileContent : code
+            self.codingToolsRange = range
             self.codingToolsFilePath = path
             self.showCodingToolsModal = true
         }
         .sheet(isPresented: $showCodingToolsModal) {
             CodingToolsUI(
                 selectedCode: codingToolsCode.isEmpty ? sessionStore.activeFileContent : codingToolsCode,
+                fullFileContent: sessionStore.activeFileContent,
                 filePath: codingToolsFilePath.isEmpty ? (sessionStore.activeFileNode?.path ?? "File.swift") : codingToolsFilePath,
                 initialAction: codingToolsAction,
                 onApplyCode: { newCode in
+                    if let range = codingToolsRange, range.length > 0 {
+                        let current = sessionStore.activeFileContent as NSString
+                        if range.location + range.length <= current.length {
+                            let updated = current.replacingCharacters(in: range, with: newCode)
+                            sessionStore.activeFileContent = updated
+                            sessionStore.saveCurrentFile(content: updated)
+                            codingToolsRange = nil
+                            codingToolsCode = ""
+                            showCodingToolsModal = false
+                            return
+                        }
+                    }
                     sessionStore.activeFileContent = newCode
                     sessionStore.saveCurrentFile(content: newCode)
+                    codingToolsRange = nil
+                    codingToolsCode = ""
                     showCodingToolsModal = false
                 }
             )
-            .padding()
-            .frame(minWidth: 500, minHeight: 460)
+            .fixedSize()
+            .presentationSizing(.fitted)
         }
         .background(Color(hex: themeVM.currentTheme.background))
         .foregroundStyle(Color(hex: themeVM.currentTheme.foreground))

@@ -19,6 +19,9 @@ Always route tasks directly to their dedicated native capability:
 * File search / symbol search → `file_search` or `semantic_search`
 * Code editing / patching → `code_replace` or `file_write`
 * File movement / creation / deletion → Native file system tools (`file_write`, `file_delete`, `dir_create`)
+* Archive / Zip / Tar / Gzip → `zip_file`, `unzip_file`, `tar_archive_create`, `tar_archive_extract`, `gzip_compress_file`, `gzip_decompress_file`
+* Image operations / decoders / convert → `image_decode_base64`, `image_encode_base64`, `image_get_dimensions`, `image_convert_format`, `image_generate_thumbnail`, `svg_to_png`
+* Data conversion / diff / metrics / checksum → `format_json_file`, `csv_to_json`, `json_to_csv`, `plist_to_json`, `json_to_plist`, `file_compare_diff`, `batch_rename_files`, `count_file_lines`, `extract_code_symbols`, `generate_file_checksum`
 * Worker delegation → `use_workers` when multi-worker parallelism or delegation is beneficial or requested
 
 ### Rule D — Avoid Unrelated Calls

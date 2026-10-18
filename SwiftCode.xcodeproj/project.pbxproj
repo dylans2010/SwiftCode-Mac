@@ -59,6 +59,12 @@
 		BBA200020000000000000032 /* AssistConversationsSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBA200010000000000000032 /* AssistConversationsSheet.swift */; };
 		BBA200020000000000000033 /* AssistInfoView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBA200010000000000000033 /* AssistInfoView.swift */; };
 		BBA200020000000000000034 /* ReverseFillOutView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBA200010000000000000034 /* ReverseFillOutView.swift */; };
+		FEED00020000000000000001 /* AssistFeedbackService.swift in Sources */ = {isa = PBXBuildFile; fileRef = FEED00010000000000000001 /* AssistFeedbackService.swift */; };
+		FEED00020000000000000002 /* AssistArchiveTools.swift in Sources */ = {isa = PBXBuildFile; fileRef = FEED00010000000000000002 /* AssistArchiveTools.swift */; };
+		FEED00020000000000000003 /* AssistImageMutationTools.swift in Sources */ = {isa = PBXBuildFile; fileRef = FEED00010000000000000003 /* AssistImageMutationTools.swift */; };
+		FEED00020000000000000004 /* AssistImageInspectionTools.swift in Sources */ = {isa = PBXBuildFile; fileRef = FEED00010000000000000004 /* AssistImageInspectionTools.swift */; };
+		FEED00020000000000000005 /* AssistDataMutationTools.swift in Sources */ = {isa = PBXBuildFile; fileRef = FEED00010000000000000005 /* AssistDataMutationTools.swift */; };
+		FEED00020000000000000006 /* AssistDataInspectionTools.swift in Sources */ = {isa = PBXBuildFile; fileRef = FEED00010000000000000006 /* AssistDataInspectionTools.swift */; };
 		004C550B01654D85AAC1AC9E /* MLXOptimizers in Frameworks */ = {isa = PBXBuildFile; productRef = BBB818A276304EA881DBF6E6 /* MLXOptimizers */; };
 		016298C4F533D83B2A4FB1B0 /* ApplicationDeploymentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CCF38596E6CBBF00108C7D98 /* ApplicationDeploymentView.swift */; };
 		0166E43D0F249661F65BDD62 /* AssistLogCaptureTool.swift in Sources */ = {isa = PBXBuildFile; fileRef = C63871C9F424ED65E6604B87 /* AssistLogCaptureTool.swift */; };
@@ -2937,6 +2943,12 @@
 		BBA200010000000000000032 /* AssistConversationsSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssistConversationsSheet.swift; sourceTree = "<group>"; };
 		BBA200010000000000000033 /* AssistInfoView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssistInfoView.swift; sourceTree = "<group>"; };
 		BBA200010000000000000034 /* ReverseFillOutView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReverseFillOutView.swift; sourceTree = "<group>"; };
+		FEED00010000000000000001 /* AssistFeedbackService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssistFeedbackService.swift; sourceTree = "<group>"; };
+		FEED00010000000000000002 /* AssistArchiveTools.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssistArchiveTools.swift; sourceTree = "<group>"; };
+		FEED00010000000000000003 /* AssistImageMutationTools.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssistImageMutationTools.swift; sourceTree = "<group>"; };
+		FEED00010000000000000004 /* AssistImageInspectionTools.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssistImageInspectionTools.swift; sourceTree = "<group>"; };
+		FEED00010000000000000005 /* AssistDataMutationTools.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssistDataMutationTools.swift; sourceTree = "<group>"; };
+		FEED00010000000000000006 /* AssistDataInspectionTools.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssistDataInspectionTools.swift; sourceTree = "<group>"; };
 		AA9E000100000001 /* AssistIntentClassifier.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssistIntentClassifier.swift; sourceTree = "<group>"; };
 		AA9E000100000002 /* AssistConversationMemory.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssistConversationMemory.swift; sourceTree = "<group>"; };
 		AA9E000100000003 /* AssistParallelExecutionEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssistParallelExecutionEngine.swift; sourceTree = "<group>"; };
@@ -5969,6 +5981,11 @@
 				BBA20001000000000000002C /* AssistDiskSpaceAnalyzerTool.swift */,
 				BBA20001000000000000002D /* AssistSystemNotificationTool.swift */,
 				AA9E000100000005 /* AssistFinderTools.swift */,
+				FEED00010000000000000002 /* AssistArchiveTools.swift */,
+				FEED00010000000000000003 /* AssistImageMutationTools.swift */,
+				FEED00010000000000000004 /* AssistImageInspectionTools.swift */,
+				FEED00010000000000000005 /* AssistDataMutationTools.swift */,
+				FEED00010000000000000006 /* AssistDataInspectionTools.swift */,
 				EFF867F1B5A5C3D758D6E5B5 /* UseMCP.swift */,
 				CMPREF000000000000000002 /* AssistComposioTool.swift */,
 				5C86F1D43534422697C2209E /* CodeReview.swift */,
@@ -8014,6 +8031,7 @@
 			children = (
 				BBA20001000000000000002E /* UserMemoryManager.swift */,
 				BBA20001000000000000002F /* AssistConversationHistory.swift */,
+				FEED00010000000000000001 /* AssistFeedbackService.swift */,
 				AA9E000100000001 /* AssistIntentClassifier.swift */,
 				AA9E000100000002 /* AssistConversationMemory.swift */,
 				AA9E000100000003 /* AssistParallelExecutionEngine.swift */,
@@ -11676,6 +11694,12 @@
 				BBA200020000000000000032 /* AssistConversationsSheet.swift in Sources */,
 				BBA200020000000000000033 /* AssistInfoView.swift in Sources */,
 				BBA200020000000000000034 /* ReverseFillOutView.swift in Sources */,
+				FEED00020000000000000001 /* AssistFeedbackService.swift in Sources */,
+				FEED00020000000000000002 /* AssistArchiveTools.swift in Sources */,
+				FEED00020000000000000003 /* AssistImageMutationTools.swift in Sources */,
+				FEED00020000000000000004 /* AssistImageInspectionTools.swift in Sources */,
+				FEED00020000000000000005 /* AssistDataMutationTools.swift in Sources */,
+				FEED00020000000000000006 /* AssistDataInspectionTools.swift in Sources */,
 				A1000001B001000100000001 /* AssistRequestMetrics.swift in Sources */,
 				A1000002B001000100000002 /* AssistTaskContext.swift in Sources */,
 				A1000003B001000100000003 /* search_skills.swift in Sources */,

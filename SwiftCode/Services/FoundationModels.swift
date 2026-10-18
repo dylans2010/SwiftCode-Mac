@@ -75,7 +75,7 @@ public final class FoundationModels: Sendable {
     private init() {}
 
     /// Executes language processing utilizing native iOS & macOS FoundationModels APIs when available, and fallback logic otherwise.
-    public func generatePrivateResponse(prompt: String) async throws -> String {
+    public func generatePrivateResponse(prompt: String, systemPrompt: String? = nil) async throws -> String {
         let startTime = Date()
         logger.log("[generatePrivateResponse] Initializing Foundation Models request.")
 
@@ -86,7 +86,8 @@ public final class FoundationModels: Sendable {
 
         #if canImport(FoundationModels)
         logger.log("[generatePrivateResponse] Creating generation session (Native).")
-        let session = LanguageModelSession(model: SystemLanguageModel())
+        let instructions: Instructions? = systemPrompt.map { Instructions($0) }
+        let session = LanguageModelSession(model: SystemLanguageModel(), instructions: instructions)
 
         logger.log("[generatePrivateResponse] Starting native generation request.")
         let response = try await session.respond(to: prompt)
@@ -228,7 +229,7 @@ public struct SystemLanguageModel: LanguageModel {
 }
 
 public struct Instructions {
-    public init() {}
+    public init(_ text: String = "") {}
 }
 
 public struct LanguageModelSession {
