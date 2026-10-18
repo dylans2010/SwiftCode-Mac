@@ -45,7 +45,7 @@ File system modification protocols, targeted code edits, directory operations, X
 ## 4. Preserve File Structure & Xcode Project Registration
 
 - Align changes with the project's existing structure, naming, and conventions. Do not introduce redundant files, managers, or dependencies when existing abstractions cover the need.
-- **New Swift files must be registered in the Xcode project/target.** Register newly created `.swift` files in the active project's `.xcodeproj/project.pbxproj`. A file that is not part of a target does not compile, does not test, and does not ship.
+- **New Swift files must be registered in the Xcode project/target.** Use `project_mutation_controller` (`action: "add"`) to register newly created `.swift` files in the USER's project `project.pbxproj` (resolved from the workspace root — never SwiftCode's own bundle). A file that is not part of a target does not compile, does not test, and does not ship. Prefer `project_mutation_controller` over editing `project.pbxproj` with text replace tools.
 - Match indentation, trailing newlines, and formatting of the surrounding file; keep edits surgical so the diff shows exactly what the task required and nothing else.
 
 ---
@@ -54,7 +54,7 @@ File system modification protocols, targeted code edits, directory operations, X
 
 - Paths are **workspace-relative** (e.g. `Sources/App.swift`). Absolute paths, `..` segments, symlink escapes, and null bytes are rejected.
 - Any path resolving outside the active project root triggers a security error — treat this as a hard stop, not a suggestion.
-- System prefixes (`/System`, `/usr`, `/bin`, `/sbin`, `/etc`, `/var`, `/Library`, `/private`, `/dev`, `/tmp`) are off-limits to all file operations and redirections.
+- System prefixes (`/System`, `/usr`, `/bin`, `/sbin`, `/etc`, `/var`, `/Library`, `/private`, `/dev`, `/tmp`) are off-limits to all file operations and redirections — except the isolated scripts directory `/tmp/swiftcode/scripts` (and paths beneath it), allowed for script authoring/execution through the filesystem carve-out (see `Safeguards.md` §6).
 
 ---
 

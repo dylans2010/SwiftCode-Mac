@@ -84,12 +84,30 @@ public final class AssistToolRouter: Sendable {
     public nonisolated static func metadata(for toolId: String) -> ToolMetadata {
         switch toolId {
         case "file_read", "read_file":
-            return ToolMetadata(id: toolId, name: "Read File", description: "Read file content with targeted lines.", capability: .fileReading, riskLevel: .safeRead, isReadOnly: true, isMutating: false, requiresVerificationAfterward: false)
-        case "directory_read", "list_directory", "read_dir":
-            return ToolMetadata(id: toolId, name: "Read Directory", description: "Lists directory contents.", capability: .repositoryDiscovery, riskLevel: .safeRead, isReadOnly: true, isMutating: false, requiresVerificationAfterward: false)
-        case "project_search", "search_files", "find_text":
+            return ToolMetadata(id: toolId, name: "Read File", description: "Read file content; supports an optional lines {start,end} range.", capability: .fileReading, riskLevel: .safeRead, isReadOnly: true, isMutating: false, requiresVerificationAfterward: false)
+        case "dir_read", "directory_read", "list_directory", "read_dir":
+            return ToolMetadata(id: toolId, name: "Read Directory", description: "Lists directory contents.", capability: .fileReading, riskLevel: .safeRead, isReadOnly: true, isMutating: false, requiresVerificationAfterward: false)
+        case "dir_cd":
+            return ToolMetadata(id: toolId, name: "Change Directory", description: "Changes the session working directory.", capability: .fileReading, riskLevel: .safeRead, isReadOnly: true, isMutating: false, requiresVerificationAfterward: false)
+        case "dir_pwd":
+            return ToolMetadata(id: toolId, name: "Print Working Directory", description: "Reports the session working directory.", capability: .fileReading, riskLevel: .safeRead, isReadOnly: true, isMutating: false, requiresVerificationAfterward: false)
+        case "dir_create", "create_directory", "make_directory", "directory_create":
+            return ToolMetadata(id: toolId, name: "Create Directory", description: "Creates a directory.", capability: .fileModification, riskLevel: .safeMutation, isReadOnly: false, isMutating: true, requiresVerificationAfterward: true)
+        case "dir_delete", "delete_directory", "remove_directory", "directory_delete":
+            return ToolMetadata(id: toolId, name: "Delete Directory", description: "Recursively deletes a directory. Destructive.", capability: .fileModification, riskLevel: .potentiallyDestructive, isReadOnly: false, isMutating: true, requiresVerificationAfterward: true)
+        case "file_copy", "copy_file":
+            return ToolMetadata(id: toolId, name: "Copy File", description: "Copies a file; refuses when the destination exists.", capability: .fileModification, riskLevel: .safeMutation, isReadOnly: false, isMutating: true, requiresVerificationAfterward: true)
+        case "file_append":
+            return ToolMetadata(id: toolId, name: "Append File", description: "Appends content to an existing file.", capability: .fileModification, riskLevel: .safeMutation, isReadOnly: false, isMutating: true, requiresVerificationAfterward: true)
+        case "code_insert", "insert_code_block", "insert_code":
+            return ToolMetadata(id: toolId, name: "Insert Code Block", description: "Inserts block relative to anchor.", capability: .fileModification, riskLevel: .safeMutation, isReadOnly: false, isMutating: true, requiresVerificationAfterward: true)
+        case "code_multi_edit":
+            return ToolMetadata(id: toolId, name: "Multi-file Edit", description: "Applies edits across multiple files. Not atomic.", capability: .fileModification, riskLevel: .safeMutation, isReadOnly: false, isMutating: true, requiresVerificationAfterward: true)
+        case "search_text", "project_search", "search_files", "find_text", "search", "find_file", "search_dir", "search_directory":
             return ToolMetadata(id: toolId, name: "Search Files", description: "Searches text in files.", capability: .repositoryDiscovery, riskLevel: .safeRead, isReadOnly: true, isMutating: false, requiresVerificationAfterward: false)
-        case "symbol_search", "find_symbol":
+        case "search_regex":
+            return ToolMetadata(id: toolId, name: "Search Regex", description: "Regex search across files.", capability: .repositoryDiscovery, riskLevel: .safeRead, isReadOnly: true, isMutating: false, requiresVerificationAfterward: false)
+        case "search_symbol", "find_symbol":
             return ToolMetadata(id: toolId, name: "Search Symbol", description: "Finds symbol declarations.", capability: .repositoryDiscovery, riskLevel: .safeRead, isReadOnly: true, isMutating: false, requiresVerificationAfterward: false)
         case "tree_view":
             return ToolMetadata(id: toolId, name: "Tree View", description: "ASCII folder tree hierarchy.", capability: .repositoryDiscovery, riskLevel: .safeRead, isReadOnly: true, isMutating: false, requiresVerificationAfterward: false)
@@ -102,8 +120,6 @@ public final class AssistToolRouter: Sendable {
             return ToolMetadata(id: toolId, name: "Replace in File", description: "Replaces target string in file.", capability: .fileModification, riskLevel: .safeMutation, isReadOnly: false, isMutating: true, requiresVerificationAfterward: true)
         case "file_create", "create_file":
             return ToolMetadata(id: toolId, name: "Create File", description: "Scaffolds new file.", capability: .fileModification, riskLevel: .safeMutation, isReadOnly: false, isMutating: true, requiresVerificationAfterward: true)
-        case "insert_code_block":
-            return ToolMetadata(id: toolId, name: "Insert Code Block", description: "Inserts block relative to anchor.", capability: .fileModification, riskLevel: .safeMutation, isReadOnly: false, isMutating: true, requiresVerificationAfterward: true)
         case "file_delete", "delete_file":
             return ToolMetadata(id: toolId, name: "Delete File", description: "Deletes file with snapshot.", capability: .fileModification, riskLevel: .potentiallyDestructive, isReadOnly: false, isMutating: true, requiresVerificationAfterward: true)
         case "file_rename", "file_move":
@@ -140,7 +156,11 @@ public final class AssistToolRouter: Sendable {
             return ToolMetadata(id: toolId, name: "Report to User", description: "Reports completed task summary and verified results to the user.", capability: .general, riskLevel: .safeRead, isReadOnly: true, isMutating: false, requiresVerificationAfterward: false)
 
         default:
-            return ToolMetadata(id: toolId, name: toolId, description: "Assist tool.", capability: .general, riskLevel: .safeRead, isReadOnly: true, isMutating: false, requiresVerificationAfterward: false)
+            // Fail closed: unknown tools must never default to safe/read-only,
+            // or the phase gate and permission checks would treat a destructive
+            // or mutating tool as harmless. Callers with a registry should use
+            // metadata(for: tool), which derives from the tool's own declaration.
+            return ToolMetadata(id: toolId, name: toolId, description: "Unknown tool — fail closed.", capability: .general, riskLevel: .potentiallyDestructive, isReadOnly: false, isMutating: true, requiresVerificationAfterward: true)
         }
     }
 

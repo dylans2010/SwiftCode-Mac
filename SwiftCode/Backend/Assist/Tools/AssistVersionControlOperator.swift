@@ -10,9 +10,10 @@ public struct AssistVersionControlOperator: AssistTool {
             type: "object",
             description: "Performs branch, commit, rollback, and diff operations using git.",
             properties: [
-                "action": JSONSchema(type: "string", description: "The git action to perform: status, commit, branch, rollback, or diff."),
+                "action": JSONSchema(type: "string", description: "The git action to perform: status, commit, branch, rollback, or diff. Unknown actions are rejected."),
                 "message": JSONSchema(type: "string", description: "The commit message (used for commit action)."),
-                "name": JSONSchema(type: "string", description: "The branch name (used for branch action).")
+                "name": JSONSchema(type: "string", description: "The branch name (used for branch action)."),
+                "ref": JSONSchema(type: "string", description: "The git ref to reset to (used for rollback action). Default: HEAD~1. Must match the strict ref pattern; shell metacharacters are rejected.")
             ],
             required: ["action"]
         )
@@ -67,12 +68,15 @@ public struct AssistVersionControlOperator: AssistTool {
             }
             return .success("Git action executed: diff", data: ["output": result.output])
 
-        default:
+        case "status":
             let result = try runGit(args: ["status", "--short"], cwd: cwd)
             guard result.status == 0 else {
                 return .failure("Git status failed: \(result.output)")
             }
             return .success("Git action executed: status", data: ["output": result.output])
+
+        default:
+            return .failure("Unknown git action '\(action)': expected status, commit, branch, rollback, or diff.")
         }
         #else
         return .failure("Version control operations require macOS runtime")
@@ -81,28 +85,32 @@ public struct AssistVersionControlOperator: AssistTool {
 
     #if os(macOS)
     private func isValidRefName(_ ref: String) -> Bool {
-        guard !ref.isEmpty else { return false }
-        let forbidden = [" ", ";", "&", "|", "`", "$", "(", ")", "<", ">", "\"", "'", "\\", "\n", "\r", "\t", "..", "~", "^", ":", "?", "*", "["]
-        for char in forbidden {
-            if ref.contains(char) && !(ref.contains("HEAD~") || ref.contains("HEAD^")) {
-                return false
-            }
-        }
+        // Strict allow-list: letters, digits, and a small set of git-safe
+        // punctuation, plus the explicit HEAD~N / HEAD^N forms. The old
+        // validator skipped ALL checks whenever the ref contained "HEAD~"
+        // anywhere, so "HEAD~1; rm -rf …" passed validation.
+        guard !ref.isEmpty, ref.count <= 256 else { return false }
+        if ref == "HEAD" { return true }
+        if let match = ref.range(of: #"^HEAD[~^]\d+$"#, options: .regularExpression), match == ref.startIndex..<ref.endIndex { return true }
+        let allowed = CharacterSet.alphanumerics.union(CharacterSet(charactersIn: "._/-"))
+        guard ref.unicodeScalars.allSatisfy({ allowed.contains($0) }) else { return false }
+        guard !ref.contains("..") else { return false }
+        guard !ref.hasPrefix("/") && !ref.hasSuffix("/") && !ref.hasSuffix(".lock") else { return false }
         return true
     }
 
     private func runGit(args: [String], cwd: String) throws -> (status: Int32, output: String) {
-        let p = Process()
-        let pipe = Pipe()
-        p.executableURL = URL(fileURLWithPath: "/usr/bin/git")
-        p.arguments = args
-        p.currentDirectoryURL = URL(fileURLWithPath: cwd)
-        p.standardOutput = pipe
-        p.standardError = pipe
-        try p.run()
-        p.waitUntilExit()
-        let output = String(data: pipe.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8) ?? ""
-        return (p.terminationStatus, output)
+        // Argument vector (no shell) + bounded timeout via the shared runner.
+        let run = try AssistArgvRunner.run(
+            executableURL: URL(fileURLWithPath: "/usr/bin/git"),
+            arguments: args,
+            workingDirectory: URL(fileURLWithPath: cwd),
+            timeout: 120
+        )
+        guard !run.timedOut else {
+            throw NSError(domain: "GitTimeout", code: 124, userInfo: [NSLocalizedDescriptionKey: "git \(args.first ?? "") timed out after 120s"])
+        }
+        return (run.exitCode, run.output)
     }
     #endif
 }

@@ -77,6 +77,8 @@ public final class AssistToolRegistry {
         register(AssistDeleteDirectoryTool())
         register(AssistReadDirectoryTool())
         register(AssistTreeViewTool())
+        register(AssistChangeDirectoryTool())
+        register(AssistPrintWorkingDirectoryTool())
 
         register(AssistSearchTool())
         register(AssistRegexSearchTool())
@@ -280,6 +282,13 @@ public final class AssistToolRegistry {
     private var cachedToolSchemas: [[String: Any]]?
 
     public func register(_ tool: AssistTool) {
+        // Never silently overwrite on a duplicate ID: the first registration
+        // wins and the collision is logged, so a duplicate is loud, not a
+        // last-wins surprise.
+        if tools[tool.id] != nil {
+            print("[AssistToolRegistry] Duplicate tool ID '\(tool.id)' — keeping the first registration.")
+            return
+        }
         tools[tool.id] = tool
         health[tool.id] = ToolHealth(toolId: tool.id, status: .available)
         rebuildCapabilityIndex()
@@ -594,7 +603,7 @@ public final class AssistToolRegistry {
 
         // Automatic path relativization
         let projectRoot = ProjectSessionStore.shared.activeProject?.directoryURL.path ?? ""
-        for pathKey in ["path", "filePath", "sourcePath", "destinationPath"] {
+        for pathKey in ["path", "filePath", "sourcePath", "destinationPath", "source", "destination", "oldPath", "newName", "workingDirectory", "project"] {
             if var rawPath = normalizedArgs[pathKey] as? String {
                 if !projectRoot.isEmpty && rawPath.hasPrefix(projectRoot) {
                     rawPath = String(rawPath.dropFirst(projectRoot.count))
@@ -627,10 +636,18 @@ public final class AssistToolRegistry {
             }
         }
 
-        for pathKey in ["path", "filePath", "sourcePath", "destinationPath"] {
-            if let path = normalizedArgs[pathKey] as? String {
-                if path.contains("..") {
-                    errors.append("Argument '\(pathKey)' contains unsafe directory traversal: \(path)")
+        // ".." is rejected for path keys, with two containment-checked
+        // exceptions: dir_cd (its ".." means "parent", clamped at the root by
+        // AssistFileSystem) and use_terminal's workingDirectory (resolved
+        // through AssistFileSystem by UseTermFunction). Both are still
+        // containment-checked downstream; the rejection here is defense in
+        // depth for keys with no downstream containment check.
+        if tool.id != "dir_cd" {
+            for pathKey in ["path", "filePath", "sourcePath", "destinationPath", "source", "destination", "oldPath", "newName", "project"] {
+                if let path = normalizedArgs[pathKey] as? String {
+                    if path.contains("..") {
+                        errors.append("Argument '\(pathKey)' contains unsafe directory traversal: \(path)")
+                    }
                 }
             }
         }

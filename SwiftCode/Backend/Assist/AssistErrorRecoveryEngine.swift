@@ -86,22 +86,36 @@ public final class AssistErrorRecoveryEngine: Sendable {
 
         var mutableInput = input
 
-        // 2. Validate path requirements if tool expects a path
-        let pathKeys = ["path", "filepath", "target", "filePath", "source", "destination"]
+        // 2. Validate path requirements if tool expects a path.
+        // Never silently rewrite a path: operating on a different file than
+        // requested is worse than failing. ".." is rejected (the caller must
+        // resend a workspace-relative path; dir_cd is the one tool whose
+        // ".." means "parent" and it is containment-checked by the filesystem
+        // layer, so it is exempt here). An absolute path with the workspace
+        // prefix is relativized to that same file; any other absolute path
+        // is rejected. NOTE: "target" is deliberately NOT in pathKeys —
+        // code_replace's target is code text, not a path, and stripping
+        // "../" from it used to silently corrupt replacement targets.
+        let pathKeys = ["path", "filepath", "filePath", "source", "destination"]
+        let workspacePrefix = ProjectSessionStore.shared.activeProject?.directoryURL.path ?? ""
         for key in pathKeys {
             if let pathVal = mutableInput[key] as? String {
                 let trimmed = pathVal.trimmingCharacters(in: .whitespacesAndNewlines)
-                if trimmed.hasPrefix("/") || trimmed.contains("..") {
-                    // Pre-correct invalid path traversal or absolute root path
-                    let cleaned = trimmed.replacingOccurrences(of: "../", with: "")
-                                        .trimmingCharacters(in: CharacterSet(charactersIn: "/"))
-                    mutableInput[key] = cleaned
-                    logger.info("Auto-corrected parameter '\(key)' from '\(pathVal)' to '\(cleaned)'")
+                if trimmed.contains("..") {
                     return ToolValidationResult(
-                        isValid: true,
-                        issue: "Auto-corrected relative path",
-                        correctedInput: mutableInput
+                        isValid: false,
+                        issue: "Argument '\(key)' contains unsafe directory traversal '..': \(pathVal). Resend a workspace-relative path without '..' (use dir_cd to move up)."
                     )
+                }
+                if trimmed.hasPrefix("/") {
+                    if !workspacePrefix.isEmpty && trimmed.hasPrefix(workspacePrefix) {
+                        mutableInput[key] = String(trimmed.dropFirst(workspacePrefix.count)).trimmingCharacters(in: CharacterSet(charactersIn: "/"))
+                    } else {
+                        return ToolValidationResult(
+                            isValid: false,
+                            issue: "Argument '\(key)' is an absolute path outside the workspace: \(pathVal). Resend a workspace-relative path."
+                        )
+                    }
                 }
             }
         }
@@ -117,11 +131,14 @@ public final class AssistErrorRecoveryEngine: Sendable {
         }
 
         if toolId == "code_replace" || toolId == "replace_in_file" {
-            if mutableInput["targetText"] == nil && mutableInput["target_text"] != nil {
-                mutableInput["targetText"] = mutableInput["target_text"]
+            // The tool reads "target" / "replacement" — map the snake_case
+            // aliases onto those exact keys (earlier code wrote "targetText",
+            // which the tool never reads).
+            if mutableInput["target"] == nil && mutableInput["target_text"] != nil {
+                mutableInput["target"] = mutableInput["target_text"]
             }
-            if mutableInput["replacementText"] == nil && mutableInput["replacement_text"] != nil {
-                mutableInput["replacementText"] = mutableInput["replacement_text"]
+            if mutableInput["replacement"] == nil && mutableInput["replacement_text"] != nil {
+                mutableInput["replacement"] = mutableInput["replacement_text"]
             }
         }
 

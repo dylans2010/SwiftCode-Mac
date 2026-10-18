@@ -137,7 +137,7 @@ public struct AssistBuildProjectTool: AssistTool {
                     diagnostics: diagStrings,
                     duration: duration,
                     exitCode: 1,
-                    suggestedNextActions: ["file_read", "code_replace", "diagnostic_inspect"]
+                    suggestedNextActions: ["file_read", "code_replace", "compiler_diagnostics_engine"]
                 )
             }
         } catch {

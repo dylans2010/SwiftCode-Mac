@@ -53,6 +53,7 @@ public final class AssistRuntimeTestSuite: Sendable {
         results.append(await testFailureMemoryAndThrashingDetection())
         results.append(await testCompletionContractEvaluation())
         results.append(await testPathSandboxSecurity())
+        results.append(await testToolEcosystemFileReadLinesAndGovernance())
         results.append(await testPhaseCoordinationAndDependencyGating())
         results.append(await testAgentNotesLifecycleAndGitExclusion())
         results.append(await testAgentSkillDiscoveryAndMatching())
@@ -268,22 +269,234 @@ public final class AssistRuntimeTestSuite: Sendable {
         )
     }
 
-    // 8. Path Sandbox Security
+    // 8. Path Sandbox Security — real calls into AssistFileSystem.resolve,
+    // not string predicates on literals (the old version passed regardless
+    // of whether the sandbox worked).
     public func testPathSandboxSecurity() async -> RuntimeTestCaseResult {
         let start = Date()
-        let maliciousPaths = ["../secret.txt", "/etc/passwd", "foo/../../bar"]
+        let fm = FileManager.default
+        let base = fm.temporaryDirectory.appendingPathComponent("assist-sandbox-\(UUID().uuidString)")
+        let root = base.appendingPathComponent("Proj")
+        do {
+            try fm.createDirectory(at: root, withIntermediateDirectories: true)
+            // Sibling directory sharing the workspace prefix (the old
+            // hasPrefix-without-trailing-slash bypass target).
+            try fm.createDirectory(at: base.appendingPathComponent("Proj-evil"), withIntermediateDirectories: true)
+            // Symlink inside the workspace pointing outside it.
+            try fm.createSymbolicLink(at: root.appendingPathComponent("escape"), withDestinationPath: "/etc")
+        } catch {
+            return RuntimeTestCaseResult(testName: "Path Sandbox Security", passed: false, message: "Fixture setup failed: \(error)", duration: Date().timeIntervalSince(start))
+        }
+        defer { try? fm.removeItem(at: base) }
 
-        var allBlocked = true
-        for path in maliciousPaths {
-            if !path.contains("..") && !path.hasPrefix("/") {
-                allBlocked = false
-            }
+        let fs = AssistFileSystem(workspaceRoot: root)
+        func blocked(_ path: String) -> Bool {
+            do { _ = try fs.resolve(path); return false } catch { return true }
+        }
+        func allowed(_ path: String) -> Bool {
+            do { _ = try fs.resolve(path); return true } catch { return false }
         }
 
+        let checks = [
+            ("../secret.txt blocked", blocked("../secret.txt")),
+            ("sibling-prefix escape blocked", blocked("../Proj-evil/x")),
+            ("symlink escape blocked", blocked("escape/passwd")),
+            ("absolute /etc/passwd blocked", blocked("/etc/passwd")),
+            ("foo/../../bar blocked", blocked("foo/../../bar")),
+            ("plain relative allowed", allowed("Sources/Main.swift")),
+            ("dot allowed", allowed(".")),
+        ]
+        let failed = checks.filter { !$0.1 }.map(\.0)
         return RuntimeTestCaseResult(
             testName: "Path Sandbox Security",
-            passed: allBlocked,
-            message: allBlocked ? "Relative and root traversals identified and blocked." : "Path sandbox allowed traversal.",
+            passed: failed.isEmpty,
+            message: failed.isEmpty ? "Traversal, sibling-prefix, symlink, and absolute escapes all blocked; valid paths resolve." : "Sandbox failures: \(failed.joined(separator: ", "))",
+            duration: Date().timeIntervalSince(start)
+        )
+    }
+
+    // 8b. Tool Ecosystem: file_read lines, dir_cd, governance, no-fake-success
+    public func testToolEcosystemFileReadLinesAndGovernance() async -> RuntimeTestCaseResult {
+        let start = Date()
+        var failures: [String] = []
+        func check(_ name: String, _ cond: Bool) { if !cond { failures.append(name) } }
+
+        let fm = FileManager.default
+        let root = fm.temporaryDirectory.appendingPathComponent("assist-tools-\(UUID().uuidString)")
+        do {
+            try fm.createDirectory(at: root, withIntermediateDirectories: true)
+            let lines = (1...300).map { "Line \($0)" }
+            try lines.joined(separator: "\n").appending("\n").write(to: root.appendingPathComponent("big.swift"), atomically: true, encoding: .utf8)
+            try "".write(to: root.appendingPathComponent("empty.txt"), atomically: true, encoding: .utf8)
+            try "hello\nworld\n".write(to: root.appendingPathComponent("small.txt"), atomically: true, encoding: .utf8)
+            try "alpha\nbeta\n".write(to: root.appendingPathComponent("src.txt"), atomically: true, encoding: .utf8)
+            try "ORIGINAL-DEST\n".write(to: root.appendingPathComponent("dst.txt"), atomically: true, encoding: .utf8)
+            try fm.createDirectory(at: root.appendingPathComponent("sub"), withIntermediateDirectories: true)
+            try "nested\n".write(to: root.appendingPathComponent("sub/nested.txt"), atomically: true, encoding: .utf8)
+            try fm.createDirectory(at: root.appendingPathComponent("cyc"), withIntermediateDirectories: true)
+            try fm.createSymbolicLink(at: root.appendingPathComponent("cyc/loop"), withDestinationPath: root.appendingPathComponent("cyc").path)
+        } catch {
+            return RuntimeTestCaseResult(testName: "Tool Ecosystem: file_read lines + governance", passed: false, message: "Fixture setup failed: \(error)", duration: Date().timeIntervalSince(start))
+        }
+        defer { try? fm.removeItem(at: root) }
+
+        let sessionId = UUID()
+        defer { AssistWorkingDirectoryStore.shared.clear(for: sessionId) }
+        let fs = AssistFileSystem(workspaceRoot: root)
+        let context = AssistContext(
+            sessionId: sessionId,
+            project: nil,
+            workspaceRoot: root,
+            memory: AssistMemoryGraph(),
+            logger: AssistLogger(),
+            fileSystem: fs,
+            git: AssistGitManager(project: nil),
+            permissions: AssistPermissionsManager(),
+            safetyLevel: .balanced,
+            isAutonomous: true
+        )
+        func run(_ tool: AssistTool, _ input: [String: Any]) async -> AssistToolResult? {
+            try? await tool.execute(input: input, context: context)
+        }
+
+        // --- file_read lines ---
+        let readTool = AssistReadFileTool()
+        if let r = await run(readTool, ["path": "big.swift"]) {
+            check("file_read full: success", r.success)
+            check("file_read full: totalLines 300", r.data?["totalLines"] == "300")
+            check("file_read full: fullyAvailable", r.data?["fullyAvailable"] == "true")
+            let contentLines = (r.data?["content"] ?? "").components(separatedBy: "\n")
+            check("file_read full: 300 numbered lines", contentLines.count == 300)
+            check("file_read full: first line numbered", contentLines.first == "1: Line 1")
+            check("file_read full: last line numbered", contentLines.last == "300: Line 300")
+        } else { failures.append("file_read full: threw") }
+        if let r = await run(readTool, ["path": "big.swift", "lines": ["start": 240, "end": 280]]) {
+            check("file_read 240-280: success", r.success)
+            check("file_read 240-280: start/end", r.data?["start"] == "240" && r.data?["end"] == "280")
+            let contentLines = (r.data?["content"] ?? "").components(separatedBy: "\n")
+            check("file_read 240-280: 41 lines (1-based inclusive)", contentLines.count == 41)
+            check("file_read 240-280: first", contentLines.first == "240: Line 240")
+            check("file_read 240-280: last", contentLines.last == "280: Line 280")
+        } else { failures.append("file_read 240-280: threw") }
+        if let r = await run(readTool, ["path": "big.swift", "lines": ["start": 280, "end": 9999]]) {
+            check("file_read beyond-EOF: success + clamped end 300", r.success && r.data?["end"] == "300")
+            check("file_read beyond-EOF: 21 lines", (r.data?["content"] ?? "").components(separatedBy: "\n").count == 21)
+        } else { failures.append("file_read beyond-EOF: threw") }
+        if let r = await run(readTool, ["path": "big.swift", "lines": ["start": 301, "end": 310]]) {
+            check("file_read start-beyond-EOF: failure, no invented content", !r.success)
+        }
+        if let r = await run(readTool, ["path": "big.swift", "lines": ["start": 280, "end": 240]]) {
+            check("file_read inverted range: failure", !r.success)
+        }
+        if let r = await run(readTool, ["path": "big.swift", "lines": ["start": 0, "end": 5]]) {
+            check("file_read start=0: failure", !r.success)
+        }
+        if let r = await run(readTool, ["path": "big.swift", "lines": ["start": 5.5, "end": 10]]) {
+            check("file_read non-integral start: failure", !r.success)
+        }
+        if let r = await run(readTool, ["path": "empty.txt"]) {
+            check("file_read empty: success totalLines 0", r.success && r.data?["totalLines"] == "0")
+        }
+        if let r = await run(readTool, ["path": "missing.txt"]) {
+            check("file_read missing: failure", !r.success)
+        }
+
+        // --- dir_cd / dir_pwd ---
+        let cdTool = AssistChangeDirectoryTool()
+        let pwdTool = AssistPrintWorkingDirectoryTool()
+        if let r = await run(cdTool, ["path": "sub"]) {
+            check("dir_cd sub: success", r.success)
+            check("dir_cd sub: resolved path", r.data?["path"] == root.appendingPathComponent("sub").path)
+        }
+        if let r = await run(pwdTool, [:]) {
+            check("dir_pwd after cd: reports sub", r.data?["path"] == root.appendingPathComponent("sub").path)
+        }
+        if let r = await run(readTool, ["path": "nested.txt"]) {
+            check("file_read after dir_cd resolves against new cwd", r.success)
+        }
+        if let r = await run(cdTool, ["path": ".."]) {
+            check("dir_cd ..: back to root", r.success && r.data?["path"] == root.path)
+        }
+        if let r = await run(cdTool, ["path": ".."]) {
+            check("dir_cd .. past root: failure, cwd unchanged", !r.success)
+        }
+        if let r = await run(pwdTool, [:]) {
+            check("dir_pwd after failed cd: still root", r.data?["path"] == root.path)
+        }
+        if let r = await run(cdTool, ["path": "no-such-dir"]) {
+            check("dir_cd missing: failure", !r.success)
+        }
+
+        // --- copy/move refuse existing destination; delete missing fails ---
+        let copyTool = AssistCopyFileTool()
+        if let r = await run(copyTool, ["source": "src.txt", "destination": "dst.txt"]) {
+            check("file_copy onto existing: failure", !r.success)
+            let dst = (try? String(contentsOf: root.appendingPathComponent("dst.txt"), encoding: .utf8)) ?? ""
+            check("file_copy onto existing: destination untouched", dst == "ORIGINAL-DEST\n")
+        }
+        let moveTool = AssistMoveFileTool()
+        if let r = await run(moveTool, ["source": "src.txt", "destination": "dst.txt"]) {
+            check("file_move onto existing: failure", !r.success)
+        }
+        let delTool = AssistDeleteFileTool()
+        if let r = await run(delTool, ["path": "missing.txt"]) {
+            check("file_delete missing: failure (no fake success)", !r.success)
+        }
+        let delDirTool = AssistDeleteDirectoryTool()
+        if let r = await run(delDirTool, ["path": "missing-dir"]) {
+            check("dir_delete missing: failure (no fake success)", !r.success)
+        }
+
+        // --- code_insert pattern miss + code_multi_edit empty search ---
+        let insertTool = AssistInsertCodeBlockTool()
+        if let r = await run(insertTool, ["path": "small.txt", "code": "NEW", "mode": "before", "pattern": "zzz-not-present"]) {
+            check("code_insert pattern miss: failure", !r.success)
+            let after = (try? String(contentsOf: root.appendingPathComponent("small.txt"), encoding: .utf8)) ?? ""
+            check("code_insert pattern miss: file unchanged", after == "hello\nworld\n")
+        }
+        let multiTool = AssistMultiFileEditTool()
+        if let r = await run(multiTool, ["edits": [["path": "small.txt", "search": "", "replace": "X"]]]) {
+            check("code_multi_edit empty search: failure", !r.success)
+            let after = (try? String(contentsOf: root.appendingPathComponent("small.txt"), encoding: .utf8)) ?? ""
+            check("code_multi_edit empty search: file unchanged", after == "hello\nworld\n")
+        }
+        if let r = await run(multiTool, ["edits": [["search": "hello", "replace": "hi"]]]) {
+            check("code_multi_edit missing path: failure (no silent skip)", !r.success)
+        }
+
+        // --- tree_view symlink cycle terminates ---
+        let treeTool = AssistTreeViewTool()
+        if let r = await run(treeTool, ["path": "cyc", "maxDepth": 10]) {
+            check("tree_view symlink cycle: success, no hang", r.success)
+            check("tree_view symlink listed as leaf", (r.data?["tree"] ?? "").contains("🔗"))
+        }
+        if let r = await run(treeTool, ["maxDepth": 2.5]) {
+            check("tree_view non-integral maxDepth: failure", !r.success)
+        }
+
+        // --- registry / router / validator governance ---
+        let registry = AssistToolRegistry()
+        let ids = Set(registry.allTools.map(\.id))
+        check("registry: file_read + dir_cd + dir_pwd registered", ids.contains("file_read") && ids.contains("dir_cd") && ids.contains("dir_pwd"))
+        if let fileRead = registry.getTool("file_read") {
+            let schema = fileRead.parametersSchema
+            check("registry: file_read schema declares lines", schema.properties?["lines"] != nil)
+        } else { failures.append("registry: file_read not found") }
+        let unknownMeta = AssistToolRouter.metadata(for: "definitely_not_a_tool")
+        check("router: unknown tool fails closed (destructive/mutating)", unknownMeta.riskLevel == .potentiallyDestructive && unknownMeta.isMutating)
+        let dirDeleteMeta = AssistToolRouter.metadata(for: "dir_delete")
+        check("router: dir_delete is destructive (not safeRead)", dirDeleteMeta.riskLevel == .potentiallyDestructive)
+        let traversal = AssistErrorRecoveryEngine.shared.validateToolCall(toolId: "file_read", input: ["path": "../secret.txt"], registry: registry)
+        check("validateToolCall: '..' rejected, not silently rewritten", !traversal.isValid)
+        let targetMangle = AssistErrorRecoveryEngine.shared.validateToolCall(toolId: "code_replace", input: ["path": "a.swift", "target": "../lib/foo", "replacement": "x"], registry: registry)
+        check("validateToolCall: code_replace target with ../ is not mangled into a path", targetMangle.correctedInput?["target"] as? String == "../lib/foo")
+        let geminiTraversal = registry.validate(toolId: "file_copy", arguments: ["source": "../escape", "destination": "out.txt"])
+        check("registry.validate: '..' in source rejected", !geminiTraversal.isValid)
+
+        return RuntimeTestCaseResult(
+            testName: "Tool Ecosystem: file_read lines + governance",
+            passed: failures.isEmpty,
+            message: failures.isEmpty ? "file_read lines, dir_cd/dir_pwd, copy/move/delete honesty, insert/multi-edit no-op failures, tree cycle guard, and registry/router/validator governance all verified." : "Failures: \(failures.joined(separator: "; "))",
             duration: Date().timeIntervalSince(start)
         )
     }
