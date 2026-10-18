@@ -94,6 +94,8 @@ PROCESS_ALLOWLIST = {
     "AssistXcodeBuildSettingsTool.swift": "xcode_build_settings_inspector — fixed /usr/bin/xcrun, argv array",
     "AssistXcodeDeviceDestinationTool.swift": "xcode_device_destination_finder — fixed /usr/bin/xcrun (simctl), argv array",
     "AssistXcodeSchemeTool.swift": "xcode_scheme_manager — fixed /usr/bin/xcodebuild, argv array",
+    "AssistCodeSigningDiagnoseTool.swift": "code_signing_diagnose — fixed /usr/bin/codesign via AssistArgvRunner, argv array",
+    "AssistXcodeToolchainInfoTool.swift": "xcode_toolchain_info — fixed /usr/bin/xcodebuild via AssistArgvRunner, argv array",
 }
 
 # Shell-executable patterns. The /bin/sh and /bin/bash patterns are

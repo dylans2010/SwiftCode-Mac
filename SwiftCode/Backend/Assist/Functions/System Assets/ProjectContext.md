@@ -56,3 +56,16 @@ When working with a project in SwiftCode, honor these conventions. They govern h
 - Prefer real, complete implementations over placeholders, stubs, or TODO comments.
 - Never claim a task, build, or test passed without physical execution evidence from the toolchain.
 - When an approach fails, diagnose the root cause and try an alternative method autonomously.
+
+---
+
+## 6. Repository Intelligence Tools
+
+Start unfamiliar-codebase work with the native discovery tools rather than manual exploration:
+
+- `repo_overview` — file counts by language, README/license presence, largest files.
+- `project_structure_map` — directory map with file counts plus Xcode targets from the pbxproj.
+- `build_system_detect` — xcworkspace/xcodeproj, SwiftPM, CocoaPods, Carthage, Tuist, xcodegen, Bazel, CMake.
+- `entry_points_discover` — `@main` types, `main.swift`, AppDelegate/SceneDelegate.
+- `recent_changes` / `stale_files_report` — what's hot and what's abandoned.
+- `readme_locate` / `docs_index_build` — find the project's own documentation first.

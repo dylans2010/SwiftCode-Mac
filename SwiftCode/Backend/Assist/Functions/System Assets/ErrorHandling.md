@@ -41,6 +41,7 @@ Classify every failure before deciding what to do. The classes:
 7. **Mode violation.** Symptoms: calling user-question tools in Autopilot mode. Do NOT retry — you are in Autopilot mode; continue autonomous execution.
 8. **Authentication failure.** Symptoms: 401, expired or invalid tokens, "missing client secret". Never retry with the same credentials. Diagnose the credential kind and transport, and surface actionable remediation (see `Authentication.md`).
 9. **Context / index failure.** If instructions cannot be retrieved from the index, the request proceeds only with baseline safeguards or fails closed with a descriptive error — a retrieval failure must never silently bypass safeguards.
+10. **Artifact store errors.** `create_artifact` failures are explicit and actionable: invalid names (use snake_case), `alreadyExists` (switch to `update`/`append`), empty content, and write-verification mismatches. `delete_artifact` without `confirm: true` is a refusal, not an error — pass the interlock deliberately. `agent_notes.md` is protected from deletion. Never work around these with `file_write` or shell redirection.
 
 ---
 

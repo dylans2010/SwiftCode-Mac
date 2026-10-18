@@ -95,3 +95,16 @@ File system modification protocols, targeted code edits, directory operations, X
   - Extract symbol declarations and signatures from source files with `extract_code_symbols`.
   - Verify file integrity using `generate_file_checksum`.
 
+
+---
+
+## 9. File Inventory, Preview & Backup Tools
+
+- `dir_size_report` — recursive disk usage per subdirectory, largest first.
+- `find_duplicate_files` — byte-identical duplicates via SHA-256.
+- `file_type_breakdown` — counts and bytes per extension.
+- `empty_dirs_find` — empty directories, cleanup candidates.
+- `file_head_preview` — first N lines with encoding detection; never dumps whole files. Prefer over `file_read` for a quick look.
+- `symlink_audit` — symbolic links with targets; flags broken links.
+- `executable_files_scan` — files with the executable bit set.
+- `file_backup` — timestamped backup to `.assist_temp/backups/` with size verification before risky edits.

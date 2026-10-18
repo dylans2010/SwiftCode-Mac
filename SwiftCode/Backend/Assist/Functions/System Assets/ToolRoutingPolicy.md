@@ -22,6 +22,12 @@ Always route tasks directly to their dedicated native capability:
 * Archive / Zip / Tar / Gzip → `zip_file`, `unzip_file`, `tar_archive_create`, `tar_archive_extract`, `gzip_compress_file`, `gzip_decompress_file`
 * Image operations / decoders / convert → `image_decode_base64`, `image_encode_base64`, `image_get_dimensions`, `image_convert_format`, `image_generate_thumbnail`, `svg_to_png`
 * Data conversion / diff / metrics / checksum → `format_json_file`, `csv_to_json`, `json_to_csv`, `plist_to_json`, `json_to_plist`, `file_compare_diff`, `batch_rename_files`, `count_file_lines`, `extract_code_symbols`, `generate_file_checksum`
+* Repository intelligence / code navigation → `repo_overview`, `project_structure_map`, `recent_changes`, `call_hierarchy`, `type_hierarchy`, `protocol_conformance_list`, `import_graph`, `change_impact_estimate`
+* Diagnostics & audits → `build_log_analyze`, `crash_log_parse`, `code_signing_diagnose`, `pbxproj_lint`, `xctest_discovery`, `force_unwrap_scan`, `deprecation_usage_scan`, `conflict_marker_scan`, `info_plist_audit`, `api_endpoint_audit`
+* File inventory → `dir_size_report`, `find_duplicate_files`, `file_type_breakdown`, `file_head_preview`, `symlink_audit`, `executable_files_scan`, `empty_dirs_find`
+* Documentation → `docs_index_build`, `markdown_link_check`, `api_docs_coverage`, `code_comment_extract`, `readme_generate`, `markdown_toc_generate`
+* Durable deliverables → `create_artifact` (the ONLY way to produce a kept Markdown deliverable — never `file_write` or shell redirection for reports), `list_artifacts`, `read_artifact`, `delete_artifact`. See `ArtifactsGuidelines.md`.
+* Session & environment → `session_progress_report`, `preflight_checks`, `tool_capability_lookup`, `xcode_toolchain_info`
 * Worker delegation → `use_workers` when multi-worker parallelism or delegation is beneficial or requested
 
 ### Rule D — Avoid Unrelated Calls

@@ -206,6 +206,11 @@ public final class AgentNotesManager: Sendable {
         self.lastSavedURL = notesURL
         self.lastSavedTimestamp = Date()
 
+        // Surface agent_notes.md in the native artifact store (MainActor-isolated).
+        Task { @MainActor in
+            AssistArtifactStore.shared.refresh(workspaceRoot: workspaceRoot)
+        }
+
         return content
     }
 

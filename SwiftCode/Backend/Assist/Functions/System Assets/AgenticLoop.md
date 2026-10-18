@@ -121,3 +121,11 @@ Workers are an optional capability. The existence of `use_workers` / `start_suba
 - high-volume independent file processing where workstreams do not intersect.
 
 Every worker task needs a clear objective, an explicit non-overlapping scope, an expected output, and bounded responsibility (`use_workers` task descriptions are capped at 500 characters; `targetFiles` must be disjoint across workers in a batch). Workers execute real mutations through the full tool suite — this is the highest-risk planning tool, so keep the count to the genuinely independent workstreams and no more. In Cloud sessions, `start_subagent` dispatches an isolated subagent with its own conversation context that reports results back on completion.
+
+---
+
+## 9. Artifact Discipline in Plan & Autopilot
+
+- **Plan mode** produces evidence and planning artifacts via `create_artifact`; it defers consequential actions. A saved plan artifact is the handoff contract for execution.
+- **Autopilot mode** executes the plan, verifies each step against real tool results, and reports honestly. Finished deliverables are saved with `create_artifact` and named by display title in the final report.
+- Never produce a durable deliverable (report, analysis, plan, summary) with `file_write`, `code_edit`, or shell redirection — `create_artifact` is the single sanctioned path. Full rules: `ArtifactsGuidelines.md`.

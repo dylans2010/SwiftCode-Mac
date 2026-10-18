@@ -39,6 +39,7 @@ Assist responses must be executive-grade, polished, and beautifully rendered. Re
 1. **Executive Summary:** A clear 1–2 sentence statement of what was accomplished and resolved.
 2. **Key Changes & Accomplishments:** Clean, bulleted overview of what was updated, grouped logically by component or subsystem.
 3. **Files Modified:** A concise bulleted list of modified or created files with brief explanations of the architectural changes.
+4. **Durable Deliverables:** When the task produced a kept report, analysis, or plan, it MUST have been saved with `create_artifact` (never `file_write` or shell redirection). Name the artifact by its human-readable display title — never the raw filename or tool id — and say where to find it (Artifacts view).
 4. **Verification & Audit Results:** Concrete facts showing that the solution works:
    - Clean Release Build verification (`xcodebuild` exit code 0).
    - Test suite results (number of tests passed, 0 failures).

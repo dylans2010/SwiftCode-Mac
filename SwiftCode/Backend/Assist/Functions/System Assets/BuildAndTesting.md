@@ -95,3 +95,22 @@ Some environments have no Swift toolchain available. When verification cannot ru
 - When a build or test fails, analyze the diagnostic, change the approach, and retry with a modified strategy.
 - Never repeat the identical failing build or test invocation in consecutive turns expecting a different result.
 - Keep progressing autonomously until the code compiles cleanly and tests pass.
+
+---
+
+## 10. Native Diagnostic & Audit Tools (no shell needed)
+
+Prefer the dedicated native tools over parsing logs by hand:
+
+- `build_log_analyze` — parse an xcodebuild log file into errors, warnings, and the build result.
+- `crash_log_parse` — parse `.crash`/`.ips` logs: exception type, termination reason, faulting thread, blamed frames.
+- `code_signing_diagnose` — signature validity, authority chain, team identifier, hardened-runtime flags for a built product (fixed-argv `codesign`, approval-exempt).
+- `scheme_test_plan_list` — `.xctestplan` files and the test targets each covers.
+- `xctest_discovery` — inventory of `XCTestCase` subclasses and test methods without running anything.
+- `pbxproj_lint` — file references pointing at missing files, duplicate paths, dangling build-file refs.
+- `entitlements_diff` / `build_settings_diff` — key-by-key diffs of `.entitlements` plists and `.xcconfig` files.
+- `info_plist_audit` — required keys, version-format sanity, duplicate bundle identifiers.
+- `strings_file_validate` — `.strings` syntax, duplicate keys, empty values.
+- `xcode_toolchain_info` — Xcode version and installed SDKs (fixed-argv `xcodebuild`, approval-exempt).
+- `derived_data_locate` — DerivedData directories with sizes.
+- `preflight_checks` — environment preflight before a build: workspace writable, Xcode tools present, free disk, artifact storage.

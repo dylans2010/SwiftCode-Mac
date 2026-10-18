@@ -46,6 +46,7 @@ Rules that govern this library:
 | `CodeReviewSystemAsset.md` | Independent code-review operating policy and verdict format | Code-review tasks |
 | `CreatingAppAsset.md` | Autonomous app-creation specification | "Build me an app" tasks |
 | `TaskCompletion.md` | Autonomous task completion protocol, executive reporting, markdown formatting, and `report_to_user` rules | Task finalization, calling report_to_user |
+| `ArtifactsGuidelines.md` | Native Markdown artifact workflow: when to create artifacts, quality standards, display titles, Plan/Autopilot integration | Any durable deliverable: reports, analyses, plans, summaries |
 
 ---
 

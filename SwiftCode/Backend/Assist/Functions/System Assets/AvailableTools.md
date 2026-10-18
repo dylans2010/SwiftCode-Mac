@@ -33,7 +33,7 @@ Native-vs-terminal preference per operation: list directory → `dir_read` (not 
 
 `use_terminal` is the SOLE model-facing terminal tool. No other shell tool is exposed to the model. It executes real commands via `AgentTerminalService` with stdout/stderr/exit code/duration returned; output truncation is marked. It prompts for user approval unless the command is allow-listed or Full Access is enabled. A user rejection is final — never retry or reroute.
 
-47 tool files also run processes directly with a fixed system executable (never a shell string) and never trigger the terminal prompt — e.g. `project_build` (xcodebuild build), `generate_xcodeproj` (xcodegen; fails with install instructions when xcodegen is missing), `project_test` (xcodebuild test), `compiler_diagnostics_engine` (xcodebuild build + diagnostic parse), `dependency_resolution_engine` (xcodebuild -resolvePackageDependencies), `version_control_operator` (git via argv), plus the git/xcodebuild/xcrun/swift/security/simctl/osascript tools merged from main. Arguments may include model-supplied values (scheme names, git refs, file paths), but the executable is always a fixed system path; the one exception is `performance_benchmark`, whose executable is restricted to its own 5-entry allowlist (`/usr/bin/time`, `/usr/bin/xcodebuild`, `/usr/bin/swift`, `/bin/ls`, `/usr/bin/du`). These are approval-exempt by design with a fixed-executable, no-shell contract; they are the only sanctioned terminal-adjacent paths besides `use_terminal`. The authoritative explicit list is `PROCESS_ALLOWLIST` in `Tools/validate_tools.py`. Nothing else in `Tools/` spawns a process.
+52 tool files also run processes directly with a fixed system executable (never a shell string) and never trigger the terminal prompt — e.g. `project_build` (xcodebuild build), `generate_xcodeproj` (xcodegen; fails with install instructions when xcodegen is missing), `project_test` (xcodebuild test), `compiler_diagnostics_engine` (xcodebuild build + diagnostic parse), `dependency_resolution_engine` (xcodebuild -resolvePackageDependencies), `version_control_operator` (git via argv), plus the git/xcodebuild/xcrun/swift/security/simctl/osascript tools merged from main. Arguments may include model-supplied values (scheme names, git refs, file paths), but the executable is always a fixed system path; the one exception is `performance_benchmark`, whose executable is restricted to its own 5-entry allowlist (`/usr/bin/time`, `/usr/bin/xcodebuild`, `/usr/bin/swift`, `/bin/ls`, `/usr/bin/du`). These are approval-exempt by design with a fixed-executable, no-shell contract; they are the only sanctioned terminal-adjacent paths besides `use_terminal`. The authoritative explicit list is `PROCESS_ALLOWLIST` in `Tools/validate_tools.py`. Nothing else in `Tools/` spawns a process.
 
 ## `file_read` Line Ranges
 
@@ -170,7 +170,7 @@ Example F — Answering a general programming question. Answer directly when the
 
 ## Known Limitations (honest)
 
-- The 47 tool files that run processes directly (fixed executables, no shell) bypass the `use_terminal` approval prompt by design; their safety rests on the fixed-executable/no-shell contract, not on a prompt. Full list: `PROCESS_ALLOWLIST` in `Tools/validate_tools.py`.
+- The 52 tool files that run processes directly (fixed executables, no shell) bypass the `use_terminal` approval prompt by design; their safety rests on the fixed-executable/no-shell contract, not on a prompt. Full list: `PROCESS_ALLOWLIST` in `Tools/validate_tools.py`.
 - Several "intelligence" tools are keyword/substring heuristics, not the analysis their names promise (`complexity_analysis`, `autonomous_review_engine`, `semantic_query_engine`, `code_summary`, `code_lint`, `runtime_diagnostics_engine`).
 - `safe_undo` is not per-action undo; `execution_plan` is a template; `intel_plan_task` / `intel_breakdown_task` are mechanical; `automated_repair_engine` annotates instead of repairing; `env_capture_logs` returns snapshot metadata, not logs; `dependency_resolution_engine` never adds a package.
 - Throws propagate instead of `.failure` in a few tools (`automated_repair_engine`, `patch_application_engine`, `runtime_diagnostics_engine`, `source_graph_builder`, `context_persistence_store`); callers should treat a throw as a tool failure.
@@ -358,6 +358,92 @@ Example F — Answering a general programming question. Answer directly when the
 - `count_file_lines` (safeRead) — calculate total, code, comment, and blank lines across workspace files or directories.
 - `extract_code_symbols` (safeRead) — extract declarations (class, struct, enum, protocol, actor, func, extension) from source code.
 - `generate_file_checksum` (safeRead) — compute SHA-256, SHA-512, SHA-1, and MD5 cryptographic checksums of a file.
+
+## Repository Intelligence, Diagnostics & Artifacts (60-tool expansion)
+
+### Repository intelligence
+
+- `repo_overview` (safeRead) — summarize the repository: file counts by language, README/license presence, largest files.
+- `project_structure_map` (safeRead) — machine-readable map of directories with file counts plus Xcode targets from the pbxproj.
+- `recent_changes` (safeRead) — list files modified within the last N hours, newest first.
+- `readme_locate` (safeRead) — find README files with their title lines.
+- `dependency_licenses` (safeRead) — inventory third-party dependencies from Package.resolved and Podfile.lock for license review.
+- `stale_files_report` (safeRead) — report source files not modified in a long time.
+- `entry_points_discover` (safeRead) — find @main types, main.swift, AppDelegate/SceneDelegate classes.
+- `build_system_detect` (safeRead) — detect build systems: xcworkspace/xcodeproj, SwiftPM, CocoaPods, Carthage, Tuist, xcodegen, Bazel, CMake.
+
+### Code navigation
+
+- `call_hierarchy` (safeRead) — definition site, callers, and callees for a function name.
+- `type_hierarchy` (safeRead) — class/struct/enum/protocol declarations with inheritance and conformance clauses.
+- `protocol_conformance_list` (safeRead) — every type declaring conformance to a protocol.
+- `import_graph` (safeRead) — file-level import graph; which files import a given module.
+- `comment_density_report` (safeRead) — comment-to-code ratios per file, least-documented first.
+- `function_size_report` (safeRead) — longest functions by line count, highlighting decomposition candidates.
+- `string_literal_audit` (safeRead) — hardcoded user-facing strings not routed through localization.
+- `force_unwrap_scan` (safeRead) — force unwraps (!), try!, as! across Swift sources.
+
+### File operations
+
+- `dir_size_report` (safeRead) — recursive disk usage per subdirectory, largest first.
+- `find_duplicate_files` (safeRead) — byte-identical duplicates via SHA-256 content hashing.
+- `file_type_breakdown` (safeRead) — file counts and bytes per extension.
+- `empty_dirs_find` (safeRead) — empty directories, candidates for cleanup.
+- `file_head_preview` (safeRead) — first N lines of a file with encoding detection; never dumps whole files.
+- `symlink_audit` (safeRead) — symbolic links with targets, flagging broken links.
+- `executable_files_scan` (safeRead) — files with the executable bit set.
+
+### Diagnostics
+
+- `build_log_analyze` (safeRead) — parse xcodebuild logs: errors, warnings, build result.
+- `scheme_test_plan_list` (safeRead) — .xctestplan files and the test targets each covers.
+- `code_signing_diagnose` (safeRead) — codesign diagnosis of a built product: validity, authority, team id, hardened runtime. Fixed-argv /usr/bin/codesign, approval-exempt.
+- `crash_log_parse` (safeRead) — parse .crash/.ips logs: exception type, termination reason, faulting thread, blamed frames.
+- `entitlements_diff` (safeRead) — diff two .entitlements plists: added, removed, changed keys.
+- `strings_file_validate` (safeRead) — validate .strings files: syntax, duplicate keys, empty values.
+- `deprecation_usage_scan` (safeRead) — @available(*, deprecated) declarations and their usage sites.
+- `info_plist_audit` (safeRead) — required keys, version-format sanity, duplicate bundle identifiers.
+- `api_endpoint_audit` (safeRead) — hardcoded http(s) URL literals grouped by host.
+- `color_usage_audit` (safeRead) — hardcoded colors that should live in the asset catalog.
+- `image_asset_size_report` (safeRead) — oversized images inside .xcassets catalogs.
+- `pbxproj_lint` (safeRead) — file references pointing at missing files, duplicate paths, dangling build-file refs.
+- `xctest_discovery` (safeRead) — XCTestCase subclasses and test methods, without running anything.
+
+### Build environment
+
+- `xcode_toolchain_info` (safeRead) — Xcode version, build number, installed SDKs. Fixed-argv /usr/bin/xcodebuild, approval-exempt.
+- `derived_data_locate` (safeRead) — DerivedData directories with sizes.
+- `build_settings_diff` (safeRead) — diff two .xcconfig files key-by-key.
+- `target_dependencies_list` (safeRead) — target-to-target dependencies from the pbxproj.
+- `workspace_settings_read` (safeRead) — Xcode workspace .xcsettings plists.
+- `build_phase_scripts_list` (safeRead) — Run Script build phases with truncated script bodies.
+- `build_configuration_list` (safeRead) — build configurations (Debug/Release/custom) per project and target.
+- `target_source_list` (safeRead) — source files compiled into a target (Compile Sources phase).
+
+### Documentation
+
+- `readme_generate` (safeMutation) — generate a README skeleton from real repository inspection. Refuses to overwrite without overwrite: true.
+- `docs_index_build` (safeRead) — index all Markdown files: path, title, size.
+- `code_comment_extract` (safeRead) — extract /// and /** */ doc comments per symbol or file.
+- `api_docs_coverage` (safeRead) — share of public declarations carrying doc comments.
+- `markdown_link_check` (safeRead) — validate internal links in Markdown files.
+- `markdown_toc_generate` (safeMutation) — generate a table of contents and insert/update it between TOC markers.
+
+### Native artifacts
+
+- `create_artifact` (safeMutation) — create/update/append a Markdown artifact in the native store at .assist_temp/artifacts/<name>.md. The single way to produce durable deliverables. See ArtifactsGuidelines.md.
+- `list_artifacts` (safeRead) — list all artifacts including agent_notes.md, newest first.
+- `read_artifact` (safeRead) — read an artifact's content (60k character cap, truncation marked).
+- `delete_artifact` (potentiallyDestructive) — permanently delete an artifact; requires confirm: true. agent_notes.md is protected.
+
+### Workflow
+
+- `session_progress_report` (safeRead) — engineering phases by status, failures, last agent-notes save.
+- `preflight_checks` (safeRead) — environment checks before a build: workspace writable, Xcode tools present, disk space, artifact storage.
+- `change_impact_estimate` (safeRead) — blast-radius estimate: files referencing a file's symbol name.
+- `file_backup` (safeMutation) — back up a file to .assist_temp/backups/<name>.<timestamp>.bak with size verification.
+- `conflict_marker_scan` (safeRead) — unresolved merge-conflict markers in source files.
+- `tool_capability_lookup` (safeRead) — live registry lookup: capability, risk level, parameters of any tool.
 
 ---
 

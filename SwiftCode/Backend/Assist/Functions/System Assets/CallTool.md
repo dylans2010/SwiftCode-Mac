@@ -115,6 +115,13 @@ Deterministic schema failures — fix the argument payload, never retry the iden
 ### Protocol: `version_control_operator`
 - **Actions:** `status` and `diff` are safe read-only; `commit` stages all files (`git add -A`) and commits with message; `rollback` (`git reset --hard`) is destructive — use with caution or prior snapshot.
 
+### Protocol: `create_artifact`
+- **The only deliverable path:** durable Markdown deliverables (reports, analyses, plans, summaries) are created ONLY with `create_artifact`. Never `file_write`, `code_edit`, or shell redirection for reports.
+- **Name normalization:** pass snake_case (`repository_analysis`); the tool adds `.md` and rejects unsafe names.
+- **Modes:** `create` refuses to overwrite (use `update` to replace, `append` to extend).
+- **Description:** one human sentence — it shows in the Artifacts UI list.
+- **After creating:** refer to the artifact by its display title, never the filename or tool id. Full rules: `ArtifactsGuidelines.md`.
+
 ---
 
 ## 5. Alternative Execution Strategies on Failure

@@ -82,6 +82,7 @@ Protect sensitive user data, API keys, OAuth tokens, and secret assets at all co
 Irreversible or hard-to-reverse operations in manual or interactive modes require **explicit authorization** through SwiftCode's permission approval flow (`AssistPermissionsManager`). This includes:
 
 - recursive deletes (`file_delete`, `dir_delete`, `rm -rf`, and equivalents),
+- artifact deletion (`delete_artifact` — requires `confirm: true`; `agent_notes.md` is protected and can never be deleted this way),
 - `git reset --hard` / rollback operations (`version_control_operator` with `rollback`) that discard working-tree state,
 - bulk deletions, snapshot restores (`project_restore`), workspace wipes, and memory wipes (`mem_clear`).
 

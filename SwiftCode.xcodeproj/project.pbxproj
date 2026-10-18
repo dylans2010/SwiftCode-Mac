@@ -2888,7 +2888,71 @@
 		D60589E37762A1A93286AEA0 /* AssistSecretsScanTool.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8FEC571A90E872C7848598E6 /* AssistSecretsScanTool.swift */; };
 		26AF0AC0F158BFEA6C09C205 /* AssistPermissionsAuditTool.swift in Sources */ = {isa = PBXBuildFile; fileRef = E571D24CE7D2584DFE8F5DF0 /* AssistPermissionsAuditTool.swift */; };
 		B2E95DFD1668DBAF129D8AB4 /* AssistAccessibilityAuditTool.swift in Sources */ = {isa = PBXBuildFile; fileRef = E12BA39964DE3A4EB5CEBCC8 /* AssistAccessibilityAuditTool.swift */; };
-		F6D49130DEBEE83CF10E6D3F /* AssistSessionExportTool.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0DE4BCC8F14C6628D3E4A2C7 /* AssistSessionExportTool.swift */; };/* End PBXBuildFile section */
+		F6D49130DEBEE83CF10E6D3F /* AssistSessionExportTool.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0DE4BCC8F14C6628D3E4A2C7 /* AssistSessionExportTool.swift */; };
+		C0DE00020000000000000001 /* AssistToolSharedHelpers.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0DE00010000000000000001 /* AssistToolSharedHelpers.swift */; };
+		C0DE00020000000000000002 /* AssistArtifactStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0DE00010000000000000002 /* AssistArtifactStore.swift */; };
+		C0DE00020000000000000003 /* AssistApiDocsCoverageTool.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0DE00010000000000000003 /* AssistApiDocsCoverageTool.swift */; };
+		C0DE00020000000000000004 /* AssistApiEndpointAuditTool.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0DE00010000000000000004 /* AssistApiEndpointAuditTool.swift */; };
+		C0DE00020000000000000005 /* AssistBuildConfigurationListTool.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0DE00010000000000000005 /* AssistBuildConfigurationListTool.swift */; };
+		C0DE00020000000000000006 /* AssistBuildLogAnalyzeTool.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0DE00010000000000000006 /* AssistBuildLogAnalyzeTool.swift */; };
+		C0DE00020000000000000007 /* AssistBuildPhaseScriptsListTool.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0DE00010000000000000007 /* AssistBuildPhaseScriptsListTool.swift */; };
+		C0DE00020000000000000008 /* AssistBuildSettingsDiffTool.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0DE00010000000000000008 /* AssistBuildSettingsDiffTool.swift */; };
+		C0DE00020000000000000009 /* AssistBuildSystemDetectTool.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0DE00010000000000000009 /* AssistBuildSystemDetectTool.swift */; };
+		C0DE00020000000000000010 /* AssistCallHierarchyTool.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0DE00010000000000000010 /* AssistCallHierarchyTool.swift */; };
+		C0DE00020000000000000011 /* AssistChangeImpactEstimateTool.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0DE00010000000000000011 /* AssistChangeImpactEstimateTool.swift */; };
+		C0DE00020000000000000012 /* AssistCodeCommentExtractTool.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0DE00010000000000000012 /* AssistCodeCommentExtractTool.swift */; };
+		C0DE00020000000000000013 /* AssistCodeSigningDiagnoseTool.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0DE00010000000000000013 /* AssistCodeSigningDiagnoseTool.swift */; };
+		C0DE00020000000000000014 /* AssistColorUsageAuditTool.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0DE00010000000000000014 /* AssistColorUsageAuditTool.swift */; };
+		C0DE00020000000000000015 /* AssistCommentDensityReportTool.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0DE00010000000000000015 /* AssistCommentDensityReportTool.swift */; };
+		C0DE00020000000000000016 /* AssistConflictMarkerScanTool.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0DE00010000000000000016 /* AssistConflictMarkerScanTool.swift */; };
+		C0DE00020000000000000017 /* AssistCrashLogParseTool.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0DE00010000000000000017 /* AssistCrashLogParseTool.swift */; };
+		C0DE00020000000000000018 /* AssistCreateArtifactTool.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0DE00010000000000000018 /* AssistCreateArtifactTool.swift */; };
+		C0DE00020000000000000019 /* AssistDeleteArtifactTool.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0DE00010000000000000019 /* AssistDeleteArtifactTool.swift */; };
+		C0DE00020000000000000020 /* AssistDependencyLicensesTool.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0DE00010000000000000020 /* AssistDependencyLicensesTool.swift */; };
+		C0DE00020000000000000021 /* AssistDeprecationUsageScanTool.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0DE00010000000000000021 /* AssistDeprecationUsageScanTool.swift */; };
+		C0DE00020000000000000022 /* AssistDerivedDataLocateTool.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0DE00010000000000000022 /* AssistDerivedDataLocateTool.swift */; };
+		C0DE00020000000000000023 /* AssistDirSizeReportTool.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0DE00010000000000000023 /* AssistDirSizeReportTool.swift */; };
+		C0DE00020000000000000024 /* AssistDocsIndexBuildTool.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0DE00010000000000000024 /* AssistDocsIndexBuildTool.swift */; };
+		C0DE00020000000000000025 /* AssistEmptyDirsFindTool.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0DE00010000000000000025 /* AssistEmptyDirsFindTool.swift */; };
+		C0DE00020000000000000026 /* AssistEntitlementsDiffTool.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0DE00010000000000000026 /* AssistEntitlementsDiffTool.swift */; };
+		C0DE00020000000000000027 /* AssistEntryPointsDiscoverTool.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0DE00010000000000000027 /* AssistEntryPointsDiscoverTool.swift */; };
+		C0DE00020000000000000028 /* AssistExecutableFilesScanTool.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0DE00010000000000000028 /* AssistExecutableFilesScanTool.swift */; };
+		C0DE00020000000000000029 /* AssistFileBackupTool.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0DE00010000000000000029 /* AssistFileBackupTool.swift */; };
+		C0DE00020000000000000030 /* AssistFileHeadPreviewTool.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0DE00010000000000000030 /* AssistFileHeadPreviewTool.swift */; };
+		C0DE00020000000000000031 /* AssistFileTypeBreakdownTool.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0DE00010000000000000031 /* AssistFileTypeBreakdownTool.swift */; };
+		C0DE00020000000000000032 /* AssistFindDuplicateFilesTool.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0DE00010000000000000032 /* AssistFindDuplicateFilesTool.swift */; };
+		C0DE00020000000000000033 /* AssistForceUnwrapScanTool.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0DE00010000000000000033 /* AssistForceUnwrapScanTool.swift */; };
+		C0DE00020000000000000034 /* AssistFunctionSizeReportTool.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0DE00010000000000000034 /* AssistFunctionSizeReportTool.swift */; };
+		C0DE00020000000000000035 /* AssistImageAssetSizeReportTool.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0DE00010000000000000035 /* AssistImageAssetSizeReportTool.swift */; };
+		C0DE00020000000000000036 /* AssistImportGraphTool.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0DE00010000000000000036 /* AssistImportGraphTool.swift */; };
+		C0DE00020000000000000037 /* AssistInfoPlistAuditTool.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0DE00010000000000000037 /* AssistInfoPlistAuditTool.swift */; };
+		C0DE00020000000000000038 /* AssistListArtifactsTool.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0DE00010000000000000038 /* AssistListArtifactsTool.swift */; };
+		C0DE00020000000000000039 /* AssistMarkdownLinkCheckTool.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0DE00010000000000000039 /* AssistMarkdownLinkCheckTool.swift */; };
+		C0DE00020000000000000040 /* AssistMarkdownTocGenerateTool.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0DE00010000000000000040 /* AssistMarkdownTocGenerateTool.swift */; };
+		C0DE00020000000000000041 /* AssistPbxprojLintTool.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0DE00010000000000000041 /* AssistPbxprojLintTool.swift */; };
+		C0DE00020000000000000042 /* AssistPreflightChecksTool.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0DE00010000000000000042 /* AssistPreflightChecksTool.swift */; };
+		C0DE00020000000000000043 /* AssistProjectStructureMapTool.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0DE00010000000000000043 /* AssistProjectStructureMapTool.swift */; };
+		C0DE00020000000000000044 /* AssistProtocolConformanceListTool.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0DE00010000000000000044 /* AssistProtocolConformanceListTool.swift */; };
+		C0DE00020000000000000045 /* AssistReadArtifactTool.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0DE00010000000000000045 /* AssistReadArtifactTool.swift */; };
+		C0DE00020000000000000046 /* AssistReadmeGenerateTool.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0DE00010000000000000046 /* AssistReadmeGenerateTool.swift */; };
+		C0DE00020000000000000047 /* AssistReadmeLocateTool.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0DE00010000000000000047 /* AssistReadmeLocateTool.swift */; };
+		C0DE00020000000000000048 /* AssistRecentChangesTool.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0DE00010000000000000048 /* AssistRecentChangesTool.swift */; };
+		C0DE00020000000000000049 /* AssistRepoOverviewTool.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0DE00010000000000000049 /* AssistRepoOverviewTool.swift */; };
+		C0DE00020000000000000050 /* AssistSchemeTestPlanListTool.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0DE00010000000000000050 /* AssistSchemeTestPlanListTool.swift */; };
+		C0DE00020000000000000051 /* AssistSessionProgressReportTool.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0DE00010000000000000051 /* AssistSessionProgressReportTool.swift */; };
+		C0DE00020000000000000052 /* AssistStaleFilesReportTool.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0DE00010000000000000052 /* AssistStaleFilesReportTool.swift */; };
+		C0DE00020000000000000053 /* AssistStringLiteralAuditTool.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0DE00010000000000000053 /* AssistStringLiteralAuditTool.swift */; };
+		C0DE00020000000000000054 /* AssistStringsFileValidateTool.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0DE00010000000000000054 /* AssistStringsFileValidateTool.swift */; };
+		C0DE00020000000000000055 /* AssistSymlinkAuditTool.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0DE00010000000000000055 /* AssistSymlinkAuditTool.swift */; };
+		C0DE00020000000000000056 /* AssistTargetDependenciesListTool.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0DE00010000000000000056 /* AssistTargetDependenciesListTool.swift */; };
+		C0DE00020000000000000057 /* AssistTargetSourceListTool.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0DE00010000000000000057 /* AssistTargetSourceListTool.swift */; };
+		C0DE00020000000000000058 /* AssistToolCapabilityLookupTool.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0DE00010000000000000058 /* AssistToolCapabilityLookupTool.swift */; };
+		C0DE00020000000000000059 /* AssistTypeHierarchyTool.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0DE00010000000000000059 /* AssistTypeHierarchyTool.swift */; };
+		C0DE00020000000000000060 /* AssistWorkspaceSettingsReadTool.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0DE00010000000000000060 /* AssistWorkspaceSettingsReadTool.swift */; };
+		C0DE00020000000000000061 /* AssistXcodeToolchainInfoTool.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0DE00010000000000000061 /* AssistXcodeToolchainInfoTool.swift */; };
+		C0DE00020000000000000062 /* AssistXctestDiscoveryTool.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0DE00010000000000000062 /* AssistXctestDiscoveryTool.swift */; };
+		C0DE00020000000000000063 /* AssistArtifactsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C0DE00010000000000000063 /* AssistArtifactsView.swift */; };
+/* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
 		BBA200010000000000000001 /* AssistSaveToMemoryTool.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssistSaveToMemoryTool.swift; sourceTree = "<group>"; };
@@ -5755,7 +5819,70 @@
 		8FEC571A90E872C7848598E6 /* AssistSecretsScanTool.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssistSecretsScanTool.swift; sourceTree = "<group>"; };
 		E571D24CE7D2584DFE8F5DF0 /* AssistPermissionsAuditTool.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssistPermissionsAuditTool.swift; sourceTree = "<group>"; };
 		E12BA39964DE3A4EB5CEBCC8 /* AssistAccessibilityAuditTool.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssistAccessibilityAuditTool.swift; sourceTree = "<group>"; };
-		0DE4BCC8F14C6628D3E4A2C7 /* AssistSessionExportTool.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssistSessionExportTool.swift; sourceTree = "<group>"; };/* End PBXFileReference section */
+		0DE4BCC8F14C6628D3E4A2C7 /* AssistSessionExportTool.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssistSessionExportTool.swift; sourceTree = "<group>"; };		C0DE00010000000000000001 /* AssistToolSharedHelpers.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssistToolSharedHelpers.swift; sourceTree = "<group>"; };
+		C0DE00010000000000000002 /* AssistArtifactStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssistArtifactStore.swift; sourceTree = "<group>"; };
+		C0DE00010000000000000003 /* AssistApiDocsCoverageTool.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssistApiDocsCoverageTool.swift; sourceTree = "<group>"; };
+		C0DE00010000000000000004 /* AssistApiEndpointAuditTool.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssistApiEndpointAuditTool.swift; sourceTree = "<group>"; };
+		C0DE00010000000000000005 /* AssistBuildConfigurationListTool.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssistBuildConfigurationListTool.swift; sourceTree = "<group>"; };
+		C0DE00010000000000000006 /* AssistBuildLogAnalyzeTool.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssistBuildLogAnalyzeTool.swift; sourceTree = "<group>"; };
+		C0DE00010000000000000007 /* AssistBuildPhaseScriptsListTool.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssistBuildPhaseScriptsListTool.swift; sourceTree = "<group>"; };
+		C0DE00010000000000000008 /* AssistBuildSettingsDiffTool.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssistBuildSettingsDiffTool.swift; sourceTree = "<group>"; };
+		C0DE00010000000000000009 /* AssistBuildSystemDetectTool.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssistBuildSystemDetectTool.swift; sourceTree = "<group>"; };
+		C0DE00010000000000000010 /* AssistCallHierarchyTool.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssistCallHierarchyTool.swift; sourceTree = "<group>"; };
+		C0DE00010000000000000011 /* AssistChangeImpactEstimateTool.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssistChangeImpactEstimateTool.swift; sourceTree = "<group>"; };
+		C0DE00010000000000000012 /* AssistCodeCommentExtractTool.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssistCodeCommentExtractTool.swift; sourceTree = "<group>"; };
+		C0DE00010000000000000013 /* AssistCodeSigningDiagnoseTool.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssistCodeSigningDiagnoseTool.swift; sourceTree = "<group>"; };
+		C0DE00010000000000000014 /* AssistColorUsageAuditTool.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssistColorUsageAuditTool.swift; sourceTree = "<group>"; };
+		C0DE00010000000000000015 /* AssistCommentDensityReportTool.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssistCommentDensityReportTool.swift; sourceTree = "<group>"; };
+		C0DE00010000000000000016 /* AssistConflictMarkerScanTool.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssistConflictMarkerScanTool.swift; sourceTree = "<group>"; };
+		C0DE00010000000000000017 /* AssistCrashLogParseTool.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssistCrashLogParseTool.swift; sourceTree = "<group>"; };
+		C0DE00010000000000000018 /* AssistCreateArtifactTool.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssistCreateArtifactTool.swift; sourceTree = "<group>"; };
+		C0DE00010000000000000019 /* AssistDeleteArtifactTool.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssistDeleteArtifactTool.swift; sourceTree = "<group>"; };
+		C0DE00010000000000000020 /* AssistDependencyLicensesTool.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssistDependencyLicensesTool.swift; sourceTree = "<group>"; };
+		C0DE00010000000000000021 /* AssistDeprecationUsageScanTool.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssistDeprecationUsageScanTool.swift; sourceTree = "<group>"; };
+		C0DE00010000000000000022 /* AssistDerivedDataLocateTool.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssistDerivedDataLocateTool.swift; sourceTree = "<group>"; };
+		C0DE00010000000000000023 /* AssistDirSizeReportTool.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssistDirSizeReportTool.swift; sourceTree = "<group>"; };
+		C0DE00010000000000000024 /* AssistDocsIndexBuildTool.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssistDocsIndexBuildTool.swift; sourceTree = "<group>"; };
+		C0DE00010000000000000025 /* AssistEmptyDirsFindTool.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssistEmptyDirsFindTool.swift; sourceTree = "<group>"; };
+		C0DE00010000000000000026 /* AssistEntitlementsDiffTool.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssistEntitlementsDiffTool.swift; sourceTree = "<group>"; };
+		C0DE00010000000000000027 /* AssistEntryPointsDiscoverTool.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssistEntryPointsDiscoverTool.swift; sourceTree = "<group>"; };
+		C0DE00010000000000000028 /* AssistExecutableFilesScanTool.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssistExecutableFilesScanTool.swift; sourceTree = "<group>"; };
+		C0DE00010000000000000029 /* AssistFileBackupTool.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssistFileBackupTool.swift; sourceTree = "<group>"; };
+		C0DE00010000000000000030 /* AssistFileHeadPreviewTool.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssistFileHeadPreviewTool.swift; sourceTree = "<group>"; };
+		C0DE00010000000000000031 /* AssistFileTypeBreakdownTool.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssistFileTypeBreakdownTool.swift; sourceTree = "<group>"; };
+		C0DE00010000000000000032 /* AssistFindDuplicateFilesTool.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssistFindDuplicateFilesTool.swift; sourceTree = "<group>"; };
+		C0DE00010000000000000033 /* AssistForceUnwrapScanTool.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssistForceUnwrapScanTool.swift; sourceTree = "<group>"; };
+		C0DE00010000000000000034 /* AssistFunctionSizeReportTool.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssistFunctionSizeReportTool.swift; sourceTree = "<group>"; };
+		C0DE00010000000000000035 /* AssistImageAssetSizeReportTool.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssistImageAssetSizeReportTool.swift; sourceTree = "<group>"; };
+		C0DE00010000000000000036 /* AssistImportGraphTool.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssistImportGraphTool.swift; sourceTree = "<group>"; };
+		C0DE00010000000000000037 /* AssistInfoPlistAuditTool.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssistInfoPlistAuditTool.swift; sourceTree = "<group>"; };
+		C0DE00010000000000000038 /* AssistListArtifactsTool.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssistListArtifactsTool.swift; sourceTree = "<group>"; };
+		C0DE00010000000000000039 /* AssistMarkdownLinkCheckTool.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssistMarkdownLinkCheckTool.swift; sourceTree = "<group>"; };
+		C0DE00010000000000000040 /* AssistMarkdownTocGenerateTool.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssistMarkdownTocGenerateTool.swift; sourceTree = "<group>"; };
+		C0DE00010000000000000041 /* AssistPbxprojLintTool.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssistPbxprojLintTool.swift; sourceTree = "<group>"; };
+		C0DE00010000000000000042 /* AssistPreflightChecksTool.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssistPreflightChecksTool.swift; sourceTree = "<group>"; };
+		C0DE00010000000000000043 /* AssistProjectStructureMapTool.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssistProjectStructureMapTool.swift; sourceTree = "<group>"; };
+		C0DE00010000000000000044 /* AssistProtocolConformanceListTool.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssistProtocolConformanceListTool.swift; sourceTree = "<group>"; };
+		C0DE00010000000000000045 /* AssistReadArtifactTool.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssistReadArtifactTool.swift; sourceTree = "<group>"; };
+		C0DE00010000000000000046 /* AssistReadmeGenerateTool.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssistReadmeGenerateTool.swift; sourceTree = "<group>"; };
+		C0DE00010000000000000047 /* AssistReadmeLocateTool.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssistReadmeLocateTool.swift; sourceTree = "<group>"; };
+		C0DE00010000000000000048 /* AssistRecentChangesTool.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssistRecentChangesTool.swift; sourceTree = "<group>"; };
+		C0DE00010000000000000049 /* AssistRepoOverviewTool.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssistRepoOverviewTool.swift; sourceTree = "<group>"; };
+		C0DE00010000000000000050 /* AssistSchemeTestPlanListTool.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssistSchemeTestPlanListTool.swift; sourceTree = "<group>"; };
+		C0DE00010000000000000051 /* AssistSessionProgressReportTool.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssistSessionProgressReportTool.swift; sourceTree = "<group>"; };
+		C0DE00010000000000000052 /* AssistStaleFilesReportTool.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssistStaleFilesReportTool.swift; sourceTree = "<group>"; };
+		C0DE00010000000000000053 /* AssistStringLiteralAuditTool.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssistStringLiteralAuditTool.swift; sourceTree = "<group>"; };
+		C0DE00010000000000000054 /* AssistStringsFileValidateTool.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssistStringsFileValidateTool.swift; sourceTree = "<group>"; };
+		C0DE00010000000000000055 /* AssistSymlinkAuditTool.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssistSymlinkAuditTool.swift; sourceTree = "<group>"; };
+		C0DE00010000000000000056 /* AssistTargetDependenciesListTool.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssistTargetDependenciesListTool.swift; sourceTree = "<group>"; };
+		C0DE00010000000000000057 /* AssistTargetSourceListTool.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssistTargetSourceListTool.swift; sourceTree = "<group>"; };
+		C0DE00010000000000000058 /* AssistToolCapabilityLookupTool.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssistToolCapabilityLookupTool.swift; sourceTree = "<group>"; };
+		C0DE00010000000000000059 /* AssistTypeHierarchyTool.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssistTypeHierarchyTool.swift; sourceTree = "<group>"; };
+		C0DE00010000000000000060 /* AssistWorkspaceSettingsReadTool.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssistWorkspaceSettingsReadTool.swift; sourceTree = "<group>"; };
+		C0DE00010000000000000061 /* AssistXcodeToolchainInfoTool.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssistXcodeToolchainInfoTool.swift; sourceTree = "<group>"; };
+		C0DE00010000000000000062 /* AssistXctestDiscoveryTool.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssistXctestDiscoveryTool.swift; sourceTree = "<group>"; };
+		C0DE00010000000000000063 /* AssistArtifactsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssistArtifactsView.swift; sourceTree = "<group>"; };
+/* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
 		3A28CEECA038D3331DF426E2 /* Frameworks */ = {
@@ -6130,6 +6257,67 @@
 				E571D24CE7D2584DFE8F5DF0 /* AssistPermissionsAuditTool.swift */,
 				E12BA39964DE3A4EB5CEBCC8 /* AssistAccessibilityAuditTool.swift */,
 				0DE4BCC8F14C6628D3E4A2C7 /* AssistSessionExportTool.swift */,
+				C0DE00010000000000000001 /* AssistToolSharedHelpers.swift */,
+				C0DE00010000000000000003 /* AssistApiDocsCoverageTool.swift */,
+				C0DE00010000000000000004 /* AssistApiEndpointAuditTool.swift */,
+				C0DE00010000000000000005 /* AssistBuildConfigurationListTool.swift */,
+				C0DE00010000000000000006 /* AssistBuildLogAnalyzeTool.swift */,
+				C0DE00010000000000000007 /* AssistBuildPhaseScriptsListTool.swift */,
+				C0DE00010000000000000008 /* AssistBuildSettingsDiffTool.swift */,
+				C0DE00010000000000000009 /* AssistBuildSystemDetectTool.swift */,
+				C0DE00010000000000000010 /* AssistCallHierarchyTool.swift */,
+				C0DE00010000000000000011 /* AssistChangeImpactEstimateTool.swift */,
+				C0DE00010000000000000012 /* AssistCodeCommentExtractTool.swift */,
+				C0DE00010000000000000013 /* AssistCodeSigningDiagnoseTool.swift */,
+				C0DE00010000000000000014 /* AssistColorUsageAuditTool.swift */,
+				C0DE00010000000000000015 /* AssistCommentDensityReportTool.swift */,
+				C0DE00010000000000000016 /* AssistConflictMarkerScanTool.swift */,
+				C0DE00010000000000000017 /* AssistCrashLogParseTool.swift */,
+				C0DE00010000000000000018 /* AssistCreateArtifactTool.swift */,
+				C0DE00010000000000000019 /* AssistDeleteArtifactTool.swift */,
+				C0DE00010000000000000020 /* AssistDependencyLicensesTool.swift */,
+				C0DE00010000000000000021 /* AssistDeprecationUsageScanTool.swift */,
+				C0DE00010000000000000022 /* AssistDerivedDataLocateTool.swift */,
+				C0DE00010000000000000023 /* AssistDirSizeReportTool.swift */,
+				C0DE00010000000000000024 /* AssistDocsIndexBuildTool.swift */,
+				C0DE00010000000000000025 /* AssistEmptyDirsFindTool.swift */,
+				C0DE00010000000000000026 /* AssistEntitlementsDiffTool.swift */,
+				C0DE00010000000000000027 /* AssistEntryPointsDiscoverTool.swift */,
+				C0DE00010000000000000028 /* AssistExecutableFilesScanTool.swift */,
+				C0DE00010000000000000029 /* AssistFileBackupTool.swift */,
+				C0DE00010000000000000030 /* AssistFileHeadPreviewTool.swift */,
+				C0DE00010000000000000031 /* AssistFileTypeBreakdownTool.swift */,
+				C0DE00010000000000000032 /* AssistFindDuplicateFilesTool.swift */,
+				C0DE00010000000000000033 /* AssistForceUnwrapScanTool.swift */,
+				C0DE00010000000000000034 /* AssistFunctionSizeReportTool.swift */,
+				C0DE00010000000000000035 /* AssistImageAssetSizeReportTool.swift */,
+				C0DE00010000000000000036 /* AssistImportGraphTool.swift */,
+				C0DE00010000000000000037 /* AssistInfoPlistAuditTool.swift */,
+				C0DE00010000000000000038 /* AssistListArtifactsTool.swift */,
+				C0DE00010000000000000039 /* AssistMarkdownLinkCheckTool.swift */,
+				C0DE00010000000000000040 /* AssistMarkdownTocGenerateTool.swift */,
+				C0DE00010000000000000041 /* AssistPbxprojLintTool.swift */,
+				C0DE00010000000000000042 /* AssistPreflightChecksTool.swift */,
+				C0DE00010000000000000043 /* AssistProjectStructureMapTool.swift */,
+				C0DE00010000000000000044 /* AssistProtocolConformanceListTool.swift */,
+				C0DE00010000000000000045 /* AssistReadArtifactTool.swift */,
+				C0DE00010000000000000046 /* AssistReadmeGenerateTool.swift */,
+				C0DE00010000000000000047 /* AssistReadmeLocateTool.swift */,
+				C0DE00010000000000000048 /* AssistRecentChangesTool.swift */,
+				C0DE00010000000000000049 /* AssistRepoOverviewTool.swift */,
+				C0DE00010000000000000050 /* AssistSchemeTestPlanListTool.swift */,
+				C0DE00010000000000000051 /* AssistSessionProgressReportTool.swift */,
+				C0DE00010000000000000052 /* AssistStaleFilesReportTool.swift */,
+				C0DE00010000000000000053 /* AssistStringLiteralAuditTool.swift */,
+				C0DE00010000000000000054 /* AssistStringsFileValidateTool.swift */,
+				C0DE00010000000000000055 /* AssistSymlinkAuditTool.swift */,
+				C0DE00010000000000000056 /* AssistTargetDependenciesListTool.swift */,
+				C0DE00010000000000000057 /* AssistTargetSourceListTool.swift */,
+				C0DE00010000000000000058 /* AssistToolCapabilityLookupTool.swift */,
+				C0DE00010000000000000059 /* AssistTypeHierarchyTool.swift */,
+				C0DE00010000000000000060 /* AssistWorkspaceSettingsReadTool.swift */,
+				C0DE00010000000000000061 /* AssistXcodeToolchainInfoTool.swift */,
+				C0DE00010000000000000062 /* AssistXctestDiscoveryTool.swift */,
 			);
 			path = Tools;
 			sourceTree = "<group>";
@@ -6548,6 +6736,7 @@
 				277B2689C37E945ED7BC0C66 /* AssistUserTakeover.swift */,
 				A1000007F001000100000007 /* AssistComposerPopup.swift */,
 				8D9E0004000100010000000D /* MetaCommandArgumentPickerView.swift */,
+				C0DE00010000000000000063 /* AssistArtifactsView.swift */,
 			);
 			path = Assist;
 			sourceTree = "<group>";
@@ -8091,6 +8280,7 @@
 				A1000001F001000100000001 /* AssistRequestMetrics.swift */,
 				A1000002F001000100000002 /* AssistTaskContext.swift */,
 				C0FD39B3AB44A8C73FEBBD9E /* TerminalApprovalSettings.swift */,
+				C0DE00010000000000000002 /* AssistArtifactStore.swift */,
 			);
 			path = Assist;
 			sourceTree = "<group>";
@@ -13770,6 +13960,69 @@
 			buildConfigurations = (
 				B5BAF5E53768F7A4E6398644 /* Debug */,
 				CCBF82BD9691DFDB610FD9AC /* Release */,
+				C0DE00020000000000000001 /* AssistToolSharedHelpers.swift in Sources */,
+				C0DE00020000000000000002 /* AssistArtifactStore.swift in Sources */,
+				C0DE00020000000000000003 /* AssistApiDocsCoverageTool.swift in Sources */,
+				C0DE00020000000000000004 /* AssistApiEndpointAuditTool.swift in Sources */,
+				C0DE00020000000000000005 /* AssistBuildConfigurationListTool.swift in Sources */,
+				C0DE00020000000000000006 /* AssistBuildLogAnalyzeTool.swift in Sources */,
+				C0DE00020000000000000007 /* AssistBuildPhaseScriptsListTool.swift in Sources */,
+				C0DE00020000000000000008 /* AssistBuildSettingsDiffTool.swift in Sources */,
+				C0DE00020000000000000009 /* AssistBuildSystemDetectTool.swift in Sources */,
+				C0DE00020000000000000010 /* AssistCallHierarchyTool.swift in Sources */,
+				C0DE00020000000000000011 /* AssistChangeImpactEstimateTool.swift in Sources */,
+				C0DE00020000000000000012 /* AssistCodeCommentExtractTool.swift in Sources */,
+				C0DE00020000000000000013 /* AssistCodeSigningDiagnoseTool.swift in Sources */,
+				C0DE00020000000000000014 /* AssistColorUsageAuditTool.swift in Sources */,
+				C0DE00020000000000000015 /* AssistCommentDensityReportTool.swift in Sources */,
+				C0DE00020000000000000016 /* AssistConflictMarkerScanTool.swift in Sources */,
+				C0DE00020000000000000017 /* AssistCrashLogParseTool.swift in Sources */,
+				C0DE00020000000000000018 /* AssistCreateArtifactTool.swift in Sources */,
+				C0DE00020000000000000019 /* AssistDeleteArtifactTool.swift in Sources */,
+				C0DE00020000000000000020 /* AssistDependencyLicensesTool.swift in Sources */,
+				C0DE00020000000000000021 /* AssistDeprecationUsageScanTool.swift in Sources */,
+				C0DE00020000000000000022 /* AssistDerivedDataLocateTool.swift in Sources */,
+				C0DE00020000000000000023 /* AssistDirSizeReportTool.swift in Sources */,
+				C0DE00020000000000000024 /* AssistDocsIndexBuildTool.swift in Sources */,
+				C0DE00020000000000000025 /* AssistEmptyDirsFindTool.swift in Sources */,
+				C0DE00020000000000000026 /* AssistEntitlementsDiffTool.swift in Sources */,
+				C0DE00020000000000000027 /* AssistEntryPointsDiscoverTool.swift in Sources */,
+				C0DE00020000000000000028 /* AssistExecutableFilesScanTool.swift in Sources */,
+				C0DE00020000000000000029 /* AssistFileBackupTool.swift in Sources */,
+				C0DE00020000000000000030 /* AssistFileHeadPreviewTool.swift in Sources */,
+				C0DE00020000000000000031 /* AssistFileTypeBreakdownTool.swift in Sources */,
+				C0DE00020000000000000032 /* AssistFindDuplicateFilesTool.swift in Sources */,
+				C0DE00020000000000000033 /* AssistForceUnwrapScanTool.swift in Sources */,
+				C0DE00020000000000000034 /* AssistFunctionSizeReportTool.swift in Sources */,
+				C0DE00020000000000000035 /* AssistImageAssetSizeReportTool.swift in Sources */,
+				C0DE00020000000000000036 /* AssistImportGraphTool.swift in Sources */,
+				C0DE00020000000000000037 /* AssistInfoPlistAuditTool.swift in Sources */,
+				C0DE00020000000000000038 /* AssistListArtifactsTool.swift in Sources */,
+				C0DE00020000000000000039 /* AssistMarkdownLinkCheckTool.swift in Sources */,
+				C0DE00020000000000000040 /* AssistMarkdownTocGenerateTool.swift in Sources */,
+				C0DE00020000000000000041 /* AssistPbxprojLintTool.swift in Sources */,
+				C0DE00020000000000000042 /* AssistPreflightChecksTool.swift in Sources */,
+				C0DE00020000000000000043 /* AssistProjectStructureMapTool.swift in Sources */,
+				C0DE00020000000000000044 /* AssistProtocolConformanceListTool.swift in Sources */,
+				C0DE00020000000000000045 /* AssistReadArtifactTool.swift in Sources */,
+				C0DE00020000000000000046 /* AssistReadmeGenerateTool.swift in Sources */,
+				C0DE00020000000000000047 /* AssistReadmeLocateTool.swift in Sources */,
+				C0DE00020000000000000048 /* AssistRecentChangesTool.swift in Sources */,
+				C0DE00020000000000000049 /* AssistRepoOverviewTool.swift in Sources */,
+				C0DE00020000000000000050 /* AssistSchemeTestPlanListTool.swift in Sources */,
+				C0DE00020000000000000051 /* AssistSessionProgressReportTool.swift in Sources */,
+				C0DE00020000000000000052 /* AssistStaleFilesReportTool.swift in Sources */,
+				C0DE00020000000000000053 /* AssistStringLiteralAuditTool.swift in Sources */,
+				C0DE00020000000000000054 /* AssistStringsFileValidateTool.swift in Sources */,
+				C0DE00020000000000000055 /* AssistSymlinkAuditTool.swift in Sources */,
+				C0DE00020000000000000056 /* AssistTargetDependenciesListTool.swift in Sources */,
+				C0DE00020000000000000057 /* AssistTargetSourceListTool.swift in Sources */,
+				C0DE00020000000000000058 /* AssistToolCapabilityLookupTool.swift in Sources */,
+				C0DE00020000000000000059 /* AssistTypeHierarchyTool.swift in Sources */,
+				C0DE00020000000000000060 /* AssistWorkspaceSettingsReadTool.swift in Sources */,
+				C0DE00020000000000000061 /* AssistXcodeToolchainInfoTool.swift in Sources */,
+				C0DE00020000000000000062 /* AssistXctestDiscoveryTool.swift in Sources */,
+				C0DE00020000000000000063 /* AssistArtifactsView.swift in Sources */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;

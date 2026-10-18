@@ -11,6 +11,7 @@ public struct AssistMainView: View {
     @State private var isEnhancingPrompt = false
     @State private var showDiagnosticsSheet = false
     @State private var showAgentNotesSheet = false
+    @State private var showArtifactsSheet = false
     @State private var showExecutionModeSheet = false
     @State private var showApprovalSheet = false
     @State private var searchConversationText = ""
@@ -149,6 +150,24 @@ public struct AssistMainView: View {
                     .help("Inspect Real Execution Plan & Phase Matrix")
                     .transition(.scale.combined(with: .opacity))
                 }
+
+                // Artifacts Trigger (native Markdown deliverable library)
+                Button {
+                    showArtifactsSheet = true
+                } label: {
+                    HStack(spacing: 5) {
+                        Image(systemName: "doc.richtext")
+                            .font(.caption)
+                        Text("Artifacts")
+                            .font(.caption.weight(.medium))
+                    }
+                    .foregroundStyle(Color.accentColor)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 4)
+                    .background(Color.accentColor.opacity(0.12), in: Capsule())
+                }
+                .buttonStyle(.plain)
+                .help("Browse Saved Artifacts")
 
                 // Feedback Trigger
                 AssistHeaderFeedbackButton()
@@ -481,6 +500,9 @@ public struct AssistMainView: View {
         }
         .sheet(isPresented: $showAgentNotesSheet) {
             AgentNotesInspectorView()
+        }
+        .sheet(isPresented: $showArtifactsSheet) {
+            AssistArtifactsView()
         }
         .sheet(isPresented: $showCreateNewAppSheet) {
             CreateNewAppWizardView()

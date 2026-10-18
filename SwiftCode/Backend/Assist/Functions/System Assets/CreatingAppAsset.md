@@ -86,3 +86,14 @@ When creating a new application project:
   7. Verify clean build with 0 compiler diagnostics before declaring completion.
 - **App Summary Generation**:
   - Once build and testing pass, write a clean summary describing the application features, architecture, and verification results.
+
+---
+
+## 7. Bootstrapping Project Documentation
+
+For a new app project, bootstrap understanding and docs with the native tools:
+
+- `entry_points_discover` and `build_system_detect` to map how the project launches and builds.
+- `readme_generate` to produce a README skeleton from real inspection (refuses to overwrite without `overwrite: true`).
+- `markdown_toc_generate` to keep long Markdown docs navigable.
+- `api_docs_coverage` to measure documentation health of the new public API.

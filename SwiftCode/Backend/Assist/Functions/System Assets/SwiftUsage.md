@@ -73,3 +73,14 @@ Concurrency, UI, and platform conventions for anything Assist generates or reaso
 
 - API keys, OAuth tokens, and keychain items are never logged, shown in diffs, written into repository files, or echoed into generated code.
 - Secrets live in the Keychain (`KeychainService`), environment variables, or another secure store — see `Safeguards.md` for the binding rules. Assist-generated code must read credentials from those stores, never embed them.
+
+---
+
+## 4. Native Swift Analysis Tools
+
+- `call_hierarchy` — definition, callers, and callees for a function name.
+- `type_hierarchy` — declarations with inheritance/conformance; focus on one type for ancestors/descendants.
+- `protocol_conformance_list` — every type conforming to a protocol.
+- `import_graph` — file-level imports; which files import a module.
+- `comment_density_report` / `api_docs_coverage` — documentation health.
+- `code_comment_extract` — `///` and `/** */` comments per symbol or file.

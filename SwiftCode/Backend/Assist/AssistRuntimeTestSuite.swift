@@ -56,6 +56,9 @@ public final class AssistRuntimeTestSuite: Sendable {
         results.append(await testToolEcosystemFileReadLinesAndGovernance())
         results.append(await testPhaseCoordinationAndDependencyGating())
         results.append(await testAgentNotesLifecycleAndGitExclusion())
+        results.append(await testArtifactStoreLifecycle())
+        results.append(await testArtifactNamingDisplayTitles())
+        results.append(await testRegistryExpansionCount())
         results.append(await testAgentSkillDiscoveryAndMatching())
         results.append(await testAgentRepositoryScannerScopePrecedence())
         results.append(await testAgentModelAdapterCapabilityNegotiationAndJSONRepair())
@@ -575,6 +578,112 @@ public final class AssistRuntimeTestSuite: Sendable {
             testName: "Agent Notes Lifecycle & Git Exclusion",
             passed: passed,
             message: passed ? "agent_notes.md properly structured and excluded from git." : "Agent notes formatting or git exclusion failed.",
+            duration: Date().timeIntervalSince(start)
+        )
+    }
+
+    // 11a. Artifact store lifecycle (create/list/read/update/append/delete)
+    public func testArtifactStoreLifecycle() async -> RuntimeTestCaseResult {
+        let start = Date()
+        let store = await AssistArtifactStore.shared
+        let ws = URL(fileURLWithPath: NSTemporaryDirectory()).appendingPathComponent("test_artifacts_\(UUID().uuidString)")
+        try? FileManager.default.createDirectory(at: ws, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: ws) }
+
+        var ok = true
+        var notes: [String] = []
+        do {
+            // create
+            let rec = try await store.createArtifact(name: "Repository Analysis", content: "# Analysis\n\nFindings.", description: "Test analysis", mode: .create, workspaceRoot: ws)
+            ok = ok && rec.filename == "repository_analysis.md" && rec.title == "Repository Analysis"
+            // create duplicate must fail
+            do {
+                _ = try await store.createArtifact(name: "repository_analysis", content: "x", description: "", mode: .create, workspaceRoot: ws)
+                ok = false; notes.append("duplicate create did not fail")
+            } catch { }
+            // update
+            _ = try await store.createArtifact(name: "repository_analysis", content: "# Analysis v2", description: "", mode: .update, workspaceRoot: ws)
+            // append
+            _ = try await store.createArtifact(name: "repository_analysis", content: "More.", description: "", mode: .append, workspaceRoot: ws)
+            // read
+            let (readRec, content, truncated) = try await store.readArtifact(name: "repository_analysis", workspaceRoot: ws)
+            ok = ok && !truncated && content.contains("Analysis v2") && content.contains("More.") && readRec.filename == "repository_analysis.md"
+            // list
+            let listed = await store.listArtifacts(workspaceRoot: ws)
+            ok = ok && listed.contains(where: { $0.filename == "repository_analysis.md" })
+            // invalid name rejected
+            do {
+                _ = try await store.createArtifact(name: "../escape", content: "x", description: "", mode: .create, workspaceRoot: ws)
+                ok = false; notes.append("unsafe name accepted")
+            } catch { }
+            // empty content rejected
+            do {
+                _ = try await store.createArtifact(name: "empty_test", content: "   ", description: "", mode: .create, workspaceRoot: ws)
+                ok = false; notes.append("empty content accepted")
+            } catch { }
+            // delete without confirm path is tool-level; store delete works
+            let deleted = try await store.deleteArtifact(name: "repository_analysis", workspaceRoot: ws)
+            ok = ok && deleted == "repository_analysis.md"
+            // agent_notes.md is protected
+            try? "# notes".write(to: ws.appendingPathComponent("agent_notes.md"), atomically: true, encoding: .utf8)
+            do {
+                _ = try await store.deleteArtifact(name: "agent_notes", workspaceRoot: ws)
+                ok = false; notes.append("agent_notes deletion allowed")
+            } catch { }
+            ok = ok && FileManager.default.fileExists(atPath: ws.appendingPathComponent("agent_notes.md").path)
+        } catch {
+            ok = false; notes.append("unexpected: \(error.localizedDescription)")
+        }
+
+        return RuntimeTestCaseResult(
+            testName: "Artifact Store Lifecycle",
+            passed: ok,
+            message: ok ? "create/list/read/update/append/delete, name validation, and agent_notes protection verified." : "Artifact store lifecycle failed: \(notes.joined(separator: "; "))",
+            duration: Date().timeIntervalSince(start)
+        )
+    }
+
+    // 11b. Artifact naming normalization and display titles
+    public func testArtifactNamingDisplayTitles() async -> RuntimeTestCaseResult {
+        let start = Date()
+        let cases: [(String, String?)] = [
+            ("Repository Analysis", "repository_analysis.md"),
+            ("api-audit", "api_audit.md"),
+            ("My Report.MD", "my_report.md"),
+            ("../escape", nil),
+            ("a/b", nil),
+            ("", nil),
+            ("   ", nil),
+            ("UPPER CASE NAME", "upper_case_name.md"),
+        ]
+        var ok = true
+        for (input, expected) in cases {
+            let got = AssistArtifactNaming.normalize(input)
+            if got != expected { ok = false }
+        }
+        ok = ok && AssistArtifactNaming.displayTitle(for: "repository_analysis.md") == "Repository Analysis"
+        ok = ok && AssistArtifactNaming.displayTitle(for: "agent_notes.md") == "Agent Notes"
+        ok = ok && AssistArtifactNaming.displayTitle(for: "api_audit_2026_10_18.md") == "Api Audit 2026 10 18"
+        return RuntimeTestCaseResult(
+            testName: "Artifact Naming & Display Titles",
+            passed: ok,
+            message: ok ? "snake_case normalization and human-readable titles verified." : "Artifact naming transforms failed.",
+            duration: Date().timeIntervalSince(start)
+        )
+    }
+
+    // 11c. Registry holds all 275 tools including the 60 expansion tools
+    public func testRegistryExpansionCount() async -> RuntimeTestCaseResult {
+        let start = Date()
+        let registry = AssistToolRegistry.shared
+        let newIds = ["repo_overview","project_structure_map","recent_changes","readme_locate","dependency_licenses","stale_files_report","entry_points_discover","build_system_detect","call_hierarchy","type_hierarchy","protocol_conformance_list","import_graph","comment_density_report","function_size_report","string_literal_audit","force_unwrap_scan","dir_size_report","find_duplicate_files","file_type_breakdown","empty_dirs_find","file_head_preview","symlink_audit","executable_files_scan","build_log_analyze","scheme_test_plan_list","code_signing_diagnose","crash_log_parse","entitlements_diff","strings_file_validate","deprecation_usage_scan","info_plist_audit","api_endpoint_audit","color_usage_audit","image_asset_size_report","pbxproj_lint","xctest_discovery","xcode_toolchain_info","derived_data_locate","build_settings_diff","target_dependencies_list","workspace_settings_read","build_phase_scripts_list","build_configuration_list","target_source_list","readme_generate","docs_index_build","code_comment_extract","api_docs_coverage","markdown_link_check","markdown_toc_generate","create_artifact","list_artifacts","read_artifact","delete_artifact","session_progress_report","preflight_checks","change_impact_estimate","file_backup","conflict_marker_scan","tool_capability_lookup"]
+        let missing = newIds.filter { registry.getTool($0) == nil }
+        let allSchemas = registry.getToolSchemas()
+        let ok = missing.isEmpty && allSchemas.count == 275 && newIds.count == 60
+        return RuntimeTestCaseResult(
+            testName: "Registry Expansion Count",
+            passed: ok,
+            message: ok ? "275 tools registered; all 60 expansion tools resolve." : "Registry mismatch: missing=\(missing.joined(separator: ",")) schemas=\(allSchemas.count)",
             duration: Date().timeIntervalSince(start)
         )
     }

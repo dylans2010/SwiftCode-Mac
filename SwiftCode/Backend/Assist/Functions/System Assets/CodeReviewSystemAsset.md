@@ -114,3 +114,20 @@ Return `task_failed` if ANY of the following significant issues exist:
 ### Reviewer Confidence Policy
 - Your confidence score should default to `1.0` only when build logs, git diffs, and repository state confirm successful compilation and integration.
 - Reduce the confidence score (e.g., to `0.5` - `0.8`) if repository verification or build validation logs are missing or incomplete, indicating that verification is based purely on static code analysis.
+
+---
+
+## 5. Native Review & Audit Tools
+
+Use these instead of hand-rolled grep passes during review:
+
+- `force_unwrap_scan` — `!`, `try!`, `as!` constructs with locations.
+- `deprecation_usage_scan` — `@available(*, deprecated)` declarations and their live usage sites.
+- `string_literal_audit` — hardcoded user-facing strings not routed through localization.
+- `api_endpoint_audit` — hardcoded `http(s)` URL literals grouped by host (should be configurable).
+- `color_usage_audit` — hardcoded colors that belong in the asset catalog.
+- `comment_density_report` — least-documented files first.
+- `function_size_report` — longest functions, decomposition candidates.
+- `conflict_marker_scan` — unresolved merge-conflict markers.
+- `change_impact_estimate` — blast radius of changing a file (LOW/MEDIUM/HIGH with referencing files).
+- `import_graph` / `call_hierarchy` / `type_hierarchy` — structural understanding before judging a change.

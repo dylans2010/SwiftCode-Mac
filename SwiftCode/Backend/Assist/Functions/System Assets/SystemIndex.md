@@ -16,7 +16,7 @@ SystemIndex is the authoritative runtime indexing and retrieval service for the 
 
 ## 1. Responsibilities & Fallback Discovery Paths
 
-1. Discover every eligible `.md` file under the bundled `System Assets/` resources, including nested directories. No hardcoded filename list — new files become discoverable automatically.
+1. Discover every eligible `.md` file under the bundled `System Assets/` resources, including nested directories. No hardcoded filename list — new files (e.g. `ArtifactsGuidelines.md`) become discoverable automatically.
 2. **Development Fallback Paths:** When running outside an `.app` bundle (e.g. during XCTest execution), `bundledAssetsURL()` in `SystemIndex.swift` checks relative development fallback paths:
    - `<workingDir>/SwiftCode/Backend/Assist/Functions/System Assets`
    - `<workingDir>/Backend/Assist/Functions/System Assets`
