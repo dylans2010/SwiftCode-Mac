@@ -26,9 +26,12 @@ public struct ExecutionPlanTool: AssistTool {
     }
 
     public var capability: ToolCapability { .planning }
-    public var riskLevel: ToolRiskLevel { .safeRead }
-    public var isReadOnly: Bool { true }
-    public var isMutating: Bool { false }
+    // The tool writes agent_notes.md into the workspace, so it is a
+    // mutation, not a read — previously it declared isReadOnly=true while
+    // writing a file, which misled phase gates and read-only checks.
+    public var riskLevel: ToolRiskLevel { .safeMutation }
+    public var isReadOnly: Bool { false }
+    public var isMutating: Bool { true }
     public var estimatedCost: Double { 0.1 }
 
     private let logger = Logger(subsystem: "com.swiftcode.app", category: "ExecutionPlanTool")

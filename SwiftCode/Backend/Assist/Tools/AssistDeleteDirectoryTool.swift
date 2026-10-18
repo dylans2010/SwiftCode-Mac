@@ -27,11 +27,14 @@ public struct AssistDeleteDirectoryTool: AssistTool {
         }
 
         do {
-            let url = context.workspaceRoot.appendingPathComponent(path)
-            if FileManager.default.fileExists(atPath: url.path) {
-                try FileManager.default.removeItem(at: url)
+            // Route through the filesystem layer so traversal / symlink /
+            // containment checks apply. The workspace root itself is refused.
+            // Missing directories are a failure, not a silent success.
+            guard context.fileSystem.exists(at: path) else {
+                return .failure("No directory at \(path) — nothing to delete.")
             }
-            return .success("Successfully deleted directory: \(path)")
+            try context.fileSystem.deleteDirectory(at: path)
+            return .success("Successfully deleted directory: \(path)", data: ["path": path], filesChanged: [path])
         } catch {
             return .failure("Failed to delete directory at \(path): \(error.localizedDescription)")
         }

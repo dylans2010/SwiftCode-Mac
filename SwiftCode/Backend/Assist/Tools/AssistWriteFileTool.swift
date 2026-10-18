@@ -79,7 +79,7 @@ public struct AssistWriteFileTool: AssistTool {
 
             var suggestedActions: [String] = ["project_build"]
             if path.hasSuffix(".swift") {
-                suggestedActions.insert("syntax_verify", at: 0)
+                suggestedActions.insert("project_build", at: 0)
             }
 
             let duration = Date().timeIntervalSince(startTime)

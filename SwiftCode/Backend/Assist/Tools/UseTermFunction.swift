@@ -61,12 +61,22 @@ public struct UseTermFunction: AssistTool {
             return .failure("Command cannot be empty")
         }
 
-        // 1. Resolve working directory URL
+        // 1. Resolve working directory URL through the filesystem layer so
+        // traversal / symlink / containment checks apply. Empty means the
+        // session working directory (see dir_cd), not the workspace root.
         let workingDirURL: URL
-        if !relativeWorkDir.isEmpty {
-            workingDirURL = context.workspaceRoot.appendingPathComponent(relativeWorkDir)
+        if relativeWorkDir.isEmpty {
+            workingDirURL = context.fileSystem.currentDirectory
         } else {
-            workingDirURL = context.workspaceRoot
+            do {
+                workingDirURL = try context.fileSystem.resolve(relativeWorkDir)
+            } catch {
+                return .failure("Invalid workingDirectory '\(relativeWorkDir)': \(error.localizedDescription)")
+            }
+            var isDir: ObjCBool = false
+            guard FileManager.default.fileExists(atPath: workingDirURL.path, isDirectory: &isDir), isDir.boolValue else {
+                return .failure("workingDirectory does not exist or is not a directory: \(relativeWorkDir)")
+            }
         }
 
         // 2. Approval policy: the user's allow-list and Full Access toggle
@@ -108,24 +118,33 @@ public struct UseTermFunction: AssistTool {
             )
 
             let diagStrings = res.diagnostics.map { "\($0.filePath):\($0.line): \($0.severity.rawValue): \($0.message)" }
+            // Truncation is marked explicitly: a long build log must never
+            // look complete when it was cut off.
+            let stdoutTruncated = res.stdout.count > 3000
+            let stderrTruncated = res.stderr.count > 2000
+            let stdoutTail = String(res.stdout.suffix(3000)) + (stdoutTruncated ? "\n… [stdout truncated to last 3000 chars]" : "")
+            let stderrTail = String(res.stderr.suffix(2000)) + (stderrTruncated ? "\n… [stderr truncated to last 2000 chars]" : "")
             let resultData: [String: String] = [
                 "command": res.command,
                 "workingDirectory": res.workingDirectory,
-                "stdout": String(res.stdout.suffix(3000)),
-                "stderr": String(res.stderr.suffix(2000)),
+                "stdout": stdoutTail,
+                "stderr": stderrTail,
+                "stdoutTruncated": stdoutTruncated ? "true" : "false",
+                "stderrTruncated": stderrTruncated ? "true" : "false",
                 "exitCode": "\(res.exitCode)",
                 "duration": String(format: "%.2fs", res.duration)
             ]
 
             if res.isSuccess {
+                let stdoutShown = res.stdout.isEmpty ? "(No stdout output)" : String(res.stdout.suffix(2000)) + (res.stdout.count > 2000 ? "\n… [stdout truncated to last 2000 chars]" : "")
                 return AssistToolResult(
                     success: true,
-                    output: "Terminal command executed successfully (exit code 0 in \(String(format: "%.2fs", res.duration))):\n\(res.stdout.isEmpty ? "(No stdout output)" : res.stdout.suffix(2000))",
+                    output: "Terminal command executed successfully (exit code 0 in \(String(format: "%.2fs", res.duration))):\n\(stdoutShown)",
                     data: resultData,
                     diagnostics: diagStrings,
                     duration: res.duration,
                     exitCode: 0,
-                    suggestedNextActions: ["project_status", "project_build"]
+                    suggestedNextActions: ["project_diff", "project_build"]
                 )
             } else {
                 let errSummary = res.stderr.isEmpty ? res.stdout : res.stderr
@@ -138,7 +157,7 @@ public struct UseTermFunction: AssistTool {
                     diagnostics: diagStrings,
                     duration: res.duration,
                     exitCode: Int32(res.exitCode),
-                    suggestedNextActions: ["file_read", "replan"]
+                    suggestedNextActions: ["file_read", "project_diff"]
                 )
             }
         } catch {

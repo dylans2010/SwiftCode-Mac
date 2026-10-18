@@ -3,7 +3,7 @@ import Foundation
 public struct AssistDependencyResolutionEngine: AssistTool {
     public let id = "dependency_resolution_engine"
     public let name = "Dependency Resolution Engine"
-    public let description = "Adds and resolves Swift Package dependencies and integrates package references into the project."
+    public let description = "Resolves the workspace project's existing Swift Package dependencies via xcodebuild."
 
     public init() {}
 
@@ -13,9 +13,9 @@ public struct AssistDependencyResolutionEngine: AssistTool {
     public var parametersSchema: JSONSchema {
         JSONSchema(
             type: "object",
-            description: "Resolves Swift package dependencies for the project via xcodebuild. macOS only.",
+            description: "Runs xcodebuild -resolvePackageDependencies for the workspace project. NOTE: packageURL is a report label only — this tool does not add a new package dependency. Runs via an argument vector (never a shell string), bounded by a 300s timeout.",
             properties: [
-                "packageURL": JSONSchema(type: "string", description: "Package URL label for the resolution report.")
+                "packageURL": JSONSchema(type: "string", description: "Package URL label for the resolution report. The tool resolves the project's existing dependencies; it does not add this package.")
             ],
             required: ["packageURL"]
         )
@@ -30,25 +30,28 @@ public struct AssistDependencyResolutionEngine: AssistTool {
         guard let located = AssistXcodeProjectResolver.locate(in: context.workspaceRoot) else {
             return .failure("No Xcode project (.xcodeproj/.xcworkspace) found in the workspace root; cannot resolve package dependencies.")
         }
-        let resolveOutput = try run(command: "xcodebuild \(located.xcodebuildArgs.joined(separator: " ")) -resolvePackageDependencies", cwd: context.workspaceRoot.path)
-        return .success("Resolved dependencies for \(packageURL)", data: ["output": resolveOutput, "package": packageURL])
+        // Argument vector — never a shell string.
+        let args = located.xcodebuildArgs + ["-resolvePackageDependencies"]
+        let run: AssistArgvRunner.Result
+        do {
+            run = try AssistArgvRunner.run(
+                executableURL: URL(fileURLWithPath: "/usr/bin/xcodebuild"),
+                arguments: args,
+                workingDirectory: context.workspaceRoot,
+                timeout: 300
+            )
+        } catch {
+            return .failure("Failed to run xcodebuild: \(error.localizedDescription)")
+        }
+        if run.timedOut {
+            return .failure("xcodebuild -resolvePackageDependencies timed out after 300s (killed).")
+        }
+        guard run.exitCode == 0 else {
+            return .failure("Dependency resolution failed (exit code \(run.exitCode)): \(run.output.suffix(1500))")
+        }
+        return .success("Resolved dependencies for \(packageURL)", data: ["output": run.output, "package": packageURL, "exitCode": "\(run.exitCode)"])
         #else
         return .failure("Dependency resolution requires macOS runtime")
         #endif
     }
-
-    #if os(macOS)
-    private func run(command: String, cwd: String) throws -> String {
-        let p = Process()
-        let pipe = Pipe()
-        p.executableURL = URL(fileURLWithPath: "/bin/bash")
-        p.arguments = ["-lc", command]
-        p.currentDirectoryURL = URL(fileURLWithPath: cwd)
-        p.standardOutput = pipe
-        p.standardError = pipe
-        try p.run()
-        p.waitUntilExit()
-        return String(data: pipe.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8) ?? ""
-    }
-    #endif
 }

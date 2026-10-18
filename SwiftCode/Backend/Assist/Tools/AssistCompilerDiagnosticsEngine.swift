@@ -13,7 +13,7 @@ public struct AssistCompilerDiagnosticsEngine: AssistTool {
     public var parametersSchema: JSONSchema {
         JSONSchema(
             type: "object",
-            description: "Runs xcodebuild and parses warnings and errors into structured diagnostics. macOS only. Targets the user's project.",
+            description: "Runs a full xcodebuild build and parses warnings and errors into structured diagnostics. macOS only. Targets the user's project. Runs via an argument vector (never a shell string), bounded by a 300s timeout.",
             properties: [
                 "project": JSONSchema(type: "string", description: "Workspace-relative path to the .xcodeproj/.xcworkspace to diagnose. Defaults to the project found in the workspace root."),
                 "scheme": JSONSchema(type: "string", description: "Build scheme. Defaults to the project's first listed scheme.")
@@ -34,29 +34,36 @@ public struct AssistCompilerDiagnosticsEngine: AssistTool {
             return .failure("No Xcode project (.xcodeproj/.xcworkspace) found in the workspace root.")
         }
         let scheme = await AssistXcodeProjectResolver.resolveScheme(for: located, explicit: input["scheme"] as? String)
-        let cmd = "xcodebuild \(located.xcodebuildArgs.joined(separator: " ")) -scheme \(scheme) -configuration Debug build"
-        let output = try run(command: cmd, cwd: context.workspaceRoot.path)
-        let diagnostics = parseDiagnostics(output)
-        return .success("Compiler diagnostics collected.", data: diagnostics)
+        // Argument vector — never a shell string: a crafted scheme name is an
+        // inert argument here, not executable shell.
+        let args = located.xcodebuildArgs + ["-scheme", scheme, "-configuration", "Debug", "build"]
+        let run: AssistArgvRunner.Result
+        do {
+            run = try AssistArgvRunner.run(
+                executableURL: URL(fileURLWithPath: "/usr/bin/xcodebuild"),
+                arguments: args,
+                workingDirectory: context.workspaceRoot,
+                timeout: 300
+            )
+        } catch {
+            return .failure("Failed to run xcodebuild: \(error.localizedDescription)")
+        }
+        if run.timedOut {
+            return .failure("xcodebuild timed out after 300s (killed). No diagnostics collected.")
+        }
+        var diagnostics = parseDiagnostics(run.output)
+        diagnostics["exitCode"] = "\(run.exitCode)"
+        diagnostics["buildFailed"] = run.exitCode == 0 ? "false" : "true"
+        // Success means "diagnostics were collected", not "the build passed":
+        // the build failure is explicit in the output and in the data.
+        let headline = run.exitCode == 0
+            ? "Compiler diagnostics collected (build succeeded)."
+            : "Compiler diagnostics collected (build FAILED, exit code \(run.exitCode))."
+        return .success(headline, data: diagnostics)
         #else
         return .failure("Compiler diagnostics are only available on macOS runtime")
         #endif
     }
-
-    #if os(macOS)
-    private func run(command: String, cwd: String) throws -> String {
-        let p = Process()
-        let pipe = Pipe()
-        p.executableURL = URL(fileURLWithPath: "/bin/bash")
-        p.arguments = ["-lc", command]
-        p.currentDirectoryURL = URL(fileURLWithPath: cwd)
-        p.standardOutput = pipe
-        p.standardError = pipe
-        try p.run()
-        p.waitUntilExit()
-        return String(data: pipe.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8) ?? ""
-    }
-    #endif
 
     private func parseDiagnostics(_ output: String) -> [String: String] {
         let lines = output.components(separatedBy: .newlines)

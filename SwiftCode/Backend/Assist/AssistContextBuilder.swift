@@ -26,6 +26,15 @@ public final class AssistContextBuilder {
         let project = ProjectSessionStore.shared.activeProject
         let workspaceRoot = project?.directoryURL ?? URL(fileURLWithPath: "/")
 
+        // Re-apply the session's stored working directory (see dir_cd) so a
+        // cd survives context rebuilds across messages in the same session.
+        if let fs = fileSystem as? AssistFileSystem {
+            let stored = AssistWorkingDirectoryStore.shared.currentDirectory(for: sessionId, workspaceRoot: workspaceRoot)
+            if stored.path != workspaceRoot.path {
+                try? fs.restoreCurrentDirectory(stored)
+            }
+        }
+
         let executionModeRaw = UserDefaults.standard.string(forKey: "com.swiftcode.assist.executionMode") ?? ExecutionMode.autopilot.rawValue
         let executionMode = ExecutionMode(rawValue: executionModeRaw) ?? .autopilot
 

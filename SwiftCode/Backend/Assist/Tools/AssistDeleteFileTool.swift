@@ -27,8 +27,13 @@ public struct AssistDeleteFileTool: AssistTool {
         }
 
         do {
+            // Missing files are a failure, not a silent success: the caller
+            // must be able to distinguish "deleted" from "was never there".
+            guard context.fileSystem.exists(at: path) else {
+                return .failure("No file at \(path) — nothing to delete.")
+            }
             try context.fileSystem.deleteFile(at: path)
-            return .success("Successfully deleted file: \(path)")
+            return .success("Successfully deleted file: \(path)", data: ["path": path], filesChanged: [path])
         } catch {
             return .failure("Failed to delete file at \(path): \(error.localizedDescription)")
         }

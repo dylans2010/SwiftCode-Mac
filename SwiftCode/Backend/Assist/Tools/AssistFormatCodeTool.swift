@@ -38,25 +38,33 @@ public struct AssistFormatCodeTool: AssistTool {
         }
 
         var formattedCount = 0
-        for file in files {
-            guard let content = AssistToolingSupport.readText(file) else { continue }
-            let formatted = simpleFormat(content)
-            if formatted != content {
-                let relative = AssistToolingSupport.relativePath(for: file, workspaceRoot: context.workspaceRoot)
-                try context.fileSystem.writeFile(at: relative, content: formatted)
-                formattedCount += 1
+        do {
+            for file in files {
+                guard let content = AssistToolingSupport.readText(file) else { continue }
+                let formatted = simpleFormat(content)
+                if formatted != content {
+                    let relative = AssistToolingSupport.relativePath(for: file, workspaceRoot: context.workspaceRoot)
+                    try context.fileSystem.writeFile(at: relative, content: formatted)
+                    formattedCount += 1
+                }
             }
+        } catch {
+            return .failure("Failed to format at \(path): \(error.localizedDescription)")
         }
 
         return .success("Code formatting completed at \(path)", data: ["formatted_files": "\(formattedCount)"])
     }
 
     private func simpleFormat(_ content: String) -> String {
+        // Preserve leading whitespace (indentation). The previous version
+        // trimmed ALL whitespace, destroying every line's indentation.
+        // Only trailing whitespace is removed; blank runs collapse to one.
         var result: [String] = []
         var previousBlank = false
         for rawLine in content.components(separatedBy: .newlines) {
-            let line = rawLine.replacingOccurrences(of: "\t", with: "    ").trimmingCharacters(in: .whitespaces)
-            let isBlank = line.isEmpty
+            let expanded = rawLine.replacingOccurrences(of: "\t", with: "    ")
+            let line = expanded.replacingOccurrences(of: "[ \\t]+$", with: "", options: .regularExpression)
+            let isBlank = line.trimmingCharacters(in: .whitespaces).isEmpty
             if isBlank {
                 if !previousBlank { result.append("") }
             } else {

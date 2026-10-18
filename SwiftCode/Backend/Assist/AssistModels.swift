@@ -629,12 +629,19 @@ public protocol AssistFileSystemProtocol: Sendable {
     func readFile(at path: String) throws -> String
     func writeFile(at path: String, content: String) throws
     func deleteFile(at path: String) throws
+    func deleteDirectory(at path: String) throws
     func moveFile(from: String, to: String) throws
     func copyFile(from: String, to: String) throws
     func exists(at path: String) -> Bool
     func appendFile(at path: String, content: String) throws
     func listDirectory(at path: String) throws -> [String]
     func createDirectory(at path: String) throws
+    func resolve(_ path: String) throws -> URL
+    /// Session working directory for relative-path resolution (see `dir_cd`).
+    var currentDirectory: URL { get }
+    /// Change the session working directory. Throws unless the target exists,
+    /// is a directory, and is inside the workspace root. Returns the new directory.
+    func setCurrentDirectory(_ path: String) throws -> URL
 }
 
 public protocol AssistGitManagerProtocol: Sendable {
