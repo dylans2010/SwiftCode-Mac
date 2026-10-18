@@ -74,8 +74,11 @@ public enum AssistArtifactNaming {
     /// `agent_notes.md` -> `Agent Notes`. The stored filename is untouched.
     public static func displayTitle(for filename: String) -> String {
         var stem = filename
-        if stem.lowercased().hasSuffix(".md") {
-            stem = String(stem.dropLast(3))
+        for ext in [".md", ".markdown", ".png", ".mov", ".mp4", ".jpg", ".jpeg"] {
+            if stem.lowercased().hasSuffix(ext) {
+                stem = String(stem.dropLast(ext.count))
+                break
+            }
         }
         let words = stem.split(separator: "_").map { part -> String in
             guard let first = part.first else { return "" }

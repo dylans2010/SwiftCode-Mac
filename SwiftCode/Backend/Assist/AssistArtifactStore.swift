@@ -20,12 +20,16 @@ public enum AssistArtifactKind: String, Codable, Sendable, CaseIterable {
     case artifact
     case agentNotes = "agent_notes"
     case executionPlan = "execution_plan"
+    case image = "image"
+    case screenRecording = "screen_recording"
 
     public var displayName: String {
         switch self {
         case .artifact: return "Artifact"
         case .agentNotes: return "Agent Notes"
         case .executionPlan: return "Execution Plan"
+        case .image: return "Image Screenshot"
+        case .screenRecording: return "Screen Recording"
         }
     }
 }
@@ -173,14 +177,14 @@ public final class AssistArtifactStore: Sendable {
         let dir = artifactsDirectory(workspaceRoot: workspaceRoot)
 
         if let entries = try? fileManager.contentsOfDirectory(at: dir, includingPropertiesForKeys: [.contentModificationDateKey, .creationDateKey], options: [.skipsHiddenFiles]) {
-            for url in entries where url.pathExtension.lowercased() == "md" {
+            for url in entries where ["md", "png", "mov", "mp4", "jpg", "jpeg"].contains(url.pathExtension.lowercased()) {
                 let filename = url.lastPathComponent
                 let values = try? url.resourceValues(forKeys: [.contentModificationDateKey, .creationDateKey])
                 let modified = values?.contentModificationDate ?? Date()
                 let fileCreated = values?.creationDate ?? modified
                 let entry = index[filename]
-                let description = entry?.description ?? Self.firstMeaningfulLine(of: url) ?? ""
-                let kind: AssistArtifactKind = entry?.kind ?? Self.inferredKind(for: filename)
+                let description = entry?.description ?? (url.pathExtension.lowercased() == "md" ? (Self.firstMeaningfulLine(of: url) ?? "") : "\(url.pathExtension.uppercased()) media artifact")
+                let kind: AssistArtifactKind = entry?.kind ?? (url.pathExtension.lowercased() == "png" || url.pathExtension.lowercased() == "jpg" ? .image : (url.pathExtension.lowercased() == "mov" || url.pathExtension.lowercased() == "mp4" ? .screenRecording : Self.inferredKind(for: filename)))
                 found.append(AssistArtifactRecord(
                     id: entry?.id ?? UUID(),
                     filename: filename,
@@ -322,6 +326,54 @@ public final class AssistArtifactStore: Sendable {
         )
         refresh(workspaceRoot: workspaceRoot)
         logger.info("Artifact \(mode.rawValue) -> \(filename)")
+        return record
+    }
+
+    /// Stores a binary artifact (such as a PNG screenshot or MOV screen recording)
+    /// in the artifact repository under `.assist_temp/artifacts/`.
+    @discardableResult
+    public func createBinaryArtifact(
+        name: String,
+        data: Data,
+        description: String,
+        kind: AssistArtifactKind,
+        sourceMessageID: UUID? = nil,
+        workspaceRoot: URL
+    ) throws -> AssistArtifactRecord {
+        let dir = artifactsDirectory(workspaceRoot: workspaceRoot)
+        try? fileManager.createDirectory(at: dir, withIntermediateDirectories: true)
+        let filename = name.replacingOccurrences(of: " ", with: "_").lowercased()
+        let url = dir.appendingPathComponent(filename)
+        do {
+            try data.write(to: url, options: .atomic)
+        } catch {
+            throw AssistArtifactError.writeFailed(error.localizedDescription)
+        }
+
+        var index = loadIndex(workspaceRoot: workspaceRoot)
+        let entry = IndexEntry(
+            id: UUID(),
+            description: description.trimmingCharacters(in: .whitespacesAndNewlines),
+            kind: kind,
+            createdAt: Date(),
+            sourceMessageID: sourceMessageID
+        )
+        index[filename] = entry
+        saveIndex(index, workspaceRoot: workspaceRoot)
+
+        let record = AssistArtifactRecord(
+            id: entry.id,
+            filename: filename,
+            title: AssistArtifactNaming.displayTitle(for: filename),
+            description: entry.description,
+            kind: kind,
+            relativePath: ".assist_temp/artifacts/\(filename)",
+            createdAt: entry.createdAt,
+            modifiedAt: Date(),
+            sourceMessageID: sourceMessageID
+        )
+        refresh(workspaceRoot: workspaceRoot)
+        logger.info("Binary artifact created -> \(filename) (\(data.count) bytes)")
         return record
     }
 

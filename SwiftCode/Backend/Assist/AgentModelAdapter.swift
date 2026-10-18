@@ -317,12 +317,12 @@ public final class AgentModelAdapter: Sendable {
     /// Streams each model delta to the Assist execution loop instead of waiting for a
     /// complete response. The agent response is still validated as one complete JSON
     /// object before any tool is allowed to execute.
-    public func streamQueryModel(prompt: String, modelId: String) async throws -> AsyncThrowingStream<String, Error> {
+    public func streamQueryModel(prompt: String, modelId: String, attachments: [AIMessageAttachment]? = nil) async throws -> AsyncThrowingStream<String, Error> {
         AsyncThrowingStream { continuation in
             let task = Task {
                 do {
                     try await LLMService.shared.streamChat(
-                        messages: [AIMessage(role: .user, content: prompt)],
+                        messages: [AIMessage(role: .user, content: prompt, attachments: attachments)],
                         model: modelId,
                         systemPrompt: "",
                         onToken: { token in continuation.yield(token) }

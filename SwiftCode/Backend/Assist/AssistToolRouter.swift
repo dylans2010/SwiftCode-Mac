@@ -155,6 +155,13 @@ public final class AssistToolRouter: Sendable {
         case "report_to_user", "reporttouser":
             return ToolMetadata(id: toolId, name: "Report to User", description: "Reports completed task summary and verified results to the user.", capability: .general, riskLevel: .safeRead, isReadOnly: true, isMutating: false, requiresVerificationAfterward: false)
 
+        case "take_screenshot", "screenshot":
+            return ToolMetadata(id: toolId, name: "Take Screenshot", description: "Captures full screen or region as PNG for visual analysis.", capability: .diagnostics, riskLevel: .safeRead, isReadOnly: true, isMutating: false, requiresVerificationAfterward: false)
+        case "take_screenrecord", "screenrecord":
+            return ToolMetadata(id: toolId, name: "Take Screen Recording", description: "Records screen of a specifically identified application.", capability: .diagnostics, riskLevel: .safeRead, isReadOnly: true, isMutating: false, requiresVerificationAfterward: false)
+        case "use_app", "interact_app":
+            return ToolMetadata(id: toolId, name: "Use App", description: "Interacts with macOS applications via Accessibility and UI automation.", capability: .systemExecution, riskLevel: .safeMutation, isReadOnly: false, isMutating: true, requiresVerificationAfterward: true)
+
         default:
             // Fail closed: unknown tools must never default to safe/read-only,
             // or the phase gate and permission checks would treat a destructive

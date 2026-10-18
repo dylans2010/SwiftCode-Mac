@@ -59,6 +59,7 @@ public final class AssistRuntimeTestSuite: Sendable {
         results.append(await testArtifactStoreLifecycle())
         results.append(await testArtifactNamingDisplayTitles())
         results.append(await testRegistryExpansionCount())
+        results.append(await testNativeScreenAndAppInteractionTools())
         results.append(await testAgentSkillDiscoveryAndMatching())
         results.append(await testAgentRepositoryScannerScopePrecedence())
         results.append(await testAgentModelAdapterCapabilityNegotiationAndJSONRepair())
@@ -672,18 +673,18 @@ public final class AssistRuntimeTestSuite: Sendable {
         )
     }
 
-    // 11c. Registry holds all 275 tools including the 60 expansion tools
+    // 11c. Registry holds all 278 tools including the 60 expansion tools
     public func testRegistryExpansionCount() async -> RuntimeTestCaseResult {
         let start = Date()
         let registry = AssistToolRegistry.shared
         let newIds = ["repo_overview","project_structure_map","recent_changes","readme_locate","dependency_licenses","stale_files_report","entry_points_discover","build_system_detect","call_hierarchy","type_hierarchy","protocol_conformance_list","import_graph","comment_density_report","function_size_report","string_literal_audit","force_unwrap_scan","dir_size_report","find_duplicate_files","file_type_breakdown","empty_dirs_find","file_head_preview","symlink_audit","executable_files_scan","build_log_analyze","scheme_test_plan_list","code_signing_diagnose","crash_log_parse","entitlements_diff","strings_file_validate","deprecation_usage_scan","info_plist_audit","api_endpoint_audit","color_usage_audit","image_asset_size_report","pbxproj_lint","xctest_discovery","xcode_toolchain_info","derived_data_locate","build_settings_diff","target_dependencies_list","workspace_settings_read","build_phase_scripts_list","build_configuration_list","target_source_list","readme_generate","docs_index_build","code_comment_extract","api_docs_coverage","markdown_link_check","markdown_toc_generate","create_artifact","list_artifacts","read_artifact","delete_artifact","session_progress_report","preflight_checks","change_impact_estimate","file_backup","conflict_marker_scan","tool_capability_lookup"]
         let missing = newIds.filter { registry.getTool($0) == nil }
         let allSchemas = registry.getToolSchemas()
-        let ok = missing.isEmpty && allSchemas.count == 275 && newIds.count == 60
+        let ok = missing.isEmpty && allSchemas.count == 278 && newIds.count == 60
         return RuntimeTestCaseResult(
             testName: "Registry Expansion Count",
             passed: ok,
-            message: ok ? "275 tools registered; all 60 expansion tools resolve." : "Registry mismatch: missing=\(missing.joined(separator: ",")) schemas=\(allSchemas.count)",
+            message: ok ? "278 tools registered; all 60 expansion tools resolve." : "Registry mismatch: missing=\(missing.joined(separator: ",")) schemas=\(allSchemas.count)",
             duration: Date().timeIntervalSince(start)
         )
     }
@@ -1706,6 +1707,72 @@ public final class AssistRuntimeTestSuite: Sendable {
             testName: "Coding Tools Native Context Menu Payload Integration",
             passed: passed,
             message: passed ? "All 6 actions, payload retention, and text-selection range capturing verified." : "Coding tools context menu payload validation failed.",
+            duration: Date().timeIntervalSince(start)
+        )
+    }
+
+    // Native screen capture, screen recording, and app interaction tools
+    public func testNativeScreenAndAppInteractionTools() async -> RuntimeTestCaseResult {
+        let start = Date()
+        let registry = AssistToolRegistry.shared
+
+        // Verify tools exist in registry
+        guard let screenshotTool = registry.getTool("take_screenshot"),
+              let screenrecordTool = registry.getTool("take_screenrecord"),
+              let useAppTool = registry.getTool("use_app") else {
+            return RuntimeTestCaseResult(
+                testName: "Native Screen & App Interaction Tools",
+                passed: false,
+                message: "One or more tools failed to resolve in AssistToolRegistry.",
+                duration: Date().timeIntervalSince(start)
+            )
+        }
+
+        // Verify schemas
+        let screenshotSchema = screenshotTool.schema
+        let screenrecordSchema = screenrecordTool.schema
+        let useAppSchema = useAppTool.schema
+
+        let screenshotHasMode = screenshotSchema.parameters.properties["capture_mode"] != nil
+        let screenrecordHasApp = screenrecordSchema.parameters.properties["app_identifier"] != nil
+        let useAppHasAction = useAppSchema.parameters.properties["action"] != nil
+
+        guard screenshotHasMode && screenrecordHasApp && useAppHasAction else {
+            return RuntimeTestCaseResult(
+                testName: "Native Screen & App Interaction Tools",
+                passed: false,
+                message: "Tool schemas missing required parameters.",
+                duration: Date().timeIntervalSince(start)
+            )
+        }
+
+        // Verify validation: screenrecord requires app_identifier
+        let dummyContext = AssistExecutionContext(sessionExecutionMode: .autopilot)
+        let recordMissingApp = await screenrecordTool.execute(arguments: [:], context: dummyContext)
+        guard !recordMissingApp.success else {
+            return RuntimeTestCaseResult(
+                testName: "Native Screen & App Interaction Tools",
+                passed: false,
+                message: "take_screenrecord should fail when app_identifier is missing.",
+                duration: Date().timeIntervalSince(start)
+            )
+        }
+
+        // Verify validation: use_app requires app_identifier and action
+        let useAppMissingParams = await useAppTool.execute(arguments: [:], context: dummyContext)
+        guard !useAppMissingParams.success else {
+            return RuntimeTestCaseResult(
+                testName: "Native Screen & App Interaction Tools",
+                passed: false,
+                message: "use_app should fail when parameters are missing.",
+                duration: Date().timeIntervalSince(start)
+            )
+        }
+
+        return RuntimeTestCaseResult(
+            testName: "Native Screen & App Interaction Tools",
+            passed: true,
+            message: "take_screenshot, take_screenrecord, and use_app successfully registered, validated, and resolved.",
             duration: Date().timeIntervalSince(start)
         )
     }

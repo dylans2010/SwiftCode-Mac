@@ -234,7 +234,7 @@ public actor SystemIndexService {
         "ModelProviders.md", "Streaming.md", "ErrorHandling.md", "Authentication.md",
         "ExecutionPlans.md", "Skills.md", "ProjectContext.md", "ResponseFormatting.md",
         "ContextBudgeting.md", "FileOperations.md", "BuildAndTesting.md", "SystemIndex.md",
-        "ToolRoutingPolicy.md", "UsingSystem.md"
+        "ToolRoutingPolicy.md", "UsingSystem.md", "TakeScreenshot.md", "TakeScreenrecord.md", "UseApp.md"
     ]
 
     public var rankingWeights = SystemIndexRankingWeights()

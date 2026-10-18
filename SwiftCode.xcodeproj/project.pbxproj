@@ -728,6 +728,12 @@
 		7531A00DB24865112A0C489D /* PreviewDiagnostics.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1DFF8B13C2092ADF6D257ED /* PreviewDiagnostics.swift */; };
 		753307037FE041348FAD1678 /* AlertSoundPlayer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6038D8112D044B36BFE41C78 /* AlertSoundPlayer.swift */; };
 		7562E9C3295B60A446A1D8FE /* AssistReadFileTool.swift in Sources */ = {isa = PBXBuildFile; fileRef = 860ABF8784347CA86D1DFBED /* AssistReadFileTool.swift */; };
+		D50100000000000000000001 /* AssistScreenCaptureEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = D50200000000000000000001 /* AssistScreenCaptureEngine.swift */; };
+		D50100000000000000000002 /* AssistTakeScreenshotTool.swift in Sources */ = {isa = PBXBuildFile; fileRef = D50200000000000000000002 /* AssistTakeScreenshotTool.swift */; };
+		D50100000000000000000003 /* AssistScreenRecordingEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = D50200000000000000000003 /* AssistScreenRecordingEngine.swift */; };
+		D50100000000000000000004 /* AssistTakeScreenrecordTool.swift in Sources */ = {isa = PBXBuildFile; fileRef = D50200000000000000000004 /* AssistTakeScreenrecordTool.swift */; };
+		D50100000000000000000005 /* AssistAppInteractionEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = D50200000000000000000005 /* AssistAppInteractionEngine.swift */; };
+		D50100000000000000000006 /* AssistUseAppTool.swift in Sources */ = {isa = PBXBuildFile; fileRef = D50200000000000000000006 /* AssistUseAppTool.swift */; };
 		75B4716543B742DBA28175B5 /* ParseXML.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3F89000F887242D48DFA8521 /* ParseXML.swift */; };
 		75B6B34D045A6D85C36F9BBF /* GitHubRepositoryManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 895394671B28492ACD9662B3 /* GitHubRepositoryManager.swift */; };
 		75C80CD30167D871318B5E20 /* AssistGitCherryPickTool.swift in Sources */ = {isa = PBXBuildFile; fileRef = BD0BD7DE4EA049C33E22807B /* AssistGitCherryPickTool.swift */; };
@@ -3801,6 +3807,12 @@
 		85C3E264C32142EF9793EA86 /* SigningStatus.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SigningStatus.swift; sourceTree = "<group>"; };
 		85E5CEE7C0B7C31345655336 /* FeatureFlags.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FeatureFlags.swift; sourceTree = "<group>"; };
 		860ABF8784347CA86D1DFBED /* AssistReadFileTool.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssistReadFileTool.swift; sourceTree = "<group>"; };
+		D50200000000000000000001 /* AssistScreenCaptureEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssistScreenCaptureEngine.swift; sourceTree = "<group>"; };
+		D50200000000000000000002 /* AssistTakeScreenshotTool.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssistTakeScreenshotTool.swift; sourceTree = "<group>"; };
+		D50200000000000000000003 /* AssistScreenRecordingEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssistScreenRecordingEngine.swift; sourceTree = "<group>"; };
+		D50200000000000000000004 /* AssistTakeScreenrecordTool.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssistTakeScreenrecordTool.swift; sourceTree = "<group>"; };
+		D50200000000000000000005 /* AssistAppInteractionEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssistAppInteractionEngine.swift; sourceTree = "<group>"; };
+		D50200000000000000000006 /* AssistUseAppTool.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssistUseAppTool.swift; sourceTree = "<group>"; };
 		86122350693B256B489D0029 /* NotificationManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationManager.swift; sourceTree = "<group>"; };
 		86227AE3EB394159BDB6B12D /* ASCIIArtGeneratorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ASCIIArtGeneratorView.swift; sourceTree = "<group>"; };
 		8629199A243E039542E69950 /* Base64FileConverterView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Base64FileConverterView.swift; sourceTree = "<group>"; };
@@ -6150,6 +6162,12 @@
 				B74ED44E4C80A55F022EB26A /* AssistProjectMutationController.swift */,
 				06F2018DB65748AA6C5F4BE9 /* AssistReadDirectoryTool.swift */,
 				860ABF8784347CA86D1DFBED /* AssistReadFileTool.swift */,
+				D50200000000000000000001 /* AssistScreenCaptureEngine.swift */,
+				D50200000000000000000002 /* AssistTakeScreenshotTool.swift */,
+				D50200000000000000000003 /* AssistScreenRecordingEngine.swift */,
+				D50200000000000000000004 /* AssistTakeScreenrecordTool.swift */,
+				D50200000000000000000005 /* AssistAppInteractionEngine.swift */,
+				D50200000000000000000006 /* AssistUseAppTool.swift */,
 				5C5E70000000000000000602 /* AssistCreateNewAppTool.swift */,
 				79B4B38ACD3166E79B4F58E3 /* AssistRefactorTool.swift */,
 				0ADC238F270C5BCC42CB380A /* AssistRegexSearchTool.swift */,
@@ -12373,6 +12391,12 @@
 				A6E3F7207917024C9497D402 /* AssistProjectMutationController.swift in Sources */,
 				FB8F42680983C38CD18A6492 /* AssistReadDirectoryTool.swift in Sources */,
 				7562E9C3295B60A446A1D8FE /* AssistReadFileTool.swift in Sources */,
+				D50100000000000000000001 /* AssistScreenCaptureEngine.swift in Sources */,
+				D50100000000000000000002 /* AssistTakeScreenshotTool.swift in Sources */,
+				D50100000000000000000003 /* AssistScreenRecordingEngine.swift in Sources */,
+				D50100000000000000000004 /* AssistTakeScreenrecordTool.swift in Sources */,
+				D50100000000000000000005 /* AssistAppInteractionEngine.swift in Sources */,
+				D50100000000000000000006 /* AssistUseAppTool.swift in Sources */,
 				5C5E70000000000000000601 /* AssistCreateNewAppTool.swift in Sources */,
 				5C5E70000000000000000701 /* CreateNewAppWizardView.swift in Sources */,
 				5C5E70000000000000000703 /* CreateNewAppIdeaView.swift in Sources */,

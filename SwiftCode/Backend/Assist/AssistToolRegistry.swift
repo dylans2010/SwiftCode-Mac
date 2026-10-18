@@ -376,6 +376,11 @@ public final class AssistToolRegistry {
         register(AssistFileBackupTool())
         register(AssistConflictMarkerScanTool())
         register(AssistToolCapabilityLookupTool())
+
+        // Native Screen Capture, Recording & App Interaction
+        register(AssistTakeScreenshotTool())
+        register(AssistTakeScreenrecordTool())
+        register(AssistUseAppTool())
     }
 
     public var version: Int { registryVersion }

@@ -201,10 +201,29 @@ final class OpenRouterService: Sendable {
         request.setValue("SwiftCode iOS App", forHTTPHeaderField: "X-Title")
         request.setValue("https://github.com/swiftcode/app", forHTTPHeaderField: "HTTP-Referer")
 
-        var apiMessages: [[String: String]] = [
+        var apiMessages: [[String: Any]] = [
             ["role": "system", "content": systemPrompt]
         ]
-        apiMessages += messages.map { ["role": $0.role.rawValue, "content": $0.content] }
+        for msg in messages {
+            if let attachments = msg.attachments, !attachments.isEmpty {
+                var contentBlocks: [[String: Any]] = []
+                if !msg.content.isEmpty {
+                    contentBlocks.append(["type": "text", "text": msg.content])
+                }
+                for att in attachments {
+                    if att.mimeType.hasPrefix("image/") {
+                        let dataURI = "data:\(att.mimeType);base64,\(att.base64Data)"
+                        contentBlocks.append([
+                            "type": "image_url",
+                            "image_url": ["url": dataURI]
+                        ])
+                    }
+                }
+                apiMessages.append(["role": msg.role.rawValue, "content": contentBlocks])
+            } else {
+                apiMessages.append(["role": msg.role.rawValue, "content": msg.content])
+            }
+        }
 
         let body: [String: Any] = [
             "model": model,

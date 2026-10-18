@@ -385,6 +385,41 @@ public enum AssistToolActivityFormatter {
             )
         }
 
+        // 24. Screen capture
+        if ["take_screenshot", "capture_screen", "screenshot"].contains(normalizedId) {
+            let mode = arguments["capture_mode"] as? String ?? "screen"
+            let label = mode == "region" ? "selected region" : "screen"
+            return ToolFormattedActivity(
+                runningLabel: "Capturing \(label)...",
+                completedLabel: "Captured \(label)",
+                failedLabel: "Failed to capture \(label)",
+                iconName: "camera.viewfinder"
+            )
+        }
+
+        // 25. Screen recording
+        if ["take_screenrecord", "screenrecord", "record_screen"].contains(normalizedId) {
+            let app = arguments["app_identifier"] as? String ?? "app"
+            return ToolFormattedActivity(
+                runningLabel: "Recording \(app)...",
+                completedLabel: "Recorded \(app)",
+                failedLabel: "Failed to record \(app)",
+                iconName: "record.circle"
+            )
+        }
+
+        // 26. App interaction
+        if ["use_app", "app_interact"].contains(normalizedId) {
+            let app = arguments["app_identifier"] as? String ?? "application"
+            let action = arguments["action"] as? String ?? "interact"
+            return ToolFormattedActivity(
+                runningLabel: "Running \(action) on \(app)...",
+                completedLabel: "Executed \(action) on \(app)",
+                failedLabel: "Failed to \(action) on \(app)",
+                iconName: "macwindow.and.cursorarrow"
+            )
+        }
+
         // Fallback: Humanize snake_case or camelCase identifier
         let humanized = humanizeIdentifier(toolId)
         return ToolFormattedActivity(

@@ -1283,14 +1283,55 @@ public final class LLMService: Sendable {
             if !systemPrompt.isEmpty {
                 body["system"] = systemPrompt
             }
-            body["messages"] = messages.map { ["role": $0.role.rawValue, "content": $0.content] }
+            body["messages"] = messages.map { msg -> [String: Any] in
+                if let attachments = msg.attachments, !attachments.isEmpty {
+                    var contentBlocks: [[String: Any]] = []
+                    if !msg.content.isEmpty {
+                        contentBlocks.append(["type": "text", "text": msg.content])
+                    }
+                    for att in attachments {
+                        if att.mimeType.hasPrefix("image/") {
+                            contentBlocks.append([
+                                "type": "image",
+                                "source": [
+                                    "type": "base64",
+                                    "media_type": att.mimeType,
+                                    "data": att.base64Data
+                                ]
+                            ])
+                        }
+                    }
+                    return ["role": msg.role.rawValue, "content": contentBlocks]
+                } else {
+                    return ["role": msg.role.rawValue, "content": msg.content]
+                }
+            }
             body["max_tokens"] = 4096
         } else {
-            var apiMessages: [[String: String]] = []
+            var apiMessages: [[String: Any]] = []
             if !systemPrompt.isEmpty {
                 apiMessages.append(["role": "system", "content": systemPrompt])
             }
-            apiMessages += messages.map { ["role": $0.role.rawValue, "content": $0.content] }
+            for msg in messages {
+                if let attachments = msg.attachments, !attachments.isEmpty {
+                    var contentBlocks: [[String: Any]] = []
+                    if !msg.content.isEmpty {
+                        contentBlocks.append(["type": "text", "text": msg.content])
+                    }
+                    for att in attachments {
+                        if att.mimeType.hasPrefix("image/") {
+                            let dataURI = "data:\(att.mimeType);base64,\(att.base64Data)"
+                            contentBlocks.append([
+                                "type": "image_url",
+                                "image_url": ["url": dataURI]
+                            ])
+                        }
+                    }
+                    apiMessages.append(["role": msg.role.rawValue, "content": contentBlocks])
+                } else {
+                    apiMessages.append(["role": msg.role.rawValue, "content": msg.content])
+                }
+            }
             body["messages"] = apiMessages
         }
 

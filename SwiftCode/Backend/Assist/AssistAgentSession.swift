@@ -46,6 +46,7 @@ public final class AssistAgentSession: Sendable {
     // Active Activity Group tracking for conversational messages
     public var currentActivityGroup = AssistActivityGroup(isExecuting: true)
     private var currentAssistantMessageId: UUID?
+    private var pendingImageAttachments: [AIMessageAttachment] = []
 
     // Statistics for execution metrics dashboard
     public var executionSummary: ExecutionSummaryData?
@@ -728,12 +729,23 @@ public final class AssistAgentSession: Sendable {
             if !failureSummary.isEmpty {
                 conversationPrompt += "\n\n# ACTIVE FAILURE OBSERVATIONS\n\(failureSummary)"
             }
+            if !pendingImageAttachments.isEmpty {
+                conversationPrompt += "\n\n# ATTACHED SCREENSHOT FOR VISUAL INSPECTION\n"
+                for att in pendingImageAttachments {
+                    conversationPrompt += "- Image artifact attached: \(att.filename ?? "screenshot.png") (\(att.mimeType)). You can directly view and analyze the visual contents of the user's screen in this image.\n"
+                }
+            }
             conversationPrompt += "\n\nChoose the next best tool to run or provide finalResponse in valid JSON."
 
             let activeModel = AssistModelManager.shared.selectedModelID
             postConversationalMessage("I’m selecting the next action for this task.")
             AssistManager.shared.currentActivityStatus = "Waiting for model output…"
-            let responseStream = try await AgentModelAdapter.shared.streamQueryModel(prompt: conversationPrompt, modelId: activeModel)
+            let activeAttachments = pendingImageAttachments.isEmpty ? nil : pendingImageAttachments
+            let responseStream = try await AgentModelAdapter.shared.streamQueryModel(
+                prompt: conversationPrompt,
+                modelId: activeModel,
+                attachments: activeAttachments
+            )
             var response = ""
             var streamedToolId: String?
             var streamedToolActivityIndex: Int?
@@ -1048,6 +1060,19 @@ public final class AssistAgentSession: Sendable {
 
                     // Track file modifications in Activity Group & Conversation Memory
                     AssistConversationMemory.shared.recordToolExecution(toolId: toolId)
+
+                    // Capture screenshot image attachment for visual inspection by the active model
+                    if toolId == "take_screenshot", let base64 = result.data?["base64"], !base64.isEmpty {
+                        let attachment = AIMessageAttachment(
+                            mimeType: "image/png",
+                            base64Data: base64,
+                            filename: result.data?["path"] ?? "screenshot.png"
+                        )
+                        self.pendingImageAttachments.append(attachment)
+                        if self.pendingImageAttachments.count > 2 {
+                            self.pendingImageAttachments.removeFirst(self.pendingImageAttachments.count - 2)
+                        }
+                    }
                     if let path = toolInput["path"] ?? toolInput["filepath"] ?? toolInput["target"] {
                         let op = toolId.contains("create") ? "Created" : (toolId.contains("delete") ? "Deleted" : "Modified")
                         let added = result.diff?.components(separatedBy: "\n").filter { $0.hasPrefix("+") && !$0.hasPrefix("+++") }.count ?? 0
