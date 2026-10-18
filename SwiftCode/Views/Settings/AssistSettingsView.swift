@@ -565,6 +565,7 @@ struct AssistSettingsView: View {
     @State private var showComposioSheet = false
     @State private var showSkillsSheet = false
     @State private var showAlternativeKeysSheet = false
+    @State private var showUserMemorySheet = false
 
     // Composio Service Integration
     @State private var composioService = ComposioService.shared
@@ -1778,6 +1779,67 @@ struct AssistSettingsView: View {
                 }
                 .groupBoxStyle(ModernGroupBoxStyle())
 
+                // Assist Memory Section
+                GroupBox {
+                    VStack(alignment: .leading, spacing: 14) {
+                        HStack(spacing: 10) {
+                            ZStack {
+                                RoundedRectangle(cornerRadius: 8)
+                                    .fill(Color.purple.opacity(0.14))
+                                    .frame(width: 32, height: 32)
+                                Image(systemName: "brain.head.profile")
+                                    .font(.system(size: 14, weight: .bold))
+                                    .foregroundStyle(Color.purple)
+                            }
+
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("Assist Memory (UserMemory.md)")
+                                    .font(.system(size: 14, weight: .semibold))
+                                Text("Save context, preferences, and remember technical instructions across sessions")
+                                    .font(.caption2)
+                                    .foregroundStyle(.secondary)
+                            }
+
+                            Spacer()
+
+                            Button {
+                                showUserMemorySheet = true
+                            } label: {
+                                Label("Manage Memory", systemImage: "slider.horizontal.2.square")
+                            }
+                            .buttonStyle(.borderedProminent)
+                            .controlSize(.small)
+                        }
+
+                        Divider()
+
+                        Toggle(isOn: $settings.enableUserMemory) {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("Enable Memory Recording")
+                                    .font(.system(size: 13, weight: .medium))
+                                Text("When enabled, Assist automatically records valuable context into UserMemory.md and references it in future tasks.")
+                                    .font(.caption2)
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
+                        .toggleStyle(.switch)
+
+                        HStack {
+                            Text("Memory File: ~/Library/Application Support/SwiftCode/UserMemory.md")
+                                .font(.system(size: 11, design: .monospaced))
+                                .foregroundStyle(.secondary)
+                            Spacer()
+                            Button("Open File") {
+                                NSWorkspace.shared.open(UserMemoryManager.shared.memoryFileURL)
+                            }
+                            .buttonStyle(.link)
+                            .font(.caption)
+                        }
+                    }
+                    .padding()
+                }
+                .groupBoxStyle(ModernGroupBoxStyle())
+
                 // 5. About Section
                 GroupBox {
                     VStack(alignment: .leading, spacing: 14) {
@@ -1808,6 +1870,9 @@ struct AssistSettingsView: View {
         }
         .sheet(isPresented: $showMCPServersSheet) {
             AddMCPServerView()
+        }
+        .sheet(isPresented: $showUserMemorySheet) {
+            UserMemoryView()
         }
         .sheet(isPresented: $showComposioSheet) {
             NavigationStack {

@@ -2,10 +2,8 @@
 //  MuseSDKToolCall.swift
 //  SwiftCode
 //
-//  Dedicated UI displayed when calling Muse SDK tools.
-//  Maintains identical layout and card styling as `MuseNativeToolCard` while clearly
-//  displaying "Muse SDK Tool" badges and branding so users can easily distinguish
-//  tool origins between SwiftCode tools and Muse SDK tools.
+//  Dedicated UI displayed when calling Muse tools.
+//  Uses clean blue styling, badge "Muse Tool", with no all-caps headings and no "SDK" references.
 //
 
 import SwiftUI
@@ -47,19 +45,19 @@ public struct MuseSDKToolCall: View {
         let norm = rawId.lowercased().replacingOccurrences(of: "-", with: "_")
         switch norm {
         case "file_read", "read_file", "view_file":
-            return "Reading File Content (Muse SDK)"
+            return "Reading File Content (Muse Tool)"
         case "file_write", "write_file":
-            return "Writing File Content (Muse SDK)"
+            return "Writing File Content (Muse Tool)"
         case "code_replace", "replace_in_file":
-            return "Applying Code Edit (Muse SDK)"
+            return "Applying Code Edit (Muse Tool)"
         case "use_terminal", "run_command", "terminal":
-            return "Executing Shell Command (Muse SDK)"
+            return "Executing Shell Command (Muse Tool)"
         default:
             let cleaned = rawId
                 .replacingOccurrences(of: "_", with: " ")
                 .replacingOccurrences(of: "-", with: " ")
                 .capitalized
-            return cleaned.isEmpty ? "Muse SDK Tool Action" : "\(cleaned) (Muse SDK)"
+            return cleaned.isEmpty ? "Muse Tool Action" : "\(cleaned) (Muse Tool)"
         }
     }
 
@@ -93,10 +91,10 @@ public struct MuseSDKToolCall: View {
                     // Status Icon
                     statusIcon
 
-                    // Muse SDK SF Symbol
+                    // Muse SF Symbol in Blue
                     Image(systemName: "cpu.fill")
                         .font(.system(size: 11, weight: .semibold))
-                        .foregroundStyle(Color.purple)
+                        .foregroundStyle(Color.blue)
                         .frame(width: 16, height: 16)
 
                     // Human-Readable Title
@@ -105,17 +103,17 @@ public struct MuseSDKToolCall: View {
                         .foregroundStyle(Color.primary)
                         .lineLimit(1)
 
-                    // Distinct Muse SDK Badge
+                    // Distinct Muse Tool Badge in Blue (No SDK, no uppercase)
                     HStack(spacing: 3) {
                         Image(systemName: "sparkles")
                             .font(.system(size: 8, weight: .bold))
-                        Text("Muse SDK")
+                        Text("Muse Tool")
                             .font(.system(size: 9, weight: .bold, design: .rounded))
                     }
-                    .foregroundStyle(Color.purple)
+                    .foregroundStyle(Color.blue)
                     .padding(.horizontal, 6)
                     .padding(.vertical, 2)
-                    .background(Color.purple.opacity(0.12), in: Capsule())
+                    .background(Color.blue.opacity(0.12), in: Capsule())
 
                     Spacer(minLength: 4)
 
@@ -153,9 +151,9 @@ public struct MuseSDKToolCall: View {
 
                     if !cleanParameters.isEmpty {
                         VStack(alignment: .leading, spacing: 4) {
-                            Text("MUSE TOOL PARAMETERS")
-                                .font(.system(size: 9, weight: .bold, design: .monospaced))
-                                .foregroundStyle(.purple)
+                            Text("Parameters")
+                                .font(.system(size: 10, weight: .semibold, design: .rounded))
+                                .foregroundStyle(Color.blue)
 
                             ForEach(cleanParameters, id: \.key) { param in
                                 HStack(alignment: .top, spacing: 6) {
@@ -174,15 +172,15 @@ public struct MuseSDKToolCall: View {
                             }
                         }
                         .padding(8)
-                        .background(Color.purple.opacity(0.06), in: RoundedRectangle(cornerRadius: 6))
+                        .background(Color.blue.opacity(0.06), in: RoundedRectangle(cornerRadius: 6))
                     }
 
                     if !tool.result.isEmpty {
                         VStack(alignment: .leading, spacing: 4) {
                             HStack {
-                                Text("MUSE OUTCOME")
-                                    .font(.system(size: 9, weight: .bold, design: .monospaced))
-                                    .foregroundStyle(.purple)
+                                Text("Outcome")
+                                    .font(.system(size: 10, weight: .semibold, design: .rounded))
+                                    .foregroundStyle(Color.blue)
 
                                 Spacer()
 
@@ -227,11 +225,11 @@ public struct MuseSDKToolCall: View {
         }
         .background(
             RoundedRectangle(cornerRadius: 8)
-                .fill(Color.purple.opacity(0.04))
+                .fill(Color.blue.opacity(0.04))
         )
         .overlay(
             RoundedRectangle(cornerRadius: 8)
-                .stroke(Color.purple.opacity(0.25), lineWidth: 0.75)
+                .stroke(Color.blue.opacity(0.25), lineWidth: 0.75)
         )
     }
 
@@ -245,7 +243,7 @@ public struct MuseSDKToolCall: View {
         case .completed:
             Image(systemName: "checkmark.circle.fill")
                 .font(.system(size: 11, weight: .bold))
-                .foregroundStyle(Color.purple)
+                .foregroundStyle(Color.blue)
                 .frame(width: 14, height: 14)
         case .failed, .cancelled:
             Image(systemName: "xmark.circle.fill")

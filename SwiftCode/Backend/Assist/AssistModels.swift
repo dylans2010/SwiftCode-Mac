@@ -549,6 +549,8 @@ public struct AssistMessage: Codable, Identifiable, Sendable {
     public var serverError: ServerErrorDetail?
     /// Provider identifier responsible for minting this message (e.g. MetaAssistProvider.providerID).
     public var providerID: String?
+    /// Structured task envelope submitted with the message (contains executed slash commands, resources, skills, and rules).
+    public var envelope: AssistTaskEnvelope?
 
     public init(
         role: AssistRole,
@@ -561,7 +563,8 @@ public struct AssistMessage: Codable, Identifiable, Sendable {
         thinkingDuration: TimeInterval? = nil,
         noticeLevel: AssistNoticeLevel? = nil,
         serverError: ServerErrorDetail? = nil,
-        providerID: String? = nil
+        providerID: String? = nil,
+        envelope: AssistTaskEnvelope? = nil
     ) {
         self.id = UUID()
         self.role = role
@@ -576,6 +579,7 @@ public struct AssistMessage: Codable, Identifiable, Sendable {
         self.noticeLevel = noticeLevel
         self.serverError = serverError
         self.providerID = providerID
+        self.envelope = envelope
     }
 }
 

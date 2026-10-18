@@ -51,6 +51,7 @@ public struct AssistMainView: View {
 
     // Create New App Wizard Sheet
     @State private var showCreateNewAppSheet = false
+    @State private var showConversationsSheet = false
 
     // Composer @ and / systems
     @State private var selectedExplicitSkills: [SkillDescriptor] = []
@@ -85,6 +86,15 @@ public struct AssistMainView: View {
                 }
                 .buttonStyle(.plain)
                 .help("Clear Chat History (⌘K)")
+
+                Button {
+                    showConversationsSheet = true
+                } label: {
+                    Image(systemName: "clock.arrow.circlepath")
+                        .font(.body)
+                }
+                .buttonStyle(.plain)
+                .help("Conversations History")
 
                 Spacer()
 
@@ -470,6 +480,9 @@ public struct AssistMainView: View {
         }
         .sheet(isPresented: $showCreateNewAppSheet) {
             CreateNewAppWizardView()
+        }
+        .sheet(isPresented: $showConversationsSheet) {
+            AssistConversationsSheet()
         }
         .alert("There was an issue on this request:", isPresented: $showEnhancementError, presenting: enhancementErrorMessage) { _ in
             Button("OK") {}
@@ -1626,6 +1639,11 @@ private struct AssistChatBubble: View {
                         .foregroundStyle(.tertiary)
                 }
 
+                // 0. AssistInfoView at the top of user message when a slash/at command or envelope was used
+                if message.role == .user {
+                    AssistInfoView(envelope: message.envelope, messageText: message.content)
+                }
+
                 // 1. Inline collapsible thought inspector/disclosure, outside the main response bubble
                 if let thinking = message.thinkingContent, !thinking.isEmpty {
                     MetaAssistThinkingUI(
@@ -1639,6 +1657,15 @@ private struct AssistChatBubble: View {
                 if hasContent || hasActivity || hasAttachments {
 
                 VStack(alignment: .leading, spacing: 8) {
+                    // Memory Save Card if save_to_memory or manage_memory executed
+                    if let memoryTool = message.activityGroup?.tools.first(where: { $0.toolId == "save_to_memory" || $0.toolId == "manage_memory" }) {
+                        AssistMemoryUI(
+                            key: memoryTool.purpose.isEmpty ? "Context Stored in Memory" : memoryTool.purpose,
+                            value: memoryTool.result.isEmpty ? "Saved to Application Support/SwiftCode/UserMemory.md" : memoryTool.result,
+                            category: "Developer Memory"
+                        )
+                    }
+
                     // 1. Native Live Activity Feed (Default: MuseCallsNativeToolsUI)
                     if let activity = message.activityGroup, activity.hasContent {
                         MuseCallsNativeToolsUI(activityGroup: activity)

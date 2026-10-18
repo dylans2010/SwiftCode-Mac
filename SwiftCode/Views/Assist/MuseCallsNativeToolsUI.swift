@@ -71,13 +71,13 @@ public struct MuseCallsNativeToolsUI: View {
                     .padding(8)
                     .background(
                         RoundedRectangle(cornerRadius: 10)
-                            .fill(Color.purple.opacity(0.04))
+                            .fill(Color.blue.opacity(0.04))
                     )
                     .overlay(
                         RoundedRectangle(cornerRadius: 10)
                             .stroke(
                                 LinearGradient(
-                                    colors: [Color.purple.opacity(0.35), Color.indigo.opacity(0.18)],
+                                    colors: [Color.blue.opacity(0.35), Color.cyan.opacity(0.18)],
                                     startPoint: .topLeading,
                                     endPoint: .bottomTrailing
                                 ),
@@ -173,11 +173,11 @@ public struct MuseCallsNativeToolsUI: View {
         HStack(spacing: 6) {
             Image(systemName: "wrench.and.screwdriver.fill")
                 .font(.system(size: 10, weight: .semibold))
-                .foregroundStyle(Color.accentColor)
+                .foregroundStyle(Color.green)
 
             Text("SwiftCode Native Operations")
                 .font(.system(size: 11, weight: .bold, design: .rounded))
-                .foregroundStyle(Color.primary)
+                .foregroundStyle(Color.green)
 
             if isExecuting {
                 ProgressView()
@@ -193,7 +193,7 @@ public struct MuseCallsNativeToolsUI: View {
         }
         .padding(.horizontal, 8)
         .padding(.vertical, 4)
-        .background(Color.accentColor.opacity(0.08), in: RoundedRectangle(cornerRadius: 6))
+        .background(Color.green.opacity(0.08), in: RoundedRectangle(cornerRadius: 6))
     }
 
     @ViewBuilder
@@ -201,11 +201,11 @@ public struct MuseCallsNativeToolsUI: View {
         HStack(spacing: 6) {
             Image(systemName: "cpu.fill")
                 .font(.system(size: 10, weight: .semibold))
-                .foregroundStyle(Color.purple)
+                .foregroundStyle(Color.blue)
 
-            Text("Muse SDK Operations")
+            Text("Muse Tool")
                 .font(.system(size: 11, weight: .bold, design: .rounded))
-                .foregroundStyle(Color.purple)
+                .foregroundStyle(Color.blue)
 
             if isExecuting {
                 ProgressView()
@@ -221,7 +221,7 @@ public struct MuseCallsNativeToolsUI: View {
         }
         .padding(.horizontal, 8)
         .padding(.vertical, 4)
-        .background(Color.purple.opacity(0.08), in: RoundedRectangle(cornerRadius: 6))
+        .background(Color.blue.opacity(0.08), in: RoundedRectangle(cornerRadius: 6))
     }
 }
 

@@ -55,7 +55,7 @@ public final class AssistToolKnowledgeValidator: Sendable {
             let afterTick = trimmed.dropFirst(3)
             guard let end = afterTick.firstIndex(of: "`") else { continue }
             let id = String(afterTick[..<end]).trimmingCharacters(in: .whitespacesAndNewlines)
-            guard !id.isEmpty, id.range(of: "^[a-z0-9_]+$", options: .regularExpression) != nil else { continue }
+            guard !id.isEmpty, id.range(of: "^[a-zA-Z0-9_-]+$", options: .regularExpression) != nil else { continue }
             ids.append(id)
         }
         return ids

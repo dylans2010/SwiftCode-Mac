@@ -68,6 +68,11 @@ All file paths are workspace-relative, except for isolated scripts which reside 
 - `plan-AskUser`: Only valid in Plan mode. Blocked in Autopilot mode. Never show code snippets like `context.sessionExecutionMode == .autopilot` in chat.
 - `search_skills`: `query` is required string; `limit` is integer (default 8, max 20).
 - `create_new_app`: `appName` and `bundleIdentifier` are required strings; `platformTarget` ∈ `iOS`/`macOS`/`watchOS`/`visionOS`.
+- `save_to_memory`: `content` (required text to remember), `category` (optional: "preferences", "architecture", "conventions", "rules"), `importance` (optional: "high", "normal", "low"). Call when user states valuable context or preferences to remember across sessions.
+- `view_memory`: `section` (optional filter). Reads the persistent `UserMemory.md`.
+- `manage_memory`: `action` ∈ `read`/`append`/`edit`/`delete`/`clear`. Directly manages `UserMemory.md`.
+- `conversation_context_manager`: `action` ∈ `get`/`set`, `summary` (string). Maintains per-conversation context files.
+- `system_notification_tool`: `title`, `message` (or `body`), `subtitle`, `sound`. Posts genuine macOS notifications for long tasks.
 
 ---
 

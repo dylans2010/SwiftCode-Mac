@@ -159,6 +159,53 @@ public final class AssistToolRegistry {
         register(AssistMigrationTool())
         register(AssistGitStashTool())
         register(AssistXcodeSchemeTool())
+
+        // 45 New Deep Engineering, Diagnostics, Memory, & Tooling
+        register(AssistSaveToMemoryTool())
+        register(AssistViewMemoryTool())
+        register(AssistManageMemoryTool())
+        register(AssistConversationContextTool())
+        register(AssistSwiftASTInspectorTool())
+        register(AssistXcodeBuildSettingsTool())
+        register(AssistSymbolReferenceGraphTool())
+        register(AssistXCResultParserTool())
+        register(AssistXcodeDeviceDestinationTool())
+        register(AssistSimulatorControllerTool())
+        register(AssistGitBlameTool())
+        register(AssistGitBranchManagerTool())
+        register(AssistGitLogViewerTool())
+        register(AssistGitConflictResolverTool())
+        register(AssistSwiftFormatLintTool())
+        register(AssistTodoFixmeScannerTool())
+        register(AssistUnusedImportsDetectorTool())
+        register(AssistBundleResourceAuditorTool())
+        register(AssistCoreDataModelInspectorTool())
+        register(AssistSwiftDataSchemaAuditorTool())
+        register(AssistPrivacyManifestAuditorTool())
+        register(AssistIconGeneratorTool())
+        register(AssistColorSetBuilderTool())
+        register(AssistStringCatalogMigratorTool())
+        register(AssistTestCoverageReporterTool())
+        register(AssistSPMDependencyTreeTool())
+        register(AssistPodfileInspectorTool())
+        register(AssistCarthageCartfileInspectorTool())
+        register(AssistMachOBinaryAnalyzerTool())
+        register(AssistFrameworkLinkerAuditorTool())
+        register(AssistSigningCertificateInspectorTool())
+        register(AssistProvisioningProfileReaderTool())
+        register(AssistNetworkSecurityAuditorTool())
+        register(AssistAccessibilityAuditScannerTool())
+        register(AssistSwiftConcurrencyAnalyzerTool())
+        register(AssistRegexReplaceInFilesTool())
+        register(AssistFileChecksumVerifierTool())
+        register(AssistBinaryPlistConverterTool())
+        register(AssistJSONValidatorTool())
+        register(AssistYAMLParserTool())
+        register(AssistEnvironmentVariableManagerTool())
+        register(AssistClipboardManagerTool())
+        register(AssistProcessMonitorTool())
+        register(AssistDiskSpaceAnalyzerTool())
+        register(AssistSystemNotificationTool())
     }
 
     public var version: Int { registryVersion }
@@ -258,7 +305,53 @@ public final class AssistToolRegistry {
         "security_audit": "security_audit_scanner",
         "migration_advisor": "swift_migration_advisor",
         "git_stash": "git_stash_operator",
-        "xcode_scheme": "xcode_scheme_manager"
+        "xcode_scheme": "xcode_scheme_manager",
+        "memory_save": "save_to_memory",
+        "save_memory": "save_to_memory",
+        "memory_view": "view_memory",
+        "memory_manage": "manage_memory",
+        "conversation_context": "conversation_context_manager",
+        "ast_inspector": "swift_ast_inspector",
+        "build_settings": "xcode_build_settings_inspector",
+        "symbol_graph": "symbol_reference_graph",
+        "xcresult": "xcresult_parser",
+        "device_destinations": "xcode_device_destination_finder",
+        "simulator": "simulator_controller",
+        "git_blame": "git_blame_inspector",
+        "git_branches": "git_branch_manager",
+        "git_log": "git_log_viewer",
+        "git_conflict": "git_conflict_resolver",
+        "swift_format": "swift_format_lint",
+        "todo_scanner": "todo_fixme_scanner",
+        "unused_imports": "unused_imports_detector",
+        "bundle_auditor": "bundle_resource_auditor",
+        "core_data_inspector": "core_data_model_inspector",
+        "swift_data_schema": "swift_data_schema_auditor",
+        "privacy_manifest": "privacy_manifest_auditor",
+        "icon_generator": "icon_generator_tool",
+        "colorset": "colorset_builder",
+        "string_catalog": "string_catalog_migrator",
+        "test_coverage": "test_coverage_reporter",
+        "spm_tree": "spm_dependency_tree",
+        "podfile": "podfile_inspector",
+        "cartfile": "carthage_cartfile_inspector",
+        "macho_analyzer": "mach_o_binary_analyzer",
+        "framework_linker": "framework_linker_auditor",
+        "signing_certificate": "signing_certificate_inspector",
+        "provisioning_profile": "provisioning_profile_reader",
+        "network_security": "network_security_auditor",
+        "a11y_scanner": "accessibility_audit_scanner",
+        "concurrency_analyzer": "swift_concurrency_analyzer",
+        "regex_replace": "regex_replace_in_files",
+        "checksum_verifier": "file_checksum_verifier",
+        "binary_plist": "binary_plist_converter",
+        "json_validator": "json_validator_tool",
+        "yaml_parser": "yaml_parser_tool",
+        "env_manager": "environment_variable_manager",
+        "clipboard": "clipboard_manager_tool",
+        "process_monitor": "process_monitor_tool",
+        "disk_space": "disk_space_analyzer",
+        "system_notification": "system_notification_tool"
     ]
 
     public func getTool(_ id: String) -> AssistTool? {

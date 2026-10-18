@@ -2,8 +2,9 @@
 //  AssistComposerPopup.swift
 //  SwiftCode
 //
-//  Interactive popup and selection chips for @ (MCP servers, project files)
-//  and / (multi-select mandatory Agent Skills) in the Assist composer.
+//  Interactive popup and selection chips for @ (Resources: Conversations, Code context,
+//  Rules, Terminal, MCP, Files) and / (Meta Slash Commands, Skills) in the Assist composer.
+//  Styled with transparency effects, ultra-thin materials, and low color saturation.
 //
 
 import SwiftUI
@@ -16,9 +17,13 @@ public enum ComposerTriggerMode: Equatable {
 }
 
 public struct ComposerResourceItem: Identifiable, Hashable {
-    public enum Kind {
+    public enum Kind: String, Codable {
         case mcp
         case file
+        case conversation
+        case codeContext
+        case rule
+        case terminal
     }
 
     public let id: String
@@ -27,6 +32,17 @@ public struct ComposerResourceItem: Identifiable, Hashable {
     public let subtitle: String
     public let iconName: String
     public let fileURL: URL?
+
+    public var badgeText: String {
+        switch kind {
+        case .mcp: return "MCP"
+        case .file: return "File"
+        case .conversation: return "Conversation"
+        case .codeContext: return "Code"
+        case .rule: return "Rule"
+        case .terminal: return "Terminal"
+        }
+    }
 }
 
 // MARK: - Chips Bar View
@@ -64,25 +80,23 @@ public struct AssistComposerChipsBar: View {
         if !isEmpty {
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 6) {
-                    // Mandatory Skills chips
+                    // Skills chips
                     ForEach(selectedSkills, id: \.id) { skill in
                         chipView(
                             title: skill.name,
                             icon: "wand.and.stars",
-                            badge: "Mandatory Skill",
-                            color: .orange
+                            badge: "Skill"
                         ) {
                             onRemoveSkill(skill)
                         }
                     }
 
-                    // Mandatory MCP chips
+                    // MCP / Resource chips
                     ForEach(selectedMCPServers, id: \.self) { server in
                         chipView(
                             title: server,
-                            icon: "network",
-                            badge: "Mandatory MCP",
-                            color: .purple
+                            icon: server.hasPrefix("@") ? "at" : "network",
+                            badge: server.hasPrefix("@") ? "Resource" : "MCP"
                         ) {
                             onRemoveMCP(server)
                         }
@@ -93,30 +107,29 @@ public struct AssistComposerChipsBar: View {
                         chipView(
                             title: file.filename,
                             icon: "doc.text",
-                            badge: "File Context",
-                            color: .blue
+                            badge: "File"
                         ) {
                             onRemoveFile(file)
                         }
                     }
                 }
                 .padding(.horizontal, 4)
-                .padding(.vertical, 4)
+                .padding(.vertical, 3)
             }
         }
     }
 
+    @ViewBuilder
     private func chipView(
         title: String,
         icon: String,
         badge: String,
-        color: Color,
         onRemove: @escaping () -> Void
     ) -> some View {
         HStack(spacing: 5) {
             Image(systemName: icon)
                 .font(.system(size: 10, weight: .semibold))
-                .foregroundColor(color)
+                .foregroundColor(.secondary)
 
             Text(title)
                 .font(.system(size: 11, weight: .medium))
@@ -124,48 +137,51 @@ public struct AssistComposerChipsBar: View {
                 .lineLimit(1)
 
             Text(badge)
-                .font(.system(size: 8, weight: .bold))
-                .foregroundColor(color)
+                .font(.system(size: 8.5, weight: .medium))
+                .foregroundColor(.secondary)
                 .padding(.horizontal, 4)
                 .padding(.vertical, 1)
-                .background(color.opacity(0.12), in: Capsule())
+                .background(Color.primary.opacity(0.06), in: Capsule())
 
-            Button(action: onRemove) {
+            Button {
+                onRemove()
+            } label: {
                 Image(systemName: "xmark")
-                    .font(.system(size: 9, weight: .bold))
+                    .font(.system(size: 8.5, weight: .bold))
                     .foregroundColor(.secondary)
+                    .frame(width: 14, height: 14)
+                    .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
-            .padding(.leading, 2)
         }
-        .padding(.horizontal, 8)
-        .padding(.vertical, 4)
-        .background(Color(nsColor: .controlBackgroundColor))
-        .cornerRadius(6)
+        .padding(.leading, 7)
+        .padding(.trailing, 5)
+        .padding(.vertical, 3)
+        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 6, style: .continuous))
         .overlay(
-            RoundedRectangle(cornerRadius: 6)
-                .stroke(color.opacity(0.3), lineWidth: 1)
+            RoundedRectangle(cornerRadius: 6, style: .continuous)
+                .stroke(Color.primary.opacity(0.10), lineWidth: 0.75)
         )
     }
 }
 
-// MARK: - Popup Menu View
+// MARK: - Interactive Composer Popup View
 
 public struct AssistComposerPopupView: View {
     public let mode: ComposerTriggerMode
-    public let onSelectSkill: (SkillDescriptor) -> Void
-    public let onSelectMCP: (String) -> Void
-    public let onSelectFile: (URL) -> Void
-    public var onSelectMetaCommand: ((MetaSlashCommand, String?) -> Void)? = nil
-    public var onRequestCommandArguments: ((MetaSlashCommand) -> Void)? = nil
-    public let onDismiss: () -> Void
+    public var onSelectSkill: (SkillDescriptor) -> Void
+    public var onSelectMCP: (String) -> Void
+    public var onSelectFile: (URL) -> Void
+    public var onSelectMetaCommand: ((MetaSlashCommand, String?) -> Void)?
+    public var onRequestCommandArguments: ((MetaSlashCommand) -> Void)?
+    public var onDismiss: () -> Void
 
-    @ObservedObject private var skillIndex = SkillIndex.shared
-    @ObservedObject private var metaCommandManager = MetaSlashCommandManager.shared
-    @State private var mcpServers: [MCPServer] = []
-    @State private var projectFiles: [URL] = []
     @State private var selectedIndex: Int = 0
     @State private var selectedCategory: String = "All"
+    @State private var mcpServers: [MCPServer] = []
+    @State private var projectFiles: [URL] = []
+    @ObservedObject private var skillIndex = SkillIndex.shared
+    @ObservedObject private var metaCommandManager = MetaSlashCommandManager.shared
 
     public init(
         mode: ComposerTriggerMode,
@@ -213,10 +229,78 @@ public struct AssistComposerPopupView: View {
 
         var list: [ComposerResourceItem] = []
 
-        // 1. MCP servers
+        // 1. Past Conversations (@conversations)
+        let convos = AssistConversationHistory.shared.listConversations()
+        for c in convos {
+            if trimmed.isEmpty || c.title.lowercased().contains(trimmed) || "conversation".contains(trimmed) || "history".contains(trimmed) {
+                list.append(ComposerResourceItem(
+                    id: "convo-\(c.id)",
+                    kind: .conversation,
+                    title: c.title,
+                    subtitle: "Conversation · \(c.messageCount) msgs · Context available",
+                    iconName: "bubble.left.and.bubble.right",
+                    fileURL: c.contextFileURL
+                ))
+            }
+        }
+
+        // 2. Code Context (@code)
+        let codeMatches = ["code", "context", "active", "file", "selection"]
+        if trimmed.isEmpty || codeMatches.contains(where: { $0.contains(trimmed) || trimmed.contains($0) }) {
+            list.append(ComposerResourceItem(
+                id: "code-active-file",
+                kind: .codeContext,
+                title: "Active Editor File Context",
+                subtitle: "Full buffer of active editor tab and cursor selection",
+                iconName: "chevron.left.forwardslash.chevron.right",
+                fileURL: nil
+            ))
+            list.append(ComposerResourceItem(
+                id: "code-symbols",
+                kind: .codeContext,
+                title: "Project Symbol Reference Graph",
+                subtitle: "Top-level types, protocols, and extensions index",
+                iconName: "square.3.layers.3d",
+                fileURL: nil
+            ))
+        }
+
+        // 3. Agent Task Rules (@rules)
+        let standardRules = [
+            ("Strict Concurrency Rule", "Enforce Swift 6 Sendable and actor isolation boundaries", "rules-concurrency"),
+            ("Clean Architecture Rule", "Enforce clean separation of concerns and MVVM / services", "rules-arch"),
+            ("Zero Breaking Changes", "Preserve existing APIs and backward compatibility", "rules-compat"),
+            ("A11y & Dynamic Type First", "Ensure VoiceOver traits, dynamic type, and high contrast", "rules-a11y")
+        ]
+        for (ruleName, ruleDesc, ruleId) in standardRules {
+            if trimmed.isEmpty || ruleName.lowercased().contains(trimmed) || "rule".contains(trimmed) {
+                list.append(ComposerResourceItem(
+                    id: ruleId,
+                    kind: .rule,
+                    title: ruleName,
+                    subtitle: "Task Rule · \(ruleDesc)",
+                    iconName: "shield.lefthalf.filled",
+                    fileURL: nil
+                ))
+            }
+        }
+
+        // 4. Terminal Context (@terminal)
+        if trimmed.isEmpty || "terminal".contains(trimmed) || "console".contains(trimmed) || "shell".contains(trimmed) {
+            list.append(ComposerResourceItem(
+                id: "term-recent-output",
+                kind: .terminal,
+                title: "Recent Terminal Buffer",
+                subtitle: "Injects recent terminal command outputs and build diagnostics",
+                iconName: "terminal",
+                fileURL: nil
+            ))
+        }
+
+        // 5. MCP servers
         for s in mcpServers {
             let serverName = s.displayName
-            if trimmed.isEmpty || serverName.lowercased().contains(trimmed) {
+            if trimmed.isEmpty || serverName.lowercased().contains(trimmed) || "mcp".contains(trimmed) {
                 let sub = s.executablePath ?? (s.urlString.isEmpty ? "Configured" : s.urlString)
                 list.append(ComposerResourceItem(
                     id: "mcp-\(s.id)",
@@ -229,10 +313,10 @@ public struct AssistComposerPopupView: View {
             }
         }
 
-        // 2. Project files
+        // 6. Project files
         for url in projectFiles {
             let name = url.lastPathComponent
-            if trimmed.isEmpty || name.lowercased().contains(trimmed) || url.path.lowercased().contains(trimmed) {
+            if trimmed.isEmpty || name.lowercased().contains(trimmed) || url.path.lowercased().contains(trimmed) || "file".contains(trimmed) {
                 list.append(ComposerResourceItem(
                     id: "file-\(url.path)",
                     kind: .file,
@@ -244,37 +328,35 @@ public struct AssistComposerPopupView: View {
             }
         }
 
-        return Array(list.prefix(15))
+        return Array(list.prefix(18))
     }
 
     public var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            // Header bar
+            // Basic, translucent header bar with minimal color
             HStack(spacing: 8) {
                 HStack(spacing: 6) {
                     ZStack {
                         RoundedRectangle(cornerRadius: 6)
-                            .fill(
-                                LinearGradient(
-                                    colors: isMetaCommandMode ? [Color.orange.opacity(0.85), Color.pink.opacity(0.75)] : (isSkillMode ? [Color.orange.opacity(0.8), Color.yellow.opacity(0.7)] : [Color.blue.opacity(0.8), Color.purple.opacity(0.7)]),
-                                    startPoint: .topLeading,
-                                    endPoint: .bottomTrailing
-                                )
-                            )
+                            .fill(Color.primary.opacity(0.06))
                             .frame(width: 22, height: 22)
 
                         Image(systemName: isMetaCommandMode ? "bolt.badge.automatic.fill" : (isSkillMode ? "wand.and.stars" : "at"))
-                            .font(.system(size: 11, weight: .bold))
-                            .foregroundColor(.white)
+                            .font(.system(size: 11, weight: .semibold))
+                            .foregroundColor(.primary.opacity(0.8))
                     }
 
                     VStack(alignment: .leading, spacing: 1) {
-                        Text(isMetaCommandMode ? "Meta Slash Commands" : (isSkillMode ? "Agent Skills (Mandatory Execution)" : "Resources (@MCP or @File)"))
-                            .font(.system(size: 12, weight: .bold))
+                        Text(isMetaCommandMode ? "Meta Slash Commands" : (isSkillMode ? "Agent Skills" : "Resources"))
+                            .font(.system(size: 12, weight: .semibold))
                             .foregroundColor(.primary)
 
                         if isMetaCommandMode {
-                            Text("\(metaCommandItems.count) commands available · Navigate with ↑↓ and Return ↵")
+                            Text("\(metaCommandItems.count) commands · Navigate with ↑↓ and Return ↵")
+                                .font(.system(size: 9.5))
+                                .foregroundColor(.secondary)
+                        } else if !isSkillMode {
+                            Text("Conversations, files, rules, code context & terminal buffer")
                                 .font(.system(size: 9.5))
                                 .foregroundColor(.secondary)
                         }
@@ -289,14 +371,14 @@ public struct AssistComposerPopupView: View {
                         .foregroundColor(.secondary)
                         .padding(.horizontal, 5)
                         .padding(.vertical, 2)
-                        .background(Color.primary.opacity(0.06), in: RoundedRectangle(cornerRadius: 4))
+                        .background(Color.primary.opacity(0.05), in: RoundedRectangle(cornerRadius: 4))
                 }
             }
             .padding(.horizontal, 12)
             .padding(.vertical, 8)
-            .background(Color(nsColor: .controlBackgroundColor).opacity(0.85))
+            .background(.ultraThinMaterial)
 
-            // Category filter pills for Meta commands
+            // Category filter pills for Meta commands (subtle neutral design)
             if isMetaCommandMode {
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: 5) {
@@ -306,17 +388,17 @@ public struct AssistComposerPopupView: View {
                                 selectedIndex = 0
                             } label: {
                                 Text(cat)
-                                    .font(.system(size: 10, weight: selectedCategory == cat ? .bold : .medium))
-                                    .foregroundColor(selectedCategory == cat ? .orange : .secondary)
+                                    .font(.system(size: 10, weight: selectedCategory == cat ? .semibold : .regular))
+                                    .foregroundColor(selectedCategory == cat ? .primary : .secondary)
                                     .padding(.horizontal, 8)
                                     .padding(.vertical, 3)
                                     .background(
                                         Capsule()
-                                            .fill(selectedCategory == cat ? Color.orange.opacity(0.18) : Color.primary.opacity(0.04))
+                                            .fill(selectedCategory == cat ? Color.primary.opacity(0.12) : Color.primary.opacity(0.04))
                                     )
                                     .overlay(
                                         Capsule()
-                                            .stroke(selectedCategory == cat ? Color.orange.opacity(0.35) : Color.clear, lineWidth: 1)
+                                            .stroke(selectedCategory == cat ? Color.primary.opacity(0.18) : Color.clear, lineWidth: 1)
                                     )
                             }
                             .buttonStyle(.plain)
@@ -325,13 +407,13 @@ public struct AssistComposerPopupView: View {
                     .padding(.horizontal, 10)
                     .padding(.vertical, 5)
                 }
-                .background(Color(nsColor: .windowBackgroundColor).opacity(0.5))
+                .background(.ultraThinMaterial.opacity(0.6))
             }
 
             Divider()
-                .opacity(0.6)
+                .opacity(0.3)
 
-            // Scrollable list of commands/skills/resources with explicit non-collapsing frame
+            // Scrollable list of commands/skills/resources
             ScrollViewReader { proxy in
                 ScrollView {
                     LazyVStack(spacing: 3) {
@@ -355,7 +437,7 @@ public struct AssistComposerPopupView: View {
                             }
                         } else {
                             if resourceItems.isEmpty {
-                                emptyRow(text: "No matching MCP servers or files found")
+                                emptyRow(text: "No matching resources, conversations, or files found")
                             } else {
                                 ForEach(Array(resourceItems.enumerated()), id: \.element.id) { idx, item in
                                     resourceRow(item: item, isSelected: idx == selectedIndex)
@@ -376,19 +458,12 @@ public struct AssistComposerPopupView: View {
         }
         .frame(width: 490)
         .background(.ultraThinMaterial)
-        .cornerRadius(12)
+        .cornerRadius(10)
         .overlay(
-            RoundedRectangle(cornerRadius: 12)
-                .stroke(
-                    LinearGradient(
-                        colors: [Color.orange.opacity(0.4), Color.primary.opacity(0.12)],
-                        startPoint: .topLeading,
-                        endPoint: .bottomTrailing
-                    ),
-                    lineWidth: 1
-                )
+            RoundedRectangle(cornerRadius: 10)
+                .stroke(Color.primary.opacity(0.08), lineWidth: 0.75)
         )
-        .shadow(color: Color.black.opacity(0.25), radius: 16, x: 0, y: 8)
+        .shadow(color: Color.black.opacity(0.18), radius: 14, x: 0, y: 6)
         .onAppear {
             loadResources()
         }
@@ -454,6 +529,18 @@ public struct AssistComposerPopupView: View {
                 if let url = item.fileURL {
                     onSelectFile(url)
                 }
+            case .conversation:
+                if let url = item.fileURL {
+                    onSelectFile(url)
+                } else {
+                    onSelectMCP("@conversation: \(item.title)")
+                }
+            case .codeContext:
+                onSelectMCP("@code: \(item.title)")
+            case .rule:
+                onSelectMCP("@rule: \(item.title)")
+            case .terminal:
+                onSelectMCP("@terminal: recent_buffer")
             }
         }
     }
@@ -473,41 +560,34 @@ public struct AssistComposerPopupView: View {
             triggerMetaCommand(command)
         } label: {
             HStack(spacing: 10) {
-                // SF Symbol icon container
                 ZStack {
-                    RoundedRectangle(cornerRadius: 7)
-                        .fill(
-                            LinearGradient(
-                                colors: [Color.orange.opacity(isSelected ? 0.35 : 0.18), Color.pink.opacity(isSelected ? 0.25 : 0.10)],
-                                startPoint: .topLeading,
-                                endPoint: .bottomTrailing
-                            )
-                        )
-                        .frame(width: 28, height: 28)
+                    RoundedRectangle(cornerRadius: 6)
+                        .fill(Color.primary.opacity(0.06))
+                        .frame(width: 26, height: 26)
 
                     Image(systemName: command.icon)
-                        .font(.system(size: 13, weight: .semibold))
-                        .foregroundColor(.orange)
+                        .font(.system(size: 12, weight: .medium))
+                        .foregroundColor(.primary.opacity(0.8))
                 }
 
-                VStack(alignment: .leading, spacing: 3) {
+                VStack(alignment: .leading, spacing: 2) {
                     HStack(spacing: 6) {
                         Text(command.name)
-                            .font(.system(size: 12, weight: .bold, design: .monospaced))
-                            .foregroundColor(.orange)
+                            .font(.system(size: 11.5, weight: .bold, design: .monospaced))
+                            .foregroundColor(.primary)
 
                         Text(command.title)
-                            .font(.system(size: 11.5, weight: .semibold))
-                            .foregroundColor(.primary)
+                            .font(.system(size: 11, weight: .medium))
+                            .foregroundColor(.primary.opacity(0.85))
 
                         Spacer()
 
                         Text(command.category)
-                            .font(.system(size: 8.5, weight: .bold))
+                            .font(.system(size: 8.5, weight: .medium))
                             .foregroundColor(.secondary)
                             .padding(.horizontal, 5)
                             .padding(.vertical, 1.5)
-                            .background(Color.primary.opacity(0.07), in: Capsule())
+                            .background(Color.primary.opacity(0.05), in: Capsule())
 
                         if command.requiresArguments {
                             HStack(spacing: 2) {
@@ -516,52 +596,40 @@ public struct AssistComposerPopupView: View {
                                 Text("Options")
                                     .font(.system(size: 8.5, weight: .medium))
                             }
-                            .foregroundColor(.orange)
+                            .foregroundColor(.secondary)
                             .padding(.horizontal, 5)
                             .padding(.vertical, 1.5)
-                            .background(Color.orange.opacity(0.12), in: Capsule())
+                            .background(Color.primary.opacity(0.06), in: Capsule())
                         }
                     }
 
                     Text(command.description)
-                        .font(.system(size: 10.5))
+                        .font(.system(size: 10))
                         .foregroundColor(.secondary)
                         .lineLimit(1)
 
                     if !command.syntax.isEmpty && command.syntax != command.name {
                         Text(command.syntax)
                             .font(.system(size: 9, design: .monospaced))
-                            .foregroundColor(.secondary.opacity(0.8))
+                            .foregroundColor(.secondary.opacity(0.75))
                             .lineLimit(1)
                     }
                 }
 
                 Image(systemName: command.requiresArguments ? "chevron.right" : "return")
-                    .font(.system(size: 10, weight: .semibold))
-                    .foregroundColor(isSelected ? .orange : .secondary.opacity(0.5))
+                    .font(.system(size: 9.5, weight: .medium))
+                    .foregroundColor(isSelected ? .primary : .secondary.opacity(0.4))
                     .padding(.leading, 2)
             }
-            .padding(.horizontal, 10)
+            .padding(.horizontal, 9)
             .padding(.vertical, 6)
             .background(
-                RoundedRectangle(cornerRadius: 8)
-                    .fill(
-                        isSelected ?
-                            LinearGradient(
-                                colors: [Color.orange.opacity(0.18), Color.orange.opacity(0.06)],
-                                startPoint: .leading,
-                                endPoint: .trailing
-                            ) :
-                            LinearGradient(
-                                colors: [Color.clear, Color.clear],
-                                startPoint: .leading,
-                                endPoint: .trailing
-                            )
-                    )
+                RoundedRectangle(cornerRadius: 6)
+                    .fill(isSelected ? Color.primary.opacity(0.08) : Color.clear)
             )
             .overlay(
-                RoundedRectangle(cornerRadius: 8)
-                    .stroke(isSelected ? Color.orange.opacity(0.35) : Color.clear, lineWidth: 1)
+                RoundedRectangle(cornerRadius: 6)
+                    .stroke(isSelected ? Color.primary.opacity(0.12) : Color.clear, lineWidth: 0.5)
             )
         }
         .buttonStyle(.plain)
@@ -597,7 +665,7 @@ public struct AssistComposerPopupView: View {
             HStack(spacing: 8) {
                 Image(systemName: skill.sourceKind.iconName)
                     .font(.system(size: 12))
-                    .foregroundColor(.orange)
+                    .foregroundColor(.secondary)
                     .frame(width: 20)
 
                 VStack(alignment: .leading, spacing: 2) {
@@ -607,11 +675,11 @@ public struct AssistComposerPopupView: View {
                             .foregroundColor(.primary)
 
                         Text(skill.sourceKind.rawValue)
-                            .font(.system(size: 9))
+                            .font(.system(size: 8.5))
                             .foregroundColor(.secondary)
                             .padding(.horizontal, 4)
                             .padding(.vertical, 1)
-                            .background(Color.primary.opacity(0.06), in: Capsule())
+                            .background(Color.primary.opacity(0.05), in: Capsule())
                     }
 
                     Text(skill.description)
@@ -623,14 +691,14 @@ public struct AssistComposerPopupView: View {
                 Spacer()
 
                 Image(systemName: "plus.circle")
-                    .font(.system(size: 11))
+                    .font(.system(size: 10.5))
                     .foregroundColor(.secondary)
             }
             .padding(.horizontal, 8)
             .padding(.vertical, 5)
             .background(
-                RoundedRectangle(cornerRadius: 5)
-                    .fill(isSelected ? Color.accentColor.opacity(0.12) : Color.clear)
+                RoundedRectangle(cornerRadius: 6)
+                    .fill(isSelected ? Color.primary.opacity(0.08) : Color.clear)
             )
         }
         .buttonStyle(.plain)
@@ -645,31 +713,43 @@ public struct AssistComposerPopupView: View {
                 if let url = item.fileURL {
                     onSelectFile(url)
                 }
+            case .conversation:
+                if let url = item.fileURL {
+                    onSelectFile(url)
+                } else {
+                    onSelectMCP("@conversation: \(item.title)")
+                }
+            case .codeContext:
+                onSelectMCP("@code: \(item.title)")
+            case .rule:
+                onSelectMCP("@rule: \(item.title)")
+            case .terminal:
+                onSelectMCP("@terminal: recent_buffer")
             }
         } label: {
             HStack(spacing: 8) {
                 Image(systemName: item.iconName)
-                    .font(.system(size: 12))
-                    .foregroundColor(item.kind == .mcp ? .purple : .blue)
+                    .font(.system(size: 11.5))
+                    .foregroundColor(.primary.opacity(0.75))
                     .frame(width: 20)
 
-                VStack(alignment: .leading, spacing: 2) {
+                VStack(alignment: .leading, spacing: 1.5) {
                     HStack(spacing: 6) {
                         Text(item.title)
-                            .font(.system(size: 12, weight: .medium))
+                            .font(.system(size: 11.5, weight: .medium))
                             .foregroundColor(.primary)
                             .lineLimit(1)
 
-                        Text(item.kind == .mcp ? "MCP" : "File")
-                            .font(.system(size: 9, weight: .bold))
-                            .foregroundColor(item.kind == .mcp ? .purple : .blue)
-                            .padding(.horizontal, 4)
+                        Text(item.badgeText)
+                            .font(.system(size: 8.5, weight: .semibold))
+                            .foregroundColor(.secondary)
+                            .padding(.horizontal, 4.5)
                             .padding(.vertical, 1)
-                            .background((item.kind == .mcp ? Color.purple : Color.blue).opacity(0.12), in: Capsule())
+                            .background(Color.primary.opacity(0.05), in: Capsule())
                     }
 
                     Text(item.subtitle)
-                        .font(.system(size: 10))
+                        .font(.system(size: 9.5))
                         .foregroundColor(.secondary)
                         .lineLimit(1)
                         .truncationMode(.middle)
@@ -678,14 +758,14 @@ public struct AssistComposerPopupView: View {
                 Spacer()
 
                 Image(systemName: "arrow.up.left")
-                    .font(.system(size: 10))
-                    .foregroundColor(.secondary)
+                    .font(.system(size: 9.5))
+                    .foregroundColor(.secondary.opacity(0.5))
             }
             .padding(.horizontal, 8)
             .padding(.vertical, 5)
             .background(
-                RoundedRectangle(cornerRadius: 5)
-                    .fill(isSelected ? Color.accentColor.opacity(0.12) : Color.clear)
+                RoundedRectangle(cornerRadius: 6)
+                    .fill(isSelected ? Color.primary.opacity(0.08) : Color.clear)
             )
         }
         .buttonStyle(.plain)
@@ -715,3 +795,5 @@ public struct AssistComposerPopupView: View {
         }
     }
 }
+
+public typealias AssistComposerPopup = AssistComposerPopupView

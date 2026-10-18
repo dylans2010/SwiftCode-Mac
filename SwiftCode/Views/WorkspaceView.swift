@@ -38,6 +38,12 @@ struct WorkspaceView: View {
     @State private var activeSheet: ToolbarActionManager.SheetDestination?
     @State private var showingExportSheet = false
 
+    // Coding Tools Modal State
+    @State private var showCodingToolsModal = false
+    @State private var codingToolsAction: CodingToolsUI.CodingAction = .refactor
+    @State private var codingToolsCode = ""
+    @State private var codingToolsFilePath = ""
+
     // Workflow Editor States
     @State private var workflowContent = ""
     @State private var workflowFileName = "main.yml"
@@ -342,6 +348,31 @@ struct WorkspaceView: View {
             withAnimation(.spring()) {
                 showInfoProjSidebar.toggle()
             }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: Notification.Name("TriggerCodingToolsContextAction"))) { notification in
+            let userInfo = notification.userInfo
+            let action = userInfo?["action"] as? CodingToolsUI.CodingAction ?? .refactor
+            let code = userInfo?["code"] as? String ?? ""
+            let path = userInfo?["filePath"] as? String ?? sessionStore.activeFileNode?.path ?? "File.swift"
+
+            self.codingToolsAction = action
+            self.codingToolsCode = code.isEmpty ? sessionStore.activeFileContent : code
+            self.codingToolsFilePath = path
+            self.showCodingToolsModal = true
+        }
+        .sheet(isPresented: $showCodingToolsModal) {
+            CodingToolsUI(
+                selectedCode: codingToolsCode.isEmpty ? sessionStore.activeFileContent : codingToolsCode,
+                filePath: codingToolsFilePath.isEmpty ? (sessionStore.activeFileNode?.path ?? "File.swift") : codingToolsFilePath,
+                initialAction: codingToolsAction,
+                onApplyCode: { newCode in
+                    sessionStore.activeFileContent = newCode
+                    sessionStore.saveCurrentFile(content: newCode)
+                    showCodingToolsModal = false
+                }
+            )
+            .padding()
+            .frame(minWidth: 500, minHeight: 460)
         }
         .background(Color(hex: themeVM.currentTheme.background))
         .foregroundStyle(Color(hex: themeVM.currentTheme.foreground))

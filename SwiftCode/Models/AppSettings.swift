@@ -149,6 +149,14 @@ class AppSettings: ObservableObject {
         }
     }
 
+    // MARK: - Assist User Memory
+    @Published var enableUserMemory: Bool {
+        didSet {
+            debouncedSave("enableUserMemory", enableUserMemory)
+            UserDefaults.standard.set(enableUserMemory, forKey: "assist.enableUserMemory")
+        }
+    }
+
     public var assistToolkitDisplayName: String {
         if assistToolkit.caseInsensitiveCompare("cloud") == .orderedSame {
             return "Cloud (\(activeCloudToolkitName))"
@@ -508,6 +516,9 @@ class AppSettings: ObservableObject {
             ?? ""
         useMetaSlashCommands = UserDefaults.standard.object(forKey: "useMetaSlashCommands") as? Bool
             ?? UserDefaults.standard.object(forKey: "assist.useMetaSlashCommands") as? Bool
+            ?? true
+        enableUserMemory = UserDefaults.standard.object(forKey: "enableUserMemory") as? Bool
+            ?? UserDefaults.standard.object(forKey: "assist.enableUserMemory") as? Bool
             ?? true
         onlyUseFreeModels = UserDefaults.standard.object(forKey: "onlyUseFreeModels") as? Bool
             ?? UserDefaults.standard.object(forKey: "assist.onlyUseFreeModels") as? Bool

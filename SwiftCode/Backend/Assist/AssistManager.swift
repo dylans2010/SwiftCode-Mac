@@ -959,6 +959,18 @@ public final class AssistManager: ObservableObject {
         // just the visible messages. The shared SystemIndex cache, bundled
         // System Assets, settings, credentials, and project files are
         // intentionally NOT touched.
+        // Save previous conversation if it had messages before resetting
+        if !messages.isEmpty {
+            let snap = messages
+            let convId = AssistConversationHistory.shared.activeConversationID ?? AssistConversationHistory.shared.startNewConversation().id
+            Task { @MainActor in
+                await AssistConversationHistory.shared.saveMessages(conversationId: convId, messages: snap)
+                _ = AssistConversationHistory.shared.startNewConversation()
+            }
+        } else {
+            _ = AssistConversationHistory.shared.startNewConversation()
+        }
+
         messages.removeAll()
         modelContext = []
         contextPressure = nil
@@ -1031,6 +1043,13 @@ public final class AssistManager: ObservableObject {
         Task.detached(priority: .utility) {
             if let data = try? JSONEncoder().encode(snapshot) {
                 UserDefaults.standard.set(data, forKey: "com.swiftcode.assist.history")
+            }
+        }
+
+        if !snapshot.isEmpty {
+            Task { @MainActor in
+                let convId = AssistConversationHistory.shared.activeConversationID ?? AssistConversationHistory.shared.startNewConversation().id
+                await AssistConversationHistory.shared.saveMessages(conversationId: convId, messages: snapshot)
             }
         }
     }

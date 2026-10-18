@@ -140,6 +140,55 @@ Capability-level reference for the internal capabilities Assist can invoke durin
 - `git_stash_operator` (safeMutation) — save, pop, list, show, or drop Git stashes during refactoring or experiments.
 - `xcode_scheme_manager` (safeRead) — inspect, list, and query Xcode schemes, build targets, and configurations via `xcodebuild -list`.
 
+---
+
+## Deep Engineering, Diagnostics, Memory, & Tooling (45 Specialized Tools)
+
+- `save_to_memory` (safeMutation) — saves durable developer context, preferences, and architecture facts directly to UserMemory.md.
+- `view_memory` (safeRead) — inspects current persistent user memory from UserMemory.md.
+- `manage_memory` (safeMutation) — edits, deletes, appends, or clears specific memory sections in UserMemory.md.
+- `conversation_context_manager` (safeRead) — reads or updates the per-conversation context file for chat continuity.
+- `swift_ast_inspector` (safeRead) — dumps and inspects the Swift compiler AST for structural analysis via swiftc.
+- `xcode_build_settings_inspector` (safeRead) — queries effective Xcode build settings for targets and configurations via xcodebuild -showBuildSettings.
+- `symbol_reference_graph` (safeRead) — finds all callers, definitions, extensions, and references of a symbol across the project.
+- `xcresult_parser` (safeRead) — parses Xcode test and build `.xcresult` bundles for failures and test summaries.
+- `xcode_device_destination_finder` (safeRead) — queries available real and simulated Apple device destinations for xcodebuild.
+- `simulator_controller` (execution) — boots, shuts down, installs, launches, or captures screenshots of iOS/macOS simulators via xcrun simctl.
+- `git_blame_inspector` (safeRead) — extracts git blame line annotations, authors, and commits for targeted file ranges.
+- `git_branch_manager` (safeMutation) — lists, creates, checks out, and safely deletes local git branches.
+- `git_log_viewer` (safeRead) — inspects recent git commit logs, hashes, authors, and commit messages.
+- `git_conflict_resolver` (safeMutation) — detects and assists in resolving merge conflict markers across project files.
+- `swift_format_lint` (safeRead) — checks or formats Swift files according to Swift formatting rules.
+- `todo_fixme_scanner` (safeRead) — scans the codebase for TODO, FIXME, HACK, and NOTE annotations with line numbers.
+- `unused_imports_detector` (safeRead) — detects redundant and unreferenced Swift module imports across source files.
+- `bundle_resource_auditor` (safeRead) — scans for missing, duplicated, or bloated resources in target app bundles.
+- `core_data_model_inspector` (safeRead) — inspects Core Data `.xcdatamodeld` models, entities, attributes, and relationships.
+- `swift_data_schema_auditor` (safeRead) — audits `@Model` declarations, relationships, and uniqueness constraints for SwiftData.
+- `privacy_manifest_auditor` (safeRead) — audits `PrivacyInfo.xcprivacy` for required reasons APIs and tracking declarations.
+- `icon_generator_tool` (safeMutation) — generates complete AppIcon sets for iOS, macOS, and watchOS from source artwork.
+- `colorset_builder` (safeMutation) — generates `.colorset` asset catalog JSON with light and dark mode hex definitions.
+- `string_catalog_migrator` (safeMutation) — migrates legacy `.strings` and `.stringsdict` files into modern `.xcstrings` catalogs.
+- `test_coverage_reporter` (safeRead) — extracts code coverage percentages by target and file from `.xcresult` or llvm-cov.
+- `spm_dependency_tree` (safeRead) — computes the resolved dependency graph and version requirements of `Package.swift`.
+- `podfile_inspector` (safeRead) — parses and validates CocoaPods `Podfile` dependencies and target integrations.
+- `carthage_cartfile_inspector` (safeRead) — inspects Carthage `Cartfile` and `Cartfile.resolved` dependencies.
+- `mach_o_binary_analyzer` (safeRead) — inspects architectures, load commands, rpaths, and dylibs of Mach-O binaries via otool/file.
+- `framework_linker_auditor` (safeRead) — audits linked frameworks against target platform availability and weak linking requirements.
+- `signing_certificate_inspector` (safeRead) — lists and inspects installed Apple Development and Distribution code signing identities via security.
+- `provisioning_profile_reader` (safeRead) — parses `.mobileprovision` or `.provisionprofile` UUIDs, entitlements, and expiration dates.
+- `network_security_auditor` (safeRead) — inspects App Transport Security (ATS) keys, plaintext HTTP URLs, and certificate pinning rules.
+- `accessibility_audit_scanner` (safeRead) — audits SwiftUI and AppKit views for accessibility labels, hints, traits, and contrast.
+- `swift_concurrency_analyzer` (safeRead) — detects non-Sendable transfers, unsafe mutable state, and actor reentrancy hazards.
+- `regex_replace_in_files` (safeMutation) — performs safe regex search and replacement across multiple matched project files.
+- `file_checksum_verifier` (safeRead) — computes SHA256 and MD5 checksums to verify asset integrity and file consistency.
+- `binary_plist_converter` (safeMutation) — converts between binary and XML property list representations using plutil.
+- `json_validator_tool` (safeRead) — validates JSON syntax, formats prettified outputs, and detects structural errors.
+- `yaml_parser_tool` (safeRead) — validates and converts YAML configurations into structured inspectable representations.
+- `environment_variable_manager` (safeRead) — reads and validates process and developer environment configurations securely.
+- `clipboard_manager_tool` (safeMutation) — reads and writes code snippets or diagnostic outputs to the macOS NSPasteboard.
+- `process_monitor_tool` (safeRead) — monitors running dev processes, CPU/memory consumption, and build tools.
+- `disk_space_analyzer` (safeRead) — checks disk usage, build artifact caches, and DerivedData storage consumption.
+- `system_notification_tool` (safeRead) — posts macOS user notifications and alerts for task completions and build events.
 
 ---
 
