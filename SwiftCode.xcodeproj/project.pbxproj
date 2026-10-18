@@ -2822,7 +2822,64 @@
 		AA9E000200000006 /* ToolExecutionGroupModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA9E000100000006 /* ToolExecutionGroupModel.swift */; };
 		AA9E000200000007 /* CodingToolsUI.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA9E000100000007 /* CodingToolsUI.swift */; };
 		AA9E000200000008 /* EmptyTemplate.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA9E000100000008 /* EmptyTemplate.swift */; };
-/* End PBXBuildFile section */
+		248D8D74114E0702D148C521 /* AssistProjectSchemeListTool.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9C0D414E3A2372A595375F90 /* AssistProjectSchemeListTool.swift */; };
+		9296B1573F41D05E7D7EAE0B /* AssistProjectTargetListTool.swift in Sources */ = {isa = PBXBuildFile; fileRef = 55D27F28D273BDFB0FD216D4 /* AssistProjectTargetListTool.swift */; };
+		5828C09C529730DEBBAF682B /* AssistProjectBuildSettingsTool.swift in Sources */ = {isa = PBXBuildFile; fileRef = 18526EFE84813CDB7C4B4910 /* AssistProjectBuildSettingsTool.swift */; };
+		366E7A8771F621E5FBC573E6 /* AssistProjectTargetAddTool.swift in Sources */ = {isa = PBXBuildFile; fileRef = C84EF98F6B36D10485DE1C7B /* AssistProjectTargetAddTool.swift */; };
+		8E893D6071AFB416B4D3D4C1 /* AssistProjectEntitlementsTool.swift in Sources */ = {isa = PBXBuildFile; fileRef = B464BCAD496A08A648AB2E38 /* AssistProjectEntitlementsTool.swift */; };
+		648F1758B6879146801B05F8 /* AssistProjectInfoPlistTool.swift in Sources */ = {isa = PBXBuildFile; fileRef = EC0F1BC0C2A5CD8217DC17D8 /* AssistProjectInfoPlistTool.swift */; };
+		2DCE99E8659B415BDB894AD9 /* AssistProjectCapabilitiesTool.swift in Sources */ = {isa = PBXBuildFile; fileRef = ACF8F47B161CB22D230A7A2D /* AssistProjectCapabilitiesTool.swift */; };
+		3AD101FD68A3828F75ED5EDB /* AssistProjectSigningTool.swift in Sources */ = {isa = PBXBuildFile; fileRef = 952760D8830E037E93C50D9C /* AssistProjectSigningTool.swift */; };
+		DE095326C759406546479068 /* AssistProjectCleanTool.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0FA2190162E9061E332958A6 /* AssistProjectCleanTool.swift */; };
+		08CA119BD8DD975D215CDF8E /* AssistProjectArchiveTool.swift in Sources */ = {isa = PBXBuildFile; fileRef = 24822D42A77A3DA182D7F8F9 /* AssistProjectArchiveTool.swift */; };
+		CAF862AA9E8FBEF0E96E2741 /* AssistPackageManifestReadTool.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3BAEA17A38E6F7BCD2A6DC78 /* AssistPackageManifestReadTool.swift */; };
+		8C1407297DA6E0A203D6B5F9 /* AssistPackageDependencyAddTool.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9778EBE67DED1F62D015618F /* AssistPackageDependencyAddTool.swift */; };
+		88A7E5D62E4F6FDEF46A3077 /* AssistPackageDependencyUpdateTool.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2A42A79D207910CA6131E09F /* AssistPackageDependencyUpdateTool.swift */; };
+		8846E636B44816C5C7285BE5 /* AssistPackageManifestValidateTool.swift in Sources */ = {isa = PBXBuildFile; fileRef = EE99122592962BFF52CF28DD /* AssistPackageManifestValidateTool.swift */; };
+		EBCEAF5D6BB26201ED057D8C /* AssistPackageDependencyAuditTool.swift in Sources */ = {isa = PBXBuildFile; fileRef = 75147FB9187D8E37F8E66B53 /* AssistPackageDependencyAuditTool.swift */; };
+		3D1052458D9FFB58272F32BB /* AssistAssetCatalogListTool.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5E9DAEB5471A9B122AA40AD4 /* AssistAssetCatalogListTool.swift */; };
+		9BC773DBFF3AC4BC9CC9F359 /* AssistAssetImageAddTool.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1884D79B7428B41CACBB2967 /* AssistAssetImageAddTool.swift */; };
+		E4BA8A676FA4C5D9CDA986B3 /* AssistStringsLocalizationTool.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0064493485DB6A37605F97C0 /* AssistStringsLocalizationTool.swift */; };
+		0BBF34F07A3C543B62E7DDE0 /* AssistLocalizationAuditTool.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6E888E16A3CC71042257D396 /* AssistLocalizationAuditTool.swift */; };
+		2E47EB31233066CACC1CB337 /* AssistPlistEditTool.swift in Sources */ = {isa = PBXBuildFile; fileRef = 46AA65CE6D7681718B236A2E /* AssistPlistEditTool.swift */; };
+		0D2FEC71ABA73475F4067BE5 /* AssistDeadCodeScanTool.swift in Sources */ = {isa = PBXBuildFile; fileRef = 51F667BDB329EA6CF00BD5B6 /* AssistDeadCodeScanTool.swift */; };
+		24A5D8B975EC92A67D21375D /* AssistDuplicateCodeScanTool.swift in Sources */ = {isa = PBXBuildFile; fileRef = CB19E7AD77BC8C9B3DA9D168 /* AssistDuplicateCodeScanTool.swift */; };
+		1B97BD8C5AFE6B1BD8E23E15 /* AssistTodoScanTool.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5320E13AB2EE276E05B949BD /* AssistTodoScanTool.swift */; };
+		24E8D981FC45B0BF45CCBC89 /* AssistLicenseHeaderCheckTool.swift in Sources */ = {isa = PBXBuildFile; fileRef = 52280612797CE83FE488E39A /* AssistLicenseHeaderCheckTool.swift */; };
+		CC578106A943D2A03F63FF57 /* AssistApiSurfaceExtractTool.swift in Sources */ = {isa = PBXBuildFile; fileRef = D4A5551EB394024D1EB91DEA /* AssistApiSurfaceExtractTool.swift */; };
+		82F3B26832F0554FB5243E42 /* AssistSymbolRenameProjectTool.swift in Sources */ = {isa = PBXBuildFile; fileRef = 53E9C45056D27735A1CE4830 /* AssistSymbolRenameProjectTool.swift */; };
+		48D0F948240FCB1D6A1AAE9A /* AssistSymbolMoveFileTool.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7401E3BDFD62B1DFE6DA3C24 /* AssistSymbolMoveFileTool.swift */; };
+		3C5A6074AB2FC7FD23C6BA8F /* AssistImportCleanupTool.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6E042B101AE7D06AEBC61439 /* AssistImportCleanupTool.swift */; };
+		013285C0B56DF06E601FADDE /* AssistAccessLevelAuditTool.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4FF21D560001B997C808E5FC /* AssistAccessLevelAuditTool.swift */; };
+		EFDB551535342701447AF9C0 /* AssistConcurrencyAuditTool.swift in Sources */ = {isa = PBXBuildFile; fileRef = C9B53EB2B4D01D963E68CEE6 /* AssistConcurrencyAuditTool.swift */; };
+		DEC61EDA854772769766B7F2 /* AssistTestCoverageReportTool.swift in Sources */ = {isa = PBXBuildFile; fileRef = 149D53017B91930A65F2C5B5 /* AssistTestCoverageReportTool.swift */; };
+		B596688748B4A98111ABD44B /* AssistTestFlakyDetectTool.swift in Sources */ = {isa = PBXBuildFile; fileRef = 412E7CEC2987524EC716C748 /* AssistTestFlakyDetectTool.swift */; };
+		229BA489A19B6C78672EA1BD /* AssistTestSnapshotManageTool.swift in Sources */ = {isa = PBXBuildFile; fileRef = B11B01A71E5651D6E6724630 /* AssistTestSnapshotManageTool.swift */; };
+		CC74F15FE691331A1DF2A5D1 /* AssistUITestScaffoldTool.swift in Sources */ = {isa = PBXBuildFile; fileRef = CA277ACA067D2F75A5D82340 /* AssistUITestScaffoldTool.swift */; };
+		0DFD0EA1FB2EA7573A49036F /* AssistTestDataFactoryTool.swift in Sources */ = {isa = PBXBuildFile; fileRef = 08A076E6BEE2C611AA68ED5C /* AssistTestDataFactoryTool.swift */; };
+		9EAD8CFF9DD60701EDCC84C9 /* AssistTestTargetAddTool.swift in Sources */ = {isa = PBXBuildFile; fileRef = 092AF3EB2CE9F015B0FA5C82 /* AssistTestTargetAddTool.swift */; };
+		2DDA2876A4D6E33150DDCA64 /* AssistTestRunSingleTool.swift in Sources */ = {isa = PBXBuildFile; fileRef = 96E8DF16E30AB0E3F685F518 /* AssistTestRunSingleTool.swift */; };
+		C08D1F1CA15F945D6479C696 /* AssistTestLogParseTool.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0F9A7E1DFD665D96BAFC9CE3 /* AssistTestLogParseTool.swift */; };
+		C3FD70D51A82A750E9FAE927 /* AssistPerformanceBenchmarkTool.swift in Sources */ = {isa = PBXBuildFile; fileRef = FAB429676BD190609B7BD53B /* AssistPerformanceBenchmarkTool.swift */; };
+		57002F0BF5E948BBD47DD5AE /* AssistBinarySizeReportTool.swift in Sources */ = {isa = PBXBuildFile; fileRef = D4C016B2CC2517C462BEE130 /* AssistBinarySizeReportTool.swift */; };
+		38A167456FEE08BA33937245 /* AssistGitBisectTool.swift in Sources */ = {isa = PBXBuildFile; fileRef = C6A5E9EA70A55944E83CE3B6 /* AssistGitBisectTool.swift */; };
+		75C80CD30167D871318B5E20 /* AssistGitCherryPickTool.swift in Sources */ = {isa = PBXBuildFile; fileRef = BD0BD7DE4EA049C33E22807B /* AssistGitCherryPickTool.swift */; };
+		E5CA78E3F1C256296A891253 /* AssistGitBranchCompareTool.swift in Sources */ = {isa = PBXBuildFile; fileRef = E9A4EBDC3E2BDFE8A3F1F807 /* AssistGitBranchCompareTool.swift */; };
+		CD355E18438A0933759463EE /* AssistGitPRSummaryTool.swift in Sources */ = {isa = PBXBuildFile; fileRef = C242406FA39C0670029C6A39 /* AssistGitPRSummaryTool.swift */; };
+		A61302160E9EC0A581309135 /* AssistFileMetadataTool.swift in Sources */ = {isa = PBXBuildFile; fileRef = C4F4156FEB316A367EE54727 /* AssistFileMetadataTool.swift */; };
+		C1C0E774B517B47047BFDBFE /* AssistFileHashVerifyTool.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5540143FBD2AA2DA5B736DD2 /* AssistFileHashVerifyTool.swift */; };
+		109D520177230A6632AF76CA /* AssistJsonValidateTool.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3602F4CAA36848B423ABD8F8 /* AssistJsonValidateTool.swift */; };
+		0C22B0016C3FE351DF0D04A5 /* AssistYamlValidateTool.swift in Sources */ = {isa = PBXBuildFile; fileRef = 370575DE01F29A16AB5CE9A0 /* AssistYamlValidateTool.swift */; };
+		53C2348316D045FF7E335F40 /* AssistSimulatorListTool.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9EF4EB1E8B1A5E8C3887BB79 /* AssistSimulatorListTool.swift */; };
+		A974690A236CB5D6F5E2A2C0 /* AssistSimulatorBootTool.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4A97C3E8FCE1BD080A318896 /* AssistSimulatorBootTool.swift */; };
+		ED91D937F83AA8E6D63B923F /* AssistDeviceListTool.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2C219E544B32D7DE02A1A361 /* AssistDeviceListTool.swift */; };
+		CA9AEC2250EFA76811DAA747 /* AssistProvisioningCheckTool.swift in Sources */ = {isa = PBXBuildFile; fileRef = 635BDD367D90CC7700E6B6F1 /* AssistProvisioningCheckTool.swift */; };
+		611FA18FBD1F2702DA051E74 /* AssistDoccBuildTool.swift in Sources */ = {isa = PBXBuildFile; fileRef = D58A0C1BFDE1E5D78A6C6999 /* AssistDoccBuildTool.swift */; };
+		233E8E9CCA2A800A21066AE7 /* AssistDocsGenerateTool.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1BBB80376789A6700DA6145 /* AssistDocsGenerateTool.swift */; };
+		D60589E37762A1A93286AEA0 /* AssistSecretsScanTool.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8FEC571A90E872C7848598E6 /* AssistSecretsScanTool.swift */; };
+		26AF0AC0F158BFEA6C09C205 /* AssistPermissionsAuditTool.swift in Sources */ = {isa = PBXBuildFile; fileRef = E571D24CE7D2584DFE8F5DF0 /* AssistPermissionsAuditTool.swift */; };
+		B2E95DFD1668DBAF129D8AB4 /* AssistAccessibilityAuditTool.swift in Sources */ = {isa = PBXBuildFile; fileRef = E12BA39964DE3A4EB5CEBCC8 /* AssistAccessibilityAuditTool.swift */; };
+		F6D49130DEBEE83CF10E6D3F /* AssistSessionExportTool.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0DE4BCC8F14C6628D3E4A2C7 /* AssistSessionExportTool.swift */; };/* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
 		BBA200010000000000000001 /* AssistSaveToMemoryTool.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssistSaveToMemoryTool.swift; sourceTree = "<group>"; };
@@ -5621,7 +5678,66 @@
 		sbwizh8HgT46lk1WQ3AeqfKV /* SDKSecurityManagerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SDKSecurityManagerView.swift; sourceTree = "<group>"; };
 		wwccAQFYbISAtwf1CI176wfp /* SDKSecurityService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SDKSecurityService.swift; sourceTree = "<group>"; };
 		x8YuGALvCUjh1T3rP6BpwaEI /* SDKExtensionManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SDKExtensionManager.swift; sourceTree = "<group>"; };
-/* End PBXFileReference section */
+		99AjgY1lrGunB1oR7RQOyjdo /* Security-Keychain.md */ = {isa = PBXFileReference; lastKnownFileType = text.markdown; path = Security-Keychain.md; sourceTree = "<group>"; };
+		dE6cAF3Dddd17c207cb37d46 /* Assist-Access.md */ = {isa = PBXFileReference; lastKnownFileType = text.markdown; path = Assist-Access.md; sourceTree = "<group>"; };
+		9C0D414E3A2372A595375F90 /* AssistProjectSchemeListTool.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssistProjectSchemeListTool.swift; sourceTree = "<group>"; };
+		55D27F28D273BDFB0FD216D4 /* AssistProjectTargetListTool.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssistProjectTargetListTool.swift; sourceTree = "<group>"; };
+		18526EFE84813CDB7C4B4910 /* AssistProjectBuildSettingsTool.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssistProjectBuildSettingsTool.swift; sourceTree = "<group>"; };
+		C84EF98F6B36D10485DE1C7B /* AssistProjectTargetAddTool.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssistProjectTargetAddTool.swift; sourceTree = "<group>"; };
+		B464BCAD496A08A648AB2E38 /* AssistProjectEntitlementsTool.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssistProjectEntitlementsTool.swift; sourceTree = "<group>"; };
+		EC0F1BC0C2A5CD8217DC17D8 /* AssistProjectInfoPlistTool.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssistProjectInfoPlistTool.swift; sourceTree = "<group>"; };
+		ACF8F47B161CB22D230A7A2D /* AssistProjectCapabilitiesTool.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssistProjectCapabilitiesTool.swift; sourceTree = "<group>"; };
+		952760D8830E037E93C50D9C /* AssistProjectSigningTool.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssistProjectSigningTool.swift; sourceTree = "<group>"; };
+		0FA2190162E9061E332958A6 /* AssistProjectCleanTool.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssistProjectCleanTool.swift; sourceTree = "<group>"; };
+		24822D42A77A3DA182D7F8F9 /* AssistProjectArchiveTool.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssistProjectArchiveTool.swift; sourceTree = "<group>"; };
+		3BAEA17A38E6F7BCD2A6DC78 /* AssistPackageManifestReadTool.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssistPackageManifestReadTool.swift; sourceTree = "<group>"; };
+		9778EBE67DED1F62D015618F /* AssistPackageDependencyAddTool.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssistPackageDependencyAddTool.swift; sourceTree = "<group>"; };
+		2A42A79D207910CA6131E09F /* AssistPackageDependencyUpdateTool.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssistPackageDependencyUpdateTool.swift; sourceTree = "<group>"; };
+		EE99122592962BFF52CF28DD /* AssistPackageManifestValidateTool.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssistPackageManifestValidateTool.swift; sourceTree = "<group>"; };
+		75147FB9187D8E37F8E66B53 /* AssistPackageDependencyAuditTool.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssistPackageDependencyAuditTool.swift; sourceTree = "<group>"; };
+		5E9DAEB5471A9B122AA40AD4 /* AssistAssetCatalogListTool.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssistAssetCatalogListTool.swift; sourceTree = "<group>"; };
+		1884D79B7428B41CACBB2967 /* AssistAssetImageAddTool.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssistAssetImageAddTool.swift; sourceTree = "<group>"; };
+		0064493485DB6A37605F97C0 /* AssistStringsLocalizationTool.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssistStringsLocalizationTool.swift; sourceTree = "<group>"; };
+		6E888E16A3CC71042257D396 /* AssistLocalizationAuditTool.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssistLocalizationAuditTool.swift; sourceTree = "<group>"; };
+		46AA65CE6D7681718B236A2E /* AssistPlistEditTool.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssistPlistEditTool.swift; sourceTree = "<group>"; };
+		51F667BDB329EA6CF00BD5B6 /* AssistDeadCodeScanTool.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssistDeadCodeScanTool.swift; sourceTree = "<group>"; };
+		CB19E7AD77BC8C9B3DA9D168 /* AssistDuplicateCodeScanTool.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssistDuplicateCodeScanTool.swift; sourceTree = "<group>"; };
+		5320E13AB2EE276E05B949BD /* AssistTodoScanTool.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssistTodoScanTool.swift; sourceTree = "<group>"; };
+		52280612797CE83FE488E39A /* AssistLicenseHeaderCheckTool.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssistLicenseHeaderCheckTool.swift; sourceTree = "<group>"; };
+		D4A5551EB394024D1EB91DEA /* AssistApiSurfaceExtractTool.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssistApiSurfaceExtractTool.swift; sourceTree = "<group>"; };
+		53E9C45056D27735A1CE4830 /* AssistSymbolRenameProjectTool.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssistSymbolRenameProjectTool.swift; sourceTree = "<group>"; };
+		7401E3BDFD62B1DFE6DA3C24 /* AssistSymbolMoveFileTool.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssistSymbolMoveFileTool.swift; sourceTree = "<group>"; };
+		6E042B101AE7D06AEBC61439 /* AssistImportCleanupTool.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssistImportCleanupTool.swift; sourceTree = "<group>"; };
+		4FF21D560001B997C808E5FC /* AssistAccessLevelAuditTool.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssistAccessLevelAuditTool.swift; sourceTree = "<group>"; };
+		C9B53EB2B4D01D963E68CEE6 /* AssistConcurrencyAuditTool.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssistConcurrencyAuditTool.swift; sourceTree = "<group>"; };
+		149D53017B91930A65F2C5B5 /* AssistTestCoverageReportTool.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssistTestCoverageReportTool.swift; sourceTree = "<group>"; };
+		412E7CEC2987524EC716C748 /* AssistTestFlakyDetectTool.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssistTestFlakyDetectTool.swift; sourceTree = "<group>"; };
+		B11B01A71E5651D6E6724630 /* AssistTestSnapshotManageTool.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssistTestSnapshotManageTool.swift; sourceTree = "<group>"; };
+		CA277ACA067D2F75A5D82340 /* AssistUITestScaffoldTool.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssistUITestScaffoldTool.swift; sourceTree = "<group>"; };
+		08A076E6BEE2C611AA68ED5C /* AssistTestDataFactoryTool.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssistTestDataFactoryTool.swift; sourceTree = "<group>"; };
+		092AF3EB2CE9F015B0FA5C82 /* AssistTestTargetAddTool.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssistTestTargetAddTool.swift; sourceTree = "<group>"; };
+		96E8DF16E30AB0E3F685F518 /* AssistTestRunSingleTool.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssistTestRunSingleTool.swift; sourceTree = "<group>"; };
+		0F9A7E1DFD665D96BAFC9CE3 /* AssistTestLogParseTool.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssistTestLogParseTool.swift; sourceTree = "<group>"; };
+		FAB429676BD190609B7BD53B /* AssistPerformanceBenchmarkTool.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssistPerformanceBenchmarkTool.swift; sourceTree = "<group>"; };
+		D4C016B2CC2517C462BEE130 /* AssistBinarySizeReportTool.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssistBinarySizeReportTool.swift; sourceTree = "<group>"; };
+		C6A5E9EA70A55944E83CE3B6 /* AssistGitBisectTool.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssistGitBisectTool.swift; sourceTree = "<group>"; };
+		BD0BD7DE4EA049C33E22807B /* AssistGitCherryPickTool.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssistGitCherryPickTool.swift; sourceTree = "<group>"; };
+		E9A4EBDC3E2BDFE8A3F1F807 /* AssistGitBranchCompareTool.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssistGitBranchCompareTool.swift; sourceTree = "<group>"; };
+		C242406FA39C0670029C6A39 /* AssistGitPRSummaryTool.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssistGitPRSummaryTool.swift; sourceTree = "<group>"; };
+		C4F4156FEB316A367EE54727 /* AssistFileMetadataTool.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssistFileMetadataTool.swift; sourceTree = "<group>"; };
+		5540143FBD2AA2DA5B736DD2 /* AssistFileHashVerifyTool.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssistFileHashVerifyTool.swift; sourceTree = "<group>"; };
+		3602F4CAA36848B423ABD8F8 /* AssistJsonValidateTool.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssistJsonValidateTool.swift; sourceTree = "<group>"; };
+		370575DE01F29A16AB5CE9A0 /* AssistYamlValidateTool.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssistYamlValidateTool.swift; sourceTree = "<group>"; };
+		9EF4EB1E8B1A5E8C3887BB79 /* AssistSimulatorListTool.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssistSimulatorListTool.swift; sourceTree = "<group>"; };
+		4A97C3E8FCE1BD080A318896 /* AssistSimulatorBootTool.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssistSimulatorBootTool.swift; sourceTree = "<group>"; };
+		2C219E544B32D7DE02A1A361 /* AssistDeviceListTool.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssistDeviceListTool.swift; sourceTree = "<group>"; };
+		635BDD367D90CC7700E6B6F1 /* AssistProvisioningCheckTool.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssistProvisioningCheckTool.swift; sourceTree = "<group>"; };
+		D58A0C1BFDE1E5D78A6C6999 /* AssistDoccBuildTool.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssistDoccBuildTool.swift; sourceTree = "<group>"; };
+		A1BBB80376789A6700DA6145 /* AssistDocsGenerateTool.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssistDocsGenerateTool.swift; sourceTree = "<group>"; };
+		8FEC571A90E872C7848598E6 /* AssistSecretsScanTool.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssistSecretsScanTool.swift; sourceTree = "<group>"; };
+		E571D24CE7D2584DFE8F5DF0 /* AssistPermissionsAuditTool.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssistPermissionsAuditTool.swift; sourceTree = "<group>"; };
+		E12BA39964DE3A4EB5CEBCC8 /* AssistAccessibilityAuditTool.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssistAccessibilityAuditTool.swift; sourceTree = "<group>"; };
+		0DE4BCC8F14C6628D3E4A2C7 /* AssistSessionExportTool.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssistSessionExportTool.swift; sourceTree = "<group>"; };/* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
 		3A28CEECA038D3331DF426E2 /* Frameworks */ = {
@@ -5932,6 +6048,64 @@
 				D9F800020000000000000009 /* ReportToUserTool.swift */,
 				A1000003F001000100000003 /* search_skills.swift */,
 				E29470C1E254C1D46E7DB5CF /* AssistXcodeProjectResolver.swift */,
+				9C0D414E3A2372A595375F90 /* AssistProjectSchemeListTool.swift */,
+				55D27F28D273BDFB0FD216D4 /* AssistProjectTargetListTool.swift */,
+				18526EFE84813CDB7C4B4910 /* AssistProjectBuildSettingsTool.swift */,
+				C84EF98F6B36D10485DE1C7B /* AssistProjectTargetAddTool.swift */,
+				B464BCAD496A08A648AB2E38 /* AssistProjectEntitlementsTool.swift */,
+				EC0F1BC0C2A5CD8217DC17D8 /* AssistProjectInfoPlistTool.swift */,
+				ACF8F47B161CB22D230A7A2D /* AssistProjectCapabilitiesTool.swift */,
+				952760D8830E037E93C50D9C /* AssistProjectSigningTool.swift */,
+				0FA2190162E9061E332958A6 /* AssistProjectCleanTool.swift */,
+				24822D42A77A3DA182D7F8F9 /* AssistProjectArchiveTool.swift */,
+				3BAEA17A38E6F7BCD2A6DC78 /* AssistPackageManifestReadTool.swift */,
+				9778EBE67DED1F62D015618F /* AssistPackageDependencyAddTool.swift */,
+				2A42A79D207910CA6131E09F /* AssistPackageDependencyUpdateTool.swift */,
+				EE99122592962BFF52CF28DD /* AssistPackageManifestValidateTool.swift */,
+				75147FB9187D8E37F8E66B53 /* AssistPackageDependencyAuditTool.swift */,
+				5E9DAEB5471A9B122AA40AD4 /* AssistAssetCatalogListTool.swift */,
+				1884D79B7428B41CACBB2967 /* AssistAssetImageAddTool.swift */,
+				0064493485DB6A37605F97C0 /* AssistStringsLocalizationTool.swift */,
+				6E888E16A3CC71042257D396 /* AssistLocalizationAuditTool.swift */,
+				46AA65CE6D7681718B236A2E /* AssistPlistEditTool.swift */,
+				51F667BDB329EA6CF00BD5B6 /* AssistDeadCodeScanTool.swift */,
+				CB19E7AD77BC8C9B3DA9D168 /* AssistDuplicateCodeScanTool.swift */,
+				5320E13AB2EE276E05B949BD /* AssistTodoScanTool.swift */,
+				52280612797CE83FE488E39A /* AssistLicenseHeaderCheckTool.swift */,
+				D4A5551EB394024D1EB91DEA /* AssistApiSurfaceExtractTool.swift */,
+				53E9C45056D27735A1CE4830 /* AssistSymbolRenameProjectTool.swift */,
+				7401E3BDFD62B1DFE6DA3C24 /* AssistSymbolMoveFileTool.swift */,
+				6E042B101AE7D06AEBC61439 /* AssistImportCleanupTool.swift */,
+				4FF21D560001B997C808E5FC /* AssistAccessLevelAuditTool.swift */,
+				C9B53EB2B4D01D963E68CEE6 /* AssistConcurrencyAuditTool.swift */,
+				149D53017B91930A65F2C5B5 /* AssistTestCoverageReportTool.swift */,
+				412E7CEC2987524EC716C748 /* AssistTestFlakyDetectTool.swift */,
+				B11B01A71E5651D6E6724630 /* AssistTestSnapshotManageTool.swift */,
+				CA277ACA067D2F75A5D82340 /* AssistUITestScaffoldTool.swift */,
+				08A076E6BEE2C611AA68ED5C /* AssistTestDataFactoryTool.swift */,
+				092AF3EB2CE9F015B0FA5C82 /* AssistTestTargetAddTool.swift */,
+				96E8DF16E30AB0E3F685F518 /* AssistTestRunSingleTool.swift */,
+				0F9A7E1DFD665D96BAFC9CE3 /* AssistTestLogParseTool.swift */,
+				FAB429676BD190609B7BD53B /* AssistPerformanceBenchmarkTool.swift */,
+				D4C016B2CC2517C462BEE130 /* AssistBinarySizeReportTool.swift */,
+				C6A5E9EA70A55944E83CE3B6 /* AssistGitBisectTool.swift */,
+				BD0BD7DE4EA049C33E22807B /* AssistGitCherryPickTool.swift */,
+				E9A4EBDC3E2BDFE8A3F1F807 /* AssistGitBranchCompareTool.swift */,
+				C242406FA39C0670029C6A39 /* AssistGitPRSummaryTool.swift */,
+				C4F4156FEB316A367EE54727 /* AssistFileMetadataTool.swift */,
+				5540143FBD2AA2DA5B736DD2 /* AssistFileHashVerifyTool.swift */,
+				3602F4CAA36848B423ABD8F8 /* AssistJsonValidateTool.swift */,
+				370575DE01F29A16AB5CE9A0 /* AssistYamlValidateTool.swift */,
+				9EF4EB1E8B1A5E8C3887BB79 /* AssistSimulatorListTool.swift */,
+				4A97C3E8FCE1BD080A318896 /* AssistSimulatorBootTool.swift */,
+				2C219E544B32D7DE02A1A361 /* AssistDeviceListTool.swift */,
+				635BDD367D90CC7700E6B6F1 /* AssistProvisioningCheckTool.swift */,
+				D58A0C1BFDE1E5D78A6C6999 /* AssistDoccBuildTool.swift */,
+				A1BBB80376789A6700DA6145 /* AssistDocsGenerateTool.swift */,
+				8FEC571A90E872C7848598E6 /* AssistSecretsScanTool.swift */,
+				E571D24CE7D2584DFE8F5DF0 /* AssistPermissionsAuditTool.swift */,
+				E12BA39964DE3A4EB5CEBCC8 /* AssistAccessibilityAuditTool.swift */,
+				0DE4BCC8F14C6628D3E4A2C7 /* AssistSessionExportTool.swift */,
 			);
 			path = Tools;
 			sourceTree = "<group>";
@@ -13308,7 +13482,64 @@
 				88B4BB22CBA68961F28B2B38 /* ReverseCommandParser.swift in Sources */,
 				98F16DF2591FAA1F97375191 /* ReverseEvidenceProcessor.swift in Sources */,
 				5E4B6B169EB3311CF0F6FDEA /* ReverseTests.swift in Sources */,
-			);
+				248D8D74114E0702D148C521 /* AssistProjectSchemeListTool.swift in Sources */,
+				9296B1573F41D05E7D7EAE0B /* AssistProjectTargetListTool.swift in Sources */,
+				5828C09C529730DEBBAF682B /* AssistProjectBuildSettingsTool.swift in Sources */,
+				366E7A8771F621E5FBC573E6 /* AssistProjectTargetAddTool.swift in Sources */,
+				8E893D6071AFB416B4D3D4C1 /* AssistProjectEntitlementsTool.swift in Sources */,
+				648F1758B6879146801B05F8 /* AssistProjectInfoPlistTool.swift in Sources */,
+				2DCE99E8659B415BDB894AD9 /* AssistProjectCapabilitiesTool.swift in Sources */,
+				3AD101FD68A3828F75ED5EDB /* AssistProjectSigningTool.swift in Sources */,
+				DE095326C759406546479068 /* AssistProjectCleanTool.swift in Sources */,
+				08CA119BD8DD975D215CDF8E /* AssistProjectArchiveTool.swift in Sources */,
+				CAF862AA9E8FBEF0E96E2741 /* AssistPackageManifestReadTool.swift in Sources */,
+				8C1407297DA6E0A203D6B5F9 /* AssistPackageDependencyAddTool.swift in Sources */,
+				88A7E5D62E4F6FDEF46A3077 /* AssistPackageDependencyUpdateTool.swift in Sources */,
+				8846E636B44816C5C7285BE5 /* AssistPackageManifestValidateTool.swift in Sources */,
+				EBCEAF5D6BB26201ED057D8C /* AssistPackageDependencyAuditTool.swift in Sources */,
+				3D1052458D9FFB58272F32BB /* AssistAssetCatalogListTool.swift in Sources */,
+				9BC773DBFF3AC4BC9CC9F359 /* AssistAssetImageAddTool.swift in Sources */,
+				E4BA8A676FA4C5D9CDA986B3 /* AssistStringsLocalizationTool.swift in Sources */,
+				0BBF34F07A3C543B62E7DDE0 /* AssistLocalizationAuditTool.swift in Sources */,
+				2E47EB31233066CACC1CB337 /* AssistPlistEditTool.swift in Sources */,
+				0D2FEC71ABA73475F4067BE5 /* AssistDeadCodeScanTool.swift in Sources */,
+				24A5D8B975EC92A67D21375D /* AssistDuplicateCodeScanTool.swift in Sources */,
+				1B97BD8C5AFE6B1BD8E23E15 /* AssistTodoScanTool.swift in Sources */,
+				24E8D981FC45B0BF45CCBC89 /* AssistLicenseHeaderCheckTool.swift in Sources */,
+				CC578106A943D2A03F63FF57 /* AssistApiSurfaceExtractTool.swift in Sources */,
+				82F3B26832F0554FB5243E42 /* AssistSymbolRenameProjectTool.swift in Sources */,
+				48D0F948240FCB1D6A1AAE9A /* AssistSymbolMoveFileTool.swift in Sources */,
+				3C5A6074AB2FC7FD23C6BA8F /* AssistImportCleanupTool.swift in Sources */,
+				013285C0B56DF06E601FADDE /* AssistAccessLevelAuditTool.swift in Sources */,
+				EFDB551535342701447AF9C0 /* AssistConcurrencyAuditTool.swift in Sources */,
+				DEC61EDA854772769766B7F2 /* AssistTestCoverageReportTool.swift in Sources */,
+				B596688748B4A98111ABD44B /* AssistTestFlakyDetectTool.swift in Sources */,
+				229BA489A19B6C78672EA1BD /* AssistTestSnapshotManageTool.swift in Sources */,
+				CC74F15FE691331A1DF2A5D1 /* AssistUITestScaffoldTool.swift in Sources */,
+				0DFD0EA1FB2EA7573A49036F /* AssistTestDataFactoryTool.swift in Sources */,
+				9EAD8CFF9DD60701EDCC84C9 /* AssistTestTargetAddTool.swift in Sources */,
+				2DDA2876A4D6E33150DDCA64 /* AssistTestRunSingleTool.swift in Sources */,
+				C08D1F1CA15F945D6479C696 /* AssistTestLogParseTool.swift in Sources */,
+				C3FD70D51A82A750E9FAE927 /* AssistPerformanceBenchmarkTool.swift in Sources */,
+				57002F0BF5E948BBD47DD5AE /* AssistBinarySizeReportTool.swift in Sources */,
+				38A167456FEE08BA33937245 /* AssistGitBisectTool.swift in Sources */,
+				75C80CD30167D871318B5E20 /* AssistGitCherryPickTool.swift in Sources */,
+				E5CA78E3F1C256296A891253 /* AssistGitBranchCompareTool.swift in Sources */,
+				CD355E18438A0933759463EE /* AssistGitPRSummaryTool.swift in Sources */,
+				A61302160E9EC0A581309135 /* AssistFileMetadataTool.swift in Sources */,
+				C1C0E774B517B47047BFDBFE /* AssistFileHashVerifyTool.swift in Sources */,
+				109D520177230A6632AF76CA /* AssistJsonValidateTool.swift in Sources */,
+				0C22B0016C3FE351DF0D04A5 /* AssistYamlValidateTool.swift in Sources */,
+				53C2348316D045FF7E335F40 /* AssistSimulatorListTool.swift in Sources */,
+				A974690A236CB5D6F5E2A2C0 /* AssistSimulatorBootTool.swift in Sources */,
+				ED91D937F83AA8E6D63B923F /* AssistDeviceListTool.swift in Sources */,
+				CA9AEC2250EFA76811DAA747 /* AssistProvisioningCheckTool.swift in Sources */,
+				611FA18FBD1F2702DA051E74 /* AssistDoccBuildTool.swift in Sources */,
+				233E8E9CCA2A800A21066AE7 /* AssistDocsGenerateTool.swift in Sources */,
+				D60589E37762A1A93286AEA0 /* AssistSecretsScanTool.swift in Sources */,
+				26AF0AC0F158BFEA6C09C205 /* AssistPermissionsAuditTool.swift in Sources */,
+				B2E95DFD1668DBAF129D8AB4 /* AssistAccessibilityAuditTool.swift in Sources */,
+				F6D49130DEBEE83CF10E6D3F /* AssistSessionExportTool.swift in Sources */,			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXSourcesBuildPhase section */
