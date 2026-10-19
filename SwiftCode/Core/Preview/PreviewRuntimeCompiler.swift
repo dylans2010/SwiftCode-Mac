@@ -96,14 +96,15 @@ public actor PreviewRuntimeCompiler {
         process.executableURL = resolvedSwiftc
         process.currentDirectoryURL = sandboxPolicy.projectDirectory
 
-        var sdkName = "iphonesimulator" // default fallback
-        if let project = await ProjectSessionStore.shared.activeProject {
-            if let targetPlatform = project.ciBuildConfiguration?.platform.rawValue {
-                if targetPlatform.lowercased().contains("macos") {
-                    sdkName = "macosx"
-                }
-            }
-        }
+        // The JIT module is dlopen'd in-process by PreviewDynamicLoader inside the
+        // macOS SwiftCode host, and it must vend an AppKit NSView (see
+        // makeBootstrapSource and DocumentCoordinator.compiledArtboardViews).
+        // It is therefore ALWAYS compiled against the macOS SDK, regardless of
+        // the open project's deployment target. Targeting iphonesimulator is
+        // invalid here: the generated bootstrap imports AppKit (NSHostingView),
+        // which does not exist on the simulator SDK, so compilation fails and
+        // the preview falls back to the sandbox runtime.
+        let sdkName = "macosx"
 
         // Query the SDK path dynamically
         let sdkPathResult = try? await ProcessRunnerTool.shared.run(
@@ -121,15 +122,6 @@ public actor PreviewRuntimeCompiler {
 
         if !sdkPath.isEmpty {
             compilerArgs += ["-sdk", sdkPath]
-        }
-
-        if sdkName == "iphonesimulator" {
-            #if arch(arm64)
-            let targetArch = "arm64-apple-ios16.0-simulator"
-            #else
-            let targetArch = "x86_64-apple-ios16.0-simulator"
-            #endif
-            compilerArgs += ["-target", targetArch]
         }
 
         compilerArgs += allInputs.map(\.path)
@@ -192,6 +184,13 @@ public actor PreviewRuntimeCompiler {
         return PreviewError.compilationError(details: message)
     }
 
+    /// Generates the JIT bootstrap source compiled into the preview dylib.
+    ///
+    /// This source is ALWAYS compiled against the macOS SDK (see `compile`):
+    /// the dylib is dlopen'd in-process by `PreviewDynamicLoader` inside the
+    /// macOS host, so the `__swiftcode_make_hosting_view` entry point must vend
+    /// an AppKit `NSView`. Do NOT switch this to UIKit: a UIKit-based module
+    /// cannot be loaded into the macOS host process.
     private func makeBootstrapSource(viewTypes: [String], defaultRoot: String, parsedPreviews: [ParsedPreview]) -> String {
         var cases: [String] = []
 
