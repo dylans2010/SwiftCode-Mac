@@ -112,6 +112,10 @@ public final class RuntimeSession: Identifiable, Sendable {
 
     private var durationTimer: Timer?
     private var runtimeTimer: Timer?
+    /// Telemetry sampling is single-shot per compile session: the "Telemetry Check"
+    /// log line is emitted exactly once after launch, then suppressed so the
+    /// runtime can continue launching (or surface real errors) without log spam.
+    private var didEmitTelemetrySample = false
 
     public init(artboardID: UUID) {
         self.artboardID = artboardID
@@ -126,6 +130,7 @@ public final class RuntimeSession: Identifiable, Sendable {
         elapsedRuntime = 0
         isRunning = false
         healthStatus = "Healthy"
+        didEmitTelemetrySample = false
 
         startBuildTimer()
 
@@ -274,7 +279,11 @@ public final class RuntimeSession: Identifiable, Sendable {
             guard let self = self else { return }
             Task { @MainActor in
                 self.elapsedRuntime += 1.0
-                if Int(self.elapsedRuntime) % 5 == 0 {
+                // Single-shot telemetry: emit the check exactly once per compile
+                // session, then keep the timer running for elapsed-time tracking
+                // while the app continues launching.
+                if !self.didEmitTelemetrySample {
+                    self.didEmitTelemetrySample = true
                     self.logs.append("[RUNTIME] Telemetry Check: CPU usage \(Double.random(in: 1.5...6.2).roundedTo(1))%, memory usage \(Double.random(in: 45.0...48.2).roundedTo(1)) MB.")
                 }
             }
