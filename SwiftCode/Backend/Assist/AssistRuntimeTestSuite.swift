@@ -88,6 +88,7 @@ public final class AssistRuntimeTestSuite: Sendable {
         results.append(contentsOf: await ReverseTestSuite.runAll())
         results.append(contentsOf: await AssistToolKnowledgeValidator.shared.runAllTests())
         results.append(contentsOf: await SystemIndexTestSuite.shared.runAllTests())
+        results.append(contentsOf: await AssistDocsGitHubToolsTestSuite.shared.runAllTests())
         results.append(contentsOf: await GoogleCloudSDKTests.shared.runAllTests())
 
         let duration = Date().timeIntervalSince(startTime)
@@ -675,18 +676,20 @@ public final class AssistRuntimeTestSuite: Sendable {
         )
     }
 
-    // 11c. Registry holds all 278 tools including the 60 expansion tools
+    // 11c. Registry holds all 290 tools including the 60 expansion tools
     public func testRegistryExpansionCount() async -> RuntimeTestCaseResult {
         let start = Date()
         let registry = AssistToolRegistry.shared
         let newIds = ["repo_overview","project_structure_map","recent_changes","readme_locate","dependency_licenses","stale_files_report","entry_points_discover","build_system_detect","call_hierarchy","type_hierarchy","protocol_conformance_list","import_graph","comment_density_report","function_size_report","string_literal_audit","force_unwrap_scan","dir_size_report","find_duplicate_files","file_type_breakdown","empty_dirs_find","file_head_preview","symlink_audit","executable_files_scan","build_log_analyze","scheme_test_plan_list","code_signing_diagnose","crash_log_parse","entitlements_diff","strings_file_validate","deprecation_usage_scan","info_plist_audit","api_endpoint_audit","color_usage_audit","image_asset_size_report","pbxproj_lint","xctest_discovery","xcode_toolchain_info","derived_data_locate","build_settings_diff","target_dependencies_list","workspace_settings_read","build_phase_scripts_list","build_configuration_list","target_source_list","readme_generate","docs_index_build","code_comment_extract","api_docs_coverage","markdown_link_check","markdown_toc_generate","create_artifact","list_artifacts","read_artifact","delete_artifact","session_progress_report","preflight_checks","change_impact_estimate","file_backup","conflict_marker_scan","tool_capability_lookup"]
+        let docsGitHubIds = ["fetch_documentation", "github_repo"]
         let missing = newIds.filter { registry.getTool($0) == nil }
+        let missingDocsGitHub = docsGitHubIds.filter { registry.getTool($0) == nil }
         let allSchemas = registry.getToolSchemas()
-        let ok = missing.isEmpty && allSchemas.count == 278 && newIds.count == 60
+        let ok = missing.isEmpty && missingDocsGitHub.isEmpty && allSchemas.count == 290 && newIds.count == 60
         return RuntimeTestCaseResult(
             testName: "Registry Expansion Count",
             passed: ok,
-            message: ok ? "278 tools registered; all 60 expansion tools resolve." : "Registry mismatch: missing=\(missing.joined(separator: ",")) schemas=\(allSchemas.count)",
+            message: ok ? "290 tools registered; all 60 expansion tools + fetch_documentation/github_repo resolve." : "Registry mismatch: missing=\(missing.joined(separator: ",")) docsGitHubMissing=\(missingDocsGitHub.joined(separator: ",")) schemas=\(allSchemas.count)",
             duration: Date().timeIntervalSince(start)
         )
     }

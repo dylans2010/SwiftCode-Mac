@@ -465,6 +465,13 @@ Not build artifacts: these tools manage Markdown deliverables (reports, analyses
 
 ---
 
+## External Documentation & Repository Intelligence
+
+- `fetch_documentation` (safeRead) — retrieve real Apple Developer documentation: API references (Swift/ObjC), framework guides, declarations, platform availability, and code examples from developer.apple.com. Params: `query` and/or `url` (at least one required), `framework`, `platform`, `language` (swift/objc), `includeExamples`, `maxResults` (1-5). Prefers structured DocC JSON; falls back to the HTML page. HTTPS-only with approved-host, redirect, and SSRF guards; results cached 24h. Never fabricates signatures or availability.
+- `github_repo` (safeRead) — read real GitHub repositories: `operation` (required) is one of `repository_info`, `list_files`, `get_file`, `get_directory`, `get_tree`, `search_code`, `fetch_repository`. Identify the repo with `owner`+`repo` or `url`; `ref` defaults to the default branch. Public repos need no login; private repos use the user's saved GitHub credential (never shown or logged). Reports truncation, binary/oversize skips, and rate-limit reset timing explicitly. Read-only: never executes repo code or modifies remotes.
+
+---
+
 ## Cloud Toolkit (Antigravity SDK Built-ins — Cloud Mode ONLY)
 
 When the **"Cloud"** toolkit is active, the session uses Google Antigravity SDK's built-in cloud runtime tools instead of the System tools above. These IDs are **not** in the local system registry; they are provided by the Antigravity cloud runtime and may only be called in Cloud mode:

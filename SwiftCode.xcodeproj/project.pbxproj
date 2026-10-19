@@ -7,6 +7,10 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		4E9DD909AEDADE0A58EB7241 /* AssistDocsGitHubToolsTestSuite.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6914125F91CA12A961D5CC3E /* AssistDocsGitHubToolsTestSuite.swift */; };
+		360C2306F1D407AD2532A9BF /* AssistGitHubRepoTool.swift in Sources */ = {isa = PBXBuildFile; fileRef = CA9E6D970225547241968F04 /* AssistGitHubRepoTool.swift */; };
+		A49D25CCC9BC65D1C4E66199 /* AssistFetchDocumentationTool.swift in Sources */ = {isa = PBXBuildFile; fileRef = BF39084260E217837BAD92F6 /* AssistFetchDocumentationTool.swift */; };
+		69F832CDBF2A77C6E604BE59 /* AssistRemoteFetchSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = FB0BB585A96EF0AC8C62EE2E /* AssistRemoteFetchSupport.swift */; };
 		004C550B01654D85AAC1AC9E /* MLXOptimizers in Frameworks */ = {isa = PBXBuildFile; productRef = BBB818A276304EA881DBF6E6 /* MLXOptimizers */; };
 		013285C0B56DF06E601FADDE /* AssistAccessLevelAuditTool.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4FF21D560001B997C808E5FC /* AssistAccessLevelAuditTool.swift */; };
 		016298C4F533D83B2A4FB1B0 /* ApplicationDeploymentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CCF38596E6CBBF00108C7D98 /* ApplicationDeploymentView.swift */; };
@@ -2950,6 +2954,10 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		6914125F91CA12A961D5CC3E /* AssistDocsGitHubToolsTestSuite.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssistDocsGitHubToolsTestSuite.swift; sourceTree = "<group>"; };
+		CA9E6D970225547241968F04 /* AssistGitHubRepoTool.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssistGitHubRepoTool.swift; sourceTree = "<group>"; };
+		BF39084260E217837BAD92F6 /* AssistFetchDocumentationTool.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssistFetchDocumentationTool.swift; sourceTree = "<group>"; };
+		FB0BB585A96EF0AC8C62EE2E /* AssistRemoteFetchSupport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssistRemoteFetchSupport.swift; sourceTree = "<group>"; };
 		00048987BBB25A712D49051C /* NordThemeExtensionView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NordThemeExtensionView.swift; sourceTree = "<group>"; };
 		00573C77C75B8076494A575A /* _AssistCriticalValidationEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = _AssistCriticalValidationEngine.swift; sourceTree = "<group>"; };
 		0064493485DB6A37605F97C0 /* AssistStringsLocalizationTool.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssistStringsLocalizationTool.swift; sourceTree = "<group>"; };
@@ -6347,6 +6355,9 @@
 				026D4A916B32D9B81882195B /* AssistArtboardRunAppTool.swift */,
 				EB958921B99973874665A1A7 /* AssistFixArtboardsTool.swift */,
 
+				FB0BB585A96EF0AC8C62EE2E /* AssistRemoteFetchSupport.swift */,
+				BF39084260E217837BAD92F6 /* AssistFetchDocumentationTool.swift */,
+				CA9E6D970225547241968F04 /* AssistGitHubRepoTool.swift */,
 			);
 			path = Tools;
 			sourceTree = "<group>";
@@ -8312,6 +8323,7 @@
 				A1000002F001000100000002 /* AssistTaskContext.swift */,
 				C0FD39B3AB44A8C73FEBBD9E /* TerminalApprovalSettings.swift */,
 				C0DE00010000000000000002 /* AssistArtifactStore.swift */,
+				6914125F91CA12A961D5CC3E /* AssistDocsGitHubToolsTestSuite.swift */,
 			);
 			path = Assist;
 			sourceTree = "<group>";
@@ -13856,6 +13868,10 @@
 				FBA8513F14429503C5F8DF9D /* AssistArtboardRunAppTool.swift in Sources */,
 				8E61998C3C10929681A5E3AE /* AssistFixArtboardsTool.swift in Sources */,
 
+				69F832CDBF2A77C6E604BE59 /* AssistRemoteFetchSupport.swift in Sources */,
+				A49D25CCC9BC65D1C4E66199 /* AssistFetchDocumentationTool.swift in Sources */,
+				360C2306F1D407AD2532A9BF /* AssistGitHubRepoTool.swift in Sources */,
+				4E9DD909AEDADE0A58EB7241 /* AssistDocsGitHubToolsTestSuite.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

@@ -392,6 +392,10 @@ public final class AssistToolRegistry {
         register(AssistTakeScreenshotTool())
         register(AssistTakeScreenrecordTool())
         register(AssistUseAppTool())
+
+        // External documentation & repository intelligence (native, no MCP)
+        register(AssistFetchDocumentationTool())
+        register(AssistGitHubRepoTool())
     }
 
     public var version: Int { registryVersion }
