@@ -6,6 +6,7 @@ private let logger = Logger(subsystem: "com.swiftcode.Build", category: "IPABuil
 
 public enum IPABuildState: String, Sendable, Codable {
     case idle = "Idle"
+    case compiling = "Compiling with xcodebuild..."
     case packaging = "Packaging IPA..."
     case succeeded = "Succeeded"
     case failed = "Failed"
@@ -49,27 +50,267 @@ public final class IPABuildService: Sendable {
     public var currentProgress: Double = 0.0
     public var progressDescription = "Waiting to begin..."
 
+    /// When on, every successful xcodebuild automatically packages the freshest
+    /// .app into an .ipa and refreshes the Latest Archive card.
+    public var alwaysBuildArchive: Bool {
+        didSet { UserDefaults.standard.set(alwaysBuildArchive, forKey: "com.swiftcode.ipa.alwaysBuildArchive") }
+    }
+
+    /// Most recently produced .ipa — shown in the "Latest Archive:" card.
+    public var latestArchivePath: String?
+    public var latestArchiveDate: Date?
+
+    public var isBusy: Bool { buildState == .packaging || buildState == .compiling }
+
+    public var latestArchiveSize: String? {
+        guard let path = latestArchivePath,
+              let attr = try? FileManager.default.attributesOfItem(atPath: path),
+              let size = attr[.size] as? Int64 else { return nil }
+        let formatter = ByteCountFormatter()
+        formatter.allowedUnits = [.useAll]
+        formatter.countStyle = .file
+        return formatter.string(fromByteCount: size)
+    }
+
     @ObservationIgnored
     private var activeProcess: Process?
     @ObservationIgnored
     private var startTime: Date?
 
-    private init() {}
+    private init() {
+        self.alwaysBuildArchive = UserDefaults.standard.bool(forKey: "com.swiftcode.ipa.alwaysBuildArchive")
+        if let savedPath = UserDefaults.standard.string(forKey: "com.swiftcode.ipa.latestArchivePath"),
+           FileManager.default.fileExists(atPath: savedPath) {
+            self.latestArchivePath = savedPath
+            self.latestArchiveDate = UserDefaults.standard.object(forKey: "com.swiftcode.ipa.latestArchiveDate") as? Date
+        }
+    }
+
+    /// Drops the Latest Archive reference if the .ipa file no longer exists.
+    public func validateLatestArchive() {
+        if let path = latestArchivePath, !FileManager.default.fileExists(atPath: path) {
+            latestArchivePath = nil
+            latestArchiveDate = nil
+            UserDefaults.standard.removeObject(forKey: "com.swiftcode.ipa.latestArchivePath")
+            UserDefaults.standard.removeObject(forKey: "com.swiftcode.ipa.latestArchiveDate")
+        }
+    }
+
+    private func recordLatestArchive(path: String) {
+        latestArchivePath = path
+        latestArchiveDate = Date()
+        UserDefaults.standard.set(path, forKey: "com.swiftcode.ipa.latestArchivePath")
+        UserDefaults.standard.set(Date(), forKey: "com.swiftcode.ipa.latestArchiveDate")
+        appendLog("[SYSTEM] Latest Archive updated: \(path)", isError: false)
+    }
 
     public func getShellScriptPath() -> String {
         return Bundle.main.path(forResource: "build_ipa", ofType: "sh") ?? "SwiftCode/Resources/build_ipa.sh"
     }
 
     public func cancelPackaging() {
-        guard buildState == .packaging, let process = activeProcess else { return }
+        guard isBusy, let process = activeProcess else { return }
         process.terminate()
         buildState = .cancelled
-        appendLog("[SYSTEM] Packaging aborted by user.", isError: true)
+        appendLog("[SYSTEM] Operation aborted by user.", isError: true)
     }
 
+    // MARK: - xcodebuild compilation (no manual Builds-folder / .app hunting)
+
+    /// Managed directory where freshly compiled .app bundles are staged:
+    /// ~/Library/Application Support/SwiftCode/Builds/<ProjectName>/
+    public func managedBuildsDirectory(projectName: String) -> URL {
+        let fm = FileManager.default
+        let appSupport = fm.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
+        return appSupport.appendingPathComponent("SwiftCode/Builds/\(projectName)", isDirectory: true)
+    }
+
+    /// The most recently modified .app bundle in the managed builds directory.
+    public func newestManagedAppBundle(projectName: String) -> URL? {
+        let dir = managedBuildsDirectory(projectName: projectName)
+        let fm = FileManager.default
+        guard let items = try? fm.contentsOfDirectory(at: dir, includingPropertiesForKeys: [.contentModificationDateKey], options: .skipsHiddenFiles) else { return nil }
+        return items
+            .filter { $0.pathExtension == "app" }
+            .sorted {
+                let d0 = (try? $0.resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate) ?? .distantPast
+                let d1 = (try? $1.resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate) ?? .distantPast
+                return d0 > d1
+            }
+            .first
+    }
+
+    /// Compiles the project with xcodebuild and stages the resulting .app in the
+    /// managed builds directory. Returns the staged .app URL on success.
+    public func compileAppBundle(
+        projectURL: URL,
+        scheme: String,
+        configuration: String,
+        destination: String?
+    ) async -> (appURL: URL?, errorMessage: String?) {
+        guard !isBusy else {
+            return (nil, "A build or packaging operation is already in progress.")
+        }
+
+        buildState = .compiling
+        currentProgress = 0.05
+        progressDescription = "Compiling with xcodebuild..."
+        startTime = Date()
+        appendLog("[SYSTEM] Compiling \(projectURL.lastPathComponent) with xcodebuild (scheme: \(scheme), configuration: \(configuration))…", isError: false)
+
+        let buildPath = UserDefaults.standard.string(forKey: "xcodebuild_executable_path") ?? "/usr/bin/xcodebuild"
+        guard FileManager.default.isExecutableFile(atPath: buildPath) else {
+            buildState = .failed
+            let msg = "xcodebuild not found at \(buildPath). Configure it in the Build Center settings."
+            appendLog("[ERROR] \(msg)", isError: true)
+            return (nil, msg)
+        }
+
+        let derivedData = projectURL.appendingPathComponent("build/DerivedData", isDirectory: true)
+        var arguments = [
+            "-scheme", scheme,
+            "-configuration", configuration,
+            "-derivedDataPath", derivedData.path
+        ]
+        if let destination, !destination.isEmpty {
+            arguments.append(contentsOf: ["-destination", destination])
+        }
+        arguments.append("build")
+        // Relaxed signing for simulator-style destinations so a plain compile
+        // succeeds without provisioning profiles.
+        if (destination ?? "").lowercased().contains("simulator") {
+            arguments.append(contentsOf: [
+                "CODE_SIGN_IDENTITY=",
+                "CODE_SIGNING_REQUIRED=NO",
+                "CODE_SIGNING_ALLOWED=NO"
+            ])
+        }
+
+        appendLog("[SYSTEM] Running: \(buildPath) \(arguments.joined(separator: " "))", isError: false)
+
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: buildPath)
+        process.arguments = arguments
+        process.currentDirectoryURL = projectURL
+
+        let outputPipe = Pipe()
+        let errorPipe = Pipe()
+        process.standardOutput = outputPipe
+        process.standardError = errorPipe
+        activeProcess = process
+
+        let outputHandle = outputPipe.fileHandleForReading
+        let errorHandle = errorPipe.fileHandleForReading
+        Task.detached {
+            for try await line in outputHandle.bytes.lines {
+                await self.parseAndLogShellLine(line, isError: false)
+            }
+        }
+        Task.detached {
+            for try await line in errorHandle.bytes.lines {
+                await self.parseAndLogShellLine(line, isError: true)
+            }
+        }
+
+        let terminationStatusTask = Task<Int32, Error> {
+            try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Int32, Error>) in
+                process.terminationHandler = { p in continuation.resume(returning: p.terminationStatus) }
+            }
+        }
+
+        do {
+            try process.run()
+            let status = try await terminationStatusTask.value
+            activeProcess = nil
+
+            if buildState == .cancelled {
+                return (nil, "Compilation cancelled by user.")
+            }
+
+            if status != 0 {
+                buildState = .failed
+                currentProgress = 0
+                progressDescription = "Compilation failed."
+                let tail = logs.suffix(8).map(\.message).joined(separator: "\n")
+                let msg = "xcodebuild exited with code \(status).\n\(tail)"
+                appendLog("[ERROR] xcodebuild exited with code \(status).", isError: true)
+                return (nil, msg)
+            }
+
+            // Locate the freshest .app under the DerivedData products.
+            let productsDir = derivedData.appendingPathComponent("Build/Products", isDirectory: true)
+            guard let freshApp = newestAppBundle(in: productsDir) else {
+                buildState = .failed
+                let msg = "xcodebuild succeeded but no .app bundle was found under \(productsDir.path)."
+                appendLog("[ERROR] \(msg)", isError: true)
+                return (nil, msg)
+            }
+
+            // Stage it in the managed builds directory.
+            let fm = FileManager.default
+            let managedDir = managedBuildsDirectory(projectName: projectURL.deletingPathExtension().lastPathComponent)
+            try? fm.createDirectory(at: managedDir, withIntermediateDirectories: true)
+            let stagedURL = managedDir.appendingPathComponent(freshApp.lastPathComponent)
+            if fm.fileExists(atPath: stagedURL.path) { try? fm.removeItem(at: stagedURL) }
+            do {
+                try fm.copyItem(at: freshApp, to: stagedURL)
+            } catch {
+                appendLog("[WARNING] Could not stage .app in managed directory: \(error.localizedDescription)", isError: true)
+            }
+
+            buildState = .idle
+            currentProgress = 0.4
+            progressDescription = "Compilation succeeded."
+            appendLog("[SYSTEM] Compilation succeeded: \(stagedURL.path)", isError: false)
+            return (stagedURL, nil)
+        } catch {
+            activeProcess = nil
+            buildState = .failed
+            let msg = "Failed to launch xcodebuild: \(error.localizedDescription)"
+            appendLog("[ERROR] \(msg)", isError: true)
+            return (nil, msg)
+        }
+    }
+
+    /// Packages the most up-to-date managed .app bundle into an .ipa.
+    /// Used by the "Always Build Archive" flow and the Latest Archive card.
+    public func packageLatestApp(
+        projectName: String,
+        outputDirectory: String,
+        customIPAName: String? = nil
+    ) async -> IPABuildResult {
+        guard let appURL = newestManagedAppBundle(projectName: projectName) else {
+            let msg = "No compiled .app found for “\(projectName)”. Build the project first."
+            appendLog("[ERROR] \(msg)", isError: true)
+            return IPABuildResult(success: false, ipaPath: nil, errorMessage: msg)
+        }
+        appendLog("[SYSTEM] Using most up-to-date .app: \(appURL.lastPathComponent)", isError: false)
+        return await packageAppIntoIPA(appPath: appURL.path, outputDirectory: outputDirectory, customIPAName: customIPAName)
+    }
+
+    /// Newest .app anywhere under a directory tree (used for DerivedData products).
+    private func newestAppBundle(in directory: URL) -> URL? {
+        let fm = FileManager.default
+        guard let enumerator = fm.enumerator(at: directory, includingPropertiesForKeys: [.contentModificationDateKey], options: [.skipsHiddenFiles]) else { return nil }
+        var best: URL? = nil
+        var bestDate = Date.distantPast
+        for case let url as URL in enumerator {
+            guard url.pathExtension == "app" else { continue }
+            enumerator.skipDescendants()
+            let date = (try? url.resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate) ?? .distantPast
+            if date > bestDate {
+                bestDate = date
+                best = url
+            }
+        }
+        return best
+    }
+
+    // MARK: - IPA packaging
+
     public func packageAppIntoIPA(appPath: String, outputDirectory: String, customIPAName: String? = nil) async -> IPABuildResult {
-        guard buildState != .packaging else {
-            return IPABuildResult(success: false, ipaPath: nil, errorMessage: "Packaging in progress.")
+        guard !isBusy else {
+            return IPABuildResult(success: false, ipaPath: nil, errorMessage: "A build or packaging operation is in progress.")
         }
 
         buildState = .packaging
@@ -150,6 +391,7 @@ public final class IPABuildService: Sendable {
                 let ipaPath = (outputDirectory as NSString).appendingPathComponent(finalName)
 
                 appendLog("[SYSTEM] IPA Build completed successfully: \(ipaPath)", isError: false)
+                recordLatestArchive(path: ipaPath)
                 AlertSoundPlayer.shared.play(.buildSuccess)
                 return IPABuildResult(success: true, ipaPath: ipaPath, errorMessage: nil)
             } else {
