@@ -273,3 +273,172 @@ public final class XcodeProjParse: Sendable {
         )
     }
 }
+
+@MainActor
+public final class XcodeProjWriter {
+    public static let shared = XcodeProjWriter()
+
+    private init() {}
+
+    private func resolvePbxprojURL(for projectURL: URL) -> URL {
+        if projectURL.pathExtension == "xcodeproj" {
+            return projectURL.appendingPathComponent("project.pbxproj")
+        }
+        return projectURL.appendingPathComponent("project.pbxproj")
+    }
+
+    /// Updates or inserts a build setting key-value pair in project.pbxproj
+    @discardableResult
+    public func updateBuildSetting(
+        key: String,
+        value: String,
+        configurationName: String? = nil,
+        projectURL: URL
+    ) throws -> XcodeProjModel {
+        let pbxprojURL = resolvePbxprojURL(for: projectURL)
+        guard FileManager.default.fileExists(atPath: pbxprojURL.path) else {
+            throw NSError(domain: "XcodeProjWriter", code: 404, userInfo: [NSLocalizedDescriptionKey: "project.pbxproj not found at \(pbxprojURL.path)"])
+        }
+
+        var content = try String(contentsOf: pbxprojURL, encoding: .utf8)
+
+        // Escape value if needed
+        let formattedValue = value.contains(" ") || value.contains("$") || value.contains("/") || value.contains("-") ? "\"\(value.replacingOccurrences(of: "\"", with: "\\\""))\"" : value
+
+        // Pattern for existing key in buildSettings
+        let keyPattern = "(\\b" + NSRegularExpression.escapedPattern(for: key) + "\\s*=\\s*)([^;]+)(;)"
+        if let regex = try? NSRegularExpression(pattern: keyPattern, options: []) {
+            let matches = regex.matches(in: content, options: [], range: NSRange(content.startIndex..<content.endIndex, in: content))
+            if !matches.isEmpty {
+                // Key exists: replace occurrences
+                content = regex.stringByReplacingMatches(
+                    in: content,
+                    options: [],
+                    range: NSRange(content.startIndex..<content.endIndex, in: content),
+                    withTemplate: "$1\(formattedValue)$3"
+                )
+            } else {
+                // Key doesn't exist: insert into buildSettings = { blocks
+                let buildSettingsPattern = "(buildSettings\\s*=\\s*\\{)"
+                if let bsRegex = try? NSRegularExpression(pattern: buildSettingsPattern, options: []) {
+                    content = bsRegex.stringByReplacingMatches(
+                        in: content,
+                        options: [],
+                        range: NSRange(content.startIndex..<content.endIndex, in: content),
+                        withTemplate: "$1\n\t\t\t\t\(key) = \(formattedValue);"
+                    )
+                }
+            }
+        }
+
+        try content.write(to: pbxprojURL, atomically: true, encoding: .utf8)
+
+        let newModel = try XcodeProjParse.shared.parse(projectURL: projectURL)
+        ProjectResolutionService.shared.parsedProjects[projectURL] = newModel
+        return newModel
+    }
+
+    /// Removes a build setting key from project.pbxproj
+    @discardableResult
+    public func removeBuildSetting(
+        key: String,
+        configurationName: String? = nil,
+        projectURL: URL
+    ) throws -> XcodeProjModel {
+        let pbxprojURL = resolvePbxprojURL(for: projectURL)
+        guard FileManager.default.fileExists(atPath: pbxprojURL.path) else {
+            throw NSError(domain: "XcodeProjWriter", code: 404, userInfo: [NSLocalizedDescriptionKey: "project.pbxproj not found at \(pbxprojURL.path)"])
+        }
+
+        var content = try String(contentsOf: pbxprojURL, encoding: .utf8)
+        let keyPattern = "\\b" + NSRegularExpression.escapedPattern(for: key) + "\\s*=\\s*[^;]+;\\s*\\n?"
+        if let regex = try? NSRegularExpression(pattern: keyPattern, options: []) {
+            content = regex.stringByReplacingMatches(
+                in: content,
+                options: [],
+                range: NSRange(content.startIndex..<content.endIndex, in: content),
+                withTemplate: ""
+            )
+        }
+
+        try content.write(to: pbxprojURL, atomically: true, encoding: .utf8)
+
+        let newModel = try XcodeProjParse.shared.parse(projectURL: projectURL)
+        ProjectResolutionService.shared.parsedProjects[projectURL] = newModel
+        return newModel
+    }
+
+    /// Updates the target name and its product name in project.pbxproj
+    @discardableResult
+    public func updateTargetName(
+        oldName: String,
+        newName: String,
+        projectURL: URL
+    ) throws -> XcodeProjModel {
+        let pbxprojURL = resolvePbxprojURL(for: projectURL)
+        guard FileManager.default.fileExists(atPath: pbxprojURL.path) else {
+            throw NSError(domain: "XcodeProjWriter", code: 404, userInfo: [NSLocalizedDescriptionKey: "project.pbxproj not found at \(pbxprojURL.path)"])
+        }
+
+        var content = try String(contentsOf: pbxprojURL, encoding: .utf8)
+
+        let namePattern = "(name\\s*=\\s*)(\"?)" + NSRegularExpression.escapedPattern(for: oldName) + "(\"?\\s*;)"
+        if let regex = try? NSRegularExpression(pattern: namePattern, options: []) {
+            content = regex.stringByReplacingMatches(
+                in: content,
+                options: [],
+                range: NSRange(content.startIndex..<content.endIndex, in: content),
+                withTemplate: "$1$2\(newName)$3"
+            )
+        }
+
+        let prodNamePattern = "(productName\\s*=\\s*)(\"?)" + NSRegularExpression.escapedPattern(for: oldName) + "(\"?\\s*;)"
+        if let regex = try? NSRegularExpression(pattern: prodNamePattern, options: []) {
+            content = regex.stringByReplacingMatches(
+                in: content,
+                options: [],
+                range: NSRange(content.startIndex..<content.endIndex, in: content),
+                withTemplate: "$1$2\(newName)$3"
+            )
+        }
+
+        try content.write(to: pbxprojURL, atomically: true, encoding: .utf8)
+
+        let newModel = try XcodeProjParse.shared.parse(projectURL: projectURL)
+        ProjectResolutionService.shared.parsedProjects[projectURL] = newModel
+        return newModel
+    }
+
+    @discardableResult
+    public func updateMarketingVersion(
+        version: String,
+        projectURL: URL
+    ) throws -> XcodeProjModel {
+        return try updateBuildSetting(key: "MARKETING_VERSION", value: version, projectURL: projectURL)
+    }
+
+    @discardableResult
+    public func updateProjectVersion(
+        build: String,
+        projectURL: URL
+    ) throws -> XcodeProjModel {
+        return try updateBuildSetting(key: "CURRENT_PROJECT_VERSION", value: build, projectURL: projectURL)
+    }
+
+    @discardableResult
+    public func updateBundleIdentifier(
+        bundleID: String,
+        projectURL: URL
+    ) throws -> XcodeProjModel {
+        return try updateBuildSetting(key: "PRODUCT_BUNDLE_IDENTIFIER", value: bundleID, projectURL: projectURL)
+    }
+
+    @discardableResult
+    public func updateDeploymentTarget(
+        platformKey: String,
+        version: String,
+        projectURL: URL
+    ) throws -> XcodeProjModel {
+        return try updateBuildSetting(key: platformKey, value: version, projectURL: projectURL)
+    }
+}

@@ -15,13 +15,23 @@ public struct BuildProjectCommand {
     ) async throws -> Bool {
         let xcodebuildURL = URL(fileURLWithPath: "/usr/bin/xcodebuild")
 
+        let derivedData = URL(fileURLWithPath: projectPath).deletingLastPathComponent().appendingPathComponent("build/DerivedData").path
         var args = [
             "-project", projectPath,
             "-scheme", scheme,
             "-configuration", configuration,
             "-destination", destination,
+            "-derivedDataPath", derivedData,
             "build"
         ]
+
+        if destination.lowercased().contains("simulator") || destination.hasPrefix("id=") {
+            args.append(contentsOf: [
+                "CODE_SIGN_IDENTITY=",
+                "CODE_SIGNING_REQUIRED=NO",
+                "CODE_SIGNING_ALLOWED=NO"
+            ])
+        }
 
         if let activeProj = await ProjectSessionStore.shared.activeProject,
            let savedDests = activeProj.destinations,

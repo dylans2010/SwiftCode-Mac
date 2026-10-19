@@ -1,21 +1,46 @@
 import SwiftUI
+import UniformTypeIdentifiers
 
 public struct InfoPlistView: View {
     private let fileURL: URL?
     @State private var editor: InfoPlistEditor
     @State private var searchQuery = ""
     @State private var selectedKey: String? = nil
-    @State private var showXMLSheet = false
+    @State private var selectedCategory: InfoPlistCategory = .all
     @State private var xmlEditorText = ""
     @State private var showingAddKeySheet = false
     @State private var newCustomKey = ""
     @State private var newCustomType: InfoPlistNSString.ValueType = .string
     @State private var showingInspectorSheet = false
+    @State private var validationMessage: String? = nil
+    @State private var toolStatus: String? = nil
 
     @Environment(\.undoManager) private var undoManager
     @Environment(WorkspaceViewModel.self) private var workspaceViewModel
     @State private var isCreating = false
     @State private var creationError: String? = nil
+
+    public enum InfoPlistCategory: String, CaseIterable, Identifiable {
+        case all = "All Properties"
+        case identity = "App Identity"
+        case permissions = "Privacy & Permissions"
+        case display = "Display & Interface"
+        case urlSchemes = "URL Types"
+        case rawXML = "Raw XML"
+
+        public var id: String { rawValue }
+
+        public var icon: String {
+            switch self {
+            case .all: return "list.bullet.rectangle"
+            case .identity: return "person.crop.square"
+            case .permissions: return "hand.raised"
+            case .display: return "display"
+            case .urlSchemes: return "link"
+            case .rawXML: return "chevron.left.forwardslash.chevron.right"
+            }
+        }
+    }
 
     public init(fileURL: URL?) {
         self.fileURL = fileURL
@@ -78,6 +103,24 @@ public struct InfoPlistView: View {
     private var filteredKeys: [String] {
         guard fileURL != nil else { return [] }
         return editor.entries.keys.sorted().filter { key in
+            // Category filter
+            let passesCategory: Bool
+            let lowerKey = key.lowercased()
+            switch selectedCategory {
+            case .all, .rawXML:
+                passesCategory = true
+            case .identity:
+                passesCategory = lowerKey.hasPrefix("cfbundle") || lowerKey.contains("name") || lowerKey.contains("version") || lowerKey.contains("identifier")
+            case .permissions:
+                passesCategory = lowerKey.contains("usage") || lowerKey.contains("privacy") || lowerKey.hasPrefix("ns")
+            case .display:
+                passesCategory = lowerKey.contains("interface") || lowerKey.contains("scene") || lowerKey.contains("orientation") || lowerKey.contains("status") || lowerKey.contains("icon")
+            case .urlSchemes:
+                passesCategory = lowerKey.contains("url") || lowerKey.contains("scheme")
+            }
+
+            guard passesCategory else { return false }
+
             if searchQuery.isEmpty { return true }
             let lowerQuery = searchQuery.lowercased()
             let matchesKey = key.lowercased().contains(lowerQuery)
@@ -107,246 +150,69 @@ public struct InfoPlistView: View {
                 Button {
                     createInfoPlist()
                 } label: {
-                    if isCreating {
-                        ProgressView()
-                            .controlSize(.small)
-                            .padding(.horizontal)
-                    } else {
-                        Text("Create Info.plist")
-                            .font(.headline)
-                            .padding(.horizontal)
-                    }
+                    Label(isCreating ? "Creating..." : "Create Info.plist", systemImage: "plus")
+                        .font(.headline)
+                        .frame(minWidth: 160)
                 }
                 .buttonStyle(.borderedProminent)
                 .disabled(isCreating)
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .background(.ultraThinMaterial)
-            .macDesktopOptimized()
+            .background(Color(NSColor.windowBackgroundColor))
         } else {
             VStack(spacing: 0) {
-                // Interactive Statistics Banner
-                HStack(spacing: 16) {
-                    Label {
-                        Text("\(editor.entries.count) Active Properties")
-                            .font(.subheadline.bold())
-                    } icon: {
-                        Image(systemName: "list.bullet.rectangle.fill")
-                            .foregroundColor(.orange)
+                // Professional Header Toolbar with Tool Actions
+                headerToolbar
+
+                Divider()
+
+                // Segmented Category Switcher
+                HStack {
+                    Picker("Category", selection: $selectedCategory) {
+                        ForEach(InfoPlistCategory.allCases) { cat in
+                            Label(cat.rawValue, systemImage: cat.icon).tag(cat)
+                        }
                     }
-
-                    Spacer()
-
-                    Text(fileURL?.lastPathComponent ?? "Info.plist")
-                        .font(.system(size: 11, design: .monospaced))
-                        .foregroundStyle(.secondary)
+                    .pickerStyle(.segmented)
                 }
                 .padding(.horizontal, 16)
                 .padding(.vertical, 8)
-                .background(Color.orange.opacity(0.05))
+                .background(Color(NSColor.controlBackgroundColor))
 
                 Divider()
 
-                // Modern Top Toolbar Panel
-                HStack(spacing: 12) {
+                // Feedback status banner
+                if let status = toolStatus {
                     HStack {
-                        Image(systemName: "magnifyingglass")
-                            .foregroundStyle(.secondary)
-                        TextField("Search keys or descriptions...", text: $searchQuery)
-                            .textFieldStyle(.plain)
-                        if !searchQuery.isEmpty {
-                            Button { searchQuery = "" } label: {
-                                Image(systemName: "xmark.circle.fill")
-                                    .foregroundStyle(.secondary)
-                            }
-                            .buttonStyle(.plain)
-                        }
-                    }
-                    .padding(8)
-                    .background(Color.secondary.opacity(0.12), in: RoundedRectangle(cornerRadius: 12))
-
-                    Spacer()
-
-                    // Undo/Redo
-                    HStack(spacing: 6) {
-                        Button {
-                            editor.undo()
-                            syncXMLPreview()
-                        } label: {
-                            Image(systemName: "arrow.uturn.backward")
-                                .font(.subheadline.bold())
-                        }
-                        .buttonStyle(.plain)
-                        .disabled(!editor.canUndo)
-                        .help("Undo")
-
-                        Button {
-                            editor.redo()
-                            syncXMLPreview()
-                        } label: {
-                            Image(systemName: "arrow.uturn.forward")
-                                .font(.subheadline.bold())
-                        }
-                        .buttonStyle(.plain)
-                        .disabled(!editor.canRedo)
-                        .help("Redo")
-                    }
-                    .padding(6)
-                    .background(Color.secondary.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
-
-                    // Raw XML Sheet Trigger
-                    Button {
-                        syncXMLPreview()
-                        showXMLSheet = true
-                    } label: {
-                        Label("Raw XML", systemImage: "chevron.left.forwardslash.chevron.right")
-                            .font(.subheadline.bold())
-                    }
-                    .buttonStyle(.bordered)
-
-                    // Add Key Button
-                    Button {
-                        showingAddKeySheet = true
-                    } label: {
-                        Label("Add Key", systemImage: "plus")
-                            .bold()
-                    }
-                    .buttonStyle(.borderedProminent)
-                    .tint(.orange)
-                }
-                .padding()
-                .background(.thinMaterial)
-
-                Divider()
-
-                // Plist Key Value Table/List
-                List {
-                    Section("Common Apple Privacy & Security Keys") {
-                        ScrollView(.horizontal, showsIndicators: false) {
-                            HStack(spacing: 8) {
-                                ForEach(InfoPlistNSStrings.all.filter { editor.entries[$0.key] == nil }) { meta in
-                                    Button {
-                                        editor.addMissingKey(meta.key)
-                                        syncXMLPreview()
-                                    } label: {
-                                        HStack {
-                                            Image(systemName: meta.sfSymbol)
-                                            Text(meta.name)
-                                                .font(.caption)
-                                        }
-                                        .padding(.horizontal, 10)
-                                        .padding(.vertical, 6)
-                                        .background(Color.orange.opacity(0.12))
-                                        .cornerRadius(8)
-                                    }
-                                    .buttonStyle(.plain)
-                                }
-                            }
-                            .padding(.vertical, 4)
-                        }
-                    }
-
-                    Section("Configured Properties") {
-                        if filteredKeys.isEmpty {
-                            ContentUnavailableView("No Keys Found", systemImage: "doc.text.magnifyingglass", description: Text("Click 'Add Key' or use common shortcuts above to begin."))
-                                .padding()
-                        } else {
-                            ForEach(filteredKeys, id: \.self) { key in
-                                InfoPlistRow(
-                                    key: key,
-                                    value: editor.entries[key] ?? "",
-                                    editor: editor,
-                                    isFavorite: false,
-                                    onSelect: {
-                                        selectedKey = key
-                                        showingInspectorSheet = true
-                                    },
-                                    onToggleFavorite: {},
-                                    onDelete: {
-                                        editor.remove(key: key)
-                                        if selectedKey == key { selectedKey = nil }
-                                        syncXMLPreview()
-                                    },
-                                    onValueChange: { newVal in
-                                        editor.set(key: key, value: newVal)
-                                        syncXMLPreview()
-                                    }
-                                )
-                                .padding(.vertical, 4)
-                                .background(Color.primary.opacity(0.02))
-                                .cornerRadius(10)
-                            }
-                        }
-                    }
-                }
-                .listStyle(.inset)
-            }
-            .sheet(isPresented: $showXMLSheet) {
-                // Live raw XML sheet
-                VStack(spacing: 0) {
-                    HStack {
-                        Label("Raw Plist XML Editor", systemImage: "doc.text")
-                            .font(.headline)
+                        Image(systemName: "info.circle")
+                            .font(.caption)
+                        Text(status)
+                            .font(.caption)
                         Spacer()
-                        Button("Done") {
-                            showXMLSheet = false
+                        Button { toolStatus = nil } label: {
+                            Image(systemName: "xmark")
+                                .font(.caption2)
                         }
-                        .buttonStyle(.borderedProminent)
-                        .tint(.orange)
+                        .buttonStyle(.plain)
                     }
-                    .padding()
-                    .background(.thinMaterial)
-
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 4)
+                    .background(Color(NSColor.secondarySystemFill))
                     Divider()
-
-                    TextEditor(text: $xmlEditorText)
-                        .font(.system(.body, design: .monospaced))
-                        .padding()
-                        .onChange(of: xmlEditorText) { _, newValue in
-                            if (try? editor.updateFromXML(newValue)) != nil {
-                                // Real-time parse success
-                            }
-                        }
                 }
-                .frame(width: 650, height: 480)
+
+                // Main Content View
+                if selectedCategory == .rawXML {
+                    rawXMLEditorView
+                } else {
+                    propertiesListView
+                }
             }
             .sheet(isPresented: $showingAddKeySheet) {
-                // Add Key sheet
                 addKeySheetView
             }
             .sheet(isPresented: $showingInspectorSheet) {
-                // Inspector Details Sheet
-                VStack(spacing: 0) {
-                    HStack {
-                        Label("Property Inspector", systemImage: "info.circle")
-                            .font(.headline)
-                        Spacer()
-                        Button("Done") {
-                            showingInspectorSheet = false
-                        }
-                        .buttonStyle(.bordered)
-                    }
-                    .padding()
-                    .background(.thinMaterial)
-
-                    Divider()
-
-                    if let key = selectedKey {
-                        let metadata = InfoPlistNSStrings.all.first(where: { $0.key == key })
-                        InfoPlistInspectorPanel(
-                            key: key,
-                            value: editor.entries[key] ?? "",
-                            metadata: metadata,
-                            onSaveValue: { newVal in
-                                editor.set(key: key, value: newVal)
-                                syncXMLPreview()
-                            }
-                        )
-                    } else {
-                        ContentUnavailableView("No Key Selected", systemImage: "info.circle")
-                    }
-                }
-                .frame(width: 500, height: 450)
+                inspectorSheetView
             }
             .onAppear {
                 if fileURL != nil {
@@ -356,19 +222,255 @@ public struct InfoPlistView: View {
         }
     }
 
+    // MARK: - Header Toolbar
+    private var headerToolbar: some View {
+        HStack(spacing: 12) {
+            HStack(spacing: 8) {
+                Image(systemName: "doc.text")
+                    .foregroundStyle(.secondary)
+                Text(fileURL?.lastPathComponent ?? "Info.plist")
+                    .font(.headline)
+                Text("(\(editor.entries.count) properties)")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
+            Spacer()
+
+            // Search Bar
+            HStack {
+                Image(systemName: "magnifyingglass")
+                    .foregroundStyle(.secondary)
+                TextField("Search keys or values...", text: $searchQuery)
+                    .textFieldStyle(.plain)
+                if !searchQuery.isEmpty {
+                    Button { searchQuery = "" } label: {
+                        Image(systemName: "xmark.circle.fill")
+                            .foregroundStyle(.secondary)
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+            .padding(.horizontal, 8)
+            .padding(.vertical, 4)
+            .background(Color(NSColor.controlBackgroundColor), in: RoundedRectangle(cornerRadius: 6))
+            .frame(width: 200)
+
+            // Undo / Redo
+            HStack(spacing: 4) {
+                Button {
+                    editor.undo()
+                    syncXMLPreview()
+                } label: {
+                    Image(systemName: "arrow.uturn.backward")
+                }
+                .buttonStyle(.bordered)
+                .disabled(!editor.canUndo)
+                .help("Undo")
+
+                Button {
+                    editor.redo()
+                    syncXMLPreview()
+                } label: {
+                    Image(systemName: "arrow.uturn.forward")
+                }
+                .buttonStyle(.bordered)
+                .disabled(!editor.canRedo)
+                .help("Redo")
+            }
+
+            // Quick Privacy Presets Menu
+            Menu {
+                Button {
+                    addPrivacyPreset(key: "NSCameraUsageDescription", defaultText: "This application requires access to the camera.")
+                } label: {
+                    Label("Camera Usage (NSCameraUsageDescription)", systemImage: "camera")
+                }
+
+                Button {
+                    addPrivacyPreset(key: "NSPhotoLibraryUsageDescription", defaultText: "This application requires access to photo library.")
+                } label: {
+                    Label("Photo Library (NSPhotoLibraryUsageDescription)", systemImage: "photo.on.rectangle")
+                }
+
+                Button {
+                    addPrivacyPreset(key: "NSMicrophoneUsageDescription", defaultText: "This application requires microphone access.")
+                } label: {
+                    Label("Microphone (NSMicrophoneUsageDescription)", systemImage: "mic")
+                }
+
+                Button {
+                    addPrivacyPreset(key: "NSLocationWhenInUseUsageDescription", defaultText: "This application requires location access while in use.")
+                } label: {
+                    Label("Location (NSLocationWhenInUseUsageDescription)", systemImage: "location")
+                }
+
+                Button {
+                    addPrivacyPreset(key: "NSFaceIDUsageDescription", defaultText: "This application requires Face ID for biometric authentication.")
+                } label: {
+                    Label("Face ID (NSFaceIDUsageDescription)", systemImage: "faceid")
+                }
+
+                Button {
+                    addPrivacyPreset(key: "NSCalendarsUsageDescription", defaultText: "This application requires access to calendar events.")
+                } label: {
+                    Label("Calendar (NSCalendarsUsageDescription)", systemImage: "calendar")
+                }
+
+                Button {
+                    addPrivacyPreset(key: "NSLocalNetworkUsageDescription", defaultText: "This application requires local network access to discover devices.")
+                } label: {
+                    Label("Local Network (NSLocalNetworkUsageDescription)", systemImage: "network")
+                }
+            } label: {
+                Label("Privacy Presets", systemImage: "lock.shield")
+            }
+            .menuStyle(.borderedButton)
+
+            // Validate Structure Tool
+            Button {
+                validateStructure()
+            } label: {
+                Label("Validate", systemImage: "checkmark.seal")
+            }
+            .buttonStyle(.bordered)
+            .help("Validate Info.plist required keys & structure")
+
+            // Copy XML Tool
+            Button {
+                syncXMLPreview()
+                NSPasteboard.general.clearContents()
+                NSPasteboard.general.setString(xmlEditorText, forType: .string)
+                toolStatus = "Copied Raw XML to clipboard"
+            } label: {
+                Label("Copy XML", systemImage: "doc.on.doc")
+            }
+            .buttonStyle(.bordered)
+
+            // Add Property
+            Button {
+                showingAddKeySheet = true
+            } label: {
+                Label("Add Key", systemImage: "plus")
+            }
+            .buttonStyle(.borderedProminent)
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 8)
+        .background(Color(NSColor.windowBackgroundColor))
+    }
+
+    private func addPrivacyPreset(key: String, defaultText: String) {
+        editor.set(key: key, value: defaultText)
+        syncXMLPreview()
+        toolStatus = "Added \(key)"
+    }
+
+    private func validateStructure() {
+        var issues: [String] = []
+        if editor.entries["CFBundleIdentifier"] == nil {
+            issues.append("Missing CFBundleIdentifier")
+        }
+        if editor.entries["CFBundleShortVersionString"] == nil {
+            issues.append("Missing CFBundleShortVersionString")
+        }
+        if editor.entries["CFBundleVersion"] == nil {
+            issues.append("Missing CFBundleVersion")
+        }
+
+        if issues.isEmpty {
+            toolStatus = "Info.plist validated successfully. Required identity keys are present."
+        } else {
+            toolStatus = "Validation warning: " + issues.joined(separator: ", ")
+        }
+    }
+
+    // MARK: - Properties List View
+    private var propertiesListView: some View {
+        List {
+            if filteredKeys.isEmpty {
+                ContentUnavailableView(
+                    "No Properties Found",
+                    systemImage: "doc.text.magnifyingglass",
+                    description: Text(searchQuery.isEmpty ? "Click 'Add Key' or select a Privacy Preset to add properties." : "No properties match '\(searchQuery)'.")
+                )
+                .padding()
+            } else {
+                ForEach(filteredKeys, id: \.self) { key in
+                    InfoPlistRow(
+                        key: key,
+                        value: editor.entries[key] ?? "",
+                        editor: editor,
+                        onSelect: {
+                            selectedKey = key
+                            showingInspectorSheet = true
+                        },
+                        onDuplicate: {
+                            let val = editor.entries[key] ?? ""
+                            let copyKey = "\(key)_Copy"
+                            editor.set(key: copyKey, value: val)
+                            syncXMLPreview()
+                            toolStatus = "Duplicated to \(copyKey)"
+                        },
+                        onDelete: {
+                            editor.remove(key: key)
+                            if selectedKey == key { selectedKey = nil }
+                            syncXMLPreview()
+                        },
+                        onValueChange: { newVal in
+                            editor.set(key: key, value: newVal)
+                            syncXMLPreview()
+                        }
+                    )
+                    .padding(.vertical, 2)
+                }
+            }
+        }
+        .listStyle(.inset)
+    }
+
+    // MARK: - Raw XML Editor View
+    private var rawXMLEditorView: some View {
+        VStack(spacing: 0) {
+            HStack {
+                Label("Raw XML Editor", systemImage: "doc.plaintext")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                Spacer()
+                Button("Re-format XML") {
+                    syncXMLPreview()
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 6)
+            .background(Color(NSColor.controlBackgroundColor))
+
+            Divider()
+
+            TextEditor(text: $xmlEditorText)
+                .font(.system(.body, design: .monospaced))
+                .padding(8)
+                .background(Color(NSColor.textBackgroundColor))
+                .onChange(of: xmlEditorText) { _, newValue in
+                    _ = try? editor.updateFromXML(newValue)
+                }
+        }
+    }
+
     private func syncXMLPreview() {
         xmlEditorText = editor.generateRawXML()
     }
 
-    // Add Key Sheet
-
+    // MARK: - Add Key Sheet
     private var addKeySheetView: some View {
         VStack(alignment: .leading, spacing: 14) {
-            Text("Add New Info.plist Key")
+            Text("Add Info.plist Key")
                 .font(.headline)
 
             Picker("Suggested Key", selection: $newCustomKey) {
-                Text("Custom...").tag("")
+                Text("Custom Key...").tag("")
                 ForEach(InfoPlistNSStrings.all) { meta in
                     Text("\(meta.name) (\(meta.key))").tag(meta.key)
                 }
@@ -376,7 +478,7 @@ public struct InfoPlistView: View {
             .pickerStyle(.menu)
 
             if newCustomKey.isEmpty {
-                TextField("Custom Key Name", text: $newCustomKey)
+                TextField("Custom Key Name (e.g. MyCustomProperty)", text: $newCustomKey)
                     .textFieldStyle(.roundedBorder)
 
                 Picker("Value Type", selection: $newCustomType) {
@@ -393,8 +495,11 @@ public struct InfoPlistView: View {
                 Button("Cancel") {
                     showingAddKeySheet = false
                 }
+                .buttonStyle(.bordered)
+
                 Spacer()
-                Button("Add") {
+
+                Button("Add Key") {
                     if !newCustomKey.isEmpty {
                         editor.addMissingKey(newCustomKey)
                         syncXMLPreview()
@@ -403,23 +508,56 @@ public struct InfoPlistView: View {
                     }
                 }
                 .buttonStyle(.borderedProminent)
-                .tint(.orange)
+                .disabled(newCustomKey.isEmpty)
             }
         }
         .padding()
-        .frame(width: 400, height: 300)
+        .frame(width: 440, height: 260)
+    }
+
+    // MARK: - Inspector Sheet
+    private var inspectorSheetView: some View {
+        VStack(spacing: 0) {
+            HStack {
+                Label("Property Inspector", systemImage: "info.circle")
+                    .font(.headline)
+                Spacer()
+                Button("Done") {
+                    showingInspectorSheet = false
+                }
+                .buttonStyle(.bordered)
+            }
+            .padding()
+            .background(Color(NSColor.windowBackgroundColor))
+
+            Divider()
+
+            if let key = selectedKey {
+                let metadata = InfoPlistNSStrings.all.first(where: { $0.key == key })
+                InfoPlistInspectorPanel(
+                    key: key,
+                    value: editor.entries[key] ?? "",
+                    metadata: metadata,
+                    onSaveValue: { newVal in
+                        editor.set(key: key, value: newVal)
+                        syncXMLPreview()
+                    }
+                )
+            } else {
+                ContentUnavailableView("No Key Selected", systemImage: "info.circle")
+            }
+        }
+        .frame(width: 500, height: 450)
     }
 }
 
-// MARK: - Subviews for Info.plist Rows & Inspector
-
+// MARK: - Clean Monochrome Row View
 struct InfoPlistRow: View {
     let key: String
     let value: Any
     let editor: InfoPlistEditor
-    let isFavorite: Bool
     let onSelect: () -> Void
-    let onToggleFavorite: () -> Void
+    let onDuplicate: () -> Void
     let onDelete: () -> Void
     let onValueChange: (Any) -> Void
 
@@ -427,7 +565,7 @@ struct InfoPlistRow: View {
         HStack(spacing: 12) {
             VStack(alignment: .leading, spacing: 2) {
                 Text(key)
-                    .font(.headline)
+                    .font(.system(.body, design: .monospaced).weight(.medium))
                     .lineLimit(1)
 
                 if let meta = InfoPlistNSStrings.all.first(where: { $0.key == key }) {
@@ -436,6 +574,7 @@ struct InfoPlistRow: View {
                         .foregroundStyle(.secondary)
                 }
             }
+            .frame(minWidth: 220, alignment: .leading)
 
             Spacer()
 
@@ -452,38 +591,49 @@ struct InfoPlistRow: View {
                     .font(.caption)
                     .padding(.horizontal, 8)
                     .padding(.vertical, 4)
-                    .background(Color.secondary.opacity(0.12), in: RoundedRectangle(cornerRadius: 6))
+                    .background(Color(NSColor.controlBackgroundColor), in: RoundedRectangle(cornerRadius: 4))
             } else if let dictVal = value as? [String: Any] {
                 Text("Dictionary (\(dictVal.count) keys)")
                     .font(.caption)
                     .padding(.horizontal, 8)
                     .padding(.vertical, 4)
-                    .background(Color.secondary.opacity(0.12), in: RoundedRectangle(cornerRadius: 6))
+                    .background(Color(NSColor.controlBackgroundColor), in: RoundedRectangle(cornerRadius: 4))
             } else {
                 TextField("", text: Binding(
                     get: { String(describing: value) },
                     set: { onValueChange($0) }
                 ))
                 .textFieldStyle(.roundedBorder)
-                .frame(width: 180)
+                .font(.system(.body, design: .monospaced))
+                .frame(minWidth: 180, maxWidth: 300)
             }
 
             // Inspect
             Button(action: onSelect) {
-                Image(systemName: "info.circle")
+                Image(systemName: "slider.horizontal.3")
                     .foregroundStyle(.secondary)
             }
             .buttonStyle(.plain)
+            .help("Inspect Property")
+
+            // Duplicate
+            Button(action: onDuplicate) {
+                Image(systemName: "plus.square.on.square")
+                    .foregroundStyle(.secondary)
+            }
+            .buttonStyle(.plain)
+            .help("Duplicate Property")
 
             // Delete
             Button(action: onDelete) {
                 Image(systemName: "trash")
-                    .foregroundStyle(.red)
+                    .foregroundStyle(.secondary)
             }
             .buttonStyle(.plain)
+            .help("Delete Property")
         }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 8)
+        .padding(.horizontal, 10)
+        .padding(.vertical, 6)
     }
 }
 
@@ -500,103 +650,48 @@ struct InfoPlistInspectorPanel: View {
                     Text(metadata?.name ?? key)
                         .font(.title3.bold())
                     Text(key)
-                        .font(.caption)
+                        .font(.system(.caption, design: .monospaced))
                         .foregroundStyle(.secondary)
                 }
 
-                if let meta = metadata {
-                    VStack(alignment: .leading, spacing: 12) {
-                        GroupBox(label: Label("Description", systemImage: "doc.text")) {
-                            Text(meta.description)
-                                .font(.body)
-                                .frame(maxWidth: .infinity, alignment: .leading)
-                                .padding(.top, 4)
-                        }
-
-                        GroupBox(label: Label("Recommended Wording", systemImage: "hand.thumbsup")) {
-                            Text(meta.recommendedWording)
-                                .font(.body)
-                                .frame(maxWidth: .infinity, alignment: .leading)
-                                .padding(.top, 4)
-                        }
-
-                        GroupBox(label: Label("Metadata Info", systemImage: "info.circle")) {
-                            VStack(alignment: .leading, spacing: 6) {
-                                HStack {
-                                    Text("Category:")
-                                        .bold()
-                                    Text(meta.category)
-                                }
-                                HStack {
-                                    Text("Value Type:")
-                                        .bold()
-                                    Text(meta.valueType.rawValue)
-                                }
-                            }
-                            .font(.caption)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .padding(.top, 4)
-                        }
-                    }
+                if let desc = metadata?.description {
+                    Text(desc)
+                        .font(.body)
+                        .foregroundStyle(.secondary)
                 }
+
+                Divider()
 
                 VStack(alignment: .leading, spacing: 8) {
-                    Text("Value Editor")
-                        .font(.headline)
+                    Text("Current Value:")
+                        .font(.subheadline.bold())
 
-                    if let boolVal = value as? Bool {
-                        Toggle("Enabled", isOn: Binding(
-                            get: { boolVal },
-                            set: { onSaveValue($0) }
-                        ))
-                        .toggleStyle(.checkbox)
-                    } else if let arrVal = value as? [Any] {
-                        VStack(alignment: .leading, spacing: 6) {
-                            ForEach(0..<arrVal.count, id: \.self) { idx in
-                                HStack {
-                                    TextField("Item \(idx + 1)", text: Binding(
-                                        get: { String(describing: arrVal[idx]) },
-                                        set: { newVal in
-                                            var copy = arrVal
-                                            copy[idx] = newVal
-                                            onSaveValue(copy)
-                                        }
-                                    ))
-                                    .textFieldStyle(.roundedBorder)
+                    Text(String(describing: value))
+                        .font(.system(.body, design: .monospaced))
+                        .padding(10)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .background(Color(NSColor.controlBackgroundColor), in: RoundedRectangle(cornerRadius: 6))
+                }
 
-                                    Button {
-                                        var copy = arrVal
-                                        copy.remove(at: idx)
-                                        onSaveValue(copy)
-                                    } label: {
-                                        Image(systemName: "minus.circle")
-                                            .foregroundStyle(.red)
-                                    }
-                                    .buttonStyle(.plain)
-                                }
-                            }
+                if let meta = metadata {
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text("Category: \(meta.category)")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
 
-                            Button {
-                                var copy = arrVal
-                                copy.append("")
-                                onSaveValue(copy)
-                            } label: {
-                                Label("Add Item", systemImage: "plus")
-                            }
-                            .buttonStyle(.bordered)
+                        Text("Expected Type: \(meta.valueType.rawValue)")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+
+                        if !meta.recommendedWording.isEmpty {
+                            Text("Apple Recommendation: \(meta.recommendedWording)")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
                         }
-                    } else {
-                        TextField("Value", text: Binding(
-                            get: { String(describing: value) },
-                            set: { onSaveValue($0) }
-                        ))
-                        .textFieldStyle(.roundedBorder)
                     }
                 }
-                .padding()
-                .background(Color.secondary.opacity(0.05), in: RoundedRectangle(cornerRadius: 12))
             }
-            .padding()
+            .padding(20)
         }
     }
 }

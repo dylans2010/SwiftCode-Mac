@@ -18,19 +18,10 @@ struct StructuredBuildLog: Identifiable, Sendable {
 
         var icon: String {
             switch self {
-            case .error: return "exclamationmark.octagon.fill"
-            case .warning: return "exclamationmark.triangle.fill"
-            case .system: return "cpu.fill"
-            case .info: return "info.circle.fill"
-            }
-        }
-
-        var color: Color {
-            switch self {
-            case .error: return .red
-            case .warning: return .yellow
-            case .system: return .cyan
-            case .info: return .secondary
+            case .error: return "exclamationmark.octagon"
+            case .warning: return "exclamationmark.triangle"
+            case .system: return "cpu"
+            case .info: return "info.circle"
             }
         }
     }
@@ -42,23 +33,37 @@ struct XcodeBuildLogView: View {
     @AppStorage("com.swiftcode.build.autoScrollToBottom") private var autoScrollToBottom = true
     @AppStorage("com.swiftcode.build.filterMode") private var filterMode: LogFilterMode = .all
 
-    // Collapsible section states
-    @AppStorage("com.swiftcode.build.showErrorsGroup") private var showErrorsGroup = true
-    @AppStorage("com.swiftcode.build.showWarningsGroup") private var showWarningsGroup = true
-    @AppStorage("com.swiftcode.build.showFullConsole") private var showFullConsole = true
+    // Segmented View Mode
+    @State private var activeSection: SectionTab = .console
 
     // Switch sheets
     @State private var showingIPABuilder = false
-
-    // SDK Search and detail sheets
-    @State private var platformSearchText = ""
     @State private var showPlatformPickerSheet = false
     @State private var showSDKErrorDetailSheet = false
+    @State private var platformSearchText = ""
 
     @Environment(\.dismiss) private var dismiss
 
     private var buildManager: XcodeBuildManager {
         XcodeBuildManager.shared
+    }
+
+    enum SectionTab: String, CaseIterable, Identifiable {
+        case console = "Console"
+        case diagnostics = "Diagnostics"
+        case settings = "Settings"
+        case packaging = "Packaging"
+
+        var id: String { rawValue }
+
+        var icon: String {
+            switch self {
+            case .console: return "terminal"
+            case .diagnostics: return "stethoscope"
+            case .settings: return "gearshape"
+            case .packaging: return "shippingbox"
+            }
+        }
     }
 
     enum LogFilterMode: String, CaseIterable, Identifiable {
@@ -117,400 +122,26 @@ struct XcodeBuildLogView: View {
     var body: some View {
         @Bindable var buildManager = self.buildManager
         NavigationStack {
-            ScrollView {
-                VStack(spacing: 24) {
-                    // Title info card
-                    GroupBox {
-                        VStack(alignment: .leading, spacing: 14) {
-                            HStack {
-                                Label("Xcode Build Center", systemImage: "hammer.fill")
-                                    .font(.headline)
-                                    .foregroundColor(.purple)
-                                Spacer()
-                            }
-                            Text("Monitor compiling workloads, diagnose syntax or architecture issues, and package deployment binaries.")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                        }
-                        .padding()
-                    }
-                    .groupBoxStyle(ModernGroupBoxStyle())
+            VStack(spacing: 0) {
+                // Top Clean Toolbar
+                topToolbar
 
-                    // Card 1: Build Status Metrics
-                    GroupBox {
-                        VStack(alignment: .leading, spacing: 14) {
-                            HStack {
-                                Label("Build Status Details", systemImage: "play.circle")
-                                    .font(.headline)
-                                    .foregroundColor(.blue)
-                                Spacer()
-                            }
+                Divider()
 
-                            buildStatusHeader
-                        }
-                        .padding()
-                    }
-                    .groupBoxStyle(ModernGroupBoxStyle())
-
-                    // Card 2: Build Specifications (Fully Dynamic & Modernized Layout)
-                    GroupBox {
-                        VStack(alignment: .leading, spacing: 18) {
-                            HStack {
-                                Label("Build Specifications", systemImage: "gearshape.fill")
-                                    .font(.headline)
-                                    .foregroundColor(.orange)
-                                Spacer()
-
-                                // Dynamic Sync status/Trigger
-                                sdkDetectionStatusView
-                            }
-
-                            Divider()
-
-                            if buildManager.sdkDetectionState == .failure {
-                                errorStateSpecificationView
-                            } else {
-                                Grid(alignment: .leading, horizontalSpacing: 24, verticalSpacing: 16) {
-                                    GridRow {
-                                        VStack(alignment: .leading, spacing: 4) {
-                                            Label("Active Build Scheme", systemImage: "scheme")
-                                                .font(.caption)
-                                                .foregroundColor(.secondary)
-                                            Text(buildManager.selectedScheme ?? "Automatic")
-                                                .font(.body.bold())
-                                        }
-
-                                        VStack(alignment: .leading, spacing: 4) {
-                                            Label("Build SDK Destination", systemImage: "target")
-                                                .font(.caption)
-                                                .foregroundColor(.secondary)
-                                            Text(buildManager.selectedDestination)
-                                                .font(.body.bold())
-                                        }
-                                    }
-
-                                    GridRow {
-                                        VStack(alignment: .leading, spacing: 4) {
-                                            Label("Optimization Level", systemImage: "speedometer")
-                                                .font(.caption)
-                                                .foregroundColor(.secondary)
-                                            Text("\(buildManager.selectedConfiguration)")
-                                                .font(.body.bold())
-                                        }
-
-                                        VStack(alignment: .leading, spacing: 4) {
-                                            Label("Active Developer Xcode Path", systemImage: "folder.fill")
-                                                .font(.caption)
-                                                .foregroundColor(.secondary)
-                                            Text(buildManager.activeXcodePath.isEmpty ? "Not Detected" : buildManager.activeXcodePath)
-                                                .font(.system(.body, design: .monospaced))
-                                                .lineLimit(1)
-                                                .help(buildManager.activeXcodePath)
-                                        }
-                                    }
-
-                                    GridRow {
-                                        VStack(alignment: .leading, spacing: 4) {
-                                            Label("Target SDK Platform", systemImage: "apple.logo")
-                                                .font(.caption)
-                                                .foregroundColor(.secondary)
-
-                                            Button {
-                                                platformSearchText = ""
-                                                showPlatformPickerSheet = true
-                                            } label: {
-                                                HStack {
-                                                    Text(buildManager.selectedSDKType)
-                                                        .font(.body.bold())
-                                                    Spacer()
-                                                    Image(systemName: "chevron.up.chevron.down")
-                                                        .font(.caption)
-                                                        .foregroundStyle(.secondary)
-                                                }
-                                                .padding(.horizontal, 10)
-                                                .padding(.vertical, 6)
-                                                .background(Color.secondary.opacity(0.12), in: RoundedRectangle(cornerRadius: 6))
-                                            }
-                                            .buttonStyle(.plain)
-                                            .frame(maxWidth: 240)
-                                        }
-
-                                        VStack(alignment: .leading, spacing: 4) {
-                                            Label("Target SDK Version", systemImage: "number")
-                                                .font(.caption)
-                                                .foregroundColor(.secondary)
-
-                                            Picker("", selection: $buildManager.selectedSDKVersion) {
-                                                ForEach(buildManager.availableSDKVersions, id: \.self) { version in
-                                                    Text(version).tag(version)
-                                                }
-                                            }
-                                            .pickerStyle(.menu)
-                                            .labelsHidden()
-                                            .controlSize(.regular)
-                                            .frame(maxWidth: 240)
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                        .padding()
-                    }
-                    .groupBoxStyle(ModernGroupBoxStyle())
-
-                    // Card 3: Action Buttons Box
-                    GroupBox {
-                        VStack(alignment: .leading, spacing: 14) {
-                            HStack {
-                                Label("Actions", systemImage: "bolt.fill")
-                                    .font(.headline)
-                                    .foregroundColor(.green)
-                                Spacer()
-                            }
-
-                            HStack(spacing: 12) {
-                                Button(action: {
-                                    let text = buildManager.buildLogs.joined(separator: "\n")
-                                    NSPasteboard.general.clearContents()
-                                    NSPasteboard.general.setString(text, forType: .string)
-                                }) {
-                                    Label("Copy Logs", systemImage: "doc.on.doc")
-                                        .frame(maxWidth: .infinity)
-                                }
-                                .buttonStyle(.bordered)
-                                .controlSize(.large)
-
-                                Button {
-                                    showingIPABuilder = true
-                                } label: {
-                                    Label("Package IPA Bundle...", systemImage: "shippingbox.fill")
-                                        .frame(maxWidth: .infinity)
-                                }
-                                .buttonStyle(.borderedProminent)
-                                .tint(.purple)
-                                .controlSize(.large)
-
-                                if buildManager.isBuilding {
-                                    Button("Cancel Build") {
-                                        buildManager.cancelBuild()
-                                    }
-                                    .buttonStyle(.borderedProminent)
-                                    .tint(.red)
-                                    .controlSize(.large)
-                                }
-                            }
-                        }
-                        .padding()
-                    }
-                    .groupBoxStyle(ModernGroupBoxStyle())
-
-                    // Card 4: Collapsible Errors Group
-                    if !errorLogs.isEmpty {
-                        GroupBox {
-                            VStack(alignment: .leading, spacing: 14) {
-                                Button {
-                                    withAnimation { showErrorsGroup.toggle() }
-                                } label: {
-                                    HStack {
-                                        Label("Errors Detected (\(errorLogs.count))", systemImage: "exclamationmark.octagon.fill")
-                                            .font(.headline)
-                                            .foregroundColor(.red)
-                                        Spacer()
-                                        Image(systemName: showErrorsGroup ? "chevron.up" : "chevron.down")
-                                            .foregroundStyle(.red)
-                                    }
-                                }
-                                .buttonStyle(.plain)
-
-                                if showErrorsGroup {
-                                    Divider()
-                                    VStack(alignment: .leading, spacing: 6) {
-                                        ForEach(errorLogs) { log in
-                                            HStack(alignment: .top, spacing: 8) {
-                                                Text(log.timestamp.formatted(date: .omitted, time: .standard))
-                                                    .font(.system(.caption2, design: .monospaced))
-                                                    .foregroundColor(.secondary)
-
-                                                Text(log.message)
-                                                    .font(.system(.caption, design: .monospaced))
-                                                    .foregroundColor(.red)
-                                                    .textSelection(.enabled)
-                                                    .fixedSize(horizontal: false, vertical: true)
-                                            }
-                                            .padding(6)
-                                            .background(Color.red.opacity(0.08), in: RoundedRectangle(cornerRadius: 6))
-                                        }
-                                    }
-                                }
-                            }
-                            .padding()
-                        }
-                        .groupBoxStyle(ModernGroupBoxStyle())
-                    }
-
-                    // Card 5: Collapsible Warnings Group
-                    if !warningLogs.isEmpty {
-                        GroupBox {
-                            VStack(alignment: .leading, spacing: 14) {
-                                Button {
-                                    withAnimation { showWarningsGroup.toggle() }
-                                } label: {
-                                    HStack {
-                                        Label("Warnings Detected (\(warningLogs.count))", systemImage: "exclamationmark.triangle.fill")
-                                            .font(.headline)
-                                            .foregroundColor(.yellow)
-                                        Spacer()
-                                        Image(systemName: showWarningsGroup ? "chevron.up" : "chevron.down")
-                                            .foregroundStyle(.yellow)
-                                    }
-                                }
-                                .buttonStyle(.plain)
-
-                                if showWarningsGroup {
-                                    Divider()
-                                    VStack(alignment: .leading, spacing: 6) {
-                                        ForEach(warningLogs) { log in
-                                            HStack(alignment: .top, spacing: 8) {
-                                                Text(log.timestamp.formatted(date: .omitted, time: .standard))
-                                                    .font(.system(.caption2, design: .monospaced))
-                                                    .foregroundColor(.secondary)
-
-                                                Text(log.message)
-                                                    .font(.system(.caption, design: .monospaced))
-                                                    .foregroundColor(.yellow)
-                                                    .textSelection(.enabled)
-                                                    .fixedSize(horizontal: false, vertical: true)
-                                            }
-                                            .padding(6)
-                                            .background(Color.yellow.opacity(0.08), in: RoundedRectangle(cornerRadius: 6))
-                                        }
-                                    }
-                                }
-                            }
-                            .padding()
-                        }
-                        .groupBoxStyle(ModernGroupBoxStyle())
-                    }
-
-                    // Card 6: Console Outputs Group
-                    GroupBox {
-                        VStack(alignment: .leading, spacing: 14) {
-                            HStack {
-                                Menu {
-                                    Button {
-                                        let text = buildManager.buildLogs.joined(separator: "\n")
-                                        NSPasteboard.general.clearContents()
-                                        NSPasteboard.general.setString(text, forType: .string)
-                                    } label: {
-                                        Label("Copy Logs", systemImage: "doc.on.doc")
-                                    }
-
-                                    Button {
-                                        exportLogsToFile()
-                                    } label: {
-                                        Label("Export Logs...", systemImage: "square.and.arrow.up")
-                                    }
-                                } label: {
-                                    Label("Console Outputs Log Trace", systemImage: "terminal.fill")
-                                        .font(.headline)
-                                        .foregroundColor(.blue)
-                                }
-                                .menuStyle(.borderlessButton)
-                                .fixedSize()
-
-                                Spacer()
-
-                                Toggle("Auto-scroll", isOn: $autoScrollToBottom)
-                                    .toggleStyle(.checkbox)
-                                    .controlSize(.small)
-                            }
-
-                            HStack(spacing: 12) {
-                                HStack {
-                                    Image(systemName: "magnifyingglass")
-                                        .font(.caption)
-                                        .foregroundStyle(.secondary)
-                                    TextField("Search logs...", text: $searchLogQuery)
-                                        .textFieldStyle(.plain)
-                                        .font(.caption)
-                                }
-                                .padding(.horizontal, 8)
-                                .padding(.vertical, 6)
-                                .background(Color.secondary.opacity(0.12), in: RoundedRectangle(cornerRadius: 6))
-                                .frame(maxWidth: .infinity)
-
-                                Picker("", selection: $filterMode) {
-                                    ForEach(LogFilterMode.allCases) { mode in
-                                        Text(mode.rawValue).tag(mode)
-                                    }
-                                }
-                                .pickerStyle(.segmented)
-                                .controlSize(.small)
-                                .frame(width: 260)
-                            }
-
-                            Divider()
-
-                            ScrollViewReader { proxy in
-                                ScrollView {
-                                    LazyVStack(alignment: .leading, spacing: 4) {
-                                        if filteredStructuredLogs.isEmpty {
-                                            VStack(spacing: 10) {
-                                                Spacer()
-                                                Image(systemName: "doc.text.magnifyingglass")
-                                                    .font(.system(size: 24))
-                                                    .foregroundStyle(.secondary)
-                                                Text("No matching build logs")
-                                                    .font(.subheadline.bold())
-                                                    .foregroundStyle(.secondary)
-                                                Spacer()
-                                            }
-                                            .frame(maxWidth: .infinity, minHeight: 250)
-                                        } else {
-                                            ForEach(Array(filteredStructuredLogs.enumerated()), id: \.offset) { index, log in
-                                                HStack(alignment: .top, spacing: 6) {
-                                                    Text(log.timestamp.formatted(date: .omitted, time: .standard))
-                                                        .font(.system(size: 9, design: .monospaced))
-                                                        .foregroundColor(.secondary.opacity(0.6))
-
-                                                    Circle()
-                                                        .fill(log.severity.color)
-                                                        .frame(width: 5, height: 5)
-                                                        .padding(.top, 5)
-
-                                                    Text(log.message)
-                                                        .font(.system(size: 10, design: .monospaced))
-                                                        .foregroundStyle(log.severity.color)
-                                                        .textSelection(.enabled)
-                                                        .fixedSize(horizontal: false, vertical: true)
-                                                }
-                                                .id(index)
-                                            }
-                                        }
-                                    }
-                                    .padding()
-                                }
-                                .frame(height: 350)
-                                .background(Color.black.opacity(0.3))
-                                .cornerRadius(12)
-                                .onChange(of: filteredStructuredLogs.count) { _, newCount in
-                                    if autoScrollToBottom && newCount > 0 {
-                                        withAnimation {
-                                            proxy.scrollTo(newCount - 1, anchor: .bottom)
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                        .padding()
-                    }
-                    .groupBoxStyle(ModernGroupBoxStyle())
+                // Main Content by Segment
+                switch activeSection {
+                case .console:
+                    consoleSection
+                case .diagnostics:
+                    diagnosticsSection
+                case .settings:
+                    settingsSection
+                case .packaging:
+                    packagingSection
                 }
-                .padding(24)
             }
             .navigationTitle("Xcode Build Center")
             .onAppear {
-                // Asynchronously detect available SDKs on load to pre-populate selection
                 Task {
                     await buildManager.detectAvailableSDKs()
                 }
@@ -527,298 +158,603 @@ struct XcodeBuildLogView: View {
                     }
                 }
             }
-            // Dynamic platform picker sheet with real-time searching
             .sheet(isPresented: $showPlatformPickerSheet) {
-                NavigationStack {
-                    VStack(spacing: 0) {
-                        HStack {
-                            Image(systemName: "magnifyingglass")
-                                .foregroundColor(.secondary)
-                            TextField("Search platform...", text: $platformSearchText)
-                                .textFieldStyle(.plain)
-                        }
-                        .padding()
-                        .background(Color.secondary.opacity(0.08))
+                platformPickerSheet
+            }
+            .sheet(isPresented: $showSDKErrorDetailSheet) {
+                sdkErrorDetailSheet
+            }
+        }
+    }
 
-                        List {
-                            let filtered = buildManager.availableSDKTypes.filter {
-                                platformSearchText.isEmpty || $0.localizedCaseInsensitiveContains(platformSearchText)
+    // MARK: - Top Toolbar
+    private var topToolbar: some View {
+        VStack(spacing: 10) {
+            HStack(spacing: 12) {
+                // Segmented section picker
+                Picker("", selection: $activeSection) {
+                    ForEach(SectionTab.allCases) { tab in
+                        Label(tab.rawValue, systemImage: tab.icon).tag(tab)
+                    }
+                }
+                .pickerStyle(.segmented)
+                .frame(maxWidth: 440)
+
+                Spacer()
+
+                // Status Badge
+                statusBadge
+
+                // Action Buttons
+                if buildManager.isBuilding {
+                    Button(role: .destructive) {
+                        buildManager.cancelBuild()
+                    } label: {
+                        Label("Cancel", systemImage: "stop.fill")
+                    }
+                    .buttonStyle(.bordered)
+                } else {
+                    Button {
+                        Task {
+                            await buildManager.runBuild()
+                        }
+                    } label: {
+                        Label("Build", systemImage: "hammer")
+                    }
+                    .buttonStyle(.borderedProminent)
+                }
+
+                Menu {
+                    Button {
+                        Task {
+                            buildManager.cleanBuild()
+                        }
+                    } label: {
+                        Label("Clean Build Folder", systemImage: "trash")
+                    }
+
+                    Button {
+                        copyBuildCommand()
+                    } label: {
+                        Label("Copy Build Command", systemImage: "terminal")
+                    }
+
+                    Button {
+                        let text = buildManager.buildLogs.joined(separator: "\n")
+                        NSPasteboard.general.clearContents()
+                        NSPasteboard.general.setString(text, forType: .string)
+                    } label: {
+                        Label("Copy All Logs", systemImage: "doc.on.doc")
+                    }
+
+                    Button {
+                        exportLogsToFile()
+                    } label: {
+                        Label("Export Logs...", systemImage: "square.and.arrow.up")
+                    }
+
+                    Button {
+                        Task {
+                            await buildManager.detectAvailableSDKs(forceRefresh: true)
+                        }
+                    } label: {
+                        Label("Re-detect SDKs", systemImage: "arrow.triangle.2.circlepath")
+                    }
+                } label: {
+                    Label("More", systemImage: "ellipsis.circle")
+                }
+                .menuStyle(.borderedButton)
+                .fixedSize()
+            }
+
+            // Sub-metrics row
+            HStack(spacing: 16) {
+                HStack(spacing: 4) {
+                    Image(systemName: "clock")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                    Text("Duration: \(String(format: "%.1fs", buildManager.buildDuration))")
+                        .font(.caption.monospacedDigit())
+                        .foregroundStyle(.secondary)
+                }
+
+                HStack(spacing: 4) {
+                    Image(systemName: "exclamationmark.octagon")
+                        .font(.caption2)
+                        .foregroundStyle(buildManager.errorsCount > 0 ? .primary : .secondary)
+                    Text("Errors: \(buildManager.errorsCount)")
+                        .font(.caption.bold())
+                }
+
+                HStack(spacing: 4) {
+                    Image(systemName: "exclamationmark.triangle")
+                        .font(.caption2)
+                        .foregroundStyle(buildManager.warningsCount > 0 ? .primary : .secondary)
+                    Text("Warnings: \(buildManager.warningsCount)")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+
+                Spacer()
+
+                if !errorLogs.isEmpty || buildManager.currentStatus == .failed {
+                    Button {
+                        NotificationCenter.default.post(
+                            name: NSNotification.Name("com.swiftcode.assist.triggerQuickFix"),
+                            object: nil,
+                            userInfo: [
+                                "prompt": "Diagnose and fix Xcode build error: \(errorLogs.first?.message ?? "Build failed with exit code")\n\nFull log context:\n\(buildManager.buildLogs.suffix(30).joined(separator: "\n"))"
+                            ]
+                        )
+                    } label: {
+                        Label("Fix with Assist", systemImage: "wand.and.stars")
+                            .font(.caption.bold())
+                    }
+                    .buttonStyle(.bordered)
+                    .controlSize(.small)
+                }
+            }
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 10)
+        .background(Color(NSColor.windowBackgroundColor))
+    }
+
+    private var statusBadge: some View {
+        HStack(spacing: 6) {
+            if buildManager.isBuilding {
+                ProgressView().controlSize(.small)
+            } else {
+                Image(systemName: statusIcon(buildManager.currentStatus))
+                    .font(.caption)
+            }
+            Text(buildManager.currentStatus.rawValue)
+                .font(.caption.bold())
+        }
+        .padding(.horizontal, 8)
+        .padding(.vertical, 4)
+        .background(Color.secondary.opacity(0.12), in: Capsule())
+    }
+
+    // MARK: - Section 1: Console
+    private var consoleSection: some View {
+        VStack(spacing: 0) {
+            // Filter Bar
+            HStack(spacing: 12) {
+                HStack {
+                    Image(systemName: "magnifyingglass")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    TextField("Filter build logs...", text: $searchLogQuery)
+                        .textFieldStyle(.plain)
+                        .font(.caption)
+                }
+                .padding(.horizontal, 8)
+                .padding(.vertical, 5)
+                .background(Color.secondary.opacity(0.1), in: RoundedRectangle(cornerRadius: 6))
+
+                Picker("", selection: $filterMode) {
+                    ForEach(LogFilterMode.allCases) { mode in
+                        Text(mode.rawValue).tag(mode)
+                    }
+                }
+                .pickerStyle(.segmented)
+                .frame(width: 280)
+
+                Toggle("Auto-scroll", isOn: $autoScrollToBottom)
+                    .toggleStyle(.checkbox)
+                    .font(.caption)
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 8)
+            .background(Color(NSColor.controlBackgroundColor))
+
+            Divider()
+
+            // Console output area
+            ScrollViewReader { proxy in
+                ScrollView {
+                    LazyVStack(alignment: .leading, spacing: 3) {
+                        if filteredStructuredLogs.isEmpty {
+                            VStack(spacing: 10) {
+                                Spacer()
+                                Image(systemName: "terminal")
+                                    .font(.system(size: 28))
+                                    .foregroundStyle(.secondary)
+                                Text("No build logs to display")
+                                    .font(.subheadline)
+                                    .foregroundStyle(.secondary)
+                                Spacer()
+                            }
+                            .frame(maxWidth: .infinity, minHeight: 350)
+                        } else {
+                            ForEach(Array(filteredStructuredLogs.enumerated()), id: \.offset) { index, log in
+                                HStack(alignment: .top, spacing: 8) {
+                                    Text(log.timestamp.formatted(date: .omitted, time: .standard))
+                                        .font(.system(size: 9, design: .monospaced))
+                                        .foregroundStyle(.secondary.opacity(0.7))
+                                        .frame(width: 65, alignment: .leading)
+
+                                    Image(systemName: log.severity.icon)
+                                        .font(.system(size: 10))
+                                        .foregroundStyle(log.severity == .error ? .primary : .secondary)
+
+                                    Text(log.message)
+                                        .font(.system(size: 11, design: .monospaced))
+                                        .foregroundStyle(log.severity == .error ? .primary : .secondary)
+                                        .textSelection(.enabled)
+                                        .fixedSize(horizontal: false, vertical: true)
+                                }
+                                .id(index)
+                            }
+                        }
+                    }
+                    .padding(12)
+                }
+                .background(Color(NSColor.textBackgroundColor))
+                .onChange(of: filteredStructuredLogs.count) { _, newCount in
+                    if autoScrollToBottom && newCount > 0 {
+                        withAnimation {
+                            proxy.scrollTo(newCount - 1, anchor: .bottom)
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // MARK: - Section 2: Diagnostics
+    private var diagnosticsSection: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 16) {
+                if errorLogs.isEmpty && warningLogs.isEmpty {
+                    ContentUnavailableView {
+                        Label("Clean Build Log", systemImage: "checkmark.shield")
+                    } description: {
+                        Text("No compiler errors or warnings detected in the active build output.")
+                    }
+                    .padding(40)
+                } else {
+                    if !errorLogs.isEmpty {
+                        GroupBox {
+                            VStack(alignment: .leading, spacing: 10) {
+                                HStack {
+                                    Label("Errors (\(errorLogs.count))", systemImage: "exclamationmark.octagon")
+                                        .font(.headline)
+                                    Spacer()
+                                    Button {
+                                        NotificationCenter.default.post(
+                                            name: NSNotification.Name("com.swiftcode.assist.triggerQuickFix"),
+                                            object: nil,
+                                            userInfo: ["prompt": "Fix compile errors:\n" + errorLogs.map { $0.message }.joined(separator: "\n")]
+                                        )
+                                    } label: {
+                                        Label("Fix with Assist", systemImage: "wand.and.stars")
+                                            .font(.caption)
+                                    }
+                                    .buttonStyle(.bordered)
+                                }
+
+                                Divider()
+
+                                ForEach(errorLogs) { log in
+                                    HStack(alignment: .top, spacing: 8) {
+                                        Image(systemName: "exclamationmark.circle")
+                                            .font(.caption)
+                                        Text(log.message)
+                                            .font(.system(size: 11, design: .monospaced))
+                                            .textSelection(.enabled)
+                                    }
+                                    .padding(8)
+                                    .background(Color.secondary.opacity(0.08), in: RoundedRectangle(cornerRadius: 6))
+                                }
+                            }
+                            .padding(8)
+                        }
+                    }
+
+                    if !warningLogs.isEmpty {
+                        GroupBox {
+                            VStack(alignment: .leading, spacing: 10) {
+                                HStack {
+                                    Label("Warnings (\(warningLogs.count))", systemImage: "exclamationmark.triangle")
+                                        .font(.headline)
+                                    Spacer()
+                                }
+
+                                Divider()
+
+                                ForEach(warningLogs) { log in
+                                    HStack(alignment: .top, spacing: 8) {
+                                        Image(systemName: "exclamationmark.triangle")
+                                            .font(.caption)
+                                            .foregroundStyle(.secondary)
+                                        Text(log.message)
+                                            .font(.system(size: 11, design: .monospaced))
+                                            .foregroundStyle(.secondary)
+                                            .textSelection(.enabled)
+                                    }
+                                    .padding(8)
+                                    .background(Color.secondary.opacity(0.05), in: RoundedRectangle(cornerRadius: 6))
+                                }
+                            }
+                            .padding(8)
+                        }
+                    }
+                }
+            }
+            .padding(16)
+        }
+    }
+
+    // MARK: - Section 3: Settings
+    private var settingsSection: some View {
+        @Bindable var buildManager = self.buildManager
+        return ScrollView {
+            VStack(alignment: .leading, spacing: 20) {
+                GroupBox {
+                    VStack(alignment: .leading, spacing: 14) {
+                        Label("Build Configuration", systemImage: "gearshape")
+                            .font(.headline)
+
+                        Divider()
+
+                        Grid(alignment: .leading, horizontalSpacing: 20, verticalSpacing: 14) {
+                            GridRow {
+                                VStack(alignment: .leading, spacing: 4) {
+                                    Label("Configuration", systemImage: "slider.horizontal.3")
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+
+                                    Picker("", selection: $buildManager.selectedConfiguration) {
+                                        ForEach(buildManager.availableConfigurations, id: \.self) { config in
+                                            Text(config).tag(config)
+                                        }
+                                    }
+                                    .pickerStyle(.segmented)
+                                    .frame(width: 220)
+                                }
+
+                                VStack(alignment: .leading, spacing: 4) {
+                                    Label("Active Scheme", systemImage: "target")
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                    Text(buildManager.selectedScheme ?? "Automatic")
+                                        .font(.body.bold())
+                                }
                             }
 
-                            if filtered.isEmpty {
-                                Text("No platforms match your search")
-                                    .foregroundStyle(.secondary)
-                                    .italic()
-                                    .padding()
-                            } else {
-                                ForEach(filtered, id: \.self) { platform in
+                            GridRow {
+                                VStack(alignment: .leading, spacing: 4) {
+                                    Label("Target SDK Platform", systemImage: "apple.logo")
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+
                                     Button {
-                                        buildManager.selectedSDKType = platform
-                                        showPlatformPickerSheet = false
+                                        platformSearchText = ""
+                                        showPlatformPickerSheet = true
                                     } label: {
                                         HStack {
-                                            Image(systemName: platform == "Default" ? "command" : "apple.logo")
-                                                .foregroundColor(platform == buildManager.selectedSDKType ? .accentColor : .secondary)
-                                            Text(platform)
+                                            Text(buildManager.selectedSDKType)
                                                 .font(.body)
                                             Spacer()
-                                            if platform == buildManager.selectedSDKType {
-                                                Image(systemName: "checkmark")
-                                                    .foregroundColor(.accentColor)
-                                            }
+                                            Image(systemName: "chevron.up.chevron.down")
+                                                .font(.caption2)
+                                                .foregroundStyle(.secondary)
                                         }
-                                        .contentShape(Rectangle())
+                                        .padding(.horizontal, 10)
+                                        .padding(.vertical, 5)
+                                        .background(Color.secondary.opacity(0.1), in: RoundedRectangle(cornerRadius: 6))
                                     }
                                     .buttonStyle(.plain)
+                                    .frame(width: 220)
+                                }
+
+                                VStack(alignment: .leading, spacing: 4) {
+                                    Label("Destination", systemImage: "iphone")
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                    Text(buildManager.selectedDestination)
+                                        .font(.system(.body, design: .monospaced))
+                                        .lineLimit(1)
+                                }
+                            }
+
+                            GridRow {
+                                VStack(alignment: .leading, spacing: 4) {
+                                    Label("Active Developer Xcode Path", systemImage: "folder")
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                    Text(buildManager.activeXcodePath.isEmpty ? "/usr/bin/xcodebuild" : buildManager.activeXcodePath)
+                                        .font(.system(.caption, design: .monospaced))
+                                        .foregroundStyle(.secondary)
+                                }
+
+                                VStack(alignment: .leading, spacing: 4) {
+                                    Label("SDK Detection Status", systemImage: "info.circle")
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                    HStack(spacing: 6) {
+                                        Text("\(buildManager.detectedSDKs.count) SDKs Available")
+                                            .font(.caption)
+                                        Button("Refresh") {
+                                            Task {
+                                                await buildManager.detectAvailableSDKs(forceRefresh: true)
+                                            }
+                                        }
+                                        .buttonStyle(.bordered)
+                                        .controlSize(.mini)
+                                    }
                                 }
                             }
                         }
                     }
-                    .navigationTitle("Select Target SDK Platform")
-                    .toolbar {
-                        ToolbarItem(placement: .cancellationAction) {
-                            Button("Cancel") {
-                                showPlatformPickerSheet = false
-                            }
-                        }
-                    }
+                    .padding(12)
                 }
-                .frame(width: 350, height: 400)
-            }
-            // SDK detection error detailed report
-            .sheet(isPresented: $showSDKErrorDetailSheet) {
-                NavigationStack {
-                    ScrollView {
-                        VStack(alignment: .leading, spacing: 16) {
-                            Label("SDK Detection Diagnostic Report", systemImage: "info.circle.fill")
-                                .font(.headline)
-                                .foregroundColor(.red)
 
-                            if let err = buildManager.sdkDetectionError {
-                                Text("Error:")
-                                    .font(.subheadline.bold())
-                                Text(err)
-                                    .foregroundStyle(.red)
-                                    .padding()
-                                    .background(Color.red.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
-                            }
-
-                            if let code = buildManager.sdkDetectionExitCode {
-                                Text("Process Exit Code:")
-                                    .font(.subheadline.bold())
-                                Text("\(code)")
-                                    .font(.system(.body, design: .monospaced))
-                            }
-
-                            if !buildManager.sdkDetectionStdout.isEmpty {
-                                Text("Standard Output:")
-                                    .font(.subheadline.bold())
-                                Text(buildManager.sdkDetectionStdout)
-                                    .font(.system(.caption, design: .monospaced))
-                                    .padding()
-                                    .background(Color.black.opacity(0.4), in: RoundedRectangle(cornerRadius: 8))
-                                    .textSelection(.enabled)
-                            }
-
-                            if !buildManager.sdkDetectionStderr.isEmpty {
-                                Text("Standard Error:")
-                                    .font(.subheadline.bold())
-                                Text(buildManager.sdkDetectionStderr)
-                                    .font(.system(.caption, design: .monospaced))
-                                    .foregroundColor(.red)
-                                    .padding()
-                                    .background(Color.black.opacity(0.4), in: RoundedRectangle(cornerRadius: 8))
-                                    .textSelection(.enabled)
-                            }
-                        }
-                        .padding()
-                    }
-                    .navigationTitle("Diagnostic Log")
-                    .toolbar {
-                        ToolbarItem(placement: .confirmationAction) {
-                            Button("Dismiss") {
-                                showSDKErrorDetailSheet = false
-                            }
-                        }
-                    }
-                }
-                .frame(width: 600, height: 450)
-            }
-        }
-    }
-
-    private var buildStatusHeader: some View {
-        HStack(spacing: 16) {
-            HStack(spacing: 8) {
-                ZStack {
-                    RoundedRectangle(cornerRadius: 8)
-                        .fill(statusColor(buildManager.currentStatus).opacity(0.12))
-                        .frame(width: 32, height: 32)
-
-                    if buildManager.isBuilding {
-                        ProgressView().controlSize(.small)
-                    } else {
-                        Image(systemName: statusIcon(buildManager.currentStatus))
+                GroupBox {
+                    VStack(alignment: .leading, spacing: 12) {
+                        Label("CLI Build Command", systemImage: "terminal")
                             .font(.headline)
-                            .foregroundStyle(statusColor(buildManager.currentStatus))
+
+                        Divider()
+
+                        Text(buildCommandString())
+                            .font(.system(.caption, design: .monospaced))
+                            .padding(10)
+                            .background(Color.secondary.opacity(0.08), in: RoundedRectangle(cornerRadius: 6))
+                            .textSelection(.enabled)
+
+                        HStack {
+                            Spacer()
+                            Button {
+                                copyBuildCommand()
+                            } label: {
+                                Label("Copy Command", systemImage: "doc.on.doc")
+                            }
+                            .buttonStyle(.bordered)
+                            .controlSize(.small)
+                        }
                     }
-                }
-
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("BUILD STATUS")
-                        .font(.system(size: 8, weight: .bold))
-                        .foregroundStyle(.secondary)
-                    Text(buildManager.currentStatus.rawValue)
-                        .font(.subheadline.bold())
-                        .foregroundStyle(statusColor(buildManager.currentStatus))
+                    .padding(12)
                 }
             }
-            .frame(width: 160, alignment: .leading)
-
-            Divider().frame(height: 24)
-
-            VStack(alignment: .leading, spacing: 2) {
-                Text("DURATION")
-                    .font(.system(size: 8, weight: .bold))
-                    .foregroundStyle(.secondary)
-                Text(String(format: "%.1f s", buildManager.buildDuration))
-                    .font(.subheadline.bold())
-            }
-            .frame(width: 80, alignment: .leading)
-
-            Divider().frame(height: 24)
-
-            VStack(alignment: .leading, spacing: 2) {
-                Text("ERRORS")
-                    .font(.system(size: 8, weight: .bold))
-                    .foregroundStyle(.secondary)
-                Text("\(buildManager.errorsCount)")
-                    .font(.subheadline.bold())
-                    .foregroundStyle(buildManager.errorsCount > 0 ? .red : .primary)
-            }
-            .frame(width: 60, alignment: .leading)
-
-            Divider().frame(height: 24)
-
-            VStack(alignment: .leading, spacing: 2) {
-                Text("WARNINGS")
-                    .font(.system(size: 8, weight: .bold))
-                    .foregroundStyle(.secondary)
-                Text("\(buildManager.warningsCount)")
-                    .font(.subheadline.bold())
-                    .foregroundStyle(buildManager.warningsCount > 0 ? .yellow : .primary)
-            }
-            .frame(width: 60, alignment: .leading)
+            .padding(16)
         }
     }
 
-    // Dynamic SDK detection header status component
-    private var sdkDetectionStatusView: some View {
-        HStack(spacing: 8) {
-            switch buildManager.sdkDetectionState {
-            case .idle:
-                Button {
-                    Task {
-                        await buildManager.detectAvailableSDKs(forceRefresh: true)
+    // MARK: - Section 4: Packaging
+    private var packagingSection: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 16) {
+                GroupBox {
+                    VStack(alignment: .leading, spacing: 14) {
+                        Label("Package Binary & IPA", systemImage: "shippingbox")
+                            .font(.headline)
+
+                        Divider()
+
+                        Text("Produce production, ad-hoc, or enterprise .ipa archives and export binaries directly to your build products directory.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+
+                        HStack(spacing: 12) {
+                            Button {
+                                showingIPABuilder = true
+                            } label: {
+                                Label("Open IPA Packaging Wizard...", systemImage: "shippingbox.fill")
+                            }
+                            .buttonStyle(.borderedProminent)
+
+                            Button {
+                                if let derived = URL(string: "file:///Users/dylan/SwiftCode-Mac/build/DerivedData") {
+                                    NSWorkspace.shared.selectFile(nil, inFileViewerRootedAtPath: derived.path)
+                                }
+                            } label: {
+                                Label("Reveal Build Products in Finder", systemImage: "folder")
+                            }
+                            .buttonStyle(.bordered)
+                        }
                     }
-                } label: {
-                    Label("Check Available SDKs", systemImage: "arrow.triangle.2.circlepath")
-                        .font(.caption)
+                    .padding(12)
                 }
-                .buttonStyle(.bordered)
-                .controlSize(.small)
-
-            case .detecting:
-                ProgressView()
-                    .controlSize(.small)
-                Text("Detecting SDKs...")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-
-            case .success:
-                HStack(spacing: 4) {
-                    Image(systemName: "checkmark.circle.fill")
-                        .foregroundStyle(.green)
-                    Text("\(buildManager.detectedSDKs.count) SDKs Found")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
-
-                Button {
-                    Task {
-                        await buildManager.detectAvailableSDKs(forceRefresh: true)
-                    }
-                } label: {
-                    Image(systemName: "arrow.triangle.2.circlepath")
-                        .font(.caption)
-                }
-                .buttonStyle(.plain)
-                .help("Refresh Available SDKs")
-
-            case .failure:
-                HStack(spacing: 4) {
-                    Image(systemName: "exclamationmark.triangle.fill")
-                        .foregroundStyle(.red)
-                    Text("Detection Failed")
-                        .font(.caption)
-                        .foregroundStyle(.red)
-                }
-
-                Button("Details") {
-                    showSDKErrorDetailSheet = true
-                }
-                .buttonStyle(.link)
-                .font(.caption)
-
-                Button {
-                    Task {
-                        await buildManager.detectAvailableSDKs(forceRefresh: true)
-                    }
-                } label: {
-                    Label("Retry", systemImage: "arrow.triangle.2.circlepath")
-                        .font(.caption)
-                }
-                .buttonStyle(.bordered)
-                .controlSize(.small)
             }
+            .padding(16)
         }
     }
 
-    // Detailed layout when detection completely fails
-    private var errorStateSpecificationView: some View {
-        VStack(spacing: 12) {
-            Image(systemName: "exclamationmark.shield.fill")
-                .font(.system(size: 32))
-                .foregroundColor(.red)
-
-            Text("No Apple SDKs found or command failed")
-                .font(.headline)
-
-            Text("Please verify Xcode is installed correctly, or configure the correct path in Settings.")
-                .font(.caption)
-                .foregroundStyle(.secondary)
-                .multilineTextAlignment(.center)
-                .padding(.horizontal)
-
-            HStack(spacing: 12) {
-                Button("View Error Details") {
-                    showSDKErrorDetailSheet = true
+    // MARK: - Sheets & Helpers
+    private var platformPickerSheet: some View {
+        NavigationStack {
+            VStack(spacing: 0) {
+                HStack {
+                    Image(systemName: "magnifyingglass")
+                        .foregroundStyle(.secondary)
+                    TextField("Search platform...", text: $platformSearchText)
+                        .textFieldStyle(.plain)
                 }
-                .buttonStyle(.bordered)
-                .controlSize(.regular)
+                .padding(10)
+                .background(Color.secondary.opacity(0.08))
 
-                Button("Retry Verification") {
-                    Task {
-                        await buildManager.detectAvailableSDKs(forceRefresh: true)
+                List {
+                    let filtered = buildManager.availableSDKTypes.filter {
+                        platformSearchText.isEmpty || $0.localizedCaseInsensitiveContains(platformSearchText)
+                    }
+
+                    if filtered.isEmpty {
+                        Text("No platforms match your search")
+                            .foregroundStyle(.secondary)
+                            .italic()
+                            .padding()
+                    } else {
+                        ForEach(filtered, id: \.self) { platform in
+                            Button {
+                                buildManager.selectedSDKType = platform
+                                showPlatformPickerSheet = false
+                            } label: {
+                                HStack {
+                                    Image(systemName: platform == "Default" ? "command" : "apple.logo")
+                                        .foregroundStyle(.secondary)
+                                    Text(platform)
+                                    Spacer()
+                                    if platform == buildManager.selectedSDKType {
+                                        Image(systemName: "checkmark")
+                                    }
+                                }
+                            }
+                            .buttonStyle(.plain)
+                        }
                     }
                 }
-                .buttonStyle(.borderedProminent)
-                .controlSize(.regular)
+            }
+            .navigationTitle("Target Platform")
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") { showPlatformPickerSheet = false }
+                }
             }
         }
-        .frame(maxWidth: .infinity)
-        .padding()
-        .background(Color.red.opacity(0.04), in: RoundedRectangle(cornerRadius: 10))
+        .frame(width: 320, height: 380)
+    }
+
+    private var sdkErrorDetailSheet: some View {
+        NavigationStack {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 14) {
+                    Label("SDK Diagnostics", systemImage: "info.circle")
+                        .font(.headline)
+
+                    if let err = buildManager.sdkDetectionError {
+                        Text(err)
+                            .font(.system(.body, design: .monospaced))
+                            .padding()
+                            .background(Color.secondary.opacity(0.1), in: RoundedRectangle(cornerRadius: 6))
+                    }
+                }
+                .padding()
+            }
+            .navigationTitle("Diagnostic Log")
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Dismiss") { showSDKErrorDetailSheet = false }
+                }
+            }
+        }
+        .frame(width: 500, height: 350)
+    }
+
+    private func buildCommandString() -> String {
+        let path = buildManager.getXcodeBuildPath()
+        let scheme = buildManager.selectedScheme ?? "DefaultScheme"
+        let config = buildManager.selectedConfiguration
+        let dest = buildManager.selectedDestination
+        return "\(path) -scheme \(scheme) -configuration \(config) -destination \"\(dest)\" build"
+    }
+
+    private func copyBuildCommand() {
+        let cmd = buildCommandString()
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(cmd, forType: .string)
     }
 
     private func exportLogsToFile() {
@@ -836,23 +772,12 @@ struct XcodeBuildLogView: View {
 
     private func statusIcon(_ status: XcodeBuildManager.BuildStatus) -> String {
         switch status {
-        case .idle: return "play.circle"
+        case .idle: return "circle"
         case .building: return "arrow.triangle.2.circlepath"
-        case .succeeded: return "checkmark.circle.fill"
-        case .failed: return "exclamationmark.triangle.fill"
-        case .cancelled: return "multiply.circle.fill"
-        default: return "exclamationmark.circle.fill"
-        }
-    }
-
-    private func statusColor(_ status: XcodeBuildManager.BuildStatus) -> Color {
-        switch status {
-        case .idle: return .secondary
-        case .building: return .blue
-        case .succeeded: return .green
-        case .failed: return .red
-        case .cancelled: return .orange
-        default: return .red
+        case .succeeded: return "checkmark.circle"
+        case .failed: return "xmark.circle"
+        case .cancelled: return "minus.circle"
+        default: return "circle"
         }
     }
 }

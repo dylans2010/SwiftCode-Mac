@@ -37,11 +37,37 @@ public struct DeviceConnectConsole: View {
                 }
                 .frame(width: 150)
 
+                // Copy Logs button
+                Button(action: {
+                    let logsText = filteredLogs.map { log in
+                        "[\(formattedTime(log.timestamp))] [\(log.severity.rawValue)] \(log.message)"
+                    }.joined(separator: "\n")
+                    NSPasteboard.general.clearContents()
+                    NSPasteboard.general.setString(logsText, forType: .string)
+                }) {
+                    Label("Copy Logs", systemImage: "doc.on.doc")
+                }
+                .buttonStyle(.bordered)
+                .help("Copy all visible console logs to clipboard")
+
                 // Clear button
                 Button(action: { consoleManager.clearLogs() }) {
                     Label("Clear", systemImage: "trash")
                 }
                 .buttonStyle(.bordered)
+
+                if filteredLogs.contains(where: { $0.severity == .error }) {
+                    Button {
+                        NotificationCenter.default.post(
+                            name: NSNotification.Name("com.swiftcode.assist.triggerQuickFix"),
+                            object: nil,
+                            userInfo: ["prompt": "Diagnose and fix the Device Connect deployment failure. Verify device installation, simctl commands, and build products."]
+                        )
+                    } label: {
+                        Label("Fix with Assist", systemImage: "sparkles")
+                    }
+                    .buttonStyle(.borderedProminent)
+                }
             }
             .padding(10)
             .background(Color(NSColor.windowBackgroundColor))

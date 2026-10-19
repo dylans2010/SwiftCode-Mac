@@ -6,6 +6,7 @@ public struct AddArtboardSheet: View {
 
     @State private var name: String = "MyCustomView"
     @State private var selectedDevice: String = "iPhone 16 Pro"
+    @State private var availableDevices: [String] = []
     @State private var appearance: String = "System"
     @State private var isPortrait: Bool = true
     @State private var dynamicTypeSize: String = "Medium"
@@ -91,11 +92,27 @@ struct MyCustomView: View {
                         .textFieldStyle(.roundedBorder)
 
                     Picker("Target Device", selection: $selectedDevice) {
-                        Text("iPhone 16 Pro").tag("iPhone 16 Pro")
-                        Text("iPad Pro").tag("iPad Pro")
-                        Text("Apple Watch").tag("Apple Watch")
-                        Text("Apple Vision Pro").tag("Apple Vision Pro")
-                        Text("MacBook Pro").tag("MacBook Pro")
+                        if availableDevices.isEmpty {
+                            Text("iPhone 16 Pro").tag("iPhone 16 Pro")
+                            Text("iPad Pro").tag("iPad Pro")
+                            Text("Apple Watch").tag("Apple Watch")
+                            Text("Apple Vision Pro").tag("Apple Vision Pro")
+                        } else {
+                            ForEach(availableDevices, id: \.self) { devName in
+                                Text(devName).tag(devName)
+                            }
+                        }
+                    }
+                    .task {
+                        let sims = await BuildDestinationResolver.shared.fetchAvailableSimulators()
+                        let names = sims.map { $0.name }
+                        if !names.isEmpty {
+                            var unique = Array(Set(names)).sorted()
+                            if !unique.contains(selectedDevice) {
+                                unique.insert(selectedDevice, at: 0)
+                            }
+                            availableDevices = unique
+                        }
                     }
 
                     Picker("Appearance", selection: $appearance) {

@@ -482,21 +482,33 @@ public final class XcodeBuildAPI: Sendable {
 
     public func determineAppBundleURL() -> URL? {
         guard let proj = discoverActiveProject() else { return nil }
-        let rootDir = proj.url.deletingLastPathComponent()
-        let productsURL = rootDir.appendingPathComponent("build/DerivedData/Build/Products")
         let fm = FileManager.default
+        let rootDir = proj.url.deletingLastPathComponent()
+        var searchRoots: [URL] = [
+            rootDir.appendingPathComponent("build/DerivedData/Build/Products"),
+            proj.url.appendingPathComponent("build/DerivedData/Build/Products")
+        ]
 
-        if fm.fileExists(atPath: productsURL.path) {
-            do {
-                let folders = try fm.contentsOfDirectory(at: productsURL, includingPropertiesForKeys: nil, options: .skipsHiddenFiles)
-                for folder in folders {
-                    let items = try fm.contentsOfDirectory(at: folder, includingPropertiesForKeys: nil, options: .skipsHiddenFiles)
-                    if let appFile = items.first(where: { $0.pathExtension == "app" }) {
-                        return appFile
+        if let activeProjectDir = ProjectSessionStore.shared.activeProject?.directoryURL {
+            searchRoots.append(activeProjectDir.appendingPathComponent("build/DerivedData/Build/Products"))
+        }
+
+        // Standard Xcode DerivedData fallback
+        let homeDir = fm.homeDirectoryForCurrentUser
+        let xcodeDerivedData = homeDir.appendingPathComponent("Library/Developer/Xcode/DerivedData")
+        if let ddEntries = try? fm.contentsOfDirectory(at: xcodeDerivedData, includingPropertiesForKeys: nil, options: .skipsHiddenFiles) {
+            for entry in ddEntries where entry.lastPathComponent.lowercased().hasPrefix(proj.name.lowercased()) {
+                searchRoots.append(entry.appendingPathComponent("Build/Products"))
+            }
+        }
+
+        for productsURL in searchRoots where fm.fileExists(atPath: productsURL.path) {
+            if let enumerator = fm.enumerator(at: productsURL, includingPropertiesForKeys: [.isDirectoryKey], options: [.skipsHiddenFiles]) {
+                for case let fileURL as URL in enumerator {
+                    if fileURL.pathExtension == "app" {
+                        return fileURL
                     }
                 }
-            } catch {
-                logger.error("Error walking build products: \(error.localizedDescription)")
             }
         }
 
@@ -1194,7 +1206,14 @@ struct AppEntry: App {
             let sdkLower = firstSavedSDK.lowercased()
             if sdkLower.contains("simulator") {
                 if sdkLower.contains("iphone") || sdkLower.contains("ios") {
-                    resolvedDestString = "platform=iOS Simulator"
+                    let sims = await resolver.fetchAvailableSimulators()
+                    if let booted = sims.first(where: { $0.variant == "Booted" && !$0.idString.isEmpty }) {
+                        resolvedDestString = booted.id
+                    } else if let firstSim = sims.first(where: { !$0.idString.isEmpty }) {
+                        resolvedDestString = firstSim.id
+                    } else {
+                        resolvedDestString = "generic/platform=iOS Simulator"
+                    }
                 } else if sdkLower.contains("watch") {
                     resolvedDestString = "platform=watchOS Simulator"
                 } else if sdkLower.contains("appletv") || sdkLower.contains("tv") {

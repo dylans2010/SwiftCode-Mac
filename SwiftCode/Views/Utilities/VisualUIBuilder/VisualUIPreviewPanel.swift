@@ -143,6 +143,16 @@ public struct VisualUIPreviewPanel: View {
                                                         .font(.headline)
                                                         .foregroundColor(.red)
                                                     Spacer()
+                                                    Button {
+                                                        NotificationCenter.default.post(
+                                                            name: NSNotification.Name("com.swiftcode.assist.triggerQuickFix"),
+                                                            object: nil,
+                                                            userInfo: ["prompt": "Diagnose and fix Artboard compile error using fix_artboards: \(errorMsg)"]
+                                                        )
+                                                    } label: {
+                                                        Label("Fix with Assist", systemImage: "sparkles")
+                                                    }
+                                                    .buttonStyle(.borderedProminent)
                                                     CopyLogsButton(logs: errorMsg)
                                                 }
                                                 Divider()
@@ -365,6 +375,13 @@ struct PreviewDiagnosticsPanel: View {
 
                 Spacer()
 
+                if isFailureState {
+                    Button(action: triggerAssistFix) {
+                        Label("Fix with Assist", systemImage: "sparkles")
+                    }
+                    .buttonStyle(.borderedProminent)
+                }
+
                 Button(action: copyLogs) {
                     Label("Copy Logs", systemImage: "doc.on.doc")
                 }
@@ -410,5 +427,21 @@ struct PreviewDiagnosticsPanel: View {
                 try? text.write(to: url, atomically: true, encoding: .utf8)
             }
         }
+    }
+
+    private var isFailureState: Bool {
+        if let s = session?.status, s == "Failed" { return true }
+        if let d = session?.diagnostics, !d.isEmpty { return true }
+        return false
+    }
+
+    private func triggerAssistFix() {
+        let stage = session?.status ?? "Failed"
+        let diagText = session?.diagnostics.map { $0.description }.joined(separator: "\n") ?? ""
+        NotificationCenter.default.post(
+            name: NSNotification.Name("com.swiftcode.assist.triggerQuickFix"),
+            object: nil,
+            userInfo: ["prompt": "Diagnose and fix SwiftUI preview failure using fix_artboards. Stage: \(stage), Diagnostics: \(diagText)"]
+        )
     }
 }

@@ -10,20 +10,23 @@ struct SimulatorDetailView: View {
             HStack {
                 Label("Simulator Control Center", systemImage: "iphone")
                     .font(.headline)
-                    .foregroundColor(.orange)
                 Spacer()
             }
-            .padding(.bottom, 16)
+            .padding(.horizontal, 16)
+            .padding(.top, 12)
+            .padding(.bottom, 12)
+
+            Divider()
 
             ScrollView {
-                VStack(spacing: 20) {
+                VStack(spacing: 16) {
                     SimulatorActionsView(device: device)
                     SimulatorDeviceInformationView(device: device)
                     SimulatorAppsView(device: device)
                     SimulatorConsoleView()
                 }
+                .padding(16)
             }
         }
-        .simulatorWorkspaceEmbedded()
     }
 }

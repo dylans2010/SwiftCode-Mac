@@ -30,10 +30,6 @@ public struct SimulatorWorkspaceEmbeddedModifier: ViewModifier {
     public func body(content: Content) -> some View {
         content
             .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .padding(16)
-            .background(Color(NSColor.controlBackgroundColor))
-            .cornerRadius(12)
-            .clipped()
             .environment(\.adaptiveMetrics, layoutEngine.metrics)
     }
 }

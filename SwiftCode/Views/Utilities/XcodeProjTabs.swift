@@ -34,6 +34,9 @@ public struct GeneralTabView: View {
     public let model: XcodeProjModel
     public let selectedTargetID: String?
 
+    @State private var targetName: String = ""
+    @State private var saveStatus: String? = nil
+
     public init(model: XcodeProjModel, selectedTargetID: String?) {
         self.model = model
         self.selectedTargetID = selectedTargetID
@@ -48,7 +51,34 @@ public struct GeneralTabView: View {
                let target = model.targets.first(where: { $0.uuid == targetID }) {
                 Form {
                     Section("Target Details") {
-                        LabeledContent("Target Name", value: target.name)
+                        HStack {
+                            Text("Target Name")
+                                .frame(width: 120, alignment: .leading)
+                            TextField("Target Name", text: $targetName)
+                                .textFieldStyle(.roundedBorder)
+                                .onAppear {
+                                    if targetName.isEmpty { targetName = target.name }
+                                }
+                            Button {
+                                do {
+                                    try XcodeProjWriter.shared.updateTargetName(oldName: target.name, newName: targetName, projectURL: model.projectURL)
+                                    saveStatus = "Saved to .xcodeproj"
+                                } catch {
+                                    saveStatus = "Error: \(error.localizedDescription)"
+                                }
+                            } label: {
+                                Label("Save", systemImage: "square.and.arrow.down")
+                            }
+                            .buttonStyle(.bordered)
+                            .disabled(targetName.isEmpty || targetName == target.name)
+                        }
+
+                        if let status = saveStatus {
+                            Text(status)
+                                .font(.caption)
+                                .foregroundStyle(status.starts(with: "Error") ? .red : .secondary)
+                        }
+
                         LabeledContent("Product Type", value: target.productType ?? "Application")
                         LabeledContent("UUID", value: target.uuid)
                     }
@@ -103,6 +133,11 @@ public struct IdentityTabView: View {
     public let model: XcodeProjModel
     public let selectedTargetID: String?
 
+    @State private var bundleID: String = ""
+    @State private var marketingVersion: String = ""
+    @State private var projectVersion: String = ""
+    @State private var saveStatus: String? = nil
+
     public init(model: XcodeProjModel, selectedTargetID: String?) {
         self.model = model
         self.selectedTargetID = selectedTargetID
@@ -116,18 +151,85 @@ public struct IdentityTabView: View {
             if let targetID = selectedTargetID,
                let target = model.targets.first(where: { $0.uuid == targetID }) {
                 Form {
-                    Section("App Identity") {
-                        LabeledContent("App Name", value: target.name)
+                    Section("App Identity (Direct .xcodeproj Edits)") {
+                        LabeledContent("Target Name", value: target.name)
 
-                        // Dynamically try to read bundle identifier, version, and build from active build configuration
                         let config = model.buildConfigurations.first(where: { $0.buildSettings["PRODUCT_BUNDLE_IDENTIFIER"] != nil })
-                        let bundleID = config?.buildSettings["PRODUCT_BUNDLE_IDENTIFIER"] ?? "com.example.swiftcode.\(target.name.lowercased())"
-                        let version = config?.buildSettings["MARKETING_VERSION"] ?? "1.0.0"
-                        let build = config?.buildSettings["CURRENT_PROJECT_VERSION"] ?? "1"
 
-                        LabeledContent("Bundle Identifier", value: bundleID)
-                        LabeledContent("Version (Marketing)", value: version)
-                        LabeledContent("Build (Version)", value: build)
+                        HStack {
+                            Text("Bundle Identifier")
+                                .frame(width: 140, alignment: .leading)
+                            TextField("Bundle ID", text: $bundleID)
+                                .textFieldStyle(.roundedBorder)
+                                .onAppear {
+                                    if bundleID.isEmpty {
+                                        bundleID = config?.buildSettings["PRODUCT_BUNDLE_IDENTIFIER"] ?? "com.example.swiftcode.\(target.name.lowercased())"
+                                    }
+                                }
+                            Button {
+                                do {
+                                    try XcodeProjWriter.shared.updateBundleIdentifier(bundleID: bundleID, projectURL: model.projectURL)
+                                    saveStatus = "Updated Bundle Identifier in .xcodeproj"
+                                } catch {
+                                    saveStatus = "Error: \(error.localizedDescription)"
+                                }
+                            } label: {
+                                Image(systemName: "square.and.arrow.down")
+                            }
+                            .buttonStyle(.bordered)
+                        }
+
+                        HStack {
+                            Text("Version (Marketing)")
+                                .frame(width: 140, alignment: .leading)
+                            TextField("1.0.0", text: $marketingVersion)
+                                .textFieldStyle(.roundedBorder)
+                                .onAppear {
+                                    if marketingVersion.isEmpty {
+                                        marketingVersion = config?.buildSettings["MARKETING_VERSION"] ?? "1.0.0"
+                                    }
+                                }
+                            Button {
+                                do {
+                                    try XcodeProjWriter.shared.updateMarketingVersion(version: marketingVersion, projectURL: model.projectURL)
+                                    saveStatus = "Updated MARKETING_VERSION in .xcodeproj"
+                                } catch {
+                                    saveStatus = "Error: \(error.localizedDescription)"
+                                }
+                            } label: {
+                                Image(systemName: "square.and.arrow.down")
+                            }
+                            .buttonStyle(.bordered)
+                        }
+
+                        HStack {
+                            Text("Build (Version)")
+                                .frame(width: 140, alignment: .leading)
+                            TextField("1", text: $projectVersion)
+                                .textFieldStyle(.roundedBorder)
+                                .onAppear {
+                                    if projectVersion.isEmpty {
+                                        projectVersion = config?.buildSettings["CURRENT_PROJECT_VERSION"] ?? "1"
+                                    }
+                                }
+                            Button {
+                                do {
+                                    try XcodeProjWriter.shared.updateProjectVersion(build: projectVersion, projectURL: model.projectURL)
+                                    saveStatus = "Updated CURRENT_PROJECT_VERSION in .xcodeproj"
+                                } catch {
+                                    saveStatus = "Error: \(error.localizedDescription)"
+                                }
+                            } label: {
+                                Image(systemName: "square.and.arrow.down")
+                            }
+                            .buttonStyle(.bordered)
+                        }
+
+                        if let status = saveStatus {
+                            Text(status)
+                                .font(.caption)
+                                .foregroundStyle(status.starts(with: "Error") ? .red : .secondary)
+                        }
                     }
 
                     Section("Signing & Capabilities") {
@@ -152,6 +254,10 @@ public struct DeploymentTabView: View {
     public let model: XcodeProjModel
     public let selectedTargetID: String?
 
+    @State private var macTarget: String = "15.0"
+    @State private var iosTarget: String = "18.0"
+    @State private var saveStatus: String? = nil
+
     public init(model: XcodeProjModel, selectedTargetID: String?) {
         self.model = model
         self.selectedTargetID = selectedTargetID
@@ -163,9 +269,61 @@ public struct DeploymentTabView: View {
             Divider()
 
             Form {
-                Section("Deployment Target Limits") {
-                    LabeledContent("macOS Minimum Deployment Target", value: "15.0")
-                    LabeledContent("iOS Minimum Deployment Target", value: "18.0")
+                Section("Deployment Target Limits (Direct .xcodeproj Edits)") {
+                    let config = model.buildConfigurations.first
+
+                    HStack {
+                        Text("macOS Deployment Target")
+                            .frame(width: 180, alignment: .leading)
+                        TextField("15.0", text: $macTarget)
+                            .textFieldStyle(.roundedBorder)
+                            .onAppear {
+                                if let val = config?.buildSettings["MACOSX_DEPLOYMENT_TARGET"] {
+                                    macTarget = val
+                                }
+                            }
+                        Button {
+                            do {
+                                try XcodeProjWriter.shared.updateDeploymentTarget(platformKey: "MACOSX_DEPLOYMENT_TARGET", version: macTarget, projectURL: model.projectURL)
+                                saveStatus = "Updated MACOSX_DEPLOYMENT_TARGET"
+                            } catch {
+                                saveStatus = "Error: \(error.localizedDescription)"
+                            }
+                        } label: {
+                            Image(systemName: "square.and.arrow.down")
+                        }
+                        .buttonStyle(.bordered)
+                    }
+
+                    HStack {
+                        Text("iOS Deployment Target")
+                            .frame(width: 180, alignment: .leading)
+                        TextField("18.0", text: $iosTarget)
+                            .textFieldStyle(.roundedBorder)
+                            .onAppear {
+                                if let val = config?.buildSettings["IPHONEOS_DEPLOYMENT_TARGET"] {
+                                    iosTarget = val
+                                }
+                            }
+                        Button {
+                            do {
+                                try XcodeProjWriter.shared.updateDeploymentTarget(platformKey: "IPHONEOS_DEPLOYMENT_TARGET", version: iosTarget, projectURL: model.projectURL)
+                                saveStatus = "Updated IPHONEOS_DEPLOYMENT_TARGET"
+                            } catch {
+                                saveStatus = "Error: \(error.localizedDescription)"
+                            }
+                        } label: {
+                            Image(systemName: "square.and.arrow.down")
+                        }
+                        .buttonStyle(.bordered)
+                    }
+
+                    if let status = saveStatus {
+                        Text(status)
+                            .font(.caption)
+                            .foregroundStyle(status.starts(with: "Error") ? .red : .secondary)
+                    }
+
                     LabeledContent("Swift Standard Library", value: "Embedded inside OS")
                 }
 
@@ -184,6 +342,13 @@ public struct BuildSettingsTabView: View {
     public let model: XcodeProjModel
     public let searchQuery: String
 
+    @State private var editingKey: String? = nil
+    @State private var editingValue: String = ""
+    @State private var newSettingKey: String = ""
+    @State private var newSettingValue: String = ""
+    @State private var showingAddSheet = false
+    @State private var operationMessage: String? = nil
+
     public init(model: XcodeProjModel, searchQuery: String) {
         self.model = model
         self.searchQuery = searchQuery
@@ -191,8 +356,25 @@ public struct BuildSettingsTabView: View {
 
     public var body: some View {
         VStack(spacing: 0) {
-            TabHeaderView(title: "Build Settings", icon: "slider.horizontal.3", subtitle: "Compilation flags, search paths, and linker settings")
+            TabHeaderView(title: "Build Settings", icon: "slider.horizontal.3", subtitle: "Direct .xcodeproj compilation flags, search paths, and linker settings")
             Divider()
+
+            HStack {
+                if let msg = operationMessage {
+                    Text(msg)
+                        .font(.caption)
+                        .foregroundStyle(msg.starts(with: "Error") ? .red : .secondary)
+                }
+                Spacer()
+                Button {
+                    showingAddSheet = true
+                } label: {
+                    Label("Add Build Setting", systemImage: "plus")
+                }
+                .buttonStyle(.bordered)
+            }
+            .padding(.horizontal)
+            .padding(.top, 8)
 
             ScrollView {
                 VStack(spacing: 16) {
@@ -200,7 +382,7 @@ public struct BuildSettingsTabView: View {
                         VStack(alignment: .leading, spacing: 8) {
                             Text(config.name)
                                 .font(.headline)
-                                .foregroundStyle(.orange)
+                                .foregroundStyle(.primary)
 
                             Divider().opacity(0.3)
 
@@ -215,26 +397,123 @@ public struct BuildSettingsTabView: View {
                                     .foregroundStyle(.secondary)
                             } else {
                                 ForEach(filtered, id: \.self) { key in
-                                    HStack {
+                                    HStack(spacing: 8) {
                                         Text(key)
                                             .font(.system(.caption, design: .monospaced))
                                             .foregroundStyle(.secondary)
-                                        Spacer()
-                                        Text(settings[key] ?? "")
-                                            .font(.system(.caption, design: .monospaced))
-                                            .foregroundStyle(.primary)
+                                            .frame(minWidth: 200, alignment: .leading)
+
+                                        if editingKey == key {
+                                            TextField(key, text: $editingValue)
+                                                .textFieldStyle(.roundedBorder)
+                                                .font(.system(.caption, design: .monospaced))
+                                            Button {
+                                                saveSetting(key: key, value: editingValue)
+                                            } label: {
+                                                Image(systemName: "checkmark")
+                                            }
+                                            .buttonStyle(.plain)
+
+                                            Button {
+                                                editingKey = nil
+                                            } label: {
+                                                Image(systemName: "xmark")
+                                            }
+                                            .buttonStyle(.plain)
+                                        } else {
+                                            Text(settings[key] ?? "")
+                                                .font(.system(.caption, design: .monospaced))
+                                                .foregroundStyle(.primary)
+
+                                            Spacer()
+
+                                            Button {
+                                                editingKey = key
+                                                editingValue = settings[key] ?? ""
+                                            } label: {
+                                                Image(systemName: "pencil")
+                                                    .font(.caption)
+                                                    .foregroundStyle(.secondary)
+                                            }
+                                            .buttonStyle(.plain)
+                                            .help("Edit in .xcodeproj")
+
+                                            Button {
+                                                removeSetting(key: key)
+                                            } label: {
+                                                Image(systemName: "trash")
+                                                    .font(.caption)
+                                                    .foregroundStyle(.secondary)
+                                            }
+                                            .buttonStyle(.plain)
+                                            .help("Remove from .xcodeproj")
+                                        }
                                     }
-                                    .padding(.vertical, 2)
+                                    .padding(.vertical, 3)
                                 }
                             }
                         }
                         .padding()
-                        .background(Color.white.opacity(0.04))
+                        .background(Color(NSColor.controlBackgroundColor).opacity(0.5))
                         .cornerRadius(8)
                     }
                 }
                 .padding()
             }
+        }
+        .sheet(isPresented: $showingAddSheet) {
+            VStack(spacing: 16) {
+                Text("Add Build Setting to .xcodeproj")
+                    .font(.headline)
+
+                TextField("Setting Key (e.g. SWIFT_VERSION)", text: $newSettingKey)
+                    .textFieldStyle(.roundedBorder)
+
+                TextField("Value (e.g. 5.0)", text: $newSettingValue)
+                    .textFieldStyle(.roundedBorder)
+
+                HStack {
+                    Button("Cancel") { showingAddSheet = false }
+                        .buttonStyle(.bordered)
+                    Spacer()
+                    Button("Add to Project") {
+                        if !newSettingKey.isEmpty {
+                            do {
+                                try XcodeProjWriter.shared.updateBuildSetting(key: newSettingKey, value: newSettingValue, projectURL: model.projectURL)
+                                operationMessage = "Added \(newSettingKey) to .xcodeproj"
+                                showingAddSheet = false
+                                newSettingKey = ""
+                                newSettingValue = ""
+                            } catch {
+                                operationMessage = "Error: \(error.localizedDescription)"
+                            }
+                        }
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .disabled(newSettingKey.isEmpty)
+                }
+            }
+            .padding()
+            .frame(width: 400)
+        }
+    }
+
+    private func saveSetting(key: String, value: String) {
+        do {
+            try XcodeProjWriter.shared.updateBuildSetting(key: key, value: value, projectURL: model.projectURL)
+            editingKey = nil
+            operationMessage = "Updated \(key) in .xcodeproj"
+        } catch {
+            operationMessage = "Error: \(error.localizedDescription)"
+        }
+    }
+
+    private func removeSetting(key: String) {
+        do {
+            try XcodeProjWriter.shared.removeBuildSetting(key: key, projectURL: model.projectURL)
+            operationMessage = "Removed \(key) from .xcodeproj"
+        } catch {
+            operationMessage = "Error: \(error.localizedDescription)"
         }
     }
 }

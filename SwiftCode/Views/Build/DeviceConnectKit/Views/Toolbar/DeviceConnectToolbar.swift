@@ -86,10 +86,11 @@ public struct DeviceConnectToolbar: View {
 
         // Dynamically resolve everything from XcodeBuildAPI
         let api = XcodeBuildAPI.shared
+        let activeProj = api.determineActiveProject() ?? ProjectSessionStore.shared.activeProject.map { XcodeProject(url: $0.directoryURL.appendingPathComponent("\($0.name).xcodeproj"), name: $0.name, schemes: []) }
         let projectName = api.determineProductName()
-        let projectPath = api.determineActiveProject()?.url.path ?? "/tmp/\(projectName).xcodeproj"
+        let projectPath = activeProj?.url.path ?? ProjectSessionStore.shared.activeProject?.directoryURL.appendingPathComponent("\(projectName).xcodeproj").path ?? ""
         let scheme = api.determineActiveScheme()?.name ?? projectName
-        let appBundleURL = api.determineAppBundleURL() ?? URL(fileURLWithPath: "/tmp/\(projectName).app")
+        let appBundleURL = api.determineAppBundleURL() ?? URL(fileURLWithPath: "\(projectPath)/build/DerivedData/Build/Products/Debug/\(projectName).app")
         let bundleID = api.determineBundleIdentifier()
 
         Task {

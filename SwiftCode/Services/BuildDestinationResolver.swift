@@ -5,13 +5,19 @@ private let logger = Logger(subsystem: "com.swiftcode.Build", category: "BuildDe
 
 public struct ResolvedDestination: Sendable, Codable, Hashable, Identifiable {
     public var id: String {
+        if !idString.isEmpty && !idString.contains("placeholder") {
+            if !platform.isEmpty {
+                return "platform=\(platform),id=\(idString)"
+            }
+            return "id=\(idString)"
+        }
         var parts: [String] = []
         if !platform.isEmpty { parts.append("platform=\(platform)") }
-        if !name.isEmpty { parts.append("name=\(name)") }
+        if !name.isEmpty && !name.contains("Any ") { parts.append("name=\(name)") }
         if !os.isEmpty { parts.append("OS=\(os)") }
-        if !idString.isEmpty { parts.append("id=\(idString)") }
         if !variant.isEmpty { parts.append("variant=\(variant)") }
         if !arch.isEmpty { parts.append("arch=\(arch)") }
+        if parts.isEmpty { return "generic/platform=\(platform.isEmpty ? "iOS" : platform)" }
         return parts.joined(separator: ",")
     }
     public let platform: String
@@ -34,6 +40,7 @@ public struct ResolvedDestination: Sendable, Codable, Hashable, Identifiable {
 @MainActor
 public final class BuildDestinationResolver {
     public static let shared = BuildDestinationResolver()
+    public private(set) var cachedSimulators: [ResolvedDestination] = []
 
     private init() {}
 
@@ -126,6 +133,17 @@ public final class BuildDestinationResolver {
             }
         }
 
+        // Direct inspection of project.pbxproj if available
+        let pbxprojURL = projectURL.pathExtension == "xcodeproj" ? projectURL.appendingPathComponent("project.pbxproj") : projectURL.appendingPathComponent("\(scheme).xcodeproj/project.pbxproj")
+        if let pbxContent = try? String(contentsOf: pbxprojURL, encoding: .utf8) {
+            let lower = pbxContent.lowercased()
+            if lower.contains("iphoneos") || lower.contains("iphonesimulator") {
+                supportedPlatforms = ["iphonesimulator", "iphoneos"]
+                baseSDK = "iphonesimulator"
+                deploymentTarget = "17.0"
+            }
+        }
+
         return ResolvedSettings(
             supportedPlatforms: supportedPlatforms,
             baseSDK: baseSDK,
@@ -160,8 +178,11 @@ public final class BuildDestinationResolver {
             logger.warning("Failed to run showdestinations: \(error.localizedDescription)")
         }
 
+        // Filter out unusable placeholder destinations
+        destinations = destinations.filter { !$0.idString.contains("placeholder") }
+
         if destinations.isEmpty {
-            destinations = fallbackDestinations(for: settings.supportedPlatforms)
+            destinations = await fallbackDestinations(for: settings.supportedPlatforms)
         }
 
         return destinations
@@ -201,72 +222,171 @@ public final class BuildDestinationResolver {
         return results
     }
 
-    private func fallbackDestinations(for supportedPlatforms: [String]) -> [ResolvedDestination] {
+    /// Dynamically fetches available simulator devices via simctl CLI process
+    public func fetchAvailableSimulators() async -> [ResolvedDestination] {
+        do {
+            let result = try await ProcessRunnerTool.shared.run(
+                executableURL: URL(fileURLWithPath: "/usr/bin/xcrun"),
+                arguments: ["simctl", "list", "devices", "available", "-j"]
+            )
+            guard result.exitCode == 0, let data = result.stdout.data(using: .utf8) else {
+                return []
+            }
+
+            struct SimctlResponse: Decodable {
+                let devices: [String: [SimctlDeviceItem]]
+            }
+            struct SimctlDeviceItem: Decodable {
+                let name: String
+                let udid: String
+                let state: String
+                let isAvailable: Bool?
+            }
+
+            let decoded = try JSONDecoder().decode(SimctlResponse.self, from: data)
+            var sims: [ResolvedDestination] = []
+
+            for (runtimeKey, deviceList) in decoded.devices {
+                let platform: String
+                let lowerRuntime = runtimeKey.lowercased()
+                if lowerRuntime.contains("ios") {
+                    platform = "iOS Simulator"
+                } else if lowerRuntime.contains("watch") {
+                    platform = "watchOS Simulator"
+                } else if lowerRuntime.contains("tv") {
+                    platform = "tvOS Simulator"
+                } else if lowerRuntime.contains("xr") || lowerRuntime.contains("vision") {
+                    platform = "visionOS Simulator"
+                } else {
+                    platform = "iOS Simulator"
+                }
+
+                for dev in deviceList where dev.isAvailable ?? true {
+                    let dest = ResolvedDestination(
+                        platform: platform,
+                        name: dev.name,
+                        os: "",
+                        idString: dev.udid,
+                        variant: dev.state == "Booted" ? "Booted" : "",
+                        arch: "arm64"
+                    )
+                    if dev.state == "Booted" {
+                        sims.insert(dest, at: 0)
+                    } else {
+                        sims.append(dest)
+                    }
+                }
+            }
+            self.cachedSimulators = sims
+            return sims
+        } catch {
+            logger.warning("Failed to fetch available simulators via simctl: \(error.localizedDescription)")
+            return []
+        }
+    }
+
+    private func fallbackDestinations(for supportedPlatforms: [String]) async -> [ResolvedDestination] {
+        let liveSims = await fetchAvailableSimulators()
         var list: [ResolvedDestination] = []
+
         for platform in supportedPlatforms {
             let lower = platform.lowercased()
             if lower.contains("macosx") || lower.contains("macos") {
                 list.append(ResolvedDestination(platform: "macOS", name: "My Mac", os: "", idString: "", variant: "", arch: "arm64"))
             } else if lower.contains("iphonesimulator") || lower.contains("ios") {
-                list.append(ResolvedDestination(platform: "iOS Simulator", name: "iPhone 15", os: "18.0", idString: "", variant: "", arch: ""))
+                let iosSims = liveSims.filter { $0.platform == "iOS Simulator" }
+                if !iosSims.isEmpty {
+                    list.append(contentsOf: iosSims)
+                } else {
+                    list.append(ResolvedDestination(platform: "iOS Simulator", name: "Any iOS Simulator Device", os: "", idString: "", variant: "", arch: ""))
+                }
             } else if lower.contains("iphoneos") {
                 list.append(ResolvedDestination(platform: "iOS", name: "Any iOS Device", os: "", idString: "", variant: "", arch: ""))
             } else if lower.contains("watch") {
-                list.append(ResolvedDestination(platform: "watchOS Simulator", name: "Apple Watch Series 9", os: "11.0", idString: "", variant: "", arch: ""))
+                let watchSims = liveSims.filter { $0.platform == "watchOS Simulator" }
+                if !watchSims.isEmpty {
+                    list.append(contentsOf: watchSims)
+                }
             } else if lower.contains("tv") {
-                list.append(ResolvedDestination(platform: "tvOS Simulator", name: "Apple TV", os: "18.0", idString: "", variant: "", arch: ""))
+                let tvSims = liveSims.filter { $0.platform == "tvOS Simulator" }
+                if !tvSims.isEmpty {
+                    list.append(contentsOf: tvSims)
+                }
             } else if lower.contains("xr") || lower.contains("vision") {
-                list.append(ResolvedDestination(platform: "visionOS Simulator", name: "Apple Vision Pro", os: "2.0", idString: "", variant: "", arch: ""))
+                let visionSims = liveSims.filter { $0.platform == "visionOS Simulator" }
+                if !visionSims.isEmpty {
+                    list.append(contentsOf: visionSims)
+                }
             }
         }
+
         if list.isEmpty {
-            list.append(ResolvedDestination(platform: "macOS", name: "My Mac", os: "", idString: "", variant: "", arch: ""))
+            if !liveSims.isEmpty {
+                list.append(contentsOf: liveSims)
+            } else {
+                list.append(ResolvedDestination(platform: "macOS", name: "My Mac", os: "", idString: "", variant: "", arch: "arm64"))
+            }
         }
         return list
     }
 
     /// Selects the best compatible destination and SDK automatically
     public func selectBestDestination(settings: ResolvedSettings, destinations: [ResolvedDestination]) -> (sdk: String, destination: ResolvedDestination)? {
-        let isMacOS = settings.supportedPlatforms.contains { $0.lowercased().contains("macosx") || $0.lowercased() == "macos" }
+        let validDestinations = destinations.filter { !$0.idString.contains("placeholder") }
+
         let isiOS = settings.supportedPlatforms.contains { $0.lowercased().contains("iphone") || $0.lowercased().contains("ios") }
+        let isMacOS = settings.supportedPlatforms.contains { $0.lowercased().contains("macosx") || $0.lowercased() == "macos" }
         let isVisionOS = settings.supportedPlatforms.contains { $0.lowercased().contains("vision") || $0.lowercased().contains("xr") }
         let isWatchOS = settings.supportedPlatforms.contains { $0.lowercased().contains("watch") }
         let isTvOS = settings.supportedPlatforms.contains { $0.lowercased().contains("appletv") || $0.lowercased().contains("tvos") }
 
-        if isMacOS {
-            if let dest = destinations.first(where: { $0.platform.lowercased() == "macos" }) {
-                return ("macosx", dest)
-            }
-        }
-
+        // iOS priority if configured
         if isiOS {
-            if let dest = destinations.first(where: { $0.platform.lowercased() == "ios simulator" }) {
+            if let booted = validDestinations.first(where: { $0.platform.lowercased() == "ios simulator" && $0.variant == "Booted" && !$0.idString.isEmpty }) {
+                return ("iphonesimulator", booted)
+            }
+            if let concrete = validDestinations.first(where: { $0.platform.lowercased() == "ios simulator" && !$0.idString.isEmpty }) {
+                return ("iphonesimulator", concrete)
+            }
+            if let dest = validDestinations.first(where: { $0.platform.lowercased() == "ios simulator" }) {
                 return ("iphonesimulator", dest)
             }
-            if let dest = destinations.first(where: { $0.platform.lowercased() == "ios" }) {
+            if let dest = validDestinations.first(where: { $0.platform.lowercased() == "ios" }) {
                 return ("iphoneos", dest)
             }
         }
 
+        if isMacOS && !isiOS {
+            if let dest = validDestinations.first(where: { $0.platform.lowercased() == "macos" }) {
+                return ("macosx", dest)
+            }
+        }
+
         if isVisionOS {
-            if let dest = destinations.first(where: { $0.platform.lowercased().contains("vision") && $0.platform.lowercased().contains("simulator") }) {
+            if let dest = validDestinations.first(where: { $0.platform.lowercased().contains("vision") && $0.platform.lowercased().contains("simulator") }) {
                 return ("xrsimulator", dest)
             }
         }
 
         if isWatchOS {
-            if let dest = destinations.first(where: { $0.platform.lowercased().contains("watch") && $0.platform.lowercased().contains("simulator") }) {
+            if let dest = validDestinations.first(where: { $0.platform.lowercased().contains("watch") && $0.platform.lowercased().contains("simulator") }) {
                 return ("watchsimulator", dest)
             }
         }
 
         if isTvOS {
-            if let dest = destinations.first(where: { $0.platform.lowercased().contains("tv") && $0.platform.lowercased().contains("simulator") }) {
+            if let dest = validDestinations.first(where: { $0.platform.lowercased().contains("tv") && $0.platform.lowercased().contains("simulator") }) {
                 return ("appletvsimulator", dest)
             }
         }
 
-        if let first = destinations.first {
+        if isMacOS {
+            if let dest = validDestinations.first(where: { $0.platform.lowercased() == "macos" }) {
+                return ("macosx", dest)
+            }
+        }
+
+        if let first = validDestinations.first {
             let sdk = first.platform.lowercased().contains("macos") ? "macosx" : "iphonesimulator"
             return (sdk, first)
         }

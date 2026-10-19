@@ -64,6 +64,20 @@ public struct RunFullAppView: View {
 
                 Spacer()
 
+                if runManager.runLogs.contains(where: { $0.localizedCaseInsensitiveContains("failed") || $0.localizedCaseInsensitiveContains("error") || $0.localizedCaseInsensitiveContains("exit code") }) {
+                    Button {
+                        NotificationCenter.default.post(
+                            name: NSNotification.Name("com.swiftcode.assist.triggerQuickFix"),
+                            object: nil,
+                            userInfo: ["prompt": "Diagnose and fix Full App Run build/launch failure using fix_artboards tool. Logs:\n\(runManager.runLogs.joined(separator: "\n"))"]
+                        )
+                    } label: {
+                        Label("Fix with Assist", systemImage: "sparkles")
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .controlSize(.small)
+                }
+
                 // Reusable copy logs button - always available when logs exist
                 CopyLogsButton(logs: runManager.runLogs.joined(separator: "\n"))
 

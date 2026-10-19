@@ -75,14 +75,40 @@ public actor DeploymentPipeline {
 
         // Stage 6: Validate Build
         onStateUpdate(.validatingBuild, "Validating build artifacts...")
-        onLogUpdate("Locating compiled app bundle at \(appBundleURL.path)...")
+        var effectiveAppBundleURL = appBundleURL
+        let fm = FileManager.default
+
+        if !fm.fileExists(atPath: effectiveAppBundleURL.path) {
+            if let found = await XcodeBuildAPI.shared.determineAppBundleURL() {
+                effectiveAppBundleURL = found
+            } else {
+                let productsURL = URL(fileURLWithPath: projectPath).deletingLastPathComponent().appendingPathComponent("build/DerivedData/Build/Products")
+                if let enumerator = fm.enumerator(at: productsURL, includingPropertiesForKeys: [.isDirectoryKey], options: [.skipsHiddenFiles]) {
+                    let files = enumerator.allObjects.compactMap { $0 as? URL }
+                    for fileURL in files {
+                        if fileURL.pathExtension == "app" {
+                            effectiveAppBundleURL = fileURL
+                            break
+                        }
+                    }
+                }
+            }
+        }
+
+        guard fm.fileExists(atPath: effectiveAppBundleURL.path) else {
+            onStateUpdate(.failed, "App bundle not found.")
+            onLogUpdate("[Error] Could not locate compiled .app bundle. Checked: \(effectiveAppBundleURL.path)")
+            return false
+        }
+
+        onLogUpdate("Located compiled app bundle at \(effectiveAppBundleURL.path)")
 
         // Stage 7: Install Application
         onStateUpdate(.installingApplication, "Installing application...")
         onLogUpdate("Running InstallApplicationCommand...")
         let installSuccess = try? await InstallApplicationCommand().execute(
             deviceUDID: device.udid,
-            appBundleURL: appBundleURL,
+            appBundleURL: effectiveAppBundleURL,
             onProgress: onLogUpdate
         )
 

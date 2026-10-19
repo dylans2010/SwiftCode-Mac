@@ -277,6 +277,16 @@ public final class AssistToolRegistry {
         register(AssistAccessibilityAuditTool())
         register(AssistSessionExportTool())
 
+        // Artboards & Visual UI Builder Subsystem tools
+        register(AssistArtboardListTool())
+        register(AssistArtboardGetTool())
+        register(AssistArtboardCreateTool())
+        register(AssistArtboardUpdateTool())
+        register(AssistArtboardDeleteTool())
+        register(AssistArtboardCompileTool())
+        register(AssistArtboardRunAppTool())
+        register(AssistFixArtboardsTool())
+
         // Archive & Compression tools
         register(AssistZipFileTool())
         register(AssistUnzipFileTool())

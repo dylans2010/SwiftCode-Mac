@@ -165,9 +165,22 @@ struct LivePreviewSubView: View {
                                             .padding(16)
                                     } else if let errorMsg = DocumentCoordinator.shared.compiledArtboardErrors[activeArtboard.id] {
                                         VStack(alignment: .leading, spacing: 12) {
-                                            Label("Artboard Compile Error", systemImage: "exclamationmark.triangle.fill")
-                                                .font(.headline)
-                                                .foregroundColor(.red)
+                                            HStack {
+                                                Label("Artboard Compile Error", systemImage: "exclamationmark.triangle.fill")
+                                                    .font(.headline)
+                                                    .foregroundColor(.red)
+                                                Spacer()
+                                                Button {
+                                                    NotificationCenter.default.post(
+                                                        name: NSNotification.Name("com.swiftcode.assist.triggerQuickFix"),
+                                                        object: nil,
+                                                        userInfo: ["prompt": "Diagnose and fix Artboard compilation failure using fix_artboards tool. Error:\n\(errorMsg)"]
+                                                    )
+                                                } label: {
+                                                    Label("Fix with Assist", systemImage: "sparkles")
+                                                }
+                                                .buttonStyle(.borderedProminent)
+                                            }
                                             Divider()
                                             Text(errorMsg)
                                                 .font(.system(.body, design: .monospaced))
@@ -215,6 +228,17 @@ struct LivePreviewSubView: View {
                                                     .font(.headline)
                                                     .foregroundColor(.red)
                                                 Spacer()
+                                                Button {
+                                                    NotificationCenter.default.post(
+                                                        name: NSNotification.Name("com.swiftcode.assist.triggerQuickFix"),
+                                                        object: nil,
+                                                        userInfo: ["prompt": "Diagnose and resolve SwiftUI Preview compilation error using fix_artboards tool. Logs:\n\(previewManager.buildLogs.joined(separator: "\n"))"]
+                                                    )
+                                                } label: {
+                                                    Label("Fix with Assist", systemImage: "sparkles")
+                                                }
+                                                .buttonStyle(.borderedProminent)
+
                                                 CopyLogsButton(logs: previewManager.buildLogs.joined(separator: "\n"))
                                             }
 

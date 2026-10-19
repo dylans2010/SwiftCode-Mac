@@ -451,6 +451,17 @@ Not build artifacts: these tools manage Markdown deliverables (reports, analyses
 - `conflict_marker_scan` (safeRead) — unresolved merge-conflict markers in source files.
 - `tool_capability_lookup` (safeRead) — live registry lookup: capability, risk level, parameters of any tool.
 
+### Artboards & Visual UI Builder
+
+- `artboard_list` (safeRead) — list all artboards in the active Visual UI Builder workspace (names, IDs, devices, modes).
+- `artboard_get` (safeRead) — inspect full configuration, component tree, and custom SwiftUI source code of an artboard.
+- `artboard_create` (safeMutation) — create a new artboard with custom SwiftUI source or layout hierarchy.
+- `artboard_update` (safeMutation) — update an artboard's properties, device frame, orientation, or SwiftUI source.
+- `artboard_delete` (safeMutation) — delete an artboard by ID or name (preserves 'Default').
+- `artboard_compile` (safeMutation) — trigger compilation and live preview rendering of an artboard or SwiftUI view.
+- `artboard_run_app` (safeMutation) — compile and launch the full project in a simulator.
+- `fix_artboards` (safeMutation) — comprehensive diagnosis and auto-repair for artboards, previews, simulators, and build failures. Keep working until all issues are resolved.
+
 ---
 
 ## Cloud Toolkit (Antigravity SDK Built-ins — Cloud Mode ONLY)

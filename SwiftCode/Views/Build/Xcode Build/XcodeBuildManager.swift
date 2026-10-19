@@ -402,11 +402,13 @@ public final class XcodeBuildManager: Sendable {
         appendLog("[SYSTEM] Build cancelled by user.")
     }
 
-    public func runBuild(projectURL: URL, scheme: String? = nil, configuration: String? = nil, destination: String? = nil, sdk: String? = nil) async {
+    public func runBuild(projectURL: URL? = nil, scheme: String? = nil, configuration: String? = nil, destination: String? = nil, sdk: String? = nil) async {
         guard !isBuilding else {
             appendLog("[SYSTEM] Warning: A build is already in progress.")
             return
         }
+
+        let effectiveURL = projectURL ?? DocumentCoordinator.shared.projectURL ?? URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
 
         let buildPath = getXcodeBuildPath()
         guard validatePath(buildPath) else {
@@ -415,7 +417,7 @@ public final class XcodeBuildManager: Sendable {
             return
         }
 
-        let finalScheme = scheme ?? selectedScheme ?? projectURL.deletingPathExtension().lastPathComponent
+        let finalScheme = scheme ?? selectedScheme ?? effectiveURL.deletingPathExtension().lastPathComponent
         let finalConfig = configuration ?? selectedConfiguration
         let finalDest = destination ?? selectedDestination
 
@@ -428,13 +430,14 @@ public final class XcodeBuildManager: Sendable {
         startTime = Date()
         startTimer()
 
-        appendLog("[SYSTEM] Starting production xcodebuild in directory: \(projectURL.path)")
+        appendLog("[SYSTEM] Starting production xcodebuild in directory: \(effectiveURL.path)")
         appendLog("[SYSTEM] Using toolchain path: \(buildPath)")
 
         let process = Process()
         process.executableURL = URL(fileURLWithPath: buildPath)
+        process.currentDirectoryURL = effectiveURL
 
-        let localizedDerivedDataURL = projectURL.appendingPathComponent("build/DerivedData")
+        let localizedDerivedDataURL = effectiveURL.appendingPathComponent("build/DerivedData")
 
         var arguments = [
             "-configuration", finalConfig,
@@ -444,10 +447,6 @@ public final class XcodeBuildManager: Sendable {
         if !finalScheme.isEmpty {
             arguments.append(contentsOf: ["-scheme", finalScheme])
         }
-        if !finalDest.isEmpty {
-            arguments.append(contentsOf: ["-destination", finalDest])
-        }
-
         // Add dynamically selected SDK identifier if resolved
         var finalSDK = sdk
         if finalSDK == nil {
@@ -461,9 +460,36 @@ public final class XcodeBuildManager: Sendable {
             finalSDK = currentSDKArgument
         }
 
+        var effectiveDest = finalDest
+        let isSimulatorTarget = (finalSDK?.lowercased().contains("simulator") == true) || (finalSDK?.lowercased().contains("iphone") == true)
+        if isSimulatorTarget && (effectiveDest.lowercased().contains("macos") || effectiveDest.isEmpty || effectiveDest.contains("placeholder")) {
+            let sims = await BuildDestinationResolver.shared.fetchAvailableSimulators()
+            if let booted = sims.first(where: { $0.variant == "Booted" && !$0.idString.isEmpty }) {
+                effectiveDest = booted.id
+            } else if let firstSim = sims.first(where: { !$0.idString.isEmpty }) {
+                effectiveDest = firstSim.id
+            } else {
+                effectiveDest = "generic/platform=iOS Simulator"
+            }
+        }
+
+        if !effectiveDest.isEmpty {
+            arguments.append(contentsOf: ["-destination", effectiveDest])
+        }
+
         if let sdkArg = finalSDK {
             arguments.append(contentsOf: ["-sdk", sdkArg])
             appendLog("[SYSTEM] Forcing dynamic target SDK: \(sdkArg)")
+        }
+
+        // Add explicit build action and relax code signing for simulator builds
+        arguments.append("build")
+        if isSimulatorTarget || effectiveDest.lowercased().contains("simulator") {
+            arguments.append(contentsOf: [
+                "CODE_SIGN_IDENTITY=",
+                "CODE_SIGNING_REQUIRED=NO",
+                "CODE_SIGNING_ALLOWED=NO"
+            ])
         }
 
         process.arguments = arguments
@@ -516,7 +542,7 @@ public final class XcodeBuildManager: Sendable {
                 currentStatus = .succeeded
                 appendLog("[SYSTEM] Build Succeeded.")
 
-                await copyGeneratedAppToManagedDirectory(projectURL: projectURL, scheme: finalScheme, configuration: finalConfig, destination: finalDest)
+                await copyGeneratedAppToManagedDirectory(projectURL: effectiveURL, scheme: finalScheme, configuration: finalConfig, destination: finalDest)
             } else {
                 currentStatus = .failed
                 appendLog("[SYSTEM] Build Failed with exit code \(status).")
@@ -529,6 +555,17 @@ public final class XcodeBuildManager: Sendable {
             appendLog("[ERROR] Failed to launch build process: \(error.localizedDescription)")
             logger.error("Failed to run build: \(error.localizedDescription, privacy: .public)")
         }
+    }
+
+    public func cleanBuild(projectURL: URL? = nil) {
+        if let url = projectURL ?? ProjectSessionStore.shared.activeProject?.directoryURL {
+            let derivedData = url.appendingPathComponent("build/DerivedData")
+            try? FileManager.default.removeItem(at: derivedData)
+        }
+        buildLogs.removeAll()
+        warningsCount = 0
+        errorsCount = 0
+        appendLog("[SYSTEM] Cleaned localized build folder.")
     }
 
     private func processLogLine(_ line: String, isError: Bool) {

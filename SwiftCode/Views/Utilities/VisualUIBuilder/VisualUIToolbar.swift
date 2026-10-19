@@ -8,6 +8,8 @@ public struct VisualUIToolbar: View {
     @State private var showingExportSheet = false
     @State private var showingAIAssistantSheet = false
 
+    @State private var availableDevices: [String] = []
+
     public init(document: VisualUIDocument, settings: VisualUISettings) {
         self.document = document
         self.settings = settings
@@ -31,15 +33,29 @@ public struct VisualUIToolbar: View {
             // Group 2: Layout & Viewport Configuration
             HStack(spacing: 8) {
                 Picker("Device", selection: $settings.selectedDevice) {
-                    Text("iPhone 16 Pro").tag("iPhone 16 Pro")
-                    Text("iPad Pro").tag("iPad Pro")
-                    Text("Apple Watch").tag("Apple Watch")
-                    Text("Apple Vision Pro").tag("Apple Vision Pro")
+                    if availableDevices.isEmpty {
+                        Text(settings.selectedDevice).tag(settings.selectedDevice)
+                    } else {
+                        ForEach(availableDevices, id: \.self) { devName in
+                            Text(devName).tag(devName)
+                        }
+                    }
                 }
-                .frame(width: 140)
+                .frame(minWidth: 150)
                 .controlSize(.small)
                 .onChange(of: settings.selectedDevice) { _, newValue in
                     updateSelectedDeviceFrames(to: newValue)
+                }
+                .task {
+                    let sims = await BuildDestinationResolver.shared.fetchAvailableSimulators()
+                    let names = sims.map { $0.name }
+                    if !names.isEmpty {
+                        var unique = Array(Set(names)).sorted()
+                        if !unique.contains(settings.selectedDevice) {
+                            unique.insert(settings.selectedDevice, at: 0)
+                        }
+                        availableDevices = unique
+                    }
                 }
 
                 Divider()
