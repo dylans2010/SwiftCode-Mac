@@ -368,121 +368,21 @@ public struct MuseNativeToolCard: View {
     }
 
     private func humanReadableTitle(for rawId: String) -> String {
-        let norm = rawId.lowercased().replacingOccurrences(of: "-", with: "_")
-        switch norm {
-        case "file_read", "read_file", "view_file":
-            return "Reading File Content"
-        case "file_write", "write_file":
-            return "Writing File Content"
-        case "file_create", "create_file":
-            return "Creating New File"
-        case "file_delete", "delete_file":
-            return "Deleting File"
-        case "code_replace", "replace_in_file":
-            return "Applying Code Edit"
-        case "code_insert", "insert_code":
-            return "Inserting Code Block"
-        case "code_format", "format_code":
-            return "Formatting Code"
-        case "code_lint", "lint_code":
-            return "Linting Code"
-        case "dir_read", "list_dir", "list_directory":
-            return "Inspecting Directory Structure"
-        case "dir_create", "create_directory":
-            return "Creating Directory"
-        case "tree_view":
-            return "Inspecting Workspace Tree"
-        case "search_text", "search_regex", "grep_search":
-            return "Searching Codebase"
-        case "search_symbol":
-            return "Finding Symbol Definition"
-        case "project_build", "build_project":
-            return "Building Xcode Project"
-        case "project_test", "run_tests", "test_runner":
-            return "Running Test Suite"
-        case "use_terminal", "run_command", "terminal", "bash", "sh", "zsh":
-            return "Executing Terminal Command"
-        case "use_workers", "workers", "workflow":
-            return "Coordinating Assist Workers"
-        case "report_to_user":
-            return "Presenting Task Completion"
-        case "plan_askuser", "plan-askuser", "askuser":
-            return "Decision Point Requested"
-        case "mcp_call", "use_mcp":
-            return "Executing MCP Integration"
-        case "composio_execute", "use_composio":
-            return "Executing Composio Tool"
-        case "git_status":
-            return "Checking Git Status"
-        case "git_commit":
-            return "Committing Changes"
-        case "git_push":
-            return "Pushing to Git Remote"
-        default:
-            let cleaned = rawId
-                .replacingOccurrences(of: "_", with: " ")
-                .replacingOccurrences(of: "-", with: " ")
-                .capitalized
-            return cleaned.isEmpty ? "Executing Action" : cleaned
-        }
+        // Canonical title from ToolCallMap (covers every registered tool).
+        ToolCallMap.descriptor(for: rawId).title
     }
 
     // MARK: - SF Symbols for EVERY Tool
 
     public static func sfSymbol(for toolId: String) -> String {
-        let norm = toolId.lowercased().replacingOccurrences(of: "-", with: "_")
-        switch norm {
-        case "file_read", "read_file", "view_file":
-            return "doc.text.magnifyingglass"
-        case "file_write", "write_file", "file_create", "create_file":
-            return "doc.badge.plus"
-        case "file_delete", "delete_file":
-            return "trash.fill"
-        case "code_replace", "replace_in_file":
-            return "text.badge.checkmark"
-        case "code_insert", "insert_code":
-            return "character.cursor.ibeam"
-        case "code_format", "format_code":
-            return "wand.and.stars"
-        case "code_lint", "lint_code":
-            return "checkmark.shield.fill"
-        case "dir_read", "list_dir", "list_directory":
-            return "folder.fill"
-        case "dir_create", "create_directory":
-            return "folder.badge.plus"
-        case "tree_view":
-            return "list.bullet.indent"
-        case "search_text", "search_regex", "grep_search":
-            return "magnifyingglass"
-        case "search_symbol":
-            return "curlybraces"
-        case "project_build", "build_project":
-            return "hammer.fill"
-        case "project_test", "run_tests", "test_runner":
-            return "play.circle.fill"
-        case "use_terminal", "run_command", "terminal", "bash", "sh", "zsh":
-            return "terminal.fill"
-        case "use_workers", "workers", "workflow":
-            return "person.3.sequence.fill"
-        case "report_to_user":
-            return "bubble.left.and.exclamationmark.bubble.right.fill"
-        case "plan_askuser", "plan-askuser", "askuser":
-            return "questionmark.bubble.fill"
-        case "mcp_call", "use_mcp":
-            return "network"
-        case "composio_execute", "use_composio":
-            return "app.connected.to.app.below.fill"
-        case "git_status", "git_commit", "git_push", "git_diff":
-            return "arrow.triangle.branch"
-        default:
-            if norm.contains("worker") { return "person.3.sequence.fill" }
-            if norm.contains("file") { return "doc.text.fill" }
-            if norm.contains("code") { return "chevron.left.forwardslash.chevron.right" }
-            if norm.contains("term") || norm.contains("shell") { return "terminal.fill" }
-            if norm.contains("build") { return "hammer.fill" }
-            if norm.contains("test") { return "play.circle.fill" }
-            return "wrench.and.screwdriver.fill"
-        }
+        // Canonical symbol from ToolCallMap (covers every registered tool).
+        // Kept as a static accessor for existing callers.
+        ToolCallMap.descriptor(for: toolId).symbolName
+    }
+
+    /// Subtle per-tool tint for the SF symbol, from ToolCallMap.
+    public static func tint(for toolId: String) -> Color {
+        ToolCallMap.descriptor(for: toolId).tint
     }
 
     private var cleanParameters: [(key: String, value: String)] {
@@ -591,10 +491,10 @@ public struct MuseNativeToolCard: View {
                     // Status Icon
                     statusIcon
 
-                    // Tool Kind SF Symbol (Explicitly mapped for every tool)
+                    // Tool Kind SF Symbol (ToolCallMap: per-tool symbol + subtle tint)
                     Image(systemName: Self.sfSymbol(for: tool.toolId))
                         .font(.system(size: 11, weight: .semibold))
-                        .foregroundStyle(Color.accentColor.opacity(0.9))
+                        .foregroundStyle(Self.tint(for: tool.toolId))
                         .frame(width: 16, height: 16)
 
                     // Human-Readable Title

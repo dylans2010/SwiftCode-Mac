@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		0B22501F7C955DC9FF8F5995 /* ToolCallMap.swift in Sources */ = {isa = PBXBuildFile; fileRef = 24CFFAC38C6F524D9DCE081D /* ToolCallMap.swift */; };
 		4E9DD909AEDADE0A58EB7241 /* AssistDocsGitHubToolsTestSuite.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6914125F91CA12A961D5CC3E /* AssistDocsGitHubToolsTestSuite.swift */; };
 		360C2306F1D407AD2532A9BF /* AssistGitHubRepoTool.swift in Sources */ = {isa = PBXBuildFile; fileRef = CA9E6D970225547241968F04 /* AssistGitHubRepoTool.swift */; };
 		A49D25CCC9BC65D1C4E66199 /* AssistFetchDocumentationTool.swift in Sources */ = {isa = PBXBuildFile; fileRef = BF39084260E217837BAD92F6 /* AssistFetchDocumentationTool.swift */; };
@@ -2956,6 +2957,7 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		24CFFAC38C6F524D9DCE081D /* ToolCallMap.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ToolCallMap.swift; sourceTree = "<group>"; };
 		6914125F91CA12A961D5CC3E /* AssistDocsGitHubToolsTestSuite.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssistDocsGitHubToolsTestSuite.swift; sourceTree = "<group>"; };
 		CA9E6D970225547241968F04 /* AssistGitHubRepoTool.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssistGitHubRepoTool.swift; sourceTree = "<group>"; };
 		BF39084260E217837BAD92F6 /* AssistFetchDocumentationTool.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssistFetchDocumentationTool.swift; sourceTree = "<group>"; };
@@ -6781,6 +6783,7 @@
 				A1000007F001000100000007 /* AssistComposerPopup.swift */,
 				8D9E0004000100010000000D /* MetaCommandArgumentPickerView.swift */,
 				C0DE00010000000000000063 /* AssistArtifactsView.swift */,
+				24CFFAC38C6F524D9DCE081D /* ToolCallMap.swift */,
 			);
 			path = Assist;
 			sourceTree = "<group>";
@@ -13880,6 +13883,7 @@
 				A49D25CCC9BC65D1C4E66199 /* AssistFetchDocumentationTool.swift in Sources */,
 				360C2306F1D407AD2532A9BF /* AssistGitHubRepoTool.swift in Sources */,
 				4E9DD909AEDADE0A58EB7241 /* AssistDocsGitHubToolsTestSuite.swift in Sources */,
+				0B22501F7C955DC9FF8F5995 /* ToolCallMap.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
