@@ -806,14 +806,15 @@ public struct SigningCapabilitiesTabView: View {
 // MARK: - 14. Entitlements Tab
 public struct EntitlementsTabView: View {
     public let model: XcodeProjModel
+    public let selectedTargetID: String?
 
-    public init(model: XcodeProjModel) {
+    public init(model: XcodeProjModel, selectedTargetID: String? = nil) {
         self.model = model
+        self.selectedTargetID = selectedTargetID
     }
 
     public var body: some View {
-        let project = ProjectSessionStore.shared.activeProject ?? Project(name: model.projectURL.deletingPathExtension().lastPathComponent)
-        let resolvedURL = ProjectResolutionService.shared.resolveEntitlements(for: project)
+        let resolvedURL = ProjectResolutionService.shared.resolveEntitlements(for: model, targetID: selectedTargetID)
         return EntitlementsEditorView(fileURL: resolvedURL)
     }
 }
@@ -821,14 +822,15 @@ public struct EntitlementsTabView: View {
 // MARK: - 15. Info.plist Tab
 public struct InfoPlistTabView: View {
     public let model: XcodeProjModel
+    public let selectedTargetID: String?
 
-    public init(model: XcodeProjModel) {
+    public init(model: XcodeProjModel, selectedTargetID: String? = nil) {
         self.model = model
+        self.selectedTargetID = selectedTargetID
     }
 
     public var body: some View {
-        let project = ProjectSessionStore.shared.activeProject ?? Project(name: model.projectURL.deletingPathExtension().lastPathComponent)
-        let resolvedURL = ProjectResolutionService.shared.resolveInfoPlist(for: project)
+        let resolvedURL = ProjectResolutionService.shared.resolveInfoPlist(for: model, targetID: selectedTargetID)
         return InfoPlistView(fileURL: resolvedURL)
     }
 }
@@ -990,28 +992,179 @@ public struct SwiftPackagesTabView: View {
 // MARK: - 22. Project Overview Tab
 public struct ProjectOverviewTabView: View {
     public let model: XcodeProjModel
+    @State private var copiedPath = false
 
     public init(model: XcodeProjModel) {
         self.model = model
     }
 
     public var body: some View {
-        VStack(spacing: 0) {
-            TabHeaderView(title: "Project Overview", icon: "info.circle", subtitle: "Metadata summary of the loaded Xcode project")
-            Divider()
+        VStack(spacing: 20) {
+            // Project Hero Card
+            HStack(spacing: 16) {
+                ZStack {
+                    RoundedRectangle(cornerRadius: 16, style: .continuous)
+                        .fill(Color.orange.opacity(0.15).gradient)
+                    Image(systemName: "hammer.fill")
+                        .font(.system(size: 26))
+                        .foregroundStyle(.orange)
+                }
+                .frame(width: 56, height: 56)
 
-            Form {
-                Section("Properties") {
-                    LabeledContent("Xcode Project URL", value: model.projectURL.lastPathComponent)
-                    LabeledContent("Path", value: model.projectURL.path)
-                    LabeledContent("Targets defined", value: "\(model.targets.count)")
-                    LabeledContent("Groups parsed", value: "\(model.groups.count)")
-                    LabeledContent("File References", value: "\(model.fileReferences.count)")
-                    LabeledContent("XCBuildConfigurations", value: "\(model.buildConfigurations.count)")
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(model.projectURL.deletingPathExtension().lastPathComponent)
+                        .font(.title2.bold())
+                    Text(model.projectURL.path)
+                        .font(.system(size: 11, design: .monospaced))
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+                }
+
+                Spacer()
+
+                HStack(spacing: 8) {
+                    Button {
+                        NSPasteboard.general.clearContents()
+                        NSPasteboard.general.setString(model.projectURL.path, forType: .string)
+                        copiedPath = true
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
+                            copiedPath = false
+                        }
+                    } label: {
+                        Label(copiedPath ? "Copied" : "Copy Path", systemImage: copiedPath ? "checkmark" : "doc.on.doc")
+                    }
+                    .buttonStyle(.bordered)
+                    .controlSize(.small)
+
+                    Button {
+                        NSWorkspace.shared.activateFileViewerSelecting([model.projectURL])
+                    } label: {
+                        Label("Reveal in Finder", systemImage: "folder")
+                    }
+                    .buttonStyle(.bordered)
+                    .controlSize(.small)
                 }
             }
-            .formStyle(.grouped)
+            .padding(18)
+            .background(Color(NSColor.controlBackgroundColor).opacity(0.6), in: RoundedRectangle(cornerRadius: 14))
+            .overlay(
+                RoundedRectangle(cornerRadius: 14)
+                    .stroke(Color.secondary.opacity(0.15), lineWidth: 1)
+            )
+
+            // Stat Metric Tiles (2x2 Grid)
+            LazyVGrid(columns: [GridItem(.flexible(), spacing: 14), GridItem(.flexible(), spacing: 14)], spacing: 14) {
+                overviewStatCard(
+                    title: "Defined Targets",
+                    value: "\(model.targets.count)",
+                    subtitle: model.targets.map(\.name).joined(separator: ", "),
+                    systemImage: "target",
+                    color: .orange
+                )
+                overviewStatCard(
+                    title: "Build Configurations",
+                    value: "\(model.buildConfigurations.count)",
+                    subtitle: Array(Set(model.buildConfigurations.map(\.name))).joined(separator: ", "),
+                    systemImage: "slider.horizontal.3",
+                    color: .blue
+                )
+                overviewStatCard(
+                    title: "File References",
+                    value: "\(model.fileReferences.count)",
+                    subtitle: "Source files, frameworks & assets",
+                    systemImage: "doc.text",
+                    color: .purple
+                )
+                overviewStatCard(
+                    title: "Project Groups",
+                    value: "\(model.groups.count)",
+                    subtitle: "Virtual project folder hierarchies",
+                    systemImage: "folder",
+                    color: .green
+                )
+            }
+
+            // Targets Breakdown Section
+            VStack(alignment: .leading, spacing: 12) {
+                HStack {
+                    Label("Project Targets", systemImage: "square.stack.3d.up")
+                        .font(.headline)
+                    Spacer()
+                    Text("\(model.targets.count) target\(model.targets.count == 1 ? "" : "s")")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+
+                VStack(spacing: 8) {
+                    ForEach(model.targets, id: \.uuid) { target in
+                        HStack(spacing: 12) {
+                            Image(systemName: "target")
+                                .foregroundStyle(.orange)
+                                .font(.headline)
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(target.name)
+                                    .font(.subheadline.weight(.semibold))
+                                if let pType = target.productType {
+                                    Text(pType.replacingOccurrences(of: "com.apple.product-type.", with: ""))
+                                        .font(.caption2)
+                                        .foregroundStyle(.secondary)
+                                }
+                            }
+                            Spacer()
+                            Text(target.uuid)
+                                .font(.system(size: 10, design: .monospaced))
+                                .foregroundStyle(.tertiary)
+                        }
+                        .padding(.horizontal, 14)
+                        .padding(.vertical, 10)
+                        .background(Color(NSColor.controlBackgroundColor).opacity(0.4), in: RoundedRectangle(cornerRadius: 10))
+                    }
+                }
+            }
+            .padding(16)
+            .background(Color(NSColor.controlBackgroundColor).opacity(0.5), in: RoundedRectangle(cornerRadius: 14))
+            .overlay(
+                RoundedRectangle(cornerRadius: 14)
+                    .stroke(Color.secondary.opacity(0.12), lineWidth: 1)
+            )
         }
+        .padding(.horizontal, 8)
+        .padding(.vertical, 4)
+    }
+
+    private func overviewStatCard(title: String, value: String, subtitle: String, systemImage: String, color: Color) -> some View {
+        HStack(spacing: 14) {
+            ZStack {
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    .fill(color.opacity(0.15))
+                Image(systemName: systemImage)
+                    .font(.system(size: 18, weight: .semibold))
+                    .foregroundStyle(color)
+            }
+            .frame(width: 42, height: 42)
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                Text(value)
+                    .font(.title2.bold())
+                if !subtitle.isEmpty {
+                    Text(subtitle)
+                        .font(.caption2)
+                        .foregroundStyle(.tertiary)
+                        .lineLimit(1)
+                }
+            }
+            Spacer()
+        }
+        .padding(14)
+        .background(Color(NSColor.controlBackgroundColor).opacity(0.6), in: RoundedRectangle(cornerRadius: 12))
+        .overlay(
+            RoundedRectangle(cornerRadius: 12)
+                .stroke(Color.secondary.opacity(0.12), lineWidth: 1)
+        )
     }
 }
 

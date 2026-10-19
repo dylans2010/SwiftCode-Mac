@@ -309,7 +309,8 @@ public final class EntitlementsEditorManager: Sendable {
 
     /// Read entitlements dictionary from disk.
     public func readEntitlements() throws -> [String: Any] {
-        guard FileManager.default.fileExists(atPath: fileURL.path) else {
+        var isDir: ObjCBool = false
+        guard FileManager.default.fileExists(atPath: fileURL.path, isDirectory: &isDir), !isDir.boolValue else {
             logger.info("Entitlements file not found at \(self.fileURL.path). Returning empty template.")
             return [:]
         }
@@ -322,6 +323,12 @@ public final class EntitlementsEditorManager: Sendable {
 
     /// Write active entitlements dictionary back to disk.
     public func writeEntitlements(_ entitlements: [String: Any]) throws {
+        var isDir: ObjCBool = false
+        if FileManager.default.fileExists(atPath: fileURL.path, isDirectory: &isDir), isDir.boolValue {
+            throw NSError(domain: "EntitlementsEditorManager", code: 400, userInfo: [NSLocalizedDescriptionKey: "The target path is a directory, not an entitlements file: \(fileURL.lastPathComponent)"])
+        }
+        try FileManager.default.createDirectory(at: fileURL.deletingLastPathComponent(), withIntermediateDirectories: true)
+
         let sorted = sortDictionary(entitlements)
         let data = try PropertyListSerialization.data(fromPropertyList: sorted, format: .xml, options: 0)
         try data.write(to: fileURL, options: .atomic)

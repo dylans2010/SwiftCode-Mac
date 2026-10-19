@@ -271,7 +271,8 @@ public final class InfoPlistEditor: Sendable {
     }
 
     public func load() {
-        guard FileManager.default.fileExists(atPath: fileURL.path) else {
+        var isDir: ObjCBool = false
+        guard FileManager.default.fileExists(atPath: fileURL.path, isDirectory: &isDir), !isDir.boolValue else {
             logger.warning("No plist file found at \(self.fileURL.path). Starting empty.")
             self.entries = [:]
             self.initialEntries = [:]
@@ -283,7 +284,7 @@ public final class InfoPlistEditor: Sendable {
             if let dict = try PropertyListSerialization.propertyList(from: data, options: [], format: nil) as? [String: Any] {
                 self.entries = dict
                 self.initialEntries = dict
-                logger.info("Successfully loaded Info.plist with \(dict.count) root entries.")
+                logger.info("Successfully loaded Info.plist with \(dict.count) root entries from \(self.fileURL.path, privacy: .public).")
             } else {
                 logger.error("Loaded plist is not a valid [String: Any] dictionary.")
             }
@@ -293,6 +294,12 @@ public final class InfoPlistEditor: Sendable {
     }
 
     public func save() throws {
+        var isDir: ObjCBool = false
+        if FileManager.default.fileExists(atPath: fileURL.path, isDirectory: &isDir), isDir.boolValue {
+            throw NSError(domain: "InfoPlistEditor", code: 400, userInfo: [NSLocalizedDescriptionKey: "The target path is a directory, not an Info.plist file: \(fileURL.lastPathComponent)"])
+        }
+        try FileManager.default.createDirectory(at: fileURL.deletingLastPathComponent(), withIntermediateDirectories: true)
+
         // Automatically order / sort keys before saving
         let sortedEntries = sortDictionary(entries)
         let data = try PropertyListSerialization.data(fromPropertyList: sortedEntries, format: .xml, options: 0)
@@ -301,7 +308,7 @@ public final class InfoPlistEditor: Sendable {
         self.isDirty = false
         self.undoStack.removeAll()
         self.redoStack.removeAll()
-        logger.info("Successfully saved Info.plist.")
+        logger.info("Successfully saved Info.plist to \(self.fileURL.path, privacy: .public).")
     }
 
     private func sortDictionary(_ dict: [String: Any]) -> [String: Any] {

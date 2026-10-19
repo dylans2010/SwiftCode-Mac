@@ -52,18 +52,24 @@ struct EditorView: View {
 
             // Switcher for plist / entitlements
             if isInfoPlist || isEntitlements {
-                HStack {
+                HStack(spacing: 12) {
+                    Label("Editor Mode", systemImage: "slider.horizontal.3")
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundStyle(.secondary)
+
                     Picker("Editor Mode", selection: $editorMode) {
                         ForEach(EditorMode.allCases) { mode in
                             Text(mode.rawValue).tag(mode)
                         }
                     }
                     .pickerStyle(.segmented)
-                    .frame(width: 250)
+                    .labelsHidden()
+                    .frame(width: 220)
+
                     Spacer()
                 }
                 .padding(.horizontal, 16)
-                .padding(.vertical, 8)
+                .padding(.vertical, 6)
                 .background(.ultraThinMaterial)
                 Divider()
             }

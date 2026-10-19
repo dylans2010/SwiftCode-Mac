@@ -564,6 +564,189 @@ public enum CapabilityCatalog {
             defaultValue: true,
             requiresSpecialApproval: true
         ),
+
+        // MARK: Notifications & Communication
+        CapabilityDefinition(
+            rawKey: "com.apple.developer.usernotifications.critical-alerts",
+            name: "Critical Alerts",
+            explanation: "Allows the app to play sounds and bypass the mute switch or Do Not Disturb for critical notifications.",
+            symbol: "bell.badge.fill",
+            section: .services,
+            payload: .none,
+            defaultValue: true,
+            requiresSpecialApproval: true
+        ),
+        CapabilityDefinition(
+            rawKey: "com.apple.developer.usernotifications.time-sensitive",
+            name: "Time-Sensitive Notifications",
+            explanation: "Allows notifications to break through Focus filters immediately.",
+            symbol: "alarm.fill",
+            section: .services,
+            payload: .none,
+            defaultValue: true
+        ),
+        CapabilityDefinition(
+            rawKey: "com.apple.developer.usernotifications.communication",
+            name: "Communication Notifications",
+            explanation: "Identifies incoming communication alerts with caller avatars and direct reply shortcuts.",
+            symbol: "message.fill",
+            section: .services,
+            payload: .none,
+            defaultValue: true
+        ),
+
+        // MARK: Networking & Hardware
+        CapabilityDefinition(
+            rawKey: "com.apple.developer.networking.wifi-info",
+            name: "Access Wi-Fi Information",
+            explanation: "Allows the app to obtain the Wi-Fi network name (SSID) and BSSID.",
+            symbol: "wifi",
+            section: .services,
+            payload: .none,
+            defaultValue: true
+        ),
+        CapabilityDefinition(
+            rawKey: "com.apple.developer.networking.HotspotConfiguration",
+            name: "Hotspot Configuration",
+            explanation: "Lets the app configure and connect to Wi-Fi networks and personal hotspots programmatically.",
+            symbol: "personalhotspot",
+            section: .services,
+            payload: .none,
+            defaultValue: true
+        ),
+        CapabilityDefinition(
+            rawKey: "com.apple.developer.networking.multipath",
+            name: "Multipath Networking",
+            explanation: "Allows the app to use Multipath TCP to seamlessly transition between Wi-Fi and Cellular.",
+            symbol: "arrow.triangle.swap",
+            section: .services,
+            payload: .none,
+            defaultValue: true
+        ),
+        CapabilityDefinition(
+            rawKey: "com.apple.developer.nfc.readersession.formats",
+            name: "NFC Tag Reading",
+            explanation: "Allows reading and writing NFC tags using Core NFC. List supported tag formats (e.g. NDEF, TAG).",
+            symbol: "wave.3.forward.circle.fill",
+            section: .services,
+            payload: .fixedValueList(allowed: ["NDEF", "TAG", "PACE"]),
+            defaultValue: ["NDEF"]
+        ),
+
+        // MARK: Modern Frameworks & System
+        CapabilityDefinition(
+            rawKey: "com.apple.developer.weatherkit",
+            name: "WeatherKit",
+            explanation: "Grants access to global weather data and forecasts from the Apple Weather service.",
+            symbol: "cloud.sun.rain.fill",
+            section: .services,
+            payload: .none,
+            defaultValue: true
+        ),
+        CapabilityDefinition(
+            rawKey: "com.apple.developer.group-session",
+            name: "Group Activities (SharePlay)",
+            explanation: "Lets users share experiences in real-time with FaceTime callers via SharePlay.",
+            symbol: "person.2.wave.2.fill",
+            section: .services,
+            payload: .none,
+            defaultValue: true
+        ),
+        CapabilityDefinition(
+            rawKey: "com.apple.developer.family-controls",
+            name: "Family Controls",
+            explanation: "Authorizes the app to administer parental controls, content filters, and app restrictions.",
+            symbol: "figure.2.and.child.holdinghands",
+            section: .services,
+            payload: .none,
+            defaultValue: true,
+            requiresSpecialApproval: true
+        ),
+        CapabilityDefinition(
+            rawKey: "com.apple.developer.device-activity.monitoring",
+            name: "Screen Time & Device Activity",
+            explanation: "Enables monitoring app and web usage schedules and shield configurations.",
+            symbol: "hourglass",
+            section: .services,
+            payload: .none,
+            defaultValue: true,
+            requiresSpecialApproval: true
+        ),
+        CapabilityDefinition(
+            rawKey: "com.apple.developer.authentication-services.autofill-credential-provider",
+            name: "AutoFill Credential Provider",
+            explanation: "Provides credentials and passkeys directly into Safari and other apps via AutoFill.",
+            symbol: "key.viewfinder",
+            section: .services,
+            payload: .none,
+            defaultValue: true
+        ),
+        CapabilityDefinition(
+            rawKey: "com.apple.developer.kernel.extended-virtual-addressing",
+            name: "Extended Virtual Addressing",
+            explanation: "Provides access to a larger virtual address space on 64-bit systems.",
+            symbol: "memorychip.fill",
+            section: .services,
+            payload: .none,
+            defaultValue: true
+        ),
+        CapabilityDefinition(
+            rawKey: "com.apple.developer.kernel.increased-memory-limit",
+            name: "Increased Memory Limit",
+            explanation: "Informs the operating system that your app may exceed the default per-app memory budget.",
+            symbol: "chart.bar.fill",
+            section: .services,
+            payload: .none,
+            defaultValue: true
+        ),
+        CapabilityDefinition(
+            rawKey: "com.apple.developer.background-assets",
+            name: "Background Assets",
+            explanation: "Allows downloading essential game or app asset packs in the background prior to launch.",
+            symbol: "arrow.down.circle.fill",
+            section: .services,
+            payload: .none,
+            defaultValue: true
+        ),
+        CapabilityDefinition(
+            rawKey: "com.apple.developer.storekit.external-purchase",
+            name: "StoreKit External Purchase",
+            explanation: "Enables offering digital goods using an external payment processor where permitted.",
+            symbol: "cart.fill",
+            section: .services,
+            payload: .none,
+            defaultValue: true,
+            requiresSpecialApproval: true
+        ),
+
+        // MARK: Additional Sandbox Security
+        CapabilityDefinition(
+            rawKey: "com.apple.security.automation.apple-events",
+            name: "Apple Events Automation",
+            explanation: "Allows the sandboxed app to send Apple Events to other scriptable applications.",
+            symbol: "applescript.fill",
+            section: .sandbox,
+            payload: .none,
+            defaultValue: true
+        ),
+        CapabilityDefinition(
+            rawKey: "com.apple.security.smartcard",
+            name: "Smart Card Access",
+            explanation: "Allows the app to communicate with inserted cryptographic smart cards and tokens.",
+            symbol: "creditcard",
+            section: .sandbox,
+            payload: .none,
+            defaultValue: true
+        ),
+        CapabilityDefinition(
+            rawKey: "com.apple.security.device.serial",
+            name: "Serial Ports",
+            explanation: "Grants access to serial communication interfaces (RS-232, serial modems).",
+            symbol: "cable.connector.horizontal",
+            section: .sandbox,
+            payload: .none,
+            defaultValue: true
+        ),
     ]
 
     /// All raw entitlement keys managed by capability toggles, including composite keys.

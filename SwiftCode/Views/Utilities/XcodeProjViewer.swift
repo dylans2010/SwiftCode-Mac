@@ -156,9 +156,9 @@ public struct XcodeProjViewer: View {
                                             .padding()
                                     }
                                 case "infoplist":
-                                    InfoPlistTabView(model: model)
+                                    InfoPlistTabView(model: model, selectedTargetID: target.uuid)
                                 case "entitlements":
-                                    EntitlementsTabView(model: model)
+                                    EntitlementsTabView(model: model, selectedTargetID: target.uuid)
                                 default:
                                     ScrollView {
                                         GeneralTabView(model: model, selectedTargetID: target.uuid)
@@ -210,6 +210,14 @@ public struct XcodeProjViewer: View {
         .onAppear {
             if selectedTarget == nil {
                 selectedTarget = model.targets.first
+            }
+            if let target = selectedTarget {
+                ProjectResolutionService.shared.selectedTargetID = target.uuid
+            }
+        }
+        .onChange(of: selectedTarget) { _, newTarget in
+            if let target = newTarget {
+                ProjectResolutionService.shared.selectedTargetID = target.uuid
             }
         }
     }

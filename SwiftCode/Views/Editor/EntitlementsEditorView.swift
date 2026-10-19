@@ -18,6 +18,8 @@ public struct EntitlementsEditorView: View {
     @State private var fileModifiedDate: Date? = nil
     @State private var customKey = ""
     @State private var customKeyType = "boolean"
+    @State private var addSheetSearch = ""
+    @State private var addSheetSection: EntitlementCapabilitySection = .all
     @Environment(WorkspaceViewModel.self) private var workspaceViewModel
     @State private var isCreating = false
     @State private var creationError: String? = nil
@@ -225,18 +227,42 @@ public struct EntitlementsEditorView: View {
 
                 Divider()
 
-                // Segmented Category Filter
-                HStack {
-                    Picker("Category", selection: $selectedFilter) {
+                Divider()
+
+                // Modern Category Filter Pills with Active Counts
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 6) {
                         ForEach(EntitlementCapabilitySection.allCases) { cat in
-                            Label(cat.rawValue, systemImage: cat.icon).tag(cat)
+                            let isSelected = selectedFilter == cat
+                            let count = countForSection(cat)
+                            Button {
+                                selectedFilter = cat
+                            } label: {
+                                HStack(spacing: 5) {
+                                    Image(systemName: cat.icon)
+                                        .font(.caption2)
+                                    Text(cat.rawValue)
+                                        .font(.caption.weight(isSelected ? .semibold : .regular))
+                                    if count > 0 && cat != .all {
+                                        Text("\(count)")
+                                            .font(.system(size: 10, weight: .bold))
+                                            .padding(.horizontal, 5)
+                                            .padding(.vertical, 1)
+                                            .background(isSelected ? Color.white.opacity(0.3) : Color.secondary.opacity(0.2), in: Capsule())
+                                    }
+                                }
+                                .padding(.horizontal, 10)
+                                .padding(.vertical, 5)
+                                .background(isSelected ? Color.teal : Color.secondary.opacity(0.12), in: Capsule())
+                                .foregroundStyle(isSelected ? Color.white : Color.primary)
+                            }
+                            .buttonStyle(.plain)
                         }
                     }
-                    .pickerStyle(.segmented)
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 8)
                 }
-                .padding(.horizontal, 16)
-                .padding(.vertical, 8)
-                .background(Color(NSColor.controlBackgroundColor))
+                .background(Color(NSColor.controlBackgroundColor).opacity(0.5))
 
                 Divider()
 
@@ -270,10 +296,33 @@ public struct EntitlementsEditorView: View {
                 inspectorSheetView
             }
             .onAppear {
-                if let url = fileURL {
-                    fileModifiedDate = Self.modifiedDate(of: url)
+                reloadFromDisk()
+            }
+            .onChange(of: fileURL) { _, newURL in
+                if let url = newURL {
+                    manager = EntitlementsEditorManager(fileURL: url)
+                    reloadFromDisk()
                 }
             }
+        }
+    }
+
+    private func countForSection(_ section: EntitlementCapabilitySection) -> Int {
+        if section == .all {
+            return entitlementsDict.count
+        }
+        let defs = CapabilityCatalog.definitions(for: section)
+        return defs.filter { isCapabilityOn($0) }.count
+    }
+
+    private func reloadFromDisk() {
+        guard let url = fileURL else { return }
+        do {
+            entitlementsDict = try manager.readEntitlements()
+            fileModifiedDate = Self.modifiedDate(of: url)
+            isDirty = false
+        } catch {
+            toolStatus = "Could not read entitlements file: \(error.localizedDescription)"
         }
     }
 
@@ -281,27 +330,34 @@ public struct EntitlementsEditorView: View {
     private var headerToolbar: some View {
         HStack(spacing: 12) {
             HStack(spacing: 8) {
-                Image(systemName: "lock.shield")
-                    .foregroundStyle(.secondary)
+                Image(systemName: "lock.shield.fill")
+                    .foregroundStyle(.teal)
                 Text(fileURL?.lastPathComponent ?? "App.entitlements")
                     .font(.headline)
-                Text("(\(entitlementsDict.count) entries)")
+                Text("(\(entitlementsDict.count) active)")
                     .font(.caption)
                     .foregroundStyle(.secondary)
                 if isDirty {
-                    Text("Unsaved changes")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+                    Text("Unsaved")
+                        .font(.caption2.bold())
+                        .foregroundStyle(.orange)
                         .padding(.horizontal, 6)
                         .padding(.vertical, 2)
-                        .background(Color(NSColor.controlBackgroundColor), in: Capsule())
+                        .background(Color.orange.opacity(0.12), in: Capsule())
+                } else {
+                    Text("Saved")
+                        .font(.caption2.bold())
+                        .foregroundStyle(.green)
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 2)
+                        .background(Color.green.opacity(0.12), in: Capsule())
                 }
             }
 
             Spacer()
 
             // Search Bar
-            HStack {
+            HStack(spacing: 6) {
                 Image(systemName: "magnifyingglass")
                     .foregroundStyle(.secondary)
                 TextField("Search entitlements...", text: $searchQuery)
@@ -315,87 +371,18 @@ public struct EntitlementsEditorView: View {
                 }
             }
             .padding(.horizontal, 8)
-            .padding(.vertical, 4)
-            .background(Color(NSColor.controlBackgroundColor), in: RoundedRectangle(cornerRadius: 6))
-            .frame(width: 180)
+            .padding(.vertical, 5)
+            .background(Color(NSColor.controlBackgroundColor), in: RoundedRectangle(cornerRadius: 8))
+            .frame(width: 200)
 
-            // Preset Bundles Menu
-            Menu {
-                Button {
-                    applyPreset(keys: [
-                        "com.apple.security.app-sandbox": true,
-                        "com.apple.security.files.user-selected.read-write": true,
-                        "com.apple.security.network.client": true
-                    ])
-                    toolStatus = "Applied App Store Sandbox Preset"
-                } label: {
-                    Label("App Store Sandbox (macOS)", systemImage: "cube.transparent")
-                }
-
-                Button {
-                    applyPreset(keys: [
-                        "com.apple.security.cs.allow-jit": true,
-                        "com.apple.security.cs.allow-unsigned-executable-memory": true,
-                        "com.apple.security.cs.disable-library-validation": true
-                    ])
-                    toolStatus = "Applied Hardened Runtime Developer Tool Preset"
-                } label: {
-                    Label("Developer Tool Hardened Runtime", systemImage: "hammer")
-                }
-
-                Button {
-                    applyPreset(keys: [
-                        "com.apple.security.device.camera": true,
-                        "com.apple.security.device.audio-input": true,
-                        "com.apple.security.personal-information.photos-library": true
-                    ])
-                    toolStatus = "Applied Media & Hardware Preset"
-                } label: {
-                    Label("Media & Hardware Access", systemImage: "camera")
-                }
-
-                Button {
-                    applyPreset(keys: [
-                        CapabilityCatalog.iCloudContainersKey: ["iCloud.$(CFBundleIdentifier)"],
-                        CapabilityCatalog.iCloudKVStoreKey: "$(TeamIdentifierPrefix)$(CFBundleIdentifier)"
-                    ])
-                    toolStatus = "Applied iCloud & CloudKit Preset"
-                } label: {
-                    Label("iCloud Key-Value & Containers", systemImage: "icloud")
-                }
-            } label: {
-                Label("Capability Presets", systemImage: "square.grid.2x2")
-            }
-            .menuStyle(.borderedButton)
-
-            // Validate Tool
+            // Primary Add Capability Button
             Button {
-                validateEntitlements()
+                showingAddSheet = true
             } label: {
-                Label("Validate", systemImage: "checkmark.seal")
+                Label("Capability", systemImage: "plus")
             }
-            .buttonStyle(.bordered)
-
-            // Copy XML Tool (copies the generated XML; editing stays UI-only)
-            Button {
-                let xml = manager.generateRawXML(entitlementsDict)
-                NSPasteboard.general.clearContents()
-                NSPasteboard.general.setString(xml, forType: .string)
-                toolStatus = "Copied entitlements XML to clipboard"
-            } label: {
-                Label("Copy XML", systemImage: "doc.on.doc")
-            }
-            .buttonStyle(.bordered)
-
-            // Revert Tool (undo unsaved changes by re-reading the file)
-            Button {
-                revertChanges()
-            } label: {
-                Label("Revert", systemImage: "arrow.uturn.backward")
-            }
-            .buttonStyle(.bordered)
-            .disabled(!isDirty)
-            .help("Discard unsaved changes and re-read the entitlements file from disk")
+            .buttonStyle(.borderedProminent)
+            .tint(.teal)
 
             // Save Tool
             Button {
@@ -406,15 +393,85 @@ public struct EntitlementsEditorView: View {
             .buttonStyle(.bordered)
             .disabled(!isDirty)
             .keyboardShortcut("s", modifiers: .command)
-            .help("Write changes to the entitlements file")
 
-            // Add Capability Tool
-            Button {
-                showingAddSheet = true
+            // More Actions Menu (Consolidating presets, validation, XML, revert)
+            Menu {
+                Menu("Capability Presets") {
+                    Button {
+                        applyPreset(keys: [
+                            "com.apple.security.app-sandbox": true,
+                            "com.apple.security.files.user-selected.read-write": true,
+                            "com.apple.security.network.client": true
+                        ])
+                        toolStatus = "Applied App Store Sandbox Preset"
+                    } label: {
+                        Label("App Store Sandbox (macOS)", systemImage: "cube.transparent")
+                    }
+
+                    Button {
+                        applyPreset(keys: [
+                            "com.apple.security.cs.allow-jit": true,
+                            "com.apple.security.cs.allow-unsigned-executable-memory": true,
+                            "com.apple.security.cs.disable-library-validation": true
+                        ])
+                        toolStatus = "Applied Hardened Runtime Developer Tool Preset"
+                    } label: {
+                        Label("Developer Tool Hardened Runtime", systemImage: "hammer")
+                    }
+
+                    Button {
+                        applyPreset(keys: [
+                            "com.apple.security.device.camera": true,
+                            "com.apple.security.device.audio-input": true,
+                            "com.apple.security.personal-information.photos-library": true
+                        ])
+                        toolStatus = "Applied Media & Hardware Preset"
+                    } label: {
+                        Label("Media & Hardware Access", systemImage: "camera")
+                    }
+
+                    Button {
+                        applyPreset(keys: [
+                            CapabilityCatalog.iCloudContainersKey: ["iCloud.$(CFBundleIdentifier)"],
+                            CapabilityCatalog.iCloudKVStoreKey: "$(TeamIdentifierPrefix)$(CFBundleIdentifier)"
+                        ])
+                        toolStatus = "Applied iCloud & CloudKit Preset"
+                    } label: {
+                        Label("iCloud Key-Value & Containers", systemImage: "icloud")
+                    }
+                }
+
+                Divider()
+
+                Button {
+                    validateEntitlements()
+                } label: {
+                    Label("Validate Capabilities", systemImage: "checkmark.seal")
+                }
+
+                Button {
+                    let xml = manager.generateRawXML(entitlementsDict)
+                    NSPasteboard.general.clearContents()
+                    NSPasteboard.general.setString(xml, forType: .string)
+                    toolStatus = "Copied entitlements XML to clipboard"
+                } label: {
+                    Label("Copy Raw XML", systemImage: "doc.on.doc")
+                }
+
+                Divider()
+
+                Button(role: .destructive) {
+                    revertChanges()
+                } label: {
+                    Label("Revert to Saved", systemImage: "arrow.uturn.backward")
+                }
+                .disabled(!isDirty)
             } label: {
-                Label("Capability", systemImage: "plus")
+                Image(systemName: "ellipsis.circle")
+                    .font(.body)
             }
-            .buttonStyle(.bordered)
+            .menuStyle(.borderlessButton)
+            .frame(width: 24, height: 24)
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 8)
@@ -752,83 +809,163 @@ public struct EntitlementsEditorView: View {
 
     // MARK: - Add Capability Sheet
     private var addCapabilitySheet: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text("Add Capability to Entitlements")
-                .font(.headline)
-
-            Text("Capabilities")
-                .font(.subheadline.bold())
-                .foregroundStyle(.secondary)
-
-            let available = CapabilityCatalog.definitions.filter { !isCapabilityOn($0) }
-            List(available) { def in
-                HStack(spacing: 10) {
-                    Image(systemName: def.symbol)
+        VStack(alignment: .leading, spacing: 14) {
+            HStack {
+                Label("Add Capability to Entitlements", systemImage: "plus.circle.fill")
+                    .font(.title3.bold())
+                Spacer()
+                Button {
+                    showingAddSheet = false
+                } label: {
+                    Image(systemName: "xmark.circle.fill")
                         .foregroundStyle(.secondary)
-                        .frame(width: 24)
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(def.name)
-                            .font(.body.weight(.medium))
-                        Text(def.rawKey)
-                            .font(.system(.caption, design: .monospaced))
+                        .font(.title3)
+                }
+                .buttonStyle(.plain)
+            }
+
+            // Search Bar in Add Capability Sheet
+            HStack(spacing: 6) {
+                Image(systemName: "magnifyingglass")
+                    .foregroundStyle(.secondary)
+                TextField("Search capabilities by name, key, or category...", text: $addSheetSearch)
+                    .textFieldStyle(.plain)
+                if !addSheetSearch.isEmpty {
+                    Button { addSheetSearch = "" } label: {
+                        Image(systemName: "xmark.circle.fill")
                             .foregroundStyle(.secondary)
                     }
-                    Spacer()
-                    Button("Add") {
-                        setCapability(def, on: true)
-                        showingAddSheet = false
-                    }
-                    .buttonStyle(.bordered)
-                    .controlSize(.small)
+                    .buttonStyle(.plain)
                 }
-                .padding(.vertical, 4)
             }
-            .frame(minHeight: 200)
+            .padding(8)
+            .background(Color(NSColor.controlBackgroundColor), in: RoundedRectangle(cornerRadius: 8))
+
+            // Category filter pills in Add Capability Sheet
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 6) {
+                    ForEach(EntitlementCapabilitySection.allCases.filter { $0 != .other }) { cat in
+                        let isSelected = addSheetSection == cat
+                        Button {
+                            addSheetSection = cat
+                        } label: {
+                            HStack(spacing: 4) {
+                                Image(systemName: cat.icon)
+                                    .font(.caption2)
+                                Text(cat.rawValue)
+                                    .font(.caption)
+                            }
+                            .padding(.horizontal, 10)
+                            .padding(.vertical, 4)
+                            .background(isSelected ? Color.teal : Color.secondary.opacity(0.12), in: Capsule())
+                            .foregroundStyle(isSelected ? Color.white : Color.primary)
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+            }
+
+            // Filtered available capabilities
+            let available = CapabilityCatalog.definitions
+                .filter { !isCapabilityOn($0) }
+                .filter { def in
+                    if addSheetSection != .all && def.section != addSheetSection {
+                        return false
+                    }
+                    if addSheetSearch.isEmpty { return true }
+                    let query = addSheetSearch.lowercased()
+                    return def.name.lowercased().contains(query)
+                        || def.rawKey.lowercased().contains(query)
+                        || def.explanation.lowercased().contains(query)
+                }
+
+            if available.isEmpty {
+                VStack(spacing: 8) {
+                    Image(systemName: "checkmark.circle")
+                        .font(.largeTitle)
+                        .foregroundStyle(.secondary)
+                    Text("No matching capabilities found")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                }
+                .frame(maxWidth: .infinity, minHeight: 220)
+            } else {
+                List(available) { def in
+                    HStack(spacing: 12) {
+                        Image(systemName: def.symbol)
+                            .font(.title3)
+                            .foregroundStyle(.teal)
+                            .frame(width: 28)
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(def.name)
+                                .font(.body.weight(.medium))
+                            Text(def.explanation)
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                                .lineLimit(2)
+                            Text(def.rawKey)
+                                .font(.system(.caption2, design: .monospaced))
+                                .foregroundStyle(.tertiary)
+                        }
+                        Spacer()
+                        Button("Add") {
+                            setCapability(def, on: true)
+                            showingAddSheet = false
+                            toolStatus = "Added \(def.name)"
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .tint(.teal)
+                        .controlSize(.small)
+                    }
+                    .padding(.vertical, 6)
+                }
+                .listStyle(.inset)
+                .frame(minHeight: 240)
+            }
 
             Divider()
 
-            Text("Custom Entitlement Key")
-                .font(.subheadline.bold())
-                .foregroundStyle(.secondary)
-
-            HStack {
-                TextField("e.g. com.example.custom-capability", text: $customKey)
-                    .textFieldStyle(.roundedBorder)
-                    .font(.system(.body, design: .monospaced))
-                Picker("Type", selection: $customKeyType) {
-                    Text("Boolean").tag("boolean")
-                    Text("String").tag("string")
-                    Text("Array").tag("array")
-                    Text("Dictionary").tag("dictionary")
-                }
-                .pickerStyle(.menu)
-                Button("Add") {
-                    let trimmed = customKey.trimmingCharacters(in: .whitespaces)
-                    guard !trimmed.isEmpty, entitlementsDict[trimmed] == nil else { return }
-                    let newValue: Any
-                    switch customKeyType {
-                    case "string":
-                        newValue = ""
-                    case "array":
-                        newValue = [String]()
-                    case "dictionary":
-                        newValue = [String: String]()
-                    default:
-                        newValue = true
-                    }
-                    entitlementsDict[trimmed] = newValue
-                    markDirty()
-                    customKey = ""
-                    showingAddSheet = false
-                }
-                .buttonStyle(.bordered)
-                .disabled(customKey.trimmingCharacters(in: .whitespaces).isEmpty || entitlementsDict[customKey.trimmingCharacters(in: .whitespaces)] != nil)
-            }
-            let trimmedCustom = customKey.trimmingCharacters(in: .whitespaces)
-            if !trimmedCustom.isEmpty && entitlementsDict[trimmedCustom] != nil {
-                Text("This key already exists in the entitlements file.")
-                    .font(.caption)
+            // Custom Entitlement Key
+            VStack(alignment: .leading, spacing: 8) {
+                Text("Custom Entitlement Key")
+                    .font(.subheadline.bold())
                     .foregroundStyle(.secondary)
+
+                HStack {
+                    TextField("e.g. com.example.custom-capability", text: $customKey)
+                        .textFieldStyle(.roundedBorder)
+                        .font(.system(.body, design: .monospaced))
+                    Picker("Type", selection: $customKeyType) {
+                        Text("Boolean").tag("boolean")
+                        Text("String").tag("string")
+                        Text("Array").tag("array")
+                        Text("Dictionary").tag("dictionary")
+                    }
+                    .pickerStyle(.menu)
+                    .frame(width: 120)
+                    Button("Add Custom") {
+                        let trimmed = customKey.trimmingCharacters(in: .whitespaces)
+                        guard !trimmed.isEmpty, entitlementsDict[trimmed] == nil else { return }
+                        let newValue: Any
+                        switch customKeyType {
+                        case "string":
+                            newValue = ""
+                        case "array":
+                            newValue = [String]()
+                        case "dictionary":
+                            newValue = [String: String]()
+                        default:
+                            newValue = true
+                        }
+                        entitlementsDict[trimmed] = newValue
+                        markDirty()
+                        customKey = ""
+                        showingAddSheet = false
+                        toolStatus = "Added custom key \(trimmed)"
+                    }
+                    .buttonStyle(.bordered)
+                    .disabled(customKey.trimmingCharacters(in: .whitespaces).isEmpty || entitlementsDict[customKey.trimmingCharacters(in: .whitespaces)] != nil)
+                }
             }
 
             HStack {
@@ -837,10 +974,11 @@ public struct EntitlementsEditorView: View {
                     showingAddSheet = false
                 }
                 .buttonStyle(.bordered)
+                .keyboardShortcut(.cancelAction)
             }
         }
-        .padding()
-        .frame(width: 580, height: 600)
+        .padding(20)
+        .frame(minWidth: 640, minHeight: 620)
     }
 
     // MARK: - Inspector Sheet

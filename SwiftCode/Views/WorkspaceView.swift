@@ -589,6 +589,7 @@ struct WorkspaceView: View {
 
                 case .deviceConnect:
                     DeviceConnectView()
+                        .frame(minWidth: 880, minHeight: 650)
 
                 case .virtualization:
                     SCVirtualizationView()

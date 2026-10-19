@@ -73,34 +73,69 @@ public struct InfoPlistTemplate: Identifiable {
 }
 
 public enum InfoPlistTemplateCatalog {
-    public static let categories = ["Identity", "Display", "Privacy", "URL Types", "Behavior"]
+    public static let categories = ["All", "Identity", "Display & Scene", "Network & Security", "Behavior & Lifecycle", "URL Types", "Orientations", "Privacy"]
 
     nonisolated(unsafe) public static let all: [InfoPlistTemplate] = {
         var list: [InfoPlistTemplate] = [
+            // Identity
             InfoPlistTemplate(key: "CFBundleIdentifier", name: "Bundle Identifier", symbol: "app.badge", category: "Identity", kind: .string, defaultValue: "$(PRODUCT_BUNDLE_IDENTIFIER)"),
             InfoPlistTemplate(key: "CFBundleName", name: "Bundle Name", symbol: "app", category: "Identity", kind: .string, defaultValue: "$(PRODUCT_NAME)"),
             InfoPlistTemplate(key: "CFBundleDisplayName", name: "Display Name", symbol: "tag", category: "Identity", kind: .string, defaultValue: ""),
+            InfoPlistTemplate(key: "CFBundleExecutable", name: "Executable File", symbol: "gearshape.2", category: "Identity", kind: .string, defaultValue: "$(EXECUTABLE_NAME)"),
             InfoPlistTemplate(key: "CFBundleShortVersionString", name: "Version String", symbol: "number", category: "Identity", kind: .string, defaultValue: "1.0"),
             InfoPlistTemplate(key: "CFBundleVersion", name: "Build Number", symbol: "hammer", category: "Identity", kind: .string, defaultValue: "1"),
             InfoPlistTemplate(key: "CFBundleDevelopmentRegion", name: "Development Region", symbol: "globe", category: "Identity", kind: .string, defaultValue: "en"),
             InfoPlistTemplate(key: "CFBundlePackageType", name: "Package Type", symbol: "archivebox", category: "Identity", kind: .string, defaultValue: "APPL"),
             InfoPlistTemplate(key: "CFBundleInfoDictionaryVersion", name: "Info Dictionary Version", symbol: "info.circle", category: "Identity", kind: .string, defaultValue: "6.0"),
+            InfoPlistTemplate(key: "CFBundleSpokenName", name: "Spoken Name", symbol: "waveform", category: "Identity", kind: .string, defaultValue: ""),
             InfoPlistTemplate(key: "NSHumanReadableCopyright", name: "Copyright Notice", symbol: "c.circle", category: "Identity", kind: .string, defaultValue: ""),
             InfoPlistTemplate(key: "LSApplicationCategoryType", name: "App Category", symbol: "square.grid.2x2", category: "Identity", kind: .string, defaultValue: "public.app-category.developer-tools"),
+            InfoPlistTemplate(key: "ITSAppUsesNonExemptEncryption", name: "App Uses Non-Exempt Encryption", symbol: "lock.shield", category: "Identity", kind: .boolean, defaultValue: false),
+            InfoPlistTemplate(key: "LSHasLocalizedDisplayName", name: "Localized Display Name", symbol: "character.book.closed", category: "Identity", kind: .boolean, defaultValue: true),
 
-            InfoPlistTemplate(key: "CFBundleIconName", name: "Icon Name", symbol: "app.dashed", category: "Display", kind: .string, defaultValue: "AppIcon"),
-            InfoPlistTemplate(key: "LSMinimumSystemVersion", name: "Minimum System Version", symbol: "desktopcomputer", category: "Display", kind: .string, defaultValue: "13.0"),
-            InfoPlistTemplate(key: "NSPrincipalClass", name: "Principal Class", symbol: "pyramid", category: "Display", kind: .string, defaultValue: "NSApplication"),
-            InfoPlistTemplate(key: "NSHighResolutionCapable", name: "High Resolution Capable", symbol: "sparkles", category: "Display", kind: .boolean, defaultValue: true),
+            // Display & Scene
+            InfoPlistTemplate(key: "CFBundleIconName", name: "Icon Name", symbol: "app.dashed", category: "Display & Scene", kind: .string, defaultValue: "AppIcon"),
+            InfoPlistTemplate(key: "UILaunchStoryboardName", name: "Launch Storyboard Name", symbol: "play.rectangle", category: "Display & Scene", kind: .string, defaultValue: "LaunchScreen"),
+            InfoPlistTemplate(key: "LSMinimumSystemVersion", name: "Minimum System Version", symbol: "desktopcomputer", category: "Display & Scene", kind: .string, defaultValue: "13.0"),
+            InfoPlistTemplate(key: "NSPrincipalClass", name: "Principal Class", symbol: "pyramid", category: "Display & Scene", kind: .string, defaultValue: "NSApplication"),
+            InfoPlistTemplate(key: "NSHighResolutionCapable", name: "High Resolution Capable", symbol: "sparkles", category: "Display & Scene", kind: .boolean, defaultValue: true),
+            InfoPlistTemplate(key: "UIRequiresFullScreen", name: "Requires Full Screen", symbol: "arrow.up.left.and.arrow.down.right", category: "Display & Scene", kind: .boolean, defaultValue: true),
+            InfoPlistTemplate(key: "UIStatusBarHidden", name: "Status Bar Initially Hidden", symbol: "eye.slash", category: "Display & Scene", kind: .boolean, defaultValue: false),
+            InfoPlistTemplate(key: "UIViewControllerBasedStatusBarAppearance", name: "View Controller-based Status Bar", symbol: "slider.horizontal.2.rectangle", category: "Display & Scene", kind: .boolean, defaultValue: true),
+            InfoPlistTemplate(key: "CADisableMinimumFrameDurationOnPhone", name: "Prefer 120Hz ProMotion Refresh Rate", symbol: "speedometer", category: "Display & Scene", kind: .boolean, defaultValue: true),
+            InfoPlistTemplate(key: "UIUserInterfaceStyle", name: "User Interface Style Override", symbol: "circle.righthalf.filled", category: "Display & Scene", kind: .string, defaultValue: "Automatic"),
+            InfoPlistTemplate(key: "UISupportsDocumentBrowser", name: "Supports Document Browser", symbol: "folder.badge.gearshape", category: "Display & Scene", kind: .boolean, defaultValue: false),
+            InfoPlistTemplate(key: "NSApplicationCrashOnExceptions", name: "Crash on Exceptions", symbol: "exclamationmark.octagon", category: "Display & Scene", kind: .boolean, defaultValue: true),
 
+            // Network & Security
+            InfoPlistTemplate(key: "NSAppTransportSecurity", name: "App Transport Security Settings", symbol: "shield", category: "Network & Security", kind: .dictionary, defaultValue: ["NSAllowsArbitraryLoads": false] as [String: Any]),
+            InfoPlistTemplate(key: "NSAllowsArbitraryLoads", name: "Allows Arbitrary Loads (ATS Bypass)", symbol: "lock.open", category: "Network & Security", kind: .boolean, defaultValue: true),
+            InfoPlistTemplate(key: "NSAllowsLocalNetworking", name: "Allows Local Networking", symbol: "wifi.router", category: "Network & Security", kind: .boolean, defaultValue: true),
+            InfoPlistTemplate(key: "NSLocalNetworkUsageDescription", name: "Local Network Usage Description", symbol: "network", category: "Network & Security", kind: .string, defaultValue: "This app requires access to the local network to discover companion devices."),
+            InfoPlistTemplate(key: "NSBonjourServices", name: "Bonjour Services", symbol: "antenna.radiowaves.left.and.right", category: "Network & Security", kind: .array, defaultValue: ["_http._tcp"] as [Any]),
+
+            // Behavior & Lifecycle
+            InfoPlistTemplate(key: "LSUIElement", name: "Agent / Menu Bar App (No Dock Icon)", symbol: "eye.slash", category: "Behavior & Lifecycle", kind: .boolean, defaultValue: false),
+            InfoPlistTemplate(key: "NSSupportsAutomaticTermination", name: "Supports Automatic Termination", symbol: "power", category: "Behavior & Lifecycle", kind: .boolean, defaultValue: false),
+            InfoPlistTemplate(key: "NSSupportsSuddenTermination", name: "Supports Sudden Termination", symbol: "bolt", category: "Behavior & Lifecycle", kind: .boolean, defaultValue: false),
+            InfoPlistTemplate(key: "CFBundleAllowMixedLocalizations", name: "Allow Mixed Localizations", symbol: "globe", category: "Behavior & Lifecycle", kind: .boolean, defaultValue: false),
+            InfoPlistTemplate(key: "UIFileSharingEnabled", name: "Application Supports iTunes File Sharing", symbol: "externaldrive.badge.person.crop", category: "Behavior & Lifecycle", kind: .boolean, defaultValue: false),
+            InfoPlistTemplate(key: "LSSupportsOpeningDocumentsInPlace", name: "Supports Opening Documents in Place", symbol: "doc.badge.arrow.up", category: "Behavior & Lifecycle", kind: .boolean, defaultValue: true),
+            InfoPlistTemplate(key: "NSAppleScriptEnabled", name: "AppleScript Enabled", symbol: "applescript", category: "Behavior & Lifecycle", kind: .boolean, defaultValue: false),
+            InfoPlistTemplate(key: "UIApplicationSupportsIndirectInputEvents", name: "Supports Indirect Input Events", symbol: "cursorarrow.rays", category: "Behavior & Lifecycle", kind: .boolean, defaultValue: true),
+            InfoPlistTemplate(key: "UIBackgroundModes", name: "Background Modes", symbol: "arrow.triangle.2.circlepath", category: "Behavior & Lifecycle", kind: .array, defaultValue: ["fetch", "remote-notification"] as [Any]),
+            InfoPlistTemplate(key: "BGTaskSchedulerPermittedIdentifiers", name: "Permitted Background Task IDs", symbol: "clock.badge.checkmark", category: "Behavior & Lifecycle", kind: .array, defaultValue: ["com.example.app.refresh"] as [Any]),
+
+            // Orientations
+            InfoPlistTemplate(key: "UISupportedInterfaceOrientations", name: "Supported Interface Orientations", symbol: "iphone", category: "Orientations", kind: .array, defaultValue: ["UIInterfaceOrientationPortrait", "UIInterfaceOrientationLandscapeLeft", "UIInterfaceOrientationLandscapeRight"] as [Any]),
+            InfoPlistTemplate(key: "UISupportedInterfaceOrientations~ipad", name: "Supported Interface Orientations (iPad)", symbol: "ipad", category: "Orientations", kind: .array, defaultValue: ["UIInterfaceOrientationPortrait", "UIInterfaceOrientationPortraitUpsideDown", "UIInterfaceOrientationLandscapeLeft", "UIInterfaceOrientationLandscapeRight"] as [Any]),
+
+            // URL Types
             InfoPlistTemplate(key: "CFBundleURLTypes", name: "URL Types", symbol: "link", category: "URL Types", kind: .array, defaultValue: [["CFBundleURLName": "", "CFBundleURLSchemes": ["myapp"]]] as [Any]),
             InfoPlistTemplate(key: "LSApplicationQueriesSchemes", name: "Queried URL Schemes", symbol: "magnifyingglass", category: "URL Types", kind: .array, defaultValue: [String]() as [Any]),
             InfoPlistTemplate(key: "CFBundleDocumentTypes", name: "Document Types", symbol: "doc", category: "URL Types", kind: .array, defaultValue: [Any]()),
-
-            InfoPlistTemplate(key: "LSUIElement", name: "Agent App (No Dock Icon)", symbol: "eye.slash", category: "Behavior", kind: .boolean, defaultValue: false),
-            InfoPlistTemplate(key: "NSSupportsAutomaticTermination", name: "Supports Automatic Termination", symbol: "power", category: "Behavior", kind: .boolean, defaultValue: false),
-            InfoPlistTemplate(key: "NSSupportsSuddenTermination", name: "Supports Sudden Termination", symbol: "bolt", category: "Behavior", kind: .boolean, defaultValue: false),
-            InfoPlistTemplate(key: "CFBundleAllowMixedLocalizations", name: "Allow Mixed Localizations", symbol: "globe", category: "Behavior", kind: .boolean, defaultValue: false),
+            InfoPlistTemplate(key: "UTExportedTypeDeclarations", name: "Exported Type Declarations", symbol: "arrow.up.doc", category: "URL Types", kind: .array, defaultValue: [Any]()),
+            InfoPlistTemplate(key: "UTImportedTypeDeclarations", name: "Imported Type Declarations", symbol: "arrow.down.doc", category: "URL Types", kind: .array, defaultValue: [Any]()),
         ]
         // Privacy usage descriptions come from the curated metadata catalog.
         for meta in InfoPlistNSStrings.all {
@@ -117,7 +152,10 @@ public enum InfoPlistTemplateCatalog {
     }()
 
     public static func templates(in category: String) -> [InfoPlistTemplate] {
-        all.filter { $0.category == category }
+        if category == "All" {
+            return all
+        }
+        return all.filter { $0.category == category }
     }
 }
 
@@ -261,7 +299,8 @@ public struct InfoPlistView: View {
     @State private var showingAddKeySheet = false
     @State private var newCustomKey = ""
     @State private var newCustomType: PlistValueKind = .string
-    @State private var templateCategory = "Identity"
+    @State private var templateCategory = "All"
+    @State private var addKeySearchQuery = ""
     @State private var showingInspectorSheet = false
     @State private var toolStatus: String? = nil
 
@@ -276,6 +315,15 @@ public struct InfoPlistView: View {
         } else {
             _editor = State(initialValue: InfoPlistEditor(fileURL: URL(fileURLWithPath: "/dev/null")))
         }
+    }
+
+    private func reloadFromDisk(url: URL? = nil) {
+        let target = url ?? fileURL
+        guard let validURL = target else { return }
+        var isDir: ObjCBool = false
+        guard FileManager.default.fileExists(atPath: validURL.path, isDirectory: &isDir), !isDir.boolValue else { return }
+        editor = InfoPlistEditor(fileURL: validURL)
+        editor.load()
     }
 
     private func createInfoPlist() {
@@ -347,6 +395,17 @@ public struct InfoPlistView: View {
         }
     }
 
+    private var filteredTemplates: [InfoPlistTemplate] {
+        let base = InfoPlistTemplateCatalog.templates(in: templateCategory)
+        guard !addKeySearchQuery.isEmpty else { return base }
+        let query = addKeySearchQuery.lowercased()
+        return base.filter {
+            $0.name.lowercased().contains(query) ||
+            $0.key.lowercased().contains(query) ||
+            $0.category.lowercased().contains(query)
+        }
+    }
+
     /// Produces a copy key that cannot collide with an existing key.
     private func uniqueCopyKey(basedOn key: String) -> String {
         var candidate = "\(key) copy"
@@ -359,9 +418,18 @@ public struct InfoPlistView: View {
     }
 
     private func savePlist() {
+        guard let url = fileURL else {
+            toolStatus = "Save failed: No file URL available."
+            return
+        }
+        var isDir: ObjCBool = false
+        if FileManager.default.fileExists(atPath: url.path, isDirectory: &isDir), isDir.boolValue {
+            toolStatus = "Save failed: Path is a directory, not an Info.plist file."
+            return
+        }
         do {
             try editor.save()
-            toolStatus = "Info.plist saved to disk."
+            toolStatus = "Info.plist saved to disk successfully."
         } catch {
             toolStatus = "Save failed: \(error.localizedDescription)"
         }
@@ -464,6 +532,12 @@ public struct InfoPlistView: View {
             .sheet(isPresented: $showingInspectorSheet) {
                 inspectorSheetView
             }
+            .onAppear {
+                reloadFromDisk()
+            }
+            .onChange(of: fileURL) { _, newURL in
+                reloadFromDisk(url: newURL)
+            }
         }
     }
 
@@ -560,25 +634,6 @@ public struct InfoPlistView: View {
                 .help("Redo")
             }
 
-            // Validate Structure Tool
-            Button {
-                validateStructure()
-            } label: {
-                Label("Validate", systemImage: "checkmark.seal")
-            }
-            .buttonStyle(.bordered)
-            .help("Validate Info.plist required keys & structure")
-
-            // Copy XML Tool
-            Button {
-                NSPasteboard.general.clearContents()
-                NSPasteboard.general.setString(editor.generateRawXML(), forType: .string)
-                toolStatus = "Copied Raw XML to clipboard"
-            } label: {
-                Label("Copy XML", systemImage: "doc.on.doc")
-            }
-            .buttonStyle(.bordered)
-
             // Save Tool
             Button {
                 savePlist()
@@ -590,13 +645,52 @@ public struct InfoPlistView: View {
             .keyboardShortcut("s", modifiers: .command)
             .help("Write changes to the Info.plist file")
 
-            // Add Property
+            // Add Key
             Button {
                 showingAddKeySheet = true
             } label: {
                 Label("Add Key", systemImage: "plus")
             }
-            .buttonStyle(.bordered)
+            .buttonStyle(.borderedProminent)
+
+            // Actions Menu
+            Menu {
+                Button {
+                    validateStructure()
+                } label: {
+                    Label("Validate Info.plist", systemImage: "checkmark.seal")
+                }
+
+                Button {
+                    NSPasteboard.general.clearContents()
+                    NSPasteboard.general.setString(editor.generateRawXML(), forType: .string)
+                    toolStatus = "Copied Raw XML to clipboard"
+                } label: {
+                    Label("Copy Raw XML", systemImage: "doc.on.doc")
+                }
+
+                Divider()
+
+                Button {
+                    reloadFromDisk()
+                    toolStatus = "Reloaded Info.plist from disk."
+                } label: {
+                    Label("Reload from Disk", systemImage: "arrow.clockwise")
+                }
+
+                if let url = fileURL {
+                    Button {
+                        NSWorkspace.shared.activateFileViewerSelecting([url])
+                    } label: {
+                        Label("Reveal in Finder", systemImage: "folder")
+                    }
+                }
+            } label: {
+                Image(systemName: "ellipsis.circle")
+            }
+            .menuStyle(.borderlessButton)
+            .frame(width: 28, height: 28)
+            .help("More Actions")
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 8)
@@ -672,106 +766,176 @@ public struct InfoPlistView: View {
 
     // MARK: - Add Key Sheet
     private var addKeySheetView: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text("Add Info.plist Key")
-                .font(.headline)
+        VStack(alignment: .leading, spacing: 14) {
+            HStack {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Add Info.plist Key")
+                        .font(.headline)
+                    Text("Select a standard Apple configuration key, privacy description, or define a custom property.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                Spacer()
+                Button {
+                    showingAddKeySheet = false
+                    newCustomKey = ""
+                    addKeySearchQuery = ""
+                } label: {
+                    Image(systemName: "xmark.circle.fill")
+                        .font(.title3)
+                        .foregroundStyle(.secondary)
+                }
+                .buttonStyle(.plain)
+            }
 
-            Picker("Template Category", selection: $templateCategory) {
-                ForEach(InfoPlistTemplateCatalog.categories, id: \.self) { category in
-                    Text(category).tag(category)
+            // Search Bar
+            HStack(spacing: 8) {
+                Image(systemName: "magnifyingglass")
+                    .foregroundStyle(.secondary)
+                TextField("Search keys by name or identifier...", text: $addKeySearchQuery)
+                    .textFieldStyle(.plain)
+                if !addKeySearchQuery.isEmpty {
+                    Button { addKeySearchQuery = "" } label: {
+                        Image(systemName: "xmark.circle.fill")
+                            .foregroundStyle(.secondary)
+                    }
+                    .buttonStyle(.plain)
                 }
             }
-            .pickerStyle(.segmented)
+            .padding(.horizontal, 10)
+            .padding(.vertical, 6)
+            .background(Color(NSColor.controlBackgroundColor), in: RoundedRectangle(cornerRadius: 8))
 
-            Text("Templates")
-                .font(.subheadline.bold())
+            // Category Filter Pills
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 6) {
+                    ForEach(InfoPlistTemplateCatalog.categories, id: \.self) { category in
+                        let isSelected = templateCategory == category
+                        let count = category == "All" ? InfoPlistTemplateCatalog.all.count : InfoPlistTemplateCatalog.templates(in: category).count
+                        Button {
+                            templateCategory = category
+                        } label: {
+                            HStack(spacing: 4) {
+                                Text(category)
+                                Text("(\(count))")
+                                    .font(.caption2)
+                                    .opacity(isSelected ? 0.9 : 0.6)
+                            }
+                            .font(.system(size: 11, weight: isSelected ? .semibold : .regular))
+                            .padding(.horizontal, 10)
+                            .padding(.vertical, 5)
+                            .background(
+                                isSelected ? Color.accentColor : Color(NSColor.controlBackgroundColor),
+                                in: Capsule()
+                            )
+                            .foregroundColor(isSelected ? .white : .primary)
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+            }
+
+            Text("Standard Templates (\(filteredTemplates.count))")
+                .font(.caption.bold())
                 .foregroundStyle(.secondary)
 
-            List(InfoPlistTemplateCatalog.templates(in: templateCategory)) { template in
+            List(filteredTemplates) { template in
                 let exists = editor.entries[template.key] != nil
-                HStack(spacing: 10) {
-                    Image(systemName: template.symbol)
-                        .foregroundStyle(.secondary)
-                        .frame(width: 24)
+                HStack(spacing: 12) {
+                    ZStack {
+                        RoundedRectangle(cornerRadius: 6)
+                            .fill(Color.secondary.opacity(0.12))
+                        Image(systemName: template.symbol)
+                            .font(.system(size: 14))
+                            .foregroundStyle(Color.accentColor)
+                    }
+                    .frame(width: 28, height: 28)
+
                     VStack(alignment: .leading, spacing: 2) {
                         Text(template.name)
                             .font(.body.weight(.medium))
                         Text(template.key)
-                            .font(.system(.caption, design: .monospaced))
+                            .font(.system(size: 11, design: .monospaced))
                             .foregroundStyle(.secondary)
                     }
                     Spacer()
                     PlistTypeBadge(kind: template.kind)
                     if exists {
-                        Image(systemName: "checkmark.circle.fill")
-                            .foregroundStyle(.secondary)
-                            .help("Already present")
+                        HStack(spacing: 4) {
+                            Image(systemName: "checkmark")
+                                .font(.caption.bold())
+                            Text("Added")
+                                .font(.caption)
+                        }
+                        .foregroundStyle(.secondary)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 4)
+                        .background(Color(NSColor.controlBackgroundColor), in: Capsule())
                     } else {
                         Button("Add") {
                             editor.set(key: template.key, value: template.defaultValue)
                             toolStatus = "Added \(template.key)"
                             showingAddKeySheet = false
+                            addKeySearchQuery = ""
                         }
-                        .buttonStyle(.bordered)
+                        .buttonStyle(.borderedProminent)
                         .controlSize(.small)
                     }
                 }
                 .padding(.vertical, 4)
             }
+            .listStyle(.inset)
             .frame(minHeight: 220)
 
             Divider()
 
-            Text("Custom Key")
-                .font(.subheadline.bold())
-                .foregroundStyle(.secondary)
+            // Custom Key Section
+            VStack(alignment: .leading, spacing: 8) {
+                Text("Custom Key Definition")
+                    .font(.caption.bold())
+                    .foregroundStyle(.secondary)
 
-            HStack {
-                TextField("Key name (e.g. MyCustomProperty)", text: $newCustomKey)
-                    .textFieldStyle(.roundedBorder)
-                    .font(.system(.body, design: .monospaced))
+                HStack(spacing: 8) {
+                    TextField("Key name (e.g. MyCustomProperty)", text: $newCustomKey)
+                        .textFieldStyle(.roundedBorder)
+                        .font(.system(.body, design: .monospaced))
 
-                Picker("Value Type", selection: $newCustomType) {
-                    ForEach(PlistValueKind.allCases, id: \.self) { kind in
-                        Label(kind.rawValue, systemImage: kind.symbol).tag(kind)
+                    Picker("", selection: $newCustomType) {
+                        ForEach(PlistValueKind.allCases, id: \.self) { kind in
+                            Label(kind.rawValue, systemImage: kind.symbol).tag(kind)
+                        }
                     }
-                }
-                .pickerStyle(.menu)
-                .frame(width: 150)
-            }
+                    .pickerStyle(.menu)
+                    .frame(width: 140)
 
-            let trimmedKey = newCustomKey.trimmingCharacters(in: .whitespaces)
-            let keyExists = !trimmedKey.isEmpty && editor.entries[trimmedKey] != nil
-            if keyExists {
-                HStack(spacing: 6) {
-                    Image(systemName: "exclamationmark.triangle")
-                    Text("A key named '\(trimmedKey)' already exists. Choose a different name.")
-                }
-                .font(.caption)
-                .foregroundStyle(.secondary)
-            }
+                    let trimmedKey = newCustomKey.trimmingCharacters(in: .whitespaces)
+                    let keyExists = !trimmedKey.isEmpty && editor.entries[trimmedKey] != nil
 
-            HStack {
-                Button("Cancel") {
-                    showingAddKeySheet = false
-                    newCustomKey = ""
+                    Button("Add Custom") {
+                        editor.set(key: trimmedKey, value: defaultPlistValue(for: newCustomType))
+                        toolStatus = "Added \(trimmedKey) (\(newCustomType.rawValue))"
+                        showingAddKeySheet = false
+                        newCustomKey = ""
+                        addKeySearchQuery = ""
+                    }
+                    .buttonStyle(.bordered)
+                    .disabled(trimmedKey.isEmpty || keyExists)
                 }
-                .buttonStyle(.bordered)
 
-                Spacer()
-
-                Button("Add Key") {
-                    editor.set(key: trimmedKey, value: defaultPlistValue(for: newCustomType))
-                    toolStatus = "Added \(trimmedKey) (\(newCustomType.rawValue))"
-                    showingAddKeySheet = false
-                    newCustomKey = ""
+                let trimmedKey = newCustomKey.trimmingCharacters(in: .whitespaces)
+                let keyExists = !trimmedKey.isEmpty && editor.entries[trimmedKey] != nil
+                if keyExists {
+                    HStack(spacing: 6) {
+                        Image(systemName: "exclamationmark.triangle")
+                        Text("A key named '\(trimmedKey)' already exists. Choose a different name.")
+                    }
+                    .font(.caption)
+                    .foregroundStyle(.red)
                 }
-                .buttonStyle(.bordered)
-                .disabled(trimmedKey.isEmpty || keyExists)
             }
         }
-        .padding()
-        .frame(width: 560, height: 600)
+        .padding(18)
+        .frame(width: 620, height: 600)
     }
 
     // MARK: - Inspector Sheet
