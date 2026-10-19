@@ -33,6 +33,33 @@ public struct CacheEntry: Codable, Sendable {
     public let actorDefined: Bool
 }
 
+// MARK: - Xcode Project Models (parsed from project.pbxproj)
+
+/// A build target discovered in the .xcodeproj, with per-configuration build settings.
+public struct InspectorTargetInfo: Identifiable, Hashable, Sendable {
+    public var id: String
+    public let name: String
+    public let productType: String
+    public let configurationNames: [String]
+    /// Configuration name -> build setting key -> value
+    public let buildSettings: [String: [String: String]]
+}
+
+/// An Xcode scheme discovered next to the .xcodeproj.
+public struct InspectorSchemeInfo: Identifiable, Hashable, Sendable {
+    public var id: String { name }
+    public let name: String
+    public let isShared: Bool
+}
+
+/// A Swift package dependency referenced by the .xcodeproj.
+public struct InspectorPackageInfo: Identifiable, Hashable, Sendable {
+    public var id: String { url }
+    public let name: String
+    public let url: String
+    public let isLocal: Bool
+}
+
 @Observable
 @MainActor
 public final class InspectorProjectScanner {
@@ -79,6 +106,15 @@ public final class InspectorProjectScanner {
     public var aiRecommendations: [String] = []
     public var isScanning: Bool = false
 
+    // MARK: - Xcode project structure (parsed from project.pbxproj)
+
+    public var projectDirectoryPath: String = ""
+    public var xcodeProjectFound: Bool = false
+    public var xcodeTargets: [InspectorTargetInfo] = []
+    public var xcodeSchemes: [InspectorSchemeInfo] = []
+    public var buildConfigurations: [String] = []
+    public var packageDependencies: [InspectorPackageInfo] = []
+
     // Scanner file cache (persistence via UserDefaults)
     private var fileCache: [String: CacheEntry] = [:]
 
@@ -110,6 +146,7 @@ public final class InspectorProjectScanner {
 
         // Run scanning on background task
         let cachedFiles = fileCache
+        self.projectDirectoryPath = url.path
         let metrics = await Task.detached(priority: .userInitiated) {
             return InspectorProjectScanner.performBackgroundScan(at: url, cache: cachedFiles)
         }.value
@@ -143,6 +180,16 @@ public final class InspectorProjectScanner {
         self.actorUsageCount = metrics.actorUsageCount
 
         self.recentChanges = metrics.recentChanges
+
+        // Xcode project structure
+        self.xcodeProjectFound = metrics.xcodeProjectFound
+        self.xcodeTargets = metrics.xcodeTargets
+        self.xcodeSchemes = metrics.xcodeSchemes
+        self.buildConfigurations = metrics.buildConfigurations
+        self.packageDependencies = metrics.packageDependencies
+        if !metrics.buildConfigurations.isEmpty {
+            self.buildConfigurationSummary = metrics.buildConfigurations.joined(separator: ", ")
+        }
 
         // Save cache updates
         self.fileCache = metrics.newCache
@@ -183,6 +230,12 @@ public final class InspectorProjectScanner {
 
         let recentChanges: [String]
         let newCache: [String: CacheEntry]
+
+        let xcodeProjectFound: Bool
+        let xcodeTargets: [InspectorTargetInfo]
+        let xcodeSchemes: [InspectorSchemeInfo]
+        let buildConfigurations: [String]
+        let packageDependencies: [InspectorPackageInfo]
     }
 
     nonisolated private static func performBackgroundScan(at rootURL: URL, cache: [String: CacheEntry]) -> BackgroundScanResult {
@@ -222,7 +275,9 @@ public final class InspectorProjectScanner {
                 yamlCount: 0, plistCount: 0, markdownCount: 0, sqlCount: 0, largestFiles: [],
                 longestSwiftFiles: [], largestFolders: [], averageFileSize: 0, swiftUIUsageCount: 0,
                 uikitUsageCount: 0, appkitUsageCount: 0, observationUsageCount: 0, asyncUsageCount: 0,
-                actorUsageCount: 0, recentChanges: [], newCache: cache
+                actorUsageCount: 0, recentChanges: [], newCache: cache,
+                xcodeProjectFound: false, xcodeTargets: [], xcodeSchemes: [],
+                buildConfigurations: [], packageDependencies: []
             )
         }
 
@@ -373,6 +428,9 @@ public final class InspectorProjectScanner {
 
         let projName = rootURL.lastPathComponent.isEmpty ? "SwiftCode" : rootURL.lastPathComponent
 
+        // Parse the .xcodeproj for targets, schemes, configurations, and packages.
+        let xcode = parseXcodeProject(at: rootURL)
+
         return BackgroundScanResult(
             projectName: projName,
             totalFiles: totalFiles,
@@ -399,8 +457,169 @@ public final class InspectorProjectScanner {
             asyncUsageCount: asyncUsageCount,
             actorUsageCount: actorUsageCount,
             recentChanges: recentChangesList,
-            newCache: localCache
+            newCache: localCache,
+            xcodeProjectFound: xcode.found,
+            xcodeTargets: xcode.targets,
+            xcodeSchemes: xcode.schemes,
+            buildConfigurations: xcode.configurations,
+            packageDependencies: xcode.packages
         )
+    }
+
+    // MARK: - Xcode Project Parsing
+
+    private struct XcodeProjectParseResult: Sendable {
+        let found: Bool
+        let targets: [InspectorTargetInfo]
+        let schemes: [InspectorSchemeInfo]
+        let configurations: [String]
+        let packages: [InspectorPackageInfo]
+    }
+
+    /// Locates the .xcodeproj under the project root and extracts targets,
+    /// build configurations + settings, schemes, and package dependencies.
+    nonisolated private static func parseXcodeProject(at rootURL: URL) -> XcodeProjectParseResult {
+        let fileManager = FileManager.default
+
+        // Find the .xcodeproj at the root or one level down.
+        var xcodeprojURL: URL? = nil
+        if let contents = try? fileManager.contentsOfDirectory(at: rootURL, includingPropertiesForKeys: nil, options: [.skipsHiddenFiles]) {
+            xcodeprojURL = contents.first(where: { $0.pathExtension == "xcodeproj" && $0.hasDirectoryPath })
+            if xcodeprojURL == nil {
+                for dir in contents where dir.hasDirectoryPath {
+                    if let sub = try? fileManager.contentsOfDirectory(at: dir, includingPropertiesForKeys: nil, options: [.skipsHiddenFiles]),
+                       let found = sub.first(where: { $0.pathExtension == "xcodeproj" && $0.hasDirectoryPath }) {
+                        xcodeprojURL = found
+                        break
+                    }
+                }
+            }
+        }
+
+        guard let projURL = xcodeprojURL else {
+            return XcodeProjectParseResult(found: false, targets: [], schemes: [], configurations: [], packages: [])
+        }
+
+        var targets: [InspectorTargetInfo] = []
+        var configurationNames: [String] = []
+        var packages: [InspectorPackageInfo] = []
+
+        let pbxprojURL = projURL.appendingPathComponent("project.pbxproj")
+        if let data = try? Data(contentsOf: pbxprojURL),
+           let plist = try? PropertyListSerialization.propertyList(from: data, options: [], format: nil) as? [String: Any],
+           let objects = plist["objects"] as? [String: Any] {
+
+            // Package dependencies (remote + local).
+            for (_, obj) in objects {
+                guard let dict = obj as? [String: Any], let isa = dict["isa"] as? String else { continue }
+                if isa == "XCRemoteSwiftPackageReference", let repo = dict["repositoryURL"] as? String {
+                    let name = URL(string: repo)?.deletingPathExtension().lastPathComponent ?? repo
+                    packages.append(InspectorPackageInfo(name: name.isEmpty ? repo : name, url: repo, isLocal: false))
+                } else if isa == "XCLocalSwiftPackageReference", let relPath = dict["relativePath"] as? String {
+                    let name = (relPath as NSString).lastPathComponent
+                    packages.append(InspectorPackageInfo(name: name.isEmpty ? relPath : name, url: relPath, isLocal: true))
+                }
+            }
+
+            // Targets with their build configurations and settings.
+            for (_, obj) in objects {
+                guard let dict = obj as? [String: Any],
+                      let isa = dict["isa"] as? String,
+                      isa == "PBXNativeTarget" || isa == "PBXAggregateTarget",
+                      let name = dict["name"] as? String else { continue }
+
+                let productTypeRaw = dict["productType"] as? String ?? ""
+                let productType = productTypeLabel(productTypeRaw)
+                var settingsByConfig: [String: [String: String]] = [:]
+
+                if let listID = dict["buildConfigurationList"] as? String,
+                   let list = objects[listID] as? [String: Any],
+                   let configIDs = list["buildConfigurations"] as? [String] {
+                    for configID in configIDs {
+                        guard let config = objects[configID] as? [String: Any],
+                              let configName = config["name"] as? String else { continue }
+                        if !configurationNames.contains(configName) {
+                            configurationNames.append(configName)
+                        }
+                        var flat: [String: String] = [:]
+                        if let buildSettings = config["buildSettings"] as? [String: Any] {
+                            for (key, value) in buildSettings {
+                                flat[key] = plistScalarString(value)
+                            }
+                        }
+                        settingsByConfig[configName] = flat
+                    }
+                }
+
+                targets.append(InspectorTargetInfo(
+                    id: name + "|" + productTypeRaw,
+                    name: name,
+                    productType: productType,
+                    configurationNames: settingsByConfig.keys.sorted(),
+                    buildSettings: settingsByConfig
+                ))
+            }
+        }
+
+        // Schemes (shared first-class citizens, plus user schemes).
+        var schemes: [InspectorSchemeInfo] = []
+        let schemeDirs = [
+            projURL.appendingPathComponent("xcshareddata/xcschemes"),
+            projURL.appendingPathComponent("xcuserdata")
+        ]
+        for dir in schemeDirs {
+            var isDir: ObjCBool = false
+            guard fileManager.fileExists(atPath: dir.path, isDirectory: &isDir), isDir.boolValue else { continue }
+            if let enumerator = fileManager.enumerator(at: dir, includingPropertiesForKeys: nil, options: [.skipsHiddenFiles]) {
+                for case let fileURL as URL in enumerator where fileURL.pathExtension == "xcscheme" {
+                    let isShared = fileURL.path.contains("xcshareddata")
+                    let name = fileURL.deletingPathExtension().lastPathComponent
+                    if !schemes.contains(where: { $0.name == name }) {
+                        schemes.append(InspectorSchemeInfo(name: name, isShared: isShared))
+                    }
+                }
+            }
+        }
+
+        targets.sort { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
+        schemes.sort { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
+        packages.sort { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
+
+        return XcodeProjectParseResult(
+            found: true,
+            targets: targets,
+            schemes: schemes,
+            configurations: configurationNames.sorted(),
+            packages: packages
+        )
+    }
+
+    nonisolated private static func productTypeLabel(_ raw: String) -> String {
+        switch raw {
+        case "com.apple.product-type.application": return "App"
+        case "com.apple.product-type.framework": return "Framework"
+        case "com.apple.product-type.bundle": return "Bundle"
+        case "com.apple.product-type.tool": return "Command Line Tool"
+        case "com.apple.product-type.app-extension": return "App Extension"
+        case "com.apple.product-type.ui-test-bundle": return "UI Test Bundle"
+        case "com.apple.product-type.unit-test-bundle": return "Unit Test Bundle"
+        case "com.apple.product-type.library.static": return "Static Library"
+        case "com.apple.product-type.library.dynamic": return "Dynamic Library"
+        case "com.apple.product-type.xpc-service": return "XPC Service"
+        case "com.apple.product-type.application.watchapp", "com.apple.product-type.application.watchapp2": return "watchOS App"
+        default:
+            guard !raw.isEmpty else { return "Target" }
+            return raw.components(separatedBy: ".").last?.capitalized ?? raw
+        }
+    }
+
+    nonisolated private static func plistScalarString(_ value: Any) -> String {
+        if let string = value as? String { return string }
+        if let array = value as? [Any] { return array.map { plistScalarString($0) }.joined(separator: " ") }
+        if let dict = value as? [String: Any] {
+            return dict.map { "\($0.key)=\($0.value)" }.joined(separator: " ")
+        }
+        return String(describing: value)
     }
 
     private func calculateHealthAndRecommendations() {
@@ -452,6 +671,10 @@ public final class InspectorProjectScanner {
 
         if recs.isEmpty {
             recs.append("Outstanding code composition! Keep maintaining modular components and leveraging modern Swift 6 paradigms.")
+        }
+
+        if !xcodeProjectFound {
+            recs.append("No .xcodeproj was found at the project root, so target, scheme, and signing details are unavailable in the Project tab.")
         }
 
         self.projectHealthScore = max(30, score)
