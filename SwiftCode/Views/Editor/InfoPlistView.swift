@@ -134,6 +134,7 @@ struct PlistValidationIssue: Identifiable {
 
 /// Collects validation issues for the warnings panel. Shared by the panel and
 /// the Validate toolbar action. Uses the editor's own validators.
+@MainActor
 func collectPlistValidationIssues(editor: InfoPlistEditor) -> [PlistValidationIssue] {
     var list: [PlistValidationIssue] = []
 

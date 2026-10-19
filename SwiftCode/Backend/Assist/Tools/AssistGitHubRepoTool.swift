@@ -427,7 +427,7 @@ public struct AssistGitHubRepoTool: AssistTool {
         var bytesUsed = 0
         let loweredQuery = query.lowercased()
 
-        await withTaskGroup(of: [(String, [Match], Int)].self) { group in
+        await withTaskGroup(of: (String, [Match], Int).self) { group in
             var inflight = 0
             var iterator = candidates.makeIterator()
             func launchNext() {

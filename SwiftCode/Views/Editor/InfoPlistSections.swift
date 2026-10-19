@@ -756,9 +756,7 @@ struct ATSExceptionDomainRow: View {
                     .font(.body.weight(.medium))
                 Spacer()
                 Button {
-                    var d = domains.wrappedValue
-                    d.removeValue(forKey: domain)
-                    domains.wrappedValue = d
+                    domains.removeValue(forKey: domain)
                 } label: {
                     Image(systemName: "trash")
                         .foregroundStyle(.secondary)

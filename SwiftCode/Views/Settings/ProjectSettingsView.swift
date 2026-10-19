@@ -154,7 +154,6 @@ struct ProjectSettingsView: View {
                 TextField("com.example.MyApp", text: $bundleIdentifier)
                     .multilineTextAlignment(.trailing)
                     .autocorrectionDisabled()
-                    .textInputAutocapitalization(.never)
             } label: {
                 Label("Bundle Identifier", systemImage: "app.badge")
             }
@@ -179,7 +178,6 @@ struct ProjectSettingsView: View {
                 TextField("Owner/Repo", text: $githubRepo)
                     .multilineTextAlignment(.trailing)
                     .autocorrectionDisabled()
-                    .textInputAutocapitalization(.never)
             } label: {
                 Label("GitHub Repository", systemImage: "link")
             }
@@ -412,7 +410,6 @@ struct ProjectSettingsView: View {
                             TextField("Inherit from project", text: targetBundleIDBinding(for: target.name))
                                 .multilineTextAlignment(.trailing)
                                 .autocorrectionDisabled()
-                                .textInputAutocapitalization(.never)
                         } label: {
                             Label("Bundle ID Override", systemImage: "app.badge")
                         }
@@ -712,7 +709,6 @@ struct ProjectSettingsView: View {
                 TextField("Relative path", text: $infoPlistPath)
                     .multilineTextAlignment(.trailing)
                     .autocorrectionDisabled()
-                    .textInputAutocapitalization(.never)
             } label: {
                 Label("Info.plist Path", systemImage: "doc")
             }
@@ -722,7 +718,6 @@ struct ProjectSettingsView: View {
                 TextField("Relative path", text: $entitlementsPath)
                     .multilineTextAlignment(.trailing)
                     .autocorrectionDisabled()
-                    .textInputAutocapitalization(.never)
             } label: {
                 Label("Entitlements Path", systemImage: "lock.doc")
             }
@@ -758,7 +753,7 @@ struct ProjectSettingsView: View {
             .foregroundStyle(.secondary)
             if exists == true {
                 Button {
-                    NSWorkspace.shared.selectFile(resolvedPath, inFileViewerRootedAtPath: nil)
+                    NSWorkspace.shared.selectFile(resolvedPath, inFileViewerRootedAtPath: "")
                 } label: {
                     Label("Reveal in Finder", systemImage: "folder")
                 }
