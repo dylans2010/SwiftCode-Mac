@@ -91,6 +91,7 @@ PROCESS_ALLOWLIST = {
     "AssistSimulatorBootTool.swift": "simulator_boot — fixed /usr/bin/xcrun, argv array",
     "AssistSimulatorControllerTool.swift": "simulator_controller — fixed /usr/bin/xcrun (simctl), argv array",
     "AssistSimulatorListTool.swift": "simulator_list — fixed /usr/bin/xcrun, argv array",
+    "AssistFixArtboardsTool.swift": "fix_artboards — fixed /usr/bin/xcrun (simctl), argv array via AssistToolingSupport.runProcess",
     "AssistSwiftASTInspectorTool.swift": "swift_ast_inspector — fixed /usr/bin/xcrun (swiftc -dump-ast), argv array",
     "AssistSwiftPackageTool.swift": "swift_package_manager — fixed /usr/bin/swift, argv array",
     "AssistSystemNotificationTool.swift": "system_notification_tool — fixed /usr/bin/osascript, argv array (UNUserNotificationCenter first; AppleScript fallback with quote escaping)",
