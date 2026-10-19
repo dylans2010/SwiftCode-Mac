@@ -6,6 +6,7 @@ struct WorkspaceProfile: Identifiable, Codable, Equatable, Hashable {
     var buildConfiguration: String
     var environmentVariables: [String: String]
     var preferences: [String: String]
+    var lastUsed: Date? = nil
 
     static let empty = WorkspaceProfile(
         id: UUID(),
@@ -51,6 +52,7 @@ final class WorkspaceProfilesManager {
     func switchTo(_ profile: WorkspaceProfile) {
         guard profiles.contains(where: { $0.id == profile.id }) else { return }
         activeProfileID = profile.id
+        recordUsage(profile)
     }
 
     func add(_ profile: WorkspaceProfile) {
@@ -70,6 +72,13 @@ final class WorkspaceProfilesManager {
 
     func delete(_ profile: WorkspaceProfile) {
         profiles.removeAll { $0.id == profile.id }
+    }
+
+    /// Stamps the profile with the current date/time as its last usage.
+    func recordUsage(_ profile: WorkspaceProfile) {
+        var updated = profile
+        updated.lastUsed = Date()
+        update(updated)
     }
 
     private func loadState() {
