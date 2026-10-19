@@ -1,297 +1,9 @@
 import SwiftUI
-import UniformTypeIdentifiers
-
-// MARK: - Capability Model
-
-/// Capability sections shown as filter categories and UI groups.
-public enum EntitlementCapabilitySection: String, CaseIterable, Identifiable {
-    case all = "All Capabilities"
-    case sandbox = "App Sandbox"
-    case network = "Network"
-    case hardware = "Hardware & Media"
-    case cloud = "iCloud & Push"
-    case sharing = "Sharing"
-    case personal = "Personal Information"
-    case other = "Other Keys"
-    case rawXML = "Raw XML"
-
-    public var id: String { rawValue }
-
-    public var icon: String {
-        switch self {
-        case .all: return "lock.shield"
-        case .sandbox: return "cube.transparent"
-        case .network: return "network"
-        case .hardware: return "camera"
-        case .cloud: return "icloud"
-        case .sharing: return "square.stack.3d"
-        case .personal: return "person.crop.circle"
-        case .other: return "key"
-        case .rawXML: return "chevron.left.forwardslash.chevron.right"
-        }
-    }
-}
-
-/// What kind of payload a capability carries beyond its on/off switch.
-public enum CapabilityPayloadKind {
-    /// Pure boolean toggle — enabling sets the key, disabling removes it.
-    case none
-    /// An array of string identifiers the user can add/remove.
-    case idList(placeholder: String)
-    /// A string picked from a fixed set of options.
-    case choice(options: [String])
-    /// A free-form string value.
-    case stringValue(placeholder: String)
-}
-
-/// One toggleable capability. Enabling it writes the real entitlement key;
-/// disabling it removes the key from the entitlements file.
-public struct CapabilityDefinition: Identifiable {
-    public var id: String { rawKey }
-    public let rawKey: String
-    public let name: String
-    public let explanation: String
-    public let symbol: String
-    public let section: EntitlementCapabilitySection
-    public let payload: CapabilityPayloadKind
-    public let defaultValue: Any
-    /// Composite capabilities control more than one entitlement key (e.g. iCloud).
-    public let compositeKeys: [String]
-
-    public init(rawKey: String, name: String, explanation: String, symbol: String, section: EntitlementCapabilitySection, payload: CapabilityPayloadKind, defaultValue: Any, compositeKeys: [String] = []) {
-        self.rawKey = rawKey
-        self.name = name
-        self.explanation = explanation
-        self.symbol = symbol
-        self.section = section
-        self.payload = payload
-        self.defaultValue = defaultValue
-        self.compositeKeys = compositeKeys
-    }
-}
-
-public enum CapabilityCatalog {
-    public static let iCloudContainersKey = "com.apple.developer.icloud-container-identifiers"
-    public static let iCloudKVStoreKey = "com.apple.developer.ubiquity-kvstore-identifier"
-
-    nonisolated(unsafe) public static let definitions: [CapabilityDefinition] = [
-        // MARK: App Sandbox
-        CapabilityDefinition(
-            rawKey: "com.apple.security.app-sandbox",
-            name: "App Sandbox",
-            explanation: "Restricts the app to only the system resources it explicitly requests. Required for Mac App Store distribution.",
-            symbol: "lock.shield.fill",
-            section: .sandbox,
-            payload: .none,
-            defaultValue: true
-        ),
-        CapabilityDefinition(
-            rawKey: "com.apple.security.files.user-selected.read-only",
-            name: "User-Selected Files (Read)",
-            explanation: "Lets the app read files the user explicitly opens through Open panels or drag and drop.",
-            symbol: "folder",
-            section: .sandbox,
-            payload: .none,
-            defaultValue: true
-        ),
-        CapabilityDefinition(
-            rawKey: "com.apple.security.files.user-selected.read-write",
-            name: "User-Selected Files (Read & Write)",
-            explanation: "Lets the app read and write files the user explicitly opens through Open and Save panels or drag and drop.",
-            symbol: "folder.badge.plus",
-            section: .sandbox,
-            payload: .none,
-            defaultValue: true
-        ),
-        CapabilityDefinition(
-            rawKey: "com.apple.security.files.downloads.read-only",
-            name: "Downloads Folder (Read)",
-            explanation: "Grants read access to files inside the user's Downloads folder without prompting.",
-            symbol: "arrow.down.doc",
-            section: .sandbox,
-            payload: .none,
-            defaultValue: true
-        ),
-        CapabilityDefinition(
-            rawKey: "com.apple.security.files.downloads.read-write",
-            name: "Downloads Folder (Read & Write)",
-            explanation: "Grants read and write access to files inside the user's Downloads folder without prompting.",
-            symbol: "arrow.down.doc.fill",
-            section: .sandbox,
-            payload: .none,
-            defaultValue: true
-        ),
-        CapabilityDefinition(
-            rawKey: "com.apple.security.assets.pictures.read-only",
-            name: "Pictures Folder (Read)",
-            explanation: "Grants read access to the user's Pictures folder, commonly used for image pickers.",
-            symbol: "photo",
-            section: .sandbox,
-            payload: .none,
-            defaultValue: true
-        ),
-        CapabilityDefinition(
-            rawKey: "com.apple.security.assets.pictures.read-write",
-            name: "Pictures Folder (Read & Write)",
-            explanation: "Grants read and write access to the user's Pictures folder, for apps that save images.",
-            symbol: "photo.fill",
-            section: .sandbox,
-            payload: .none,
-            defaultValue: true
-        ),
-        CapabilityDefinition(
-            rawKey: "com.apple.security.assets.music.read-only",
-            name: "Music Folder (Read)",
-            explanation: "Grants read access to the user's Music folder for media library features.",
-            symbol: "music.note",
-            section: .sandbox,
-            payload: .none,
-            defaultValue: true
-        ),
-        CapabilityDefinition(
-            rawKey: "com.apple.security.assets.movies.read-only",
-            name: "Movies Folder (Read)",
-            explanation: "Grants read access to the user's Movies folder for media library features.",
-            symbol: "film",
-            section: .sandbox,
-            payload: .none,
-            defaultValue: true
-        ),
-
-        // MARK: Network
-        CapabilityDefinition(
-            rawKey: "com.apple.security.network.client",
-            name: "Outgoing Connections",
-            explanation: "Allows the app to make outgoing network connections, e.g. calling web APIs or downloading content.",
-            symbol: "arrow.up.right.circle",
-            section: .network,
-            payload: .none,
-            defaultValue: true
-        ),
-        CapabilityDefinition(
-            rawKey: "com.apple.security.network.server",
-            name: "Incoming Connections",
-            explanation: "Allows the app to listen for incoming network connections and host local services.",
-            symbol: "arrow.down.left.circle",
-            section: .network,
-            payload: .none,
-            defaultValue: true
-        ),
-
-        // MARK: Hardware & Media
-        CapabilityDefinition(
-            rawKey: "com.apple.security.device.camera",
-            name: "Camera",
-            explanation: "Allows the app to capture photos and video using the system cameras. Pair with an NSCameraUsageDescription key in Info.plist.",
-            symbol: "camera.fill",
-            section: .hardware,
-            payload: .none,
-            defaultValue: true
-        ),
-        CapabilityDefinition(
-            rawKey: "com.apple.security.device.audio-input",
-            name: "Microphone",
-            explanation: "Allows the app to record audio using the system microphones. Pair with an NSMicrophoneUsageDescription key in Info.plist.",
-            symbol: "mic.fill",
-            section: .hardware,
-            payload: .none,
-            defaultValue: true
-        ),
-        CapabilityDefinition(
-            rawKey: "com.apple.security.device.usb",
-            name: "USB Devices",
-            explanation: "Allows the app to communicate directly with connected USB accessories and hardware.",
-            symbol: "cable.connector",
-            section: .hardware,
-            payload: .none,
-            defaultValue: true
-        ),
-        CapabilityDefinition(
-            rawKey: "com.apple.security.device.bluetooth",
-            name: "Bluetooth",
-            explanation: "Allows the app to communicate with Bluetooth accessories while sandboxed.",
-            symbol: "bluetooth",
-            section: .hardware,
-            payload: .none,
-            defaultValue: true
-        ),
-
-        // MARK: iCloud & Push
-        CapabilityDefinition(
-            rawKey: "aps-environment",
-            name: "Push Notifications",
-            explanation: "Registers the app for Apple Push Notification service. Choose the environment that matches your provisioning profile; Xcode normally finalizes this at archive time.",
-            symbol: "bell.badge",
-            section: .cloud,
-            payload: .choice(options: ["development", "production"]),
-            defaultValue: "development"
-        ),
-        CapabilityDefinition(
-            rawKey: iCloudContainersKey,
-            name: "iCloud",
-            explanation: "Syncs documents and key-value data through the user's iCloud account. Add the container identifiers your app uses, plus the key-value store identifier.",
-            symbol: "icloud",
-            section: .cloud,
-            payload: .idList(placeholder: "iCloud.com.example.app"),
-            defaultValue: [String](),
-            compositeKeys: [iCloudKVStoreKey]
-        ),
-
-        // MARK: Sharing
-        CapabilityDefinition(
-            rawKey: "com.apple.security.application-groups",
-            name: "App Groups",
-            explanation: "Lets the app share files and preferences with its extensions or companion apps through a shared container.",
-            symbol: "square.stack.3d",
-            section: .sharing,
-            payload: .idList(placeholder: "group.com.example.app"),
-            defaultValue: [String]()
-        ),
-        CapabilityDefinition(
-            rawKey: "keychain-access-groups",
-            name: "Keychain Access Groups",
-            explanation: "Lets the app share passwords and tokens in the Keychain with sibling apps using the same access group.",
-            symbol: "key.fill",
-            section: .sharing,
-            payload: .idList(placeholder: "$(AppIdentifierPrefix)com.example.app"),
-            defaultValue: [String]()
-        ),
-
-        // MARK: Personal Information
-        CapabilityDefinition(
-            rawKey: "com.apple.security.personal-information.photos-library",
-            name: "Photos Library",
-            explanation: "Allows the app to access the user's Photos library. Pair with an NSPhotoLibraryUsageDescription key in Info.plist.",
-            symbol: "photo.on.rectangle",
-            section: .personal,
-            payload: .none,
-            defaultValue: true
-        ),
-        CapabilityDefinition(
-            rawKey: "com.apple.security.personal-information.addressbook",
-            name: "Contacts",
-            explanation: "Allows the app to access the user's contacts. Pair with an NSContactsUsageDescription key in Info.plist.",
-            symbol: "person.crop.circle",
-            section: .personal,
-            payload: .none,
-            defaultValue: true
-        ),
-    ]
-
-    /// All raw entitlement keys managed by capability toggles, including composite keys.
-    public static var allRawKeys: [String] {
-        var keys = definitions.map(\.rawKey)
-        keys.append(contentsOf: definitions.flatMap(\.compositeKeys))
-        return keys
-    }
-
-    public static func definitions(for section: EntitlementCapabilitySection) -> [CapabilityDefinition] {
-        definitions.filter { $0.section == section }
-    }
-}
 
 // MARK: - Entitlements Editor View
 
+/// UI-only editor for the entitlements plist. Every control reads and writes the
+/// real entitlements dictionary; there is intentionally no raw XML editing.
 public struct EntitlementsEditorView: View {
     private let fileURL: URL?
     @State private var manager: EntitlementsEditorManager
@@ -299,7 +11,6 @@ public struct EntitlementsEditorView: View {
     @State private var searchQuery = ""
     @State private var selectedFilter: EntitlementCapabilitySection = .all
     @State private var selectedKey: String? = nil
-    @State private var xmlEditorText = ""
     @State private var showingAddSheet = false
     @State private var showingInspectorSheet = false
     @State private var toolStatus: String? = nil
@@ -371,6 +82,7 @@ public struct EntitlementsEditorView: View {
         if def.rawKey == CapabilityCatalog.iCloudContainersKey {
             return entitlementsDict[CapabilityCatalog.iCloudContainersKey] != nil
                 || entitlementsDict[CapabilityCatalog.iCloudKVStoreKey] != nil
+                || entitlementsDict[CapabilityCatalog.ubiquitousContainersKey] != nil
         }
         return entitlementsDict[def.rawKey] != nil
     }
@@ -387,6 +99,7 @@ public struct EntitlementsEditorView: View {
             } else {
                 entitlementsDict.removeValue(forKey: CapabilityCatalog.iCloudContainersKey)
                 entitlementsDict.removeValue(forKey: CapabilityCatalog.iCloudKVStoreKey)
+                entitlementsDict.removeValue(forKey: CapabilityCatalog.ubiquitousContainersKey)
             }
         } else if on {
             entitlementsDict[def.rawKey] = def.defaultValue
@@ -398,7 +111,6 @@ public struct EntitlementsEditorView: View {
 
     private func markDirty() {
         isDirty = true
-        syncXMLText()
     }
 
     private var sandboxIsOn: Bool {
@@ -422,24 +134,61 @@ public struct EntitlementsEditorView: View {
     private func capabilityMatchesSearch(_ def: CapabilityDefinition) -> Bool {
         guard !searchQuery.isEmpty else { return true }
         let q = searchQuery.lowercased()
-        return def.name.lowercased().contains(q)
+        if def.name.lowercased().contains(q)
             || def.rawKey.lowercased().contains(q)
-            || def.explanation.lowercased().contains(q)
+            || def.explanation.lowercased().contains(q) {
+            return true
+        }
+        // Also match against the key's current value.
+        for key in [def.rawKey] + def.compositeKeys {
+            if String(describing: entitlementsDict[key] ?? "").lowercased().contains(q) {
+                return true
+            }
+        }
+        return false
     }
 
     private var visibleSections: [EntitlementCapabilitySection] {
         switch selectedFilter {
         case .all:
-            return [.sandbox, .network, .hardware, .cloud, .sharing, .personal]
-        case .other, .rawXML:
+            return [.sandbox, .hardenedRuntime, .cloud, .sharing, .personal, .services, .systemExtensions]
+        case .other:
             return []
         default:
             return [selectedFilter]
         }
     }
 
-    private var validationResult: EntitlementValidationResult {
-        manager.validate(entitlementsDict)
+    /// Base validation plus cross-entitlement checks, deduplicated by message.
+    private var combinedIssues: (errors: [EntitlementError], warnings: [EntitlementWarning]) {
+        let base = manager.validate(entitlementsDict)
+        let extra = manager.crossEntitlementIssues(entitlementsDict)
+        var seen = Set(base.errors.map(\.message) + base.warnings.map(\.message))
+        var errors = base.errors
+        var warnings = base.warnings
+        for e in extra.errors where seen.insert(e.message).inserted { errors.append(e) }
+        for w in extra.warnings where seen.insert(w.message).inserted { warnings.append(w) }
+        return (errors, warnings)
+    }
+
+    private func stringArrayBinding(for key: String) -> Binding<[String]> {
+        Binding(
+            get: { entitlementsDict[key] as? [String] ?? [] },
+            set: {
+                entitlementsDict[key] = $0
+                markDirty()
+            }
+        )
+    }
+
+    private func stringBinding(for key: String, fallback: String) -> Binding<String> {
+        Binding(
+            get: { entitlementsDict[key] as? String ?? fallback },
+            set: {
+                entitlementsDict[key] = $0
+                markDirty()
+            }
+        )
     }
 
     public var body: some View {
@@ -453,7 +202,7 @@ public struct EntitlementsEditorView: View {
 
                 if let error = creationError {
                     Text(error)
-                        .foregroundColor(.red)
+                        .foregroundStyle(.secondary)
                         .font(.callout)
                 }
 
@@ -464,7 +213,7 @@ public struct EntitlementsEditorView: View {
                         .font(.headline)
                         .frame(minWidth: 160)
                 }
-                .buttonStyle(.borderedProminent)
+                .buttonStyle(.bordered)
                 .disabled(isCreating)
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -512,11 +261,7 @@ public struct EntitlementsEditorView: View {
                 }
 
                 // Main Content View
-                if selectedFilter == .rawXML {
-                    rawXMLEditorView
-                } else {
-                    capabilitiesListView
-                }
+                capabilitiesListView
             }
             .sheet(isPresented: $showingAddSheet) {
                 addCapabilitySheet
@@ -525,11 +270,8 @@ public struct EntitlementsEditorView: View {
                 inspectorSheetView
             }
             .onAppear {
-                if fileURL != nil {
-                    syncXMLText()
-                    if let url = fileURL {
-                        fileModifiedDate = Self.modifiedDate(of: url)
-                    }
+                if let url = fileURL {
+                    fileModifiedDate = Self.modifiedDate(of: url)
                 }
             }
         }
@@ -543,7 +285,7 @@ public struct EntitlementsEditorView: View {
                     .foregroundStyle(.secondary)
                 Text(fileURL?.lastPathComponent ?? "App.entitlements")
                     .font(.headline)
-                Text("(\(entitlementsDict.count) capabilities)")
+                Text("(\(entitlementsDict.count) entries)")
                     .font(.caption)
                     .foregroundStyle(.secondary)
                 if isDirty {
@@ -562,7 +304,7 @@ public struct EntitlementsEditorView: View {
             HStack {
                 Image(systemName: "magnifyingglass")
                     .foregroundStyle(.secondary)
-                TextField("Search capabilities...", text: $searchQuery)
+                TextField("Search entitlements...", text: $searchQuery)
                     .textFieldStyle(.plain)
                 if !searchQuery.isEmpty {
                     Button { searchQuery = "" } label: {
@@ -598,7 +340,7 @@ public struct EntitlementsEditorView: View {
                     ])
                     toolStatus = "Applied Hardened Runtime Developer Tool Preset"
                 } label: {
-                    Label("Developer Tool Hardened Runtime", systemImage: "wrench.and.screwdriver")
+                    Label("Developer Tool Hardened Runtime", systemImage: "hammer")
                 }
 
                 Button {
@@ -634,16 +376,26 @@ public struct EntitlementsEditorView: View {
             }
             .buttonStyle(.bordered)
 
-            // Copy XML Tool
+            // Copy XML Tool (copies the generated XML; editing stays UI-only)
             Button {
-                syncXMLText()
+                let xml = manager.generateRawXML(entitlementsDict)
                 NSPasteboard.general.clearContents()
-                NSPasteboard.general.setString(xmlEditorText, forType: .string)
-                toolStatus = "Copied Raw XML to clipboard"
+                NSPasteboard.general.setString(xml, forType: .string)
+                toolStatus = "Copied entitlements XML to clipboard"
             } label: {
                 Label("Copy XML", systemImage: "doc.on.doc")
             }
             .buttonStyle(.bordered)
+
+            // Revert Tool (undo unsaved changes by re-reading the file)
+            Button {
+                revertChanges()
+            } label: {
+                Label("Revert", systemImage: "arrow.uturn.backward")
+            }
+            .buttonStyle(.bordered)
+            .disabled(!isDirty)
+            .help("Discard unsaved changes and re-read the entitlements file from disk")
 
             // Save Tool
             Button {
@@ -662,7 +414,7 @@ public struct EntitlementsEditorView: View {
             } label: {
                 Label("Capability", systemImage: "plus")
             }
-            .buttonStyle(.borderedProminent)
+            .buttonStyle(.bordered)
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 8)
@@ -679,7 +431,6 @@ public struct EntitlementsEditorView: View {
     private func saveChanges() {
         do {
             try manager.writeEntitlements(entitlementsDict)
-            syncXMLText()
             isDirty = false
             if let url = fileURL {
                 fileModifiedDate = Self.modifiedDate(of: url)
@@ -690,14 +441,26 @@ public struct EntitlementsEditorView: View {
         }
     }
 
+    private func revertChanges() {
+        do {
+            entitlementsDict = try manager.readEntitlements()
+            isDirty = false
+            if let url = fileURL {
+                fileModifiedDate = Self.modifiedDate(of: url)
+            }
+            toolStatus = "Reverted unsaved changes."
+        } catch {
+            toolStatus = "Could not re-read entitlements file: \(error.localizedDescription)"
+        }
+    }
+
     private func validateEntitlements() {
-        let res = validationResult
-        if res.errors.isEmpty && res.warnings.isEmpty {
-            toolStatus = "All capabilities are syntactically valid."
+        let issues = combinedIssues
+        if issues.errors.isEmpty && issues.warnings.isEmpty {
+            toolStatus = "All capabilities are valid."
         } else {
-            let allIssues = res.errors.map(\.message) + res.warnings.map(\.message)
-            let msg = allIssues.joined(separator: "; ")
-            toolStatus = "Validation: \(msg)"
+            let allIssues = issues.errors.map(\.message) + issues.warnings.map(\.message)
+            toolStatus = "Validation: \(allIssues.joined(separator: "; "))"
         }
     }
 
@@ -735,6 +498,47 @@ public struct EntitlementsEditorView: View {
         .background(Color(NSColor.controlBackgroundColor), in: RoundedRectangle(cornerRadius: 8))
     }
 
+    // MARK: - Cross-Entitlement Issues Panel
+    @ViewBuilder
+    private var validationIssuesPanel: some View {
+        let issues = combinedIssues
+        if !issues.errors.isEmpty || !issues.warnings.isEmpty {
+            VStack(alignment: .leading, spacing: 8) {
+                Label(
+                    "Entitlement Issues (\(issues.errors.count + issues.warnings.count))",
+                    systemImage: "exclamationmark.triangle"
+                )
+                .font(.headline)
+                .foregroundStyle(.secondary)
+                ForEach(issues.errors) { error in
+                    issueRow(icon: "xmark.octagon.fill", rawKey: error.rawKey, message: error.message)
+                }
+                ForEach(issues.warnings) { warning in
+                    issueRow(icon: "exclamationmark.triangle.fill", rawKey: warning.rawKey, message: warning.message)
+                }
+            }
+            .padding(.horizontal, 16)
+        }
+    }
+
+    private func issueRow(icon: String, rawKey: String, message: String) -> some View {
+        HStack(alignment: .top, spacing: 10) {
+            Image(systemName: icon)
+                .foregroundStyle(.secondary)
+                .frame(width: 20)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(rawKey)
+                    .font(.system(.caption, design: .monospaced))
+                    .foregroundStyle(.secondary)
+                Text(message)
+                    .font(.callout)
+            }
+            Spacer()
+        }
+        .padding(10)
+        .background(Color(NSColor.controlBackgroundColor).opacity(0.6), in: RoundedRectangle(cornerRadius: 8))
+    }
+
     // MARK: - Capabilities List View
     private var capabilitiesListView: some View {
         ScrollView {
@@ -742,6 +546,8 @@ public struct EntitlementsEditorView: View {
                 fileStatusCard
                     .padding(.horizontal, 16)
                     .padding(.top, 12)
+
+                validationIssuesPanel
 
                 ForEach(visibleSections) { section in
                     capabilitySection(section)
@@ -760,9 +566,17 @@ public struct EntitlementsEditorView: View {
         let defs = CapabilityCatalog.definitions(for: section).filter(capabilityMatchesSearch)
         if !defs.isEmpty {
             VStack(alignment: .leading, spacing: 8) {
-                Label(section.rawValue, systemImage: section.icon)
+                Label(section.fullTitle, systemImage: section.icon)
                     .font(.headline)
                     .foregroundStyle(.secondary)
+                if section == .systemExtensions {
+                    Label(
+                        "Requires a special entitlement request to Apple — the key alone does not grant access.",
+                        systemImage: "exclamationmark.triangle"
+                    )
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                }
                 ForEach(defs) { def in
                     capabilityCard(def)
                 }
@@ -785,8 +599,27 @@ public struct EntitlementsEditorView: View {
                         .font(.caption)
                         .foregroundStyle(.secondary)
                         .fixedSize(horizontal: false, vertical: true)
+                    if def.requiresSpecialApproval {
+                        Label(
+                            "Requires a special entitlement request to Apple — the key alone does not grant access.",
+                            systemImage: "exclamationmark.triangle"
+                        )
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    }
                 }
                 Spacer()
+                if isCapabilityOn(def) {
+                    Button {
+                        setCapability(def, on: false)
+                        toolStatus = "Removed \(def.rawKey)"
+                    } label: {
+                        Image(systemName: "arrow.counterclockwise")
+                            .foregroundStyle(.secondary)
+                    }
+                    .buttonStyle(.plain)
+                    .help("Remove \(def.rawKey) from the entitlements file")
+                }
                 Toggle("", isOn: Binding(
                     get: { isCapabilityOn(def) },
                     set: { setCapability(def, on: $0) }
@@ -812,74 +645,60 @@ public struct EntitlementsEditorView: View {
 
     @ViewBuilder
     private func capabilityPayloadEditor(_ def: CapabilityDefinition) -> some View {
-        // iCloud is composite: container list plus key-value store identifier.
-        if def.rawKey == CapabilityCatalog.iCloudContainersKey {
-            VStack(alignment: .leading, spacing: 8) {
-                Text("Container Identifiers")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                EntitlementIDListEditor(
-                    ids: Binding(
-                        get: { entitlementsDict[CapabilityCatalog.iCloudContainersKey] as? [String] ?? [] },
-                        set: {
-                            entitlementsDict[CapabilityCatalog.iCloudContainersKey] = $0
-                            markDirty()
-                        }
-                    ),
-                    placeholder: "iCloud.com.example.app"
-                )
-                Text("Key-Value Store Identifier")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                TextField("$(TeamIdentifierPrefix)$(CFBundleIdentifier)", text: Binding(
+        switch def.payload {
+        case .none:
+            EmptyView()
+        case .idList(let placeholder):
+            EntitlementIDListEditor(
+                ids: stringArrayBinding(for: def.rawKey),
+                placeholder: placeholder
+            )
+        case .fixedValueList(let allowed):
+            FixedValueListEditor(
+                values: stringArrayBinding(for: def.rawKey),
+                allowed: allowed
+            )
+        case .choice(let options):
+            Picker("Value", selection: stringBinding(for: def.rawKey, fallback: options.first ?? "")) {
+                ForEach(options, id: \.self) { option in
+                    Text(option).tag(option)
+                }
+            }
+            .pickerStyle(.segmented)
+        case .stringValue(let placeholder):
+            TextField(placeholder, text: stringBinding(for: def.rawKey, fallback: ""))
+                .textFieldStyle(.roundedBorder)
+                .font(.system(.body, design: .monospaced))
+        case .prefixedList(let prefixes, let placeholder):
+            AssociatedDomainsEditor(
+                domains: stringArrayBinding(for: def.rawKey),
+                prefixes: prefixes,
+                placeholder: placeholder
+            )
+        case .iCloudComposite:
+            ICloudCompositeEditor(
+                containers: Binding(
+                    get: { entitlementsDict[CapabilityCatalog.iCloudContainersKey] as? [String] ?? [] },
+                    set: {
+                        entitlementsDict[CapabilityCatalog.iCloudContainersKey] = $0
+                        markDirty()
+                    }
+                ),
+                kvStore: Binding(
                     get: { entitlementsDict[CapabilityCatalog.iCloudKVStoreKey] as? String ?? "" },
                     set: {
                         entitlementsDict[CapabilityCatalog.iCloudKVStoreKey] = $0
                         markDirty()
                     }
-                ))
-                .textFieldStyle(.roundedBorder)
-                .font(.system(.body, design: .monospaced))
-            }
-        } else {
-            switch def.payload {
-            case .none:
-                EmptyView()
-            case .idList(let placeholder):
-                EntitlementIDListEditor(
-                    ids: Binding(
-                        get: { entitlementsDict[def.rawKey] as? [String] ?? [] },
-                        set: {
-                            entitlementsDict[def.rawKey] = $0
-                            markDirty()
-                        }
-                    ),
-                    placeholder: placeholder
+                ),
+                ubiquitous: Binding(
+                    get: { entitlementsDict[CapabilityCatalog.ubiquitousContainersKey] as? [String: [String: Any]] ?? [:] },
+                    set: {
+                        entitlementsDict[CapabilityCatalog.ubiquitousContainersKey] = $0
+                        markDirty()
+                    }
                 )
-            case .choice(let options):
-                Picker("Value", selection: Binding(
-                    get: { entitlementsDict[def.rawKey] as? String ?? options.first ?? "" },
-                    set: {
-                        entitlementsDict[def.rawKey] = $0
-                        markDirty()
-                    }
-                )) {
-                    ForEach(options, id: \.self) { option in
-                        Text(option).tag(option)
-                    }
-                }
-                .pickerStyle(.segmented)
-            case .stringValue(let placeholder):
-                TextField(placeholder, text: Binding(
-                    get: { entitlementsDict[def.rawKey] as? String ?? "" },
-                    set: {
-                        entitlementsDict[def.rawKey] = $0
-                        markDirty()
-                    }
-                ))
-                .textFieldStyle(.roundedBorder)
-                .font(.system(.body, design: .monospaced))
-            }
+            )
         }
     }
 
@@ -888,10 +707,10 @@ public struct EntitlementsEditorView: View {
     private var otherKeysSection: some View {
         if !uncoveredKeys.isEmpty {
             VStack(alignment: .leading, spacing: 8) {
-                Label("Other Keys", systemImage: EntitlementCapabilitySection.other.icon)
+                Label(EntitlementCapabilitySection.other.fullTitle, systemImage: EntitlementCapabilitySection.other.icon)
                     .font(.headline)
                     .foregroundStyle(.secondary)
-                Text("These keys are present in the file but are not managed by a capability toggle above.")
+                Text("These keys are present in the file but are not managed by a capability toggle above. Edit them in place or remove them.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
                 ForEach(uncoveredKeys, id: \.self) { key in
@@ -929,44 +748,6 @@ public struct EntitlementsEditorView: View {
             }
             .padding(.horizontal, 16)
         }
-    }
-
-    // MARK: - Raw XML Editor View
-    private var rawXMLEditorView: some View {
-        VStack(spacing: 0) {
-            HStack {
-                Label("Raw Entitlements XML", systemImage: "doc.plaintext")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                Spacer()
-                Button("Re-format XML") {
-                    syncXMLText()
-                }
-                .buttonStyle(.bordered)
-                .controlSize(.small)
-            }
-            .padding(.horizontal, 16)
-            .padding(.vertical, 6)
-            .background(Color(NSColor.controlBackgroundColor))
-
-            Divider()
-
-            TextEditor(text: $xmlEditorText)
-                .font(.system(.body, design: .monospaced))
-                .padding(8)
-                .background(Color(NSColor.textBackgroundColor))
-                .onChange(of: xmlEditorText) { _, newValue in
-                    guard newValue != manager.generateRawXML(entitlementsDict) else { return }
-                    if let parsed = try? manager.parseRawXML(newValue) {
-                        entitlementsDict = parsed
-                        markDirty()
-                    }
-                }
-        }
-    }
-
-    private func syncXMLText() {
-        xmlEditorText = manager.generateRawXML(entitlementsDict)
     }
 
     // MARK: - Add Capability Sheet
@@ -1017,17 +798,30 @@ public struct EntitlementsEditorView: View {
                 Picker("Type", selection: $customKeyType) {
                     Text("Boolean").tag("boolean")
                     Text("String").tag("string")
+                    Text("Array").tag("array")
+                    Text("Dictionary").tag("dictionary")
                 }
                 .pickerStyle(.menu)
                 Button("Add") {
                     let trimmed = customKey.trimmingCharacters(in: .whitespaces)
                     guard !trimmed.isEmpty, entitlementsDict[trimmed] == nil else { return }
-                    entitlementsDict[trimmed] = customKeyType == "boolean" ? true : ""
+                    let newValue: Any
+                    switch customKeyType {
+                    case "string":
+                        newValue = ""
+                    case "array":
+                        newValue = [String]()
+                    case "dictionary":
+                        newValue = [String: String]()
+                    default:
+                        newValue = true
+                    }
+                    entitlementsDict[trimmed] = newValue
                     markDirty()
                     customKey = ""
                     showingAddSheet = false
                 }
-                .buttonStyle(.borderedProminent)
+                .buttonStyle(.bordered)
                 .disabled(customKey.trimmingCharacters(in: .whitespaces).isEmpty || entitlementsDict[customKey.trimmingCharacters(in: .whitespaces)] != nil)
             }
             let trimmedCustom = customKey.trimmingCharacters(in: .whitespaces)
@@ -1046,7 +840,7 @@ public struct EntitlementsEditorView: View {
             }
         }
         .padding()
-        .frame(width: 580, height: 560)
+        .frame(width: 580, height: 600)
     }
 
     // MARK: - Inspector Sheet
@@ -1068,41 +862,72 @@ public struct EntitlementsEditorView: View {
 
             if let key = selectedKey {
                 let meta = EntitlementsCatalog.all.first(where: { $0.rawKey == key })
-                VStack(alignment: .leading, spacing: 16) {
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text(meta?.displayName ?? key)
-                            .font(.title3.bold())
-                        Text(key)
-                            .font(.system(.caption, design: .monospaced))
-                            .foregroundStyle(.secondary)
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 16) {
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text(meta?.displayName ?? key)
+                                .font(.title3.bold())
+                            Text(key)
+                                .font(.system(.caption, design: .monospaced))
+                                .foregroundStyle(.secondary)
+                        }
+
+                        if let desc = meta?.entitlementDescription, !desc.isEmpty {
+                            Text(desc)
+                                .font(.body)
+                                .foregroundStyle(.secondary)
+                        }
+
+                        if let meta {
+                            Divider()
+                            VStack(alignment: .leading, spacing: 6) {
+                                inspectorDetailRow(label: "Category", value: meta.category.rawValue)
+                                inspectorDetailRow(
+                                    label: "Platforms",
+                                    value: meta.supportedPlatforms.map(\.rawValue).joined(separator: ", ")
+                                )
+                                inspectorDetailRow(label: "Minimum OS", value: meta.minimumOS)
+                                inspectorDetailRow(label: "Value Type", value: meta.valueType.rawValue)
+                                if !meta.validationRules.isEmpty {
+                                    inspectorDetailRow(label: "Validation", value: meta.validationRules)
+                                }
+                                if !meta.recommendedUsage.isEmpty {
+                                    inspectorDetailRow(label: "Recommended Usage", value: meta.recommendedUsage)
+                                }
+                            }
+                        }
+
+                        Divider()
+
+                        VStack(alignment: .leading, spacing: 6) {
+                            Text("Configured Value:")
+                                .font(.subheadline.bold())
+                            Text(String(describing: entitlementsDict[key] ?? ""))
+                                .font(.system(.body, design: .monospaced))
+                                .padding(10)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .background(Color(NSColor.controlBackgroundColor), in: RoundedRectangle(cornerRadius: 6))
+                        }
                     }
-
-                    if let desc = meta?.entitlementDescription {
-                        Text(desc)
-                            .font(.body)
-                            .foregroundStyle(.secondary)
-                    }
-
-                    Divider()
-
-                    VStack(alignment: .leading, spacing: 6) {
-                        Text("Configured Value:")
-                            .font(.subheadline.bold())
-                        Text(String(describing: entitlementsDict[key] ?? ""))
-                            .font(.system(.body, design: .monospaced))
-                            .padding(10)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .background(Color(NSColor.controlBackgroundColor), in: RoundedRectangle(cornerRadius: 6))
-                    }
-
-                    Spacer()
+                    .padding(20)
                 }
-                .padding(20)
             } else {
                 ContentUnavailableView("No Capability Selected", systemImage: "lock.shield")
             }
         }
-        .frame(width: 480, height: 400)
+        .frame(width: 480, height: 440)
+    }
+
+    private func inspectorDetailRow(label: String, value: String) -> some View {
+        HStack(alignment: .top, spacing: 8) {
+            Text(label)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .frame(width: 130, alignment: .leading)
+            Text(value)
+                .font(.callout)
+            Spacer()
+        }
     }
 }
 
@@ -1122,6 +947,9 @@ struct EntitlementIDListEditor: View {
             }
             ForEach(ids, id: \.self) { id in
                 HStack {
+                    Image(systemName: "tag")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
                     Text(id)
                         .font(.system(.body, design: .monospaced))
                     Spacer()
@@ -1175,7 +1003,353 @@ struct EntitlementIDListEditor: View {
     }
 }
 
-// MARK: - Clean Monochrome Row View (unmanaged keys)
+// MARK: - Fixed Value List Editor (values restricted to a real set)
+
+struct FixedValueListEditor: View {
+    @Binding var values: [String]
+    let allowed: [String]
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            if values.isEmpty {
+                Text("None selected. Add one of the supported values below.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            ForEach(values, id: \.self) { value in
+                HStack {
+                    Image(systemName: allowed.contains(value) ? "checkmark.circle" : "exclamationmark.circle")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    Text(value)
+                        .font(.system(.body, design: .monospaced))
+                    Spacer()
+                    Button {
+                        values.removeAll { $0 == value }
+                    } label: {
+                        Image(systemName: "minus.circle")
+                            .foregroundStyle(.secondary)
+                    }
+                    .buttonStyle(.plain)
+                    .help("Remove value")
+                }
+                .padding(.horizontal, 8)
+                .padding(.vertical, 4)
+                .background(Color(NSColor.textBackgroundColor), in: RoundedRectangle(cornerRadius: 6))
+            }
+            let missing = allowed.filter { !values.contains($0) }
+            if !missing.isEmpty {
+                HStack {
+                    Text("Add:")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    ForEach(missing, id: \.self) { value in
+                        Button(value) { values.append(value) }
+                            .buttonStyle(.bordered)
+                            .controlSize(.small)
+                    }
+                }
+            }
+        }
+    }
+}
+
+// MARK: - Associated Domains Editor (service prefix + host)
+
+struct AssociatedDomainsEditor: View {
+    @Binding var domains: [String]
+    let prefixes: [String]
+    let placeholder: String
+    @State private var selectedPrefix = 0
+    @State private var host = ""
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            if domains.isEmpty {
+                Text("No associated domains yet.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            ForEach(domains, id: \.self) { domain in
+                HStack {
+                    Image(systemName: "link")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    Text(domain)
+                        .font(.system(.body, design: .monospaced))
+                    Spacer()
+                    Button {
+                        domains.removeAll { $0 == domain }
+                    } label: {
+                        Image(systemName: "minus.circle")
+                            .foregroundStyle(.secondary)
+                    }
+                    .buttonStyle(.plain)
+                    .help("Remove domain")
+                }
+                .padding(.horizontal, 8)
+                .padding(.vertical, 4)
+                .background(Color(NSColor.textBackgroundColor), in: RoundedRectangle(cornerRadius: 6))
+            }
+            HStack {
+                Picker("Service", selection: $selectedPrefix) {
+                    ForEach(prefixes.indices, id: \.self) { index in
+                        Text(prefixes[index]).tag(index)
+                    }
+                }
+                .pickerStyle(.menu)
+                .frame(maxWidth: 180)
+                TextField(placeholder, text: $host)
+                    .textFieldStyle(.roundedBorder)
+                    .font(.system(.body, design: .monospaced))
+                    .onSubmit { addDomain() }
+                Button("Add") { addDomain() }
+                    .buttonStyle(.bordered)
+                    .controlSize(.small)
+                    .disabled(!canAdd)
+            }
+            Text("Each entry is a service prefix plus your domain, e.g. applinks:example.com.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        }
+    }
+
+    private var trimmedHost: String {
+        host.trimmingCharacters(in: .whitespaces).lowercased()
+    }
+
+    private var newDomain: String {
+        prefixes[selectedPrefix] + trimmedHost
+    }
+
+    private var canAdd: Bool {
+        !trimmedHost.isEmpty && !domains.contains(newDomain)
+    }
+
+    private func addDomain() {
+        guard canAdd else { return }
+        domains.append(newDomain)
+        host = ""
+    }
+}
+
+// MARK: - iCloud Composite Editor
+
+struct ICloudCompositeEditor: View {
+    @Binding var containers: [String]
+    @Binding var kvStore: String
+    @Binding var ubiquitous: [String: [String: Any]]
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("Container Identifiers")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            EntitlementIDListEditor(
+                ids: $containers,
+                placeholder: "iCloud.com.example.app"
+            )
+            Text("Key-Value Store Identifier")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            TextField("$(TeamIdentifierPrefix)$(CFBundleIdentifier)", text: $kvStore)
+                .textFieldStyle(.roundedBorder)
+                .font(.system(.body, design: .monospaced))
+            UbiquitousContainersEditor(containers: $ubiquitous)
+        }
+    }
+}
+
+// MARK: - NSUbiquitousContainers Editor
+
+/// Honest model of the real NSUbiquitousContainers dictionary: each container ID
+/// maps to a dictionary with NSUbiquitousContainerName (String),
+/// NSUbiquitousContainerIsDocumentScopePublic (Boolean), and
+/// NSUbiquitousContainerSupportedFolderLevels (None / One / Any).
+struct UbiquitousContainersEditor: View {
+    @Binding var containers: [String: [String: Any]]
+    @State private var newID = ""
+
+    private enum Keys {
+        static let name = "NSUbiquitousContainerName"
+        static let isPublic = "NSUbiquitousContainerIsDocumentScopePublic"
+        static let folderLevels = "NSUbiquitousContainerSupportedFolderLevels"
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Ubiquitous Containers (NSUbiquitousContainers)")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            if containers.isEmpty {
+                Text("No ubiquitous containers configured. Add one below if the app declares document containers.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            ForEach(containers.keys.sorted(), id: \.self) { id in
+                VStack(alignment: .leading, spacing: 6) {
+                    HStack {
+                        Image(systemName: "shippingbox")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                        Text(id)
+                            .font(.system(.body, design: .monospaced))
+                        Spacer()
+                        Button {
+                            containers.removeValue(forKey: id)
+                        } label: {
+                            Image(systemName: "minus.circle")
+                                .foregroundStyle(.secondary)
+                        }
+                        .buttonStyle(.plain)
+                        .help("Remove container")
+                    }
+                    TextField("Display name", text: nameBinding(for: id))
+                        .textFieldStyle(.roundedBorder)
+                    Toggle("Document scope is public", isOn: publicBinding(for: id))
+                    Picker("Folder levels", selection: folderLevelsBinding(for: id)) {
+                        Text("None").tag("None")
+                        Text("One").tag("One")
+                        Text("Any").tag("Any")
+                    }
+                    .pickerStyle(.segmented)
+                    Divider()
+                }
+            }
+            HStack {
+                TextField("iCloud.com.example.container", text: $newID)
+                    .textFieldStyle(.roundedBorder)
+                    .font(.system(.body, design: .monospaced))
+                    .onSubmit { addContainer() }
+                Button("Add") { addContainer() }
+                    .buttonStyle(.bordered)
+                    .controlSize(.small)
+                    .disabled(trimmedNewID.isEmpty || containers[trimmedNewID] != nil)
+            }
+        }
+    }
+
+    private var trimmedNewID: String {
+        newID.trimmingCharacters(in: .whitespaces)
+    }
+
+    private func addContainer() {
+        guard !trimmedNewID.isEmpty, containers[trimmedNewID] == nil else { return }
+        containers[trimmedNewID] = [
+            Keys.name: "",
+            Keys.isPublic: false,
+            Keys.folderLevels: "None"
+        ]
+        newID = ""
+    }
+
+    private func nameBinding(for id: String) -> Binding<String> {
+        Binding(
+            get: { containers[id]?[Keys.name] as? String ?? "" },
+            set: {
+                var entry = containers[id] ?? [:]
+                entry[Keys.name] = $0
+                containers[id] = entry
+            }
+        )
+    }
+
+    private func publicBinding(for id: String) -> Binding<Bool> {
+        Binding(
+            get: { containers[id]?[Keys.isPublic] as? Bool ?? false },
+            set: {
+                var entry = containers[id] ?? [:]
+                entry[Keys.isPublic] = $0
+                containers[id] = entry
+            }
+        )
+    }
+
+    private func folderLevelsBinding(for id: String) -> Binding<String> {
+        Binding(
+            get: { containers[id]?[Keys.folderLevels] as? String ?? "None" },
+            set: {
+                var entry = containers[id] ?? [:]
+                entry[Keys.folderLevels] = $0
+                containers[id] = entry
+            }
+        )
+    }
+}
+
+// MARK: - String Dictionary Editor (custom dictionary values)
+
+struct EntitlementDictionaryEditor: View {
+    @Binding var entries: [String: String]
+    @State private var newKey = ""
+    @State private var newValue = ""
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            if entries.isEmpty {
+                Text("Empty dictionary.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            ForEach(entries.keys.sorted(), id: \.self) { key in
+                HStack {
+                    Image(systemName: "curlybraces")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    Text(key)
+                        .font(.system(.body, design: .monospaced))
+                    Image(systemName: "arrow.right")
+                        .font(.caption)
+                        .foregroundStyle(.tertiary)
+                    TextField("Value", text: Binding(
+                        get: { entries[key] ?? "" },
+                        set: { entries[key] = $0 }
+                    ))
+                    .textFieldStyle(.roundedBorder)
+                    .font(.system(.body, design: .monospaced))
+                    Button {
+                        entries.removeValue(forKey: key)
+                    } label: {
+                        Image(systemName: "minus.circle")
+                            .foregroundStyle(.secondary)
+                    }
+                    .buttonStyle(.plain)
+                    .help("Remove entry")
+                }
+                .padding(.horizontal, 8)
+                .padding(.vertical, 4)
+                .background(Color(NSColor.textBackgroundColor), in: RoundedRectangle(cornerRadius: 6))
+            }
+            HStack {
+                TextField("Key", text: $newKey)
+                    .textFieldStyle(.roundedBorder)
+                    .font(.system(.body, design: .monospaced))
+                TextField("Value", text: $newValue)
+                    .textFieldStyle(.roundedBorder)
+                    .font(.system(.body, design: .monospaced))
+                    .onSubmit { addEntry() }
+                Button("Add") { addEntry() }
+                    .buttonStyle(.bordered)
+                    .controlSize(.small)
+                    .disabled(trimmedKey.isEmpty || entries[trimmedKey] != nil)
+            }
+        }
+    }
+
+    private var trimmedKey: String {
+        newKey.trimmingCharacters(in: .whitespaces)
+    }
+
+    private func addEntry() {
+        guard !trimmedKey.isEmpty, entries[trimmedKey] == nil else { return }
+        entries[trimmedKey] = newValue
+        newKey = ""
+        newValue = ""
+    }
+}
+
+// MARK: - Row View for unmanaged keys (type-appropriate inline editors)
+
 struct EntitlementRowView: View {
     let key: String
     let value: Any
@@ -1184,71 +1358,130 @@ struct EntitlementRowView: View {
     let onDelete: () -> Void
     let onValueChange: (Any) -> Void
 
-    var body: some View {
-        HStack(spacing: 12) {
-            VStack(alignment: .leading, spacing: 2) {
-                Text(key)
-                    .font(.system(.body, design: .monospaced).weight(.medium))
-                    .lineLimit(1)
+    private var typeIcon: String {
+        if value is Bool { return "switch.2" }
+        if value is [String] { return "list.bullet" }
+        if value is [Any] { return "list.bullet" }
+        if value is [String: Any] { return "curlybraces" }
+        return "textformat"
+    }
 
-                if let meta = EntitlementsCatalog.all.first(where: { $0.rawKey == key }) {
-                    Text(meta.displayName)
-                        .font(.caption)
+    private var typeName: String {
+        if value is Bool { return "Boolean" }
+        if value is [String] { return "Array of Strings" }
+        if value is [Any] { return "Array" }
+        if value is [String: String] { return "Dictionary (String values)" }
+        if value is [String: Any] { return "Dictionary" }
+        if value is String { return "String" }
+        return "Value"
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 12) {
+                Image(systemName: typeIcon)
+                    .foregroundStyle(.secondary)
+                    .frame(width: 24)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(key)
+                        .font(.system(.body, design: .monospaced).weight(.medium))
+                        .lineLimit(1)
+                    if let meta = EntitlementsCatalog.all.first(where: { $0.rawKey == key }) {
+                        Text(meta.displayName)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    } else {
+                        Text(typeName)
+                            .font(.caption)
+                            .foregroundStyle(.tertiary)
+                    }
+                }
+                .frame(minWidth: 220, alignment: .leading)
+
+                Spacer()
+
+                if let boolVal = value as? Bool {
+                    Toggle("", isOn: Binding(
+                        get: { boolVal },
+                        set: { onValueChange($0) }
+                    ))
+                    .toggleStyle(.switch)
+                    .labelsHidden()
+                }
+
+                // Inspect
+                Button(action: onSelect) {
+                    Image(systemName: "slider.horizontal.3")
                         .foregroundStyle(.secondary)
                 }
-            }
-            .frame(minWidth: 220, alignment: .leading)
+                .buttonStyle(.plain)
+                .help("Inspect Capability")
 
-            Spacer()
+                // Duplicate
+                Button(action: onDuplicate) {
+                    Image(systemName: "plus.square.on.square")
+                        .foregroundStyle(.secondary)
+                }
+                .buttonStyle(.plain)
+                .help("Duplicate Capability")
 
-            if let boolVal = value as? Bool {
-                Toggle("", isOn: Binding(
-                    get: { boolVal },
-                    set: { onValueChange($0) }
-                ))
-                .toggleStyle(.switch)
-                .labelsHidden()
-            } else if let arrVal = value as? [Any] {
-                Text("\(arrVal.count) entries")
-                    .font(.caption)
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 4)
-                    .background(Color(NSColor.controlBackgroundColor), in: RoundedRectangle(cornerRadius: 4))
-            } else {
-                TextField("", text: Binding(
-                    get: { String(describing: value) },
-                    set: { onValueChange($0) }
-                ))
-                .textFieldStyle(.roundedBorder)
-                .font(.system(.body, design: .monospaced))
-                .frame(minWidth: 160, maxWidth: 260)
+                // Delete
+                Button(action: onDelete) {
+                    Image(systemName: "trash")
+                        .foregroundStyle(.secondary)
+                }
+                .buttonStyle(.plain)
+                .help("Remove Capability")
             }
 
-            // Inspect
-            Button(action: onSelect) {
-                Image(systemName: "slider.horizontal.3")
-                    .foregroundStyle(.secondary)
-            }
-            .buttonStyle(.plain)
-            .help("Inspect Capability")
-
-            // Duplicate
-            Button(action: onDuplicate) {
-                Image(systemName: "plus.square.on.square")
-                    .foregroundStyle(.secondary)
-            }
-            .buttonStyle(.plain)
-            .help("Duplicate Capability")
-
-            // Delete
-            Button(action: onDelete) {
-                Image(systemName: "trash")
-                    .foregroundStyle(.secondary)
-            }
-            .buttonStyle(.plain)
-            .help("Remove Capability")
+            valueEditor
+                .padding(.leading, 36)
         }
         .padding(.horizontal, 10)
         .padding(.vertical, 6)
+    }
+
+    @ViewBuilder
+    private var valueEditor: some View {
+        if value is Bool {
+            EmptyView()
+        } else if value is [String] {
+            EntitlementIDListEditor(
+                ids: Binding(
+                    get: { value as? [String] ?? [] },
+                    set: { onValueChange($0) }
+                ),
+                placeholder: "value"
+            )
+        } else if let arrVal = value as? [Any] {
+            Text("\(arrVal.count) entries (non-string array — remove and re-add to edit inline)")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .padding(.horizontal, 8)
+                .padding(.vertical, 4)
+                .background(Color(NSColor.controlBackgroundColor), in: RoundedRectangle(cornerRadius: 4))
+        } else if value is [String: String] {
+            EntitlementDictionaryEditor(
+                entries: Binding(
+                    get: { value as? [String: String] ?? [:] },
+                    set: { onValueChange($0) }
+                )
+            )
+        } else if let dictVal = value as? [String: Any] {
+            Text("Dictionary with \(dictVal.count) entries (non-string values — remove and re-add to edit inline)")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .padding(.horizontal, 8)
+                .padding(.vertical, 4)
+                .background(Color(NSColor.controlBackgroundColor), in: RoundedRectangle(cornerRadius: 4))
+        } else {
+            TextField("", text: Binding(
+                get: { String(describing: value) },
+                set: { onValueChange($0) }
+            ))
+            .textFieldStyle(.roundedBorder)
+            .font(.system(.body, design: .monospaced))
+            .frame(minWidth: 160, maxWidth: 400)
+        }
     }
 }

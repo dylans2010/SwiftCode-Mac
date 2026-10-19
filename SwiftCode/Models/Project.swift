@@ -41,6 +41,38 @@ public struct CIBuildConfiguration: Codable {
     }
 }
 
+public struct ProjectBuildSettings: Codable, Sendable {
+    /// Persisted per-project build metadata edited in Project Settings.
+    /// All properties carry defaults so the synthesized Codable conformance
+    /// tolerates older project.json payloads that lack these keys.
+    public var organizationName: String = ""
+    public var bundleIdentifier: String = ""
+    public var marketingVersion: String = "1.0.0"
+    public var buildNumber: String = "1"
+    public var autoIncrementBuildNumber: Bool = false
+    public var developmentTeam: String = ""
+    public var swiftLanguageVersion: String = "6.0"
+    public var deploymentTargetPlatform: String = "macOS"
+    public var deploymentTargetVersion: String = "15.0"
+    /// When nil, build configurations are derived from the .xcodeproj on disk.
+    /// Set once the user edits the list in Project Settings.
+    public var buildConfigurationOverrides: [String]? = nil
+    /// Per-target bundle identifier overrides, keyed by target name.
+    public var targetBundleIDOverrides: [String: String] = [:]
+    /// Persisted Xcode build-setting overrides, keyed by setting name
+    /// (e.g. "SWIFT_OPTIMIZATION_LEVEL"). Keys absent here fall back to the
+    /// values detected in the project's build settings.
+    public var xcodeSettings: [String: String] = [:]
+    /// Relative paths inside the project directory; empty = auto-detect.
+    public var infoPlistPath: String = ""
+    public var entitlementsPath: String = ""
+    public var codeSignStyle: String = "Automatic"
+    public var codeSignIdentity: String = ""
+    public var provisioningProfileSpecifier: String = ""
+
+    public init() {}
+}
+
 public struct Project: Identifiable, Codable, @unchecked Sendable {
     public var id: UUID
     public var name: String
@@ -54,9 +86,10 @@ public struct Project: Identifiable, Codable, @unchecked Sendable {
     public var transferConfiguration: ProjectTransferConfiguration?
     public var customDirectoryPath: String?
     public var destinations: [String]?
+    public var buildSettings: ProjectBuildSettings = ProjectBuildSettings()
 
     public enum CodingKeys: String, CodingKey {
-        case id, name, createdAt, lastOpened, files, fileCount, githubRepo, description, ciBuildConfiguration, transferConfiguration, customDirectoryPath, destinations
+        case id, name, createdAt, lastOpened, files, fileCount, githubRepo, description, ciBuildConfiguration, transferConfiguration, customDirectoryPath, destinations, buildSettings
     }
 
     public init(from decoder: Decoder) throws {
@@ -73,6 +106,7 @@ public struct Project: Identifiable, Codable, @unchecked Sendable {
         transferConfiguration = try container.decodeIfPresent(ProjectTransferConfiguration.self, forKey: .transferConfiguration)
         customDirectoryPath = try container.decodeIfPresent(String.self, forKey: .customDirectoryPath)
         destinations = try container.decodeIfPresent([String].self, forKey: .destinations)
+        buildSettings = try container.decodeIfPresent(ProjectBuildSettings.self, forKey: .buildSettings) ?? ProjectBuildSettings()
     }
 
     public func encode(to encoder: Encoder) throws {
@@ -89,6 +123,7 @@ public struct Project: Identifiable, Codable, @unchecked Sendable {
         try container.encode(transferConfiguration, forKey: .transferConfiguration)
         try container.encode(customDirectoryPath, forKey: .customDirectoryPath)
         try container.encodeIfPresent(destinations, forKey: .destinations)
+        try container.encode(buildSettings, forKey: .buildSettings)
     }
 
     public init(name: String) {

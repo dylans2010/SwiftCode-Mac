@@ -341,6 +341,40 @@ final class ProjectSessionStore {
         }
     }
 
+    /// Persists the full build-metadata block (identity, versioning, signing,
+    /// deployment, Swift version, configuration overrides, Xcode setting overrides).
+    func updateProjectBuildMetadata(_ metadata: ProjectBuildSettings, for project: Project) {
+        if let idx = projects.firstIndex(where: { $0.id == project.id }) {
+            projects[idx].buildSettings = metadata
+            saveMetadata(projects[idx])
+        }
+        if activeProject?.id == project.id {
+            if case .ready(var p) = state {
+                p.buildSettings = metadata
+                state = .ready(p)
+            }
+        }
+    }
+
+    /// Renames the project metadata without moving anything on disk. Only safe
+    /// for projects whose directory does not derive from the name
+    /// (customDirectoryPath projects). Default-root projects must use
+    /// renameProject(_:to:) so the folder moves with the name.
+    func updateProjectName(_ name: String, for project: Project) {
+        let sanitized = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !sanitized.isEmpty else { return }
+        if let idx = projects.firstIndex(where: { $0.id == project.id }) {
+            projects[idx].name = sanitized
+            saveMetadata(projects[idx])
+        }
+        if activeProject?.id == project.id {
+            if case .ready(var p) = state {
+                p.name = sanitized
+                state = .ready(p)
+            }
+        }
+    }
+
     // MARK: - Session Actions
 
     private var openingTask: Task<Void, Never>?

@@ -1,4 +1,5 @@
 import SwiftUI
+import UniformTypeIdentifiers
 import os
 
 // MARK: - Small helpers for the Project tab
@@ -25,6 +26,15 @@ struct ProjectInspectorView: View {
     @State private var isAIReviewRunning = false
     @State private var alertMessage = ""
     @State private var showingAlert = false
+
+    // File detail state (populated by selecting a file row in the Analytics tab)
+    @State private var selectedFileURL: URL?
+    @State private var fileMetadata: InspectorFileMetadata?
+    @State private var fileGitStatus: String?
+    @State private var fileLocalizations: [String] = []
+    @State private var fileSymbols: [CodeSymbol] = []
+    @State private var fileSymbolsUnavailable = false
+    @State private var gitStatusCache: [String: String] = [:]
 
     // Project tab state
     @State private var selectedSettingsTargetID = ""
@@ -77,7 +87,7 @@ struct ProjectInspectorView: View {
                             }
                         }
                     }
-                    .buttonStyle(.borderedProminent)
+                    .buttonStyle(.bordered)
                     .disabled(scanner.isScanning)
                 }
             }
@@ -774,6 +784,11 @@ struct ProjectInspectorView: View {
     @ViewBuilder
     private func analyticsTab() -> some View {
         VStack(alignment: .leading, spacing: 20) {
+            // Selected file detail (populated by tapping a file row below)
+            if selectedFileURL != nil {
+                fileDetailCard()
+            }
+
             // Modern Swift Syntax Usage Card
             GroupBox {
                 VStack(alignment: .leading, spacing: 12) {
@@ -805,19 +820,25 @@ struct ProjectInspectorView: View {
                         Divider()
 
                         ForEach(scanner.largestFiles) { file in
-                            HStack {
-                                Image(systemName: "doc.text")
-                                    .foregroundColor(.secondary)
-                                VStack(alignment: .leading, spacing: 2) {
-                                    Text(file.name).bold().font(.subheadline)
-                                    Text(file.path).font(.caption).foregroundColor(.secondary).lineLimit(1)
+                            Button {
+                                selectInspectorFile(file)
+                            } label: {
+                                HStack {
+                                    Image(systemName: "doc.text")
+                                        .foregroundColor(.secondary)
+                                    VStack(alignment: .leading, spacing: 2) {
+                                        Text(file.name).bold().font(.subheadline)
+                                        Text(file.path).font(.caption).foregroundColor(.secondary).lineLimit(1)
+                                    }
+                                    Spacer()
+                                    Text(formatBytes(file.size))
+                                        .font(.system(.caption, design: .monospaced))
+                                        .foregroundColor(.secondary)
                                 }
-                                Spacer()
-                                Text(formatBytes(file.size))
-                                    .font(.system(.caption, design: .monospaced))
-                                    .foregroundColor(.secondary)
+                                .padding(.vertical, 4)
+                                .contentShape(Rectangle())
                             }
-                            .padding(.vertical, 4)
+                            .buttonStyle(.plain)
                         }
                     }
                     .padding()
@@ -832,19 +853,25 @@ struct ProjectInspectorView: View {
                         Divider()
 
                         ForEach(scanner.longestSwiftFiles) { file in
-                            HStack {
-                                Image(systemName: "swift")
-                                    .foregroundColor(.secondary)
-                                VStack(alignment: .leading, spacing: 2) {
-                                    Text(file.name).bold().font(.subheadline)
-                                    Text(file.path).font(.caption).foregroundColor(.secondary).lineLimit(1)
+                            Button {
+                                selectInspectorFile(file)
+                            } label: {
+                                HStack {
+                                    Image(systemName: "swift")
+                                        .foregroundColor(.secondary)
+                                    VStack(alignment: .leading, spacing: 2) {
+                                        Text(file.name).bold().font(.subheadline)
+                                        Text(file.path).font(.caption).foregroundColor(.secondary).lineLimit(1)
+                                    }
+                                    Spacer()
+                                    Text("\(file.lineCount) lines")
+                                        .font(.system(.caption, design: .monospaced))
+                                        .foregroundColor(.secondary)
                                 }
-                                Spacer()
-                                Text("\(file.lineCount) lines")
-                                    .font(.system(.caption, design: .monospaced))
-                                    .foregroundColor(.secondary)
+                                .padding(.vertical, 4)
+                                .contentShape(Rectangle())
                             }
-                            .padding(.vertical, 4)
+                            .buttonStyle(.plain)
                         }
                     }
                     .padding()
@@ -916,6 +943,294 @@ struct ProjectInspectorView: View {
         return formatter.string(fromByteCount: size)
     }
 
+    // MARK: - File Detail (per-file inspector for Analytics selections)
+
+    /// Resolves an absolute file URL from a scanner `FileMetrics` entry and loads
+    /// its on-disk metadata, localization siblings, git status, and (for Swift
+    /// files) symbol outline. Git status runs off the main thread via Process and
+    /// is cached per path so rescans of the same file stay cheap.
+    private func selectInspectorFile(_ file: FileMetrics) {
+        let rootPath = scanner.projectDirectoryPath
+        guard !rootPath.isEmpty else { return }
+        let root = URL(fileURLWithPath: rootPath)
+        let url = root.appendingPathComponent(file.path)
+
+        selectedFileURL = url
+        fileMetadata = InspectorFileMetadata.load(from: url, root: root)
+        fileLocalizations = InspectorFileMetadata.localizations(for: url)
+        fileSymbols = []
+        fileSymbolsUnavailable = false
+        fileGitStatus = nil
+
+        let cacheKey = url.path
+        if let cached = gitStatusCache[cacheKey] {
+            fileGitStatus = cached
+        } else {
+            Task(priority: .utility) {
+                let status = await Task.detached(priority: .utility) {
+                    inspectorGitStatus(for: url, root: root)
+                }.value
+                gitStatusCache[cacheKey] = status
+                if selectedFileURL == url {
+                    fileGitStatus = status
+                }
+            }
+        }
+
+        // Symbol outline for Swift sources, using the same real analyzer as the
+        // editor's Symbol Outline view.
+        if url.pathExtension.lowercased() == "swift" {
+            if let content = try? String(contentsOf: url, encoding: .utf8), !content.isEmpty {
+                fileSymbols = CodeStructureAnalyzer.shared.analyze(content)
+            } else {
+                fileSymbolsUnavailable = true
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func fileDetailCard() -> some View {
+        GroupBox {
+            VStack(alignment: .leading, spacing: 12) {
+                HStack {
+                    Label("Selected File Details", systemImage: "doc.text.magnifyingglass")
+                        .font(.headline)
+                    Spacer()
+                    Button {
+                        selectedFileURL = nil
+                    } label: {
+                        Image(systemName: "xmark.circle.fill")
+                            .foregroundStyle(.secondary)
+                    }
+                    .buttonStyle(.plain)
+                    .help("Clear file selection")
+                }
+
+                Divider()
+
+                if let meta = fileMetadata {
+                    fileDetailMetadataGrid(meta)
+                    Divider().opacity(0.4)
+                    fileDetailLocalizationRow()
+                    Divider().opacity(0.4)
+                    fileDetailGitRow()
+                    Divider().opacity(0.4)
+                    fileDetailSymbolsRow()
+                    Divider().opacity(0.4)
+                    fileDetailActionsRow()
+                } else {
+                    Label("Could not read this file's metadata.", systemImage: "exclamationmark.triangle")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
+            .padding()
+        }
+        .groupBoxStyle(ModernGroupBoxStyle())
+    }
+
+    private func detailLabel(_ text: String, icon: String) -> some View {
+        Label(text + ":", systemImage: icon)
+            .font(.caption)
+            .foregroundStyle(.secondary)
+    }
+
+    @ViewBuilder
+    private func fileDetailMetadataGrid(_ meta: InspectorFileMetadata) -> some View {
+        Grid(alignment: .leading, horizontalSpacing: 24, verticalSpacing: 8) {
+            GridRow {
+                detailLabel("Name", icon: "doc")
+                Text(meta.name)
+                    .font(.subheadline.weight(.medium))
+                    .textSelection(.enabled)
+                detailLabel("Size", icon: "scalemass")
+                Text(formatBytes(meta.size))
+                    .font(.system(.caption, design: .monospaced))
+                    .foregroundStyle(.secondary)
+            }
+            GridRow {
+                detailLabel("Kind", icon: "doc.badge.gearshape")
+                Text(meta.kindDescription)
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                detailLabel("Extension", icon: "curlybraces")
+                Text(meta.fileExtension)
+                    .font(.system(.caption, design: .monospaced))
+                    .foregroundStyle(.secondary)
+            }
+            GridRow {
+                detailLabel("Modified", icon: "calendar")
+                Text(meta.modified.map { InspectorFileMetadata.dateFormatter.string(from: $0) } ?? "—")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                detailLabel("Created", icon: "calendar.badge.plus")
+                Text(meta.created.map { InspectorFileMetadata.dateFormatter.string(from: $0) } ?? "—")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            GridRow {
+                detailLabel("Permissions", icon: "lock")
+                Text(meta.permissionsText)
+                    .font(.system(.caption, design: .monospaced))
+                    .foregroundStyle(.secondary)
+                detailLabel("UTI", icon: "tag")
+                Text(meta.utiIdentifier)
+                    .font(.system(.caption, design: .monospaced))
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+            }
+            GridRow {
+                detailLabel("Path", icon: "folder")
+                Text(meta.relativePath)
+                    .font(.system(.caption, design: .monospaced))
+                    .foregroundStyle(.secondary)
+                    .lineLimit(2)
+                    .textSelection(.enabled)
+                    .gridCellColumns(3)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func fileDetailLocalizationRow() -> some View {
+        HStack(alignment: .top, spacing: 8) {
+            Label("Localizations", systemImage: "globe")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .frame(minWidth: 110, alignment: .leading)
+            if fileLocalizations.isEmpty {
+                Text("None found")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            } else {
+                ProjectInspectorFlowLayout(spacing: 6) {
+                    ForEach(fileLocalizations, id: \.self) { locale in
+                        Text(locale)
+                            .font(.caption)
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 3)
+                            .background(Color(NSColor.controlBackgroundColor), in: Capsule())
+                    }
+                }
+            }
+            Spacer()
+        }
+    }
+
+    @ViewBuilder
+    private func fileDetailGitRow() -> some View {
+        HStack(spacing: 8) {
+            Label("Git status", systemImage: "arrow.triangle.branch")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .frame(minWidth: 110, alignment: .leading)
+            if let status = fileGitStatus {
+                Text(status)
+                    .font(.caption)
+                    .foregroundStyle(.primary)
+            } else {
+                HStack(spacing: 6) {
+                    ProgressView()
+                        .scaleEffect(0.6)
+                    Text("Checking git status…")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
+            Spacer()
+        }
+    }
+
+    @ViewBuilder
+    private func fileDetailSymbolsRow() -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 8) {
+                Label("Symbols", systemImage: "list.bullet.rectangle")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                Spacer()
+                let typeCount = fileSymbols.filter { $0.kind == .class || $0.kind == .struct || $0.kind == .enum || $0.kind == .protocol }.count
+                let functionCount = fileSymbols.filter { $0.kind == .function }.count
+                Text("\(typeCount) types · \(functionCount) functions")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            if fileSymbolsUnavailable {
+                Text("Symbol analysis unavailable (file could not be read).")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            } else if selectedFileURL?.pathExtension.lowercased() != "swift" {
+                Text("Symbol outline is available for Swift source files.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            } else if fileSymbols.isEmpty {
+                Text("No detectable symbols (classes, structs, functions, etc.).")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            } else {
+                let typeSymbols = fileSymbols.filter { $0.kind == .class || $0.kind == .struct || $0.kind == .enum || $0.kind == .protocol }
+                let shown = Array(typeSymbols.prefix(12))
+                ForEach(shown) { symbol in
+                    HStack(spacing: 8) {
+                        Image(systemName: symbol.kind.icon)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .frame(width: 16)
+                        Text(symbol.name)
+                            .font(.system(.caption, design: .monospaced))
+                        Text(symbol.kind.rawValue)
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                        Spacer()
+                        Text("line \(symbol.lineNumber)")
+                            .font(.caption2)
+                            .foregroundStyle(.tertiary)
+                    }
+                    .padding(.vertical, 1)
+                }
+                if typeSymbols.count > shown.count {
+                    Text("and \(typeSymbols.count - shown.count) more type declarations")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                }
+            }
+        }
+    }
+
+    private func fileDetailActionsRow() -> some View {
+        HStack(spacing: 12) {
+            Button {
+                if let url = selectedFileURL {
+                    NSWorkspace.shared.activateFileViewerSelecting([url])
+                }
+            } label: {
+                Label("Reveal in Finder", systemImage: "folder")
+            }
+            .buttonStyle(.bordered)
+
+            Button {
+                if let url = selectedFileURL {
+                    let pasteboard = NSPasteboard.general
+                    pasteboard.clearContents()
+                    pasteboard.setString(url.path, forType: .string)
+                }
+            } label: {
+                Label("Copy Path", systemImage: "doc.on.doc")
+            }
+            .buttonStyle(.bordered)
+
+            Button {
+                if let url = selectedFileURL {
+                    NSWorkspace.shared.open(url)
+                }
+            } label: {
+                Label("Open with Default App", systemImage: "arrow.up.forward.app")
+            }
+            .buttonStyle(.bordered)
+        }
+    }
+
     // MARK: - AI Review Tab View
 
     @ViewBuilder
@@ -960,7 +1275,7 @@ struct ProjectInspectorView: View {
                                     Spacer()
                                 }
                                 .padding(8)
-                                .background(aiReviewPrompt == preset ? Color.accentColor.opacity(0.12) : Color.clear)
+                                .background(aiReviewPrompt == preset ? Color.secondary.opacity(0.15) : Color.clear)
                                 .cornerRadius(6)
                             }
                             .buttonStyle(.plain)
@@ -996,7 +1311,7 @@ struct ProjectInspectorView: View {
                             }
                         }
                     }
-                    .buttonStyle(.borderedProminent)
+                    .buttonStyle(.bordered)
                     .disabled(isAIReviewRunning || aiReviewPrompt.isEmpty)
                 }
                 .padding()
@@ -1132,7 +1447,6 @@ Prompt: \(aiReviewPrompt)
                         }
                     }
                     .buttonStyle(.bordered)
-                    .tint(.red)
                 }
                 .padding()
             }
@@ -1297,5 +1611,138 @@ private struct ProjectInspectorFlowLayout: Layout {
         }
         if !current.indices.isEmpty { rows.append(current) }
         return rows
+    }
+}
+
+// MARK: - Per-file inspector support
+
+/// Deep on-disk metadata for a single project file, sourced from FileManager.
+private struct InspectorFileMetadata {
+    let url: URL
+    let name: String
+    let relativePath: String
+    let size: Int64
+    let created: Date?
+    let modified: Date?
+    let fileExtension: String
+    let kindDescription: String
+    let utiIdentifier: String
+    let posixPermissions: Int
+
+    static let dateFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.dateStyle = .medium
+        formatter.timeStyle = .short
+        return formatter
+    }()
+
+    static func load(from url: URL, root: URL) -> InspectorFileMetadata? {
+        let fileManager = FileManager.default
+        guard let attributes = try? fileManager.attributesOfItem(atPath: url.path) else { return nil }
+        let ext = url.pathExtension
+        let utType = ext.isEmpty ? nil : UTType(filenameExtension: ext)
+        let rootPath = root.path.hasSuffix("/") ? root.path : root.path + "/"
+        let relative = url.path.hasPrefix(rootPath) ? String(url.path.dropFirst(rootPath.count)) : url.path
+        return InspectorFileMetadata(
+            url: url,
+            name: url.lastPathComponent,
+            relativePath: relative,
+            size: (attributes[.size] as? NSNumber)?.int64Value ?? 0,
+            created: attributes[.creationDate] as? Date,
+            modified: attributes[.modificationDate] as? Date,
+            fileExtension: ext.isEmpty ? "—" : ext,
+            kindDescription: utType?.localizedDescription ?? "Unknown",
+            utiIdentifier: utType?.identifier ?? "—",
+            posixPermissions: (attributes[.posixPermissions] as? NSNumber)?.intValue ?? 0
+        )
+    }
+
+    /// Human-readable permissions like "rw-r--r-- (644)".
+    var permissionsText: String {
+        let perms = posixPermissions & 0xFFF
+        let names = ["r", "w", "x"]
+        var readable = ""
+        for group in 0..<3 {
+            let bits = (perms >> (6 - 3 * group)) & 0x7
+            for bit in 0..<3 {
+                readable += (bits & (1 << (2 - bit))) != 0 ? names[bit] : "-"
+            }
+        }
+        return "\(readable) (\(String(perms, radix: 8)))"
+    }
+
+    /// Localizations for this file: any "<base>.lproj" folder containing a
+    /// "<base>.strings" file, plus sibling "<base>.strings", "<base>.stringsdict"
+    /// or "<base>.xcstrings" files — all discovered via FileManager.
+    static func localizations(for url: URL) -> [String] {
+        let fileManager = FileManager.default
+        let parent = url.deletingLastPathComponent()
+        let base = url.deletingPathExtension().lastPathComponent
+        guard !base.isEmpty,
+              let contents = try? fileManager.contentsOfDirectory(at: parent, includingPropertiesForKeys: [.isDirectoryKey], options: [.skipsHiddenFiles]) else {
+            return []
+        }
+        var found: [String] = []
+        for item in contents {
+            let isDirectory = (try? item.resourceValues(forKeys: [.isDirectoryKey]))?.isDirectory ?? false
+            if isDirectory {
+                guard item.pathExtension == "lproj" else { continue }
+                let locale = item.deletingPathExtension().lastPathComponent
+                let stringsFile = item.appendingPathComponent(base + ".strings")
+                if fileManager.fileExists(atPath: stringsFile.path), !found.contains(locale) {
+                    found.append(locale)
+                }
+            } else {
+                let ext = item.pathExtension.lowercased()
+                guard ext == "strings" || ext == "stringsdict" || ext == "xcstrings" else { continue }
+                guard item.deletingPathExtension().lastPathComponent == base else { continue }
+                let label = ext == "xcstrings" ? item.lastPathComponent : item.deletingPathExtension().lastPathComponent
+                if !found.contains(label) {
+                    found.append(label)
+                }
+            }
+        }
+        return found.sorted()
+    }
+}
+
+/// Runs `git status --porcelain` for a single path inside the project directory
+/// and returns a human-readable status. Returns "Unmodified" when clean, or an
+/// honest "Not a git repository" when the project is not under git control.
+private func inspectorGitStatus(for url: URL, root: URL) -> String {
+    let process = Process()
+    process.executableURL = URL(fileURLWithPath: "/usr/bin/git")
+    process.currentDirectoryURL = root
+    let rootPath = root.path.hasSuffix("/") ? root.path : root.path + "/"
+    let target = url.path.hasPrefix(rootPath) ? String(url.path.dropFirst(rootPath.count)) : url.path
+    process.arguments = ["status", "--porcelain=v1", "--", target]
+    let outPipe = Pipe()
+    let errPipe = Pipe()
+    process.standardOutput = outPipe
+    process.standardError = errPipe
+    guard (try? process.run()) != nil else { return "Git unavailable" }
+    process.waitUntilExit()
+    if process.terminationStatus != 0 {
+        let err = (try? errPipe.fileHandleForReading.readToEnd()).flatMap { String(data: $0, encoding: .utf8) } ?? ""
+        if err.localizedCaseInsensitiveContains("not a git repository") {
+            return "Not a git repository"
+        }
+        return "Git status unavailable"
+    }
+    let output = ((try? outPipe.fileHandleForReading.readToEnd()).flatMap { String(data: $0, encoding: .utf8) } ?? "")
+        .trimmingCharacters(in: .whitespacesAndNewlines)
+    guard !output.isEmpty else { return "Unmodified" }
+    switch String(output.prefix(2)) {
+    case "??": return "Untracked"
+    case "!!": return "Ignored"
+    case "A ": return "Added (staged)"
+    case "M ": return "Modified (staged)"
+    case "D ": return "Deleted (staged)"
+    case "R ": return "Renamed (staged)"
+    case "C ": return "Copied (staged)"
+    case " M", "AM", "MM": return "Modified (unstaged)"
+    case " D", "AD": return "Deleted (unstaged)"
+    case "UU", "AA", "DD": return "Merge conflict"
+    default: return "Changed"
     }
 }

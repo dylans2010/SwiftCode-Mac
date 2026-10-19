@@ -121,6 +121,133 @@ public enum InfoPlistTemplateCatalog {
     }
 }
 
+// MARK: - Validation Issues
+
+/// One validation warning surfaced by the warnings panel.
+struct PlistValidationIssue: Identifiable {
+    let id = UUID()
+    let symbol = "exclamationmark.triangle"
+    let message: String
+    let fixTitle: String?
+    let fix: (() -> Void)?
+}
+
+/// Collects validation issues for the warnings panel. Shared by the panel and
+/// the Validate toolbar action. Uses the editor's own validators.
+func collectPlistValidationIssues(editor: InfoPlistEditor) -> [PlistValidationIssue] {
+    var list: [PlistValidationIssue] = []
+
+    // Missing required identity keys.
+    for key in ["CFBundleIdentifier", "CFBundleShortVersionString", "CFBundleVersion"] {
+        if editor.entries[key] == nil {
+            list.append(PlistValidationIssue(
+                message: "Missing required key \(key).",
+                fixTitle: "Add Key",
+                fix: { editor.addMissingKey(key) }
+            ))
+        }
+    }
+
+    // Malformed bundle identifier.
+    if let identifier = editor.entries["CFBundleIdentifier"] as? String {
+        if identifier.isEmpty {
+            list.append(PlistValidationIssue(
+                message: "CFBundleIdentifier is empty. Use reverse-DNS format, e.g. com.example.MyApp.",
+                fixTitle: nil,
+                fix: nil
+            ))
+        } else if !editor.validateBundleIdentifier(identifier) {
+            list.append(PlistValidationIssue(
+                message: "CFBundleIdentifier contains invalid characters. Use only letters, numbers, dots, and hyphens.",
+                fixTitle: nil,
+                fix: nil
+            ))
+        }
+    }
+
+    // Malformed version / build strings.
+    for key in ["CFBundleShortVersionString", "CFBundleVersion"] {
+        if let version = editor.entries[key] as? String {
+            if version.isEmpty {
+                list.append(PlistValidationIssue(
+                    message: "\(key) is empty.",
+                    fixTitle: nil,
+                    fix: nil
+                ))
+            } else if !editor.validateVersion(version) {
+                list.append(PlistValidationIssue(
+                    message: "\(key) \"\(version)\" is malformed. Use dot-separated numbers, e.g. 1.0.2.",
+                    fixTitle: nil,
+                    fix: nil
+                ))
+            }
+        }
+    }
+
+    // Privacy usage-description wording issues (under 10 characters).
+    let privacyIssues = editor.validatePrivacyKeys()
+    for key in privacyIssues.keys.sorted() {
+        let detail = privacyIssues[key] ?? ""
+        if let meta = InfoPlistNSStrings.all.first(where: { $0.key == key }) {
+            list.append(PlistValidationIssue(
+                message: "\(meta.name): \(detail)",
+                fixTitle: "Use Recommended",
+                fix: { editor.set(key: key, value: meta.recommendedWording) }
+            ))
+        } else {
+            list.append(PlistValidationIssue(
+                message: "\(key): \(detail)",
+                fixTitle: nil,
+                fix: nil
+            ))
+        }
+    }
+
+    return list
+}
+
+/// Collapsible warnings panel. Hidden entirely when there are no issues.
+struct InfoPlistValidationPanel: View {
+    let issues: [PlistValidationIssue]
+    @Binding var isExpanded: Bool
+
+    var body: some View {
+        if !issues.isEmpty {
+            VStack(spacing: 0) {
+                DisclosureGroup(isExpanded: $isExpanded) {
+                    VStack(alignment: .leading, spacing: 6) {
+                        ForEach(issues) { issue in
+                            HStack(alignment: .top, spacing: 8) {
+                                Image(systemName: issue.symbol)
+                                    .foregroundStyle(.secondary)
+                                Text(issue.message)
+                                    .font(.callout)
+                                Spacer()
+                                if let fixTitle = issue.fixTitle, let fix = issue.fix {
+                                    Button(fixTitle, action: fix)
+                                        .buttonStyle(.bordered)
+                                        .controlSize(.small)
+                                }
+                            }
+                            .padding(8)
+                            .background(Color(NSColor.controlBackgroundColor), in: RoundedRectangle(cornerRadius: 6))
+                        }
+                    }
+                    .padding(.top, 6)
+                } label: {
+                    Label("\(issues.count) Validation Warning\(issues.count == 1 ? "" : "s")", systemImage: "exclamationmark.triangle")
+                        .font(.callout.weight(.medium))
+                        .foregroundStyle(.secondary)
+                }
+                .padding(.horizontal, 16)
+                .padding(.vertical, 6)
+                Divider()
+            }
+            .background(Color(NSColor.windowBackgroundColor))
+        }
+    }
+}
+
 // MARK: - Info.plist View
 
 public struct InfoPlistView: View {
@@ -128,8 +255,8 @@ public struct InfoPlistView: View {
     @State private var editor: InfoPlistEditor
     @State private var searchQuery = ""
     @State private var selectedKey: String? = nil
-    @State private var selectedCategory: InfoPlistCategory = .all
-    @State private var xmlEditorText = ""
+    @State private var selectedSection: PlistSidebarSection? = .identity
+    @State private var validationExpanded = true
     @State private var showingAddKeySheet = false
     @State private var newCustomKey = ""
     @State private var newCustomType: PlistValueKind = .string
@@ -137,32 +264,9 @@ public struct InfoPlistView: View {
     @State private var showingInspectorSheet = false
     @State private var toolStatus: String? = nil
 
-    @Environment(\.undoManager) private var undoManager
     @Environment(WorkspaceViewModel.self) private var workspaceViewModel
     @State private var isCreating = false
     @State private var creationError: String? = nil
-
-    public enum InfoPlistCategory: String, CaseIterable, Identifiable {
-        case all = "All Properties"
-        case identity = "App Identity"
-        case permissions = "Privacy & Permissions"
-        case display = "Display & Interface"
-        case urlSchemes = "URL Types"
-        case rawXML = "Raw XML"
-
-        public var id: String { rawValue }
-
-        public var icon: String {
-            switch self {
-            case .all: return "list.bullet.rectangle"
-            case .identity: return "person.crop.square"
-            case .permissions: return "hand.raised"
-            case .display: return "display"
-            case .urlSchemes: return "link"
-            case .rawXML: return "chevron.left.forwardslash.chevron.right"
-            }
-        }
-    }
 
     public init(fileURL: URL?) {
         self.fileURL = fileURL
@@ -222,34 +326,21 @@ public struct InfoPlistView: View {
         }
     }
 
-    private var filteredKeys: [String] {
-        guard fileURL != nil else { return [] }
+    /// Keys matching the global search across key names, values, types, and
+    /// privacy metadata (names, descriptions, search keywords).
+    private var searchFilteredKeys: [String] {
+        guard fileURL != nil, !searchQuery.isEmpty else { return [] }
+        let lowerQuery = searchQuery.lowercased()
         return editor.entries.keys.sorted().filter { key in
-            // Category filter
-            let passesCategory: Bool
-            let lowerKey = key.lowercased()
-            switch selectedCategory {
-            case .all, .rawXML:
-                passesCategory = true
-            case .identity:
-                passesCategory = lowerKey.hasPrefix("cfbundle") || lowerKey.contains("name") || lowerKey.contains("version") || lowerKey.contains("identifier") || lowerKey.contains("copyright") || lowerKey.contains("category")
-            case .permissions:
-                passesCategory = lowerKey.contains("usage") || lowerKey.contains("privacy") || lowerKey.hasPrefix("ns")
-            case .display:
-                passesCategory = lowerKey.contains("interface") || lowerKey.contains("scene") || lowerKey.contains("orientation") || lowerKey.contains("status") || lowerKey.contains("icon") || lowerKey.contains("principal") || lowerKey.contains("resolution")
-            case .urlSchemes:
-                passesCategory = lowerKey.contains("url") || lowerKey.contains("scheme") || lowerKey.contains("document")
-            }
-
-            guard passesCategory else { return false }
-
-            if searchQuery.isEmpty { return true }
-            let lowerQuery = searchQuery.lowercased()
             let matchesKey = key.lowercased().contains(lowerQuery)
             let matchesVal = String(describing: editor.entries[key] ?? "").lowercased().contains(lowerQuery)
             let matchesType = plistValueKind(of: editor.entries[key] ?? "").rawValue.lowercased().contains(lowerQuery)
             let matchesMetadata = InfoPlistNSStrings.all.contains { meta in
-                meta.key == key && (meta.name.lowercased().contains(lowerQuery) || meta.description.lowercased().contains(lowerQuery))
+                meta.key == key && (
+                    meta.name.lowercased().contains(lowerQuery) ||
+                    meta.description.lowercased().contains(lowerQuery) ||
+                    meta.searchKeywords.contains(where: { $0.lowercased().contains(lowerQuery) })
+                )
             }
             return matchesKey || matchesVal || matchesType || matchesMetadata
         }
@@ -269,10 +360,19 @@ public struct InfoPlistView: View {
     private func savePlist() {
         do {
             try editor.save()
-            syncXMLPreview()
             toolStatus = "Info.plist saved to disk."
         } catch {
             toolStatus = "Save failed: \(error.localizedDescription)"
+        }
+    }
+
+    private func validateStructure() {
+        validationExpanded = true
+        let count = collectPlistValidationIssues(editor: editor).count
+        if count == 0 {
+            toolStatus = "Info.plist validated successfully. Required identity keys are present."
+        } else {
+            toolStatus = "Validation found \(count) warning\(count == 1 ? "" : "s"). See the panel below the toolbar."
         }
     }
 
@@ -287,7 +387,7 @@ public struct InfoPlistView: View {
 
                 if let error = creationError {
                     Text(error)
-                        .foregroundColor(.red)
+                        .foregroundStyle(.secondary)
                         .font(.callout)
                 }
 
@@ -298,7 +398,7 @@ public struct InfoPlistView: View {
                         .font(.headline)
                         .frame(minWidth: 160)
                 }
-                .buttonStyle(.borderedProminent)
+                .buttonStyle(.bordered)
                 .disabled(isCreating)
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -310,20 +410,11 @@ public struct InfoPlistView: View {
 
                 Divider()
 
-                // Segmented Category Switcher
-                HStack {
-                    Picker("Category", selection: $selectedCategory) {
-                        ForEach(InfoPlistCategory.allCases) { cat in
-                            Label(cat.rawValue, systemImage: cat.icon).tag(cat)
-                        }
-                    }
-                    .pickerStyle(.segmented)
-                }
-                .padding(.horizontal, 16)
-                .padding(.vertical, 8)
-                .background(Color(NSColor.controlBackgroundColor))
-
-                Divider()
+                // Validation warnings panel (hidden when there are no issues)
+                InfoPlistValidationPanel(
+                    issues: collectPlistValidationIssues(editor: editor),
+                    isExpanded: $validationExpanded
+                )
 
                 // Feedback status banner
                 if let status = toolStatus {
@@ -345,11 +436,25 @@ public struct InfoPlistView: View {
                     Divider()
                 }
 
-                // Main Content View
-                if selectedCategory == .rawXML {
-                    rawXMLEditorView
-                } else {
-                    propertiesListView
+                // Sidebar navigation + section detail
+                NavigationSplitView {
+                    List(selection: $selectedSection) {
+                        ForEach(PlistSidebarSection.allCases) { section in
+                            Label(section.title, systemImage: section.symbol)
+                                .tag(section)
+                        }
+                    }
+                    .navigationTitle("Sections")
+                    .navigationSplitViewColumnWidth(min: 180, ideal: 210, max: 260)
+                } detail: {
+                    Group {
+                        if !searchQuery.isEmpty {
+                            searchResultsView
+                        } else {
+                            sectionDetailView
+                        }
+                    }
+                    .navigationTitle(searchQuery.isEmpty ? (selectedSection?.title ?? "Info.plist") : "Search Results")
                 }
             }
             .sheet(isPresented: $showingAddKeySheet) {
@@ -358,11 +463,36 @@ public struct InfoPlistView: View {
             .sheet(isPresented: $showingInspectorSheet) {
                 inspectorSheetView
             }
-            .onAppear {
-                if fileURL != nil {
-                    syncXMLPreview()
-                }
-            }
+        }
+    }
+
+    // MARK: - Section Detail
+
+    @ViewBuilder
+    private var sectionDetailView: some View {
+        switch selectedSection ?? .identity {
+        case .identity:
+            IdentitySectionView(editor: editor)
+        case .privacy:
+            PrivacySectionView(editor: editor)
+        case .iconsLaunch:
+            IconsLaunchSectionView(editor: editor)
+        case .orientations:
+            OrientationsSectionView(editor: editor)
+        case .appTransportSecurity:
+            ATSSectionView(editor: editor)
+        case .urlTypes:
+            URLTypesSectionView(editor: editor)
+        case .documentTypes:
+            DocumentTypesSectionView(editor: editor)
+        case .typeDeclarations:
+            TypeDeclarationsSectionView(editor: editor)
+        case .backgroundModes:
+            BackgroundModesSectionView(editor: editor)
+        case .deviceCapabilities:
+            DeviceCapabilitiesSectionView(editor: editor)
+        case .allKeys:
+            allKeysListView
         }
     }
 
@@ -412,7 +542,6 @@ public struct InfoPlistView: View {
             HStack(spacing: 4) {
                 Button {
                     editor.undo()
-                    syncXMLPreview()
                 } label: {
                     Image(systemName: "arrow.uturn.backward")
                 }
@@ -422,7 +551,6 @@ public struct InfoPlistView: View {
 
                 Button {
                     editor.redo()
-                    syncXMLPreview()
                 } label: {
                     Image(systemName: "arrow.uturn.forward")
                 }
@@ -430,54 +558,6 @@ public struct InfoPlistView: View {
                 .disabled(!editor.canRedo)
                 .help("Redo")
             }
-
-            // Quick Privacy Presets Menu
-            Menu {
-                Button {
-                    addPrivacyPreset(key: "NSCameraUsageDescription", defaultText: "This application requires access to the camera.")
-                } label: {
-                    Label("Camera Usage (NSCameraUsageDescription)", systemImage: "camera")
-                }
-
-                Button {
-                    addPrivacyPreset(key: "NSPhotoLibraryUsageDescription", defaultText: "This application requires access to photo library.")
-                } label: {
-                    Label("Photo Library (NSPhotoLibraryUsageDescription)", systemImage: "photo.on.rectangle")
-                }
-
-                Button {
-                    addPrivacyPreset(key: "NSMicrophoneUsageDescription", defaultText: "This application requires microphone access.")
-                } label: {
-                    Label("Microphone (NSMicrophoneUsageDescription)", systemImage: "mic")
-                }
-
-                Button {
-                    addPrivacyPreset(key: "NSLocationWhenInUseUsageDescription", defaultText: "This application requires location access while in use.")
-                } label: {
-                    Label("Location (NSLocationWhenInUseUsageDescription)", systemImage: "location")
-                }
-
-                Button {
-                    addPrivacyPreset(key: "NSFaceIDUsageDescription", defaultText: "This application requires Face ID for biometric authentication.")
-                } label: {
-                    Label("Face ID (NSFaceIDUsageDescription)", systemImage: "faceid")
-                }
-
-                Button {
-                    addPrivacyPreset(key: "NSCalendarsUsageDescription", defaultText: "This application requires access to calendar events.")
-                } label: {
-                    Label("Calendar (NSCalendarsUsageDescription)", systemImage: "calendar")
-                }
-
-                Button {
-                    addPrivacyPreset(key: "NSLocalNetworkUsageDescription", defaultText: "This application requires local network access to discover devices.")
-                } label: {
-                    Label("Local Network (NSLocalNetworkUsageDescription)", systemImage: "network")
-                }
-            } label: {
-                Label("Privacy Presets", systemImage: "lock.shield")
-            }
-            .menuStyle(.borderedButton)
 
             // Validate Structure Tool
             Button {
@@ -490,9 +570,8 @@ public struct InfoPlistView: View {
 
             // Copy XML Tool
             Button {
-                syncXMLPreview()
                 NSPasteboard.general.clearContents()
-                NSPasteboard.general.setString(xmlEditorText, forType: .string)
+                NSPasteboard.general.setString(editor.generateRawXML(), forType: .string)
                 toolStatus = "Copied Raw XML to clipboard"
             } label: {
                 Label("Copy XML", systemImage: "doc.on.doc")
@@ -516,123 +595,78 @@ public struct InfoPlistView: View {
             } label: {
                 Label("Add Key", systemImage: "plus")
             }
-            .buttonStyle(.borderedProminent)
+            .buttonStyle(.bordered)
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 8)
         .background(Color(NSColor.windowBackgroundColor))
     }
 
-    private func addPrivacyPreset(key: String, defaultText: String) {
-        guard editor.entries[key] == nil else {
-            toolStatus = "\(key) already exists."
-            return
-        }
-        editor.set(key: key, value: defaultText)
-        syncXMLPreview()
-        toolStatus = "Added \(key)"
+    // MARK: - Key Rows
+
+    private func keyRow(for key: String) -> some View {
+        InfoPlistRow(
+            key: key,
+            value: editor.entries[key] ?? "",
+            onSelect: {
+                selectedKey = key
+                showingInspectorSheet = true
+            },
+            onDuplicate: {
+                let val = editor.entries[key] ?? ""
+                let copyKey = uniqueCopyKey(basedOn: key)
+                editor.set(key: copyKey, value: val)
+                toolStatus = "Duplicated to \(copyKey)"
+            },
+            onDelete: {
+                editor.remove(key: key)
+                if selectedKey == key { selectedKey = nil }
+            },
+            onValueChange: { newVal in
+                editor.set(key: key, value: newVal)
+            }
+        )
+        .padding(.vertical, 2)
     }
 
-    private func validateStructure() {
-        var issues: [String] = []
-        if editor.entries["CFBundleIdentifier"] == nil {
-            issues.append("Missing CFBundleIdentifier")
-        }
-        if editor.entries["CFBundleShortVersionString"] == nil {
-            issues.append("Missing CFBundleShortVersionString")
-        }
-        if editor.entries["CFBundleVersion"] == nil {
-            issues.append("Missing CFBundleVersion")
-        }
-        let privacyIssues = editor.validatePrivacyKeys()
-        for (key, message) in privacyIssues {
-            issues.append("\(key): \(message)")
-        }
-
-        if issues.isEmpty {
-            toolStatus = "Info.plist validated successfully. Required identity keys are present."
-        } else {
-            toolStatus = "Validation warning: " + issues.joined(separator: "; ")
-        }
-    }
-
-    // MARK: - Properties List View
-    private var propertiesListView: some View {
-        List {
-            if filteredKeys.isEmpty {
+    // MARK: - All Keys List View
+    private var allKeysListView: some View {
+        let keys = editor.entries.keys.sorted()
+        return List {
+            if keys.isEmpty {
                 ContentUnavailableView(
-                    "No Properties Found",
-                    systemImage: "doc.text.magnifyingglass",
-                    description: Text(searchQuery.isEmpty ? "Click 'Add Key' or select a Privacy Preset to add properties." : "No properties match '\(searchQuery)'.")
+                    "No Properties",
+                    systemImage: "doc.text",
+                    description: Text("Click 'Add Key' to add properties.")
                 )
                 .padding()
             } else {
-                ForEach(filteredKeys, id: \.self) { key in
-                    InfoPlistRow(
-                        key: key,
-                        value: editor.entries[key] ?? "",
-                        onSelect: {
-                            selectedKey = key
-                            showingInspectorSheet = true
-                        },
-                        onDuplicate: {
-                            let val = editor.entries[key] ?? ""
-                            let copyKey = uniqueCopyKey(basedOn: key)
-                            editor.set(key: copyKey, value: val)
-                            syncXMLPreview()
-                            toolStatus = "Duplicated to \(copyKey)"
-                        },
-                        onDelete: {
-                            editor.remove(key: key)
-                            if selectedKey == key { selectedKey = nil }
-                            syncXMLPreview()
-                        },
-                        onValueChange: { newVal in
-                            editor.set(key: key, value: newVal)
-                            syncXMLPreview()
-                        }
-                    )
-                    .padding(.vertical, 2)
+                ForEach(keys, id: \.self) { key in
+                    keyRow(for: key)
                 }
             }
         }
         .listStyle(.inset)
     }
 
-    // MARK: - Raw XML Editor View
-    private var rawXMLEditorView: some View {
-        VStack(spacing: 0) {
-            HStack {
-                Label("Raw XML Editor", systemImage: "doc.plaintext")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                Spacer()
-                Button("Re-format XML") {
-                    syncXMLPreview()
+    // MARK: - Search Results View
+    private var searchResultsView: some View {
+        let keys = searchFilteredKeys
+        return List {
+            if keys.isEmpty {
+                ContentUnavailableView(
+                    "No Matches",
+                    systemImage: "doc.text.magnifyingglass",
+                    description: Text("No properties match '\(searchQuery)'.")
+                )
+                .padding()
+            } else {
+                ForEach(keys, id: \.self) { key in
+                    keyRow(for: key)
                 }
-                .buttonStyle(.bordered)
-                .controlSize(.small)
             }
-            .padding(.horizontal, 16)
-            .padding(.vertical, 6)
-            .background(Color(NSColor.controlBackgroundColor))
-
-            Divider()
-
-            TextEditor(text: $xmlEditorText)
-                .font(.system(.body, design: .monospaced))
-                .padding(8)
-                .background(Color(NSColor.textBackgroundColor))
-                .onChange(of: xmlEditorText) { _, newValue in
-                    // Skip programmatic syncs; only parse genuine user edits.
-                    guard newValue != editor.generateRawXML() else { return }
-                    _ = try? editor.updateFromXML(newValue)
-                }
         }
-    }
-
-    private func syncXMLPreview() {
-        xmlEditorText = editor.generateRawXML()
+        .listStyle(.inset)
     }
 
     // MARK: - Add Key Sheet
@@ -674,7 +708,6 @@ public struct InfoPlistView: View {
                     } else {
                         Button("Add") {
                             editor.set(key: template.key, value: template.defaultValue)
-                            syncXMLPreview()
                             toolStatus = "Added \(template.key)"
                             showingAddKeySheet = false
                         }
@@ -728,12 +761,11 @@ public struct InfoPlistView: View {
 
                 Button("Add Key") {
                     editor.set(key: trimmedKey, value: defaultPlistValue(for: newCustomType))
-                    syncXMLPreview()
                     toolStatus = "Added \(trimmedKey) (\(newCustomType.rawValue))"
                     showingAddKeySheet = false
                     newCustomKey = ""
                 }
-                .buttonStyle(.borderedProminent)
+                .buttonStyle(.bordered)
                 .disabled(trimmedKey.isEmpty || keyExists)
             }
         }
@@ -766,7 +798,6 @@ public struct InfoPlistView: View {
                         get: { editor.entries[key] ?? "" },
                         set: { newVal in
                             editor.set(key: key, value: newVal)
-                            syncXMLPreview()
                         }
                     ),
                     metadata: metadata,
@@ -811,6 +842,7 @@ struct PlistInlineScalarEditor: View {
                     set: { value = $0 }
                 ))
                 .toggleStyle(.switch)
+                .tint(.gray)
                 .labelsHidden()
             case .number:
                 TextField("", text: numberTextBinding)
@@ -1212,26 +1244,13 @@ struct InfoPlistInspectorPanel: View {
     @ViewBuilder
     private var validationHints: some View {
         if key == "CFBundleIdentifier", let s = value as? String, !editor.validateBundleIdentifier(s) {
-            validationHintRow("This bundle identifier contains invalid characters. Use only letters, numbers, dots, and hyphens.")
+            PlistValidationNote(message: "This bundle identifier contains invalid characters. Use only letters, numbers, dots, and hyphens.")
         }
         if key == "CFBundleShortVersionString", let s = value as? String, !editor.validateVersion(s) {
-            validationHintRow("Version strings should use dot-separated numbers, e.g. 1.0.2.")
+            PlistValidationNote(message: "Version strings should use dot-separated numbers, e.g. 1.0.2.")
         }
         if let issue = editor.validatePrivacyKeys()[key] {
-            validationHintRow(issue)
+            PlistValidationNote(message: issue)
         }
-    }
-
-    private func validationHintRow(_ message: String) -> some View {
-        HStack(alignment: .top, spacing: 8) {
-            Image(systemName: "exclamationmark.triangle")
-                .foregroundStyle(.secondary)
-            Text(message)
-                .font(.caption)
-                .foregroundStyle(.secondary)
-        }
-        .padding(8)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color(NSColor.controlBackgroundColor), in: RoundedRectangle(cornerRadius: 6))
     }
 }

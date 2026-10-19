@@ -1672,7 +1672,9 @@
 		CE101004E34BBDA370490001 /* InfoPlistEditor.swift in Sources */ = {isa = PBXBuildFile; fileRef = CE101003E34BBDA370490001 /* InfoPlistEditor.swift */; };
 		CE101006E34BBDA370490001 /* EntitlementsEditorManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = CE101005E34BBDA370490001 /* EntitlementsEditorManager.swift */; };
 		CE101008E34BBDA370490001 /* InfoPlistView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CE101007E34BBDA370490001 /* InfoPlistView.swift */; };
+		BA09005C9AB0FC4926513534 /* InfoPlistSections.swift in Sources */ = {isa = PBXBuildFile; fileRef = 11B0F27A9F13DC5ACEE1F51C /* InfoPlistSections.swift */; };
 		CE10100AE34BBDA370490001 /* EntitlementsEditorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CE101009E34BBDA370490001 /* EntitlementsEditorView.swift */; };
+		26A2FA8882FBD03116ADBA38 /* EntitlementsEditorCatalog.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6B7C92A620C8C974E68693DE /* EntitlementsEditorCatalog.swift */; };
 		CE2FF47A04855607CF2D5620 /* spm_integration.SKILLS.md in Resources */ = {isa = PBXBuildFile; fileRef = CEF8D4187FAC064E03792C74 /* spm_integration.SKILLS.md */; };
 		CE336E4560C63A2133330F59 /* memory_management.SKILLS.md in Resources */ = {isa = PBXBuildFile; fileRef = CE2319264473BA9E2D0270D7 /* memory_management.SKILLS.md */; };
 		CE3A20F327C8EC5038B9A46C /* swiftui_state_isolation.SKILLS.md in Resources */ = {isa = PBXBuildFile; fileRef = CE53668CF30CE1238D858196 /* swiftui_state_isolation.SKILLS.md */; };
@@ -4609,7 +4611,9 @@
 		CE101003E34BBDA370490001 /* InfoPlistEditor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InfoPlistEditor.swift; sourceTree = "<group>"; };
 		CE101005E34BBDA370490001 /* EntitlementsEditorManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EntitlementsEditorManager.swift; sourceTree = "<group>"; };
 		CE101007E34BBDA370490001 /* InfoPlistView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InfoPlistView.swift; sourceTree = "<group>"; };
+		11B0F27A9F13DC5ACEE1F51C /* InfoPlistSections.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InfoPlistSections.swift; sourceTree = "<group>"; };
 		CE101009E34BBDA370490001 /* EntitlementsEditorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EntitlementsEditorView.swift; sourceTree = "<group>"; };
+		6B7C92A620C8C974E68693DE /* EntitlementsEditorCatalog.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EntitlementsEditorCatalog.swift; sourceTree = "<group>"; };
 		CE11C478FAAC450C8DCC6ACE /* ColorConverterView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ColorConverterView.swift; sourceTree = "<group>"; };
 		CE1B376934CDFBB257A32095 /* coredata_thread_safety.SKILLS.md */ = {isa = PBXFileReference; lastKnownFileType = text.markdown; path = coredata_thread_safety.SKILLS.md; sourceTree = "<group>"; };
 		CE2319264473BA9E2D0270D7 /* memory_management.SKILLS.md */ = {isa = PBXFileReference; lastKnownFileType = text.markdown; path = memory_management.SKILLS.md; sourceTree = "<group>"; };
@@ -9552,7 +9556,9 @@
 			children = (
 				B82F81D12C00E00100000001 /* MarkdownFileView.swift */,
 				CE101009E34BBDA370490001 /* EntitlementsEditorView.swift */,
+				6B7C92A620C8C974E68693DE /* EntitlementsEditorCatalog.swift */,
 				CE101007E34BBDA370490001 /* InfoPlistView.swift */,
+				11B0F27A9F13DC5ACEE1F51C /* InfoPlistSections.swift */,
 				2AEB32651A4E4F7B561D7B81 /* SymbolOutlineView.swift */,
 				46A5954FB1CB8C571A915115 /* SymbolNavigatorView.swift */,
 				77551FB61E8CADB4F5A4963C /* EditorLogicFrameworks */,
@@ -13005,7 +13011,9 @@
 				600543D7E6B7E1A1B8B81B21 /* CIBuildView.swift in Sources */,
 				2416B2BFAAC1F95FED7A02DE /* LocalBuildDemoView.swift in Sources */,
 				CE10100AE34BBDA370490001 /* EntitlementsEditorView.swift in Sources */,
+				26A2FA8882FBD03116ADBA38 /* EntitlementsEditorCatalog.swift in Sources */,
 				CE101008E34BBDA370490001 /* InfoPlistView.swift in Sources */,
+				BA09005C9AB0FC4926513534 /* InfoPlistSections.swift in Sources */,
 				BC72448004FB03F6440094C2 /* SymbolOutlineView.swift in Sources */,
 				5123DBD7E22E4869FB68CEED /* CodeEditorManagementView.swift in Sources */,
 				876F7F4C0080C1A3BB9BD0B5 /* GoToLineView.swift in Sources */,
