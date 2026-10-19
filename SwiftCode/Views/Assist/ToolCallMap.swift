@@ -15,7 +15,7 @@
 import SwiftUI
 
 /// Presentation descriptor for one Assist tool in the Assist main view.
-public struct ToolCallDescriptor {
+public struct ToolCallDescriptor: Sendable {
     /// Short human-readable title, e.g. "Read File".
     public let title: String
     /// SF Symbol name rendered next to the title.
@@ -31,7 +31,7 @@ public struct ToolCallDescriptor {
 }
 
 /// Single source of truth mapping Assist tool IDs to their UI presentation.
-public enum ToolCallMap {
+public enum ToolCallMap: Sendable {
     /// Returns the descriptor for a tool ID. Lookup is case-insensitive and
     /// treats "-" and "_" as equivalent (e.g. "plan-AskUser" == "plan_askuser").
     /// Unknown IDs get a generic descriptor derived from the raw identifier so
