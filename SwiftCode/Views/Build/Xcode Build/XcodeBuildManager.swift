@@ -88,6 +88,15 @@ public final class XcodeBuildManager: Sendable {
     public var sdkDetectionExitCode: Int32? = nil
     public var activeXcodePath: String = ""
 
+    // MARK: - Fix Build with Assist loop state
+
+    /// Last xcodebuild termination status (nil if the build never launched).
+    public var lastExitCode: Int32? = nil
+    public var isAssistFixRunning = false
+    public var assistFixAttempt = 0
+    public let maxAssistFixAttempts = 5
+    public var assistFixStatus = ""
+
     public var availableSDKTypes: [String] {
         if detectedSDKs.isEmpty {
             return ["Default"]
@@ -533,19 +542,35 @@ public final class XcodeBuildManager: Sendable {
             stopTimer()
             isBuilding = false
             activeProcess = nil
+            lastExitCode = status
 
             if currentStatus == .cancelled {
                 return
             }
 
-            if status == 0 {
+            if buildDidFail(exitCode: status) {
+                currentStatus = .failed
+                appendLog("[SYSTEM] Build Failed with exit code \(status).")
+            } else {
                 currentStatus = .succeeded
                 appendLog("[SYSTEM] Build Succeeded.")
 
                 await copyGeneratedAppToManagedDirectory(projectURL: effectiveURL, scheme: finalScheme, configuration: finalConfig, destination: finalDest)
-            } else {
-                currentStatus = .failed
-                appendLog("[SYSTEM] Build Failed with exit code \(status).")
+
+                // "Always Build Archive": turn the freshest .app into an .ipa.
+                if IPABuildService.shared.alwaysBuildArchive {
+                    appendLog("[SYSTEM] Always Build Archive is on — packaging the most up-to-date .app…")
+                    let outDir = ((UserDefaults.standard.string(forKey: "com.swiftcode.ipa.outputDirectory") ?? "~/Desktop") as NSString).expandingTildeInPath
+                    let archiveResult = await IPABuildService.shared.packageLatestApp(
+                        projectName: effectiveURL.deletingPathExtension().lastPathComponent,
+                        outputDirectory: outDir
+                    )
+                    if archiveResult.success {
+                        appendLog("[SYSTEM] Latest Archive updated: \(archiveResult.ipaPath ?? "")")
+                    } else {
+                        appendLog("[ERROR] Archive packaging failed: \(archiveResult.errorMessage ?? "unknown error")")
+                    }
+                }
             }
         } catch {
             stopTimer()
@@ -555,6 +580,128 @@ public final class XcodeBuildManager: Sendable {
             appendLog("[ERROR] Failed to launch build process: \(error.localizedDescription)")
             logger.error("Failed to run build: \(error.localizedDescription, privacy: .public)")
         }
+    }
+
+    // MARK: - Fix Build with Assist
+
+    /// A build counts as failed when xcodebuild exits non-zero OR the log
+    /// explicitly reports "BUILD FAILED".
+    public func buildDidFail(exitCode: Int32) -> Bool {
+        if exitCode != 0 { return true }
+        return buildLogs.joined(separator: "\n").localizedCaseInsensitiveContains("BUILD FAILED")
+    }
+
+    /// Starts the iterative Assist repair loop. Captures all logs plus project
+    /// context, opens Assist in a new session with the diagnostic bundle, then
+    /// rebuilds to verify. The loop ONLY finishes when xcodebuild reports
+    /// "BUILD SUCCEEDED" (exit code 0); it stops after `maxAssistFixAttempts`
+    /// attempts and surfaces the failure to the user.
+    public func startAssistFixLoop() {
+        guard !isAssistFixRunning, !isBuilding else { return }
+        guard currentStatus == .failed || errorsCount > 0 || buildDidFail(exitCode: lastExitCode ?? -1) else {
+            appendLog("[SYSTEM] Fix Build with Assist: nothing to fix — the last build did not fail.")
+            return
+        }
+        isAssistFixRunning = true
+        assistFixAttempt = 0
+        assistFixStatus = "Starting Assist repair…"
+        appendLog("[SYSTEM] Fix Build with Assist started (up to \(maxAssistFixAttempts) attempts).")
+        Task { await runAssistFixLoop() }
+    }
+
+    public func stopAssistFixLoop() {
+        guard isAssistFixRunning else { return }
+        isAssistFixRunning = false
+        assistFixStatus = "Stopped by user."
+        appendLog("[SYSTEM] Fix Build with Assist stopped by user.")
+    }
+
+    private func runAssistFixLoop() async {
+        while isAssistFixRunning && assistFixAttempt < maxAssistFixAttempts {
+            assistFixAttempt += 1
+            let attempt = assistFixAttempt
+            assistFixStatus = "Attempt \(attempt) of \(maxAssistFixAttempts): Assist is fixing…"
+            appendLog("[SYSTEM] Fix attempt \(attempt)/\(maxAssistFixAttempts): sending diagnostics to Assist…")
+
+            let bundle = buildDiagnosticBundle()
+            let prompt = """
+            The Xcode build failed and needs fixing. This is repair attempt \(attempt) of \(maxAssistFixAttempts).
+
+            Diagnose the errors in the bundle below and apply real fixes to the project code (edit files, adjust build settings, fix imports — whatever the errors require). When you finish fixing, reply with a short summary of what you changed. I will rebuild automatically to verify.
+
+            \(bundle)
+            """
+
+            if attempt == 1 {
+                await MainActor.run {
+                    AssistNavigationRouter.revealAssistPanel()
+                    AssistManager.shared.clearSession()
+                }
+            } else {
+                await MainActor.run { AssistNavigationRouter.revealAssistPanel() }
+            }
+
+            // sendMessage awaits the full Assist turn, so when it returns the
+            // fixes (if any) are in place and we can rebuild to verify.
+            await AssistManager.shared.sendMessage(prompt)
+
+            guard isAssistFixRunning else { break }
+
+            assistFixStatus = "Attempt \(attempt) of \(maxAssistFixAttempts): rebuilding to verify…"
+            appendLog("[SYSTEM] Fix attempt \(attempt): rebuilding to verify…")
+            await runBuild()
+
+            let logText = buildLogs.joined(separator: "\n")
+            let succeeded = currentStatus == .succeeded
+                || (lastExitCode == 0 && !buildDidFail(exitCode: lastExitCode ?? -1))
+                || logText.localizedCaseInsensitiveContains("BUILD SUCCEEDED")
+
+            if succeeded {
+                assistFixStatus = "Build succeeded after \(attempt) attempt(s)."
+                appendLog("[SYSTEM] Fix Build with Assist: BUILD SUCCEEDED on attempt \(attempt).")
+                isAssistFixRunning = false
+                return
+            }
+
+            appendLog("[ERROR] Fix attempt \(attempt) still failing — preparing next attempt.", isError: true)
+        }
+
+        if isAssistFixRunning {
+            isAssistFixRunning = false
+            assistFixStatus = "All \(maxAssistFixAttempts) attempts exhausted — manual review needed."
+            appendLog("[ERROR] Fix Build with Assist: exhausted \(maxAssistFixAttempts) attempts without BUILD SUCCEEDED. The full logs above are available for manual review.", isError: true)
+        }
+    }
+
+    /// Full diagnostic bundle: project context, failed command, error lines, log tail.
+    private func buildDiagnosticBundle() -> String {
+        let errorLines = buildLogs.filter { $0.lowercased().contains("error") }.suffix(40)
+        let tail = buildLogs.suffix(60)
+        let failedCommand = buildCommandDescription()
+        return """
+        ## Build context
+        - Project: \(DocumentCoordinator.shared.projectURL?.path ?? "unknown")
+        - Scheme: \(selectedScheme ?? "Automatic")
+        - Configuration: \(selectedConfiguration)
+        - Destination: \(selectedDestination)
+        - SDK argument: \(currentSDKArgument ?? "default")
+        - xcodebuild path: \(getXcodeBuildPath())
+        - Failed command: \(failedCommand)
+        - Exit code: \(lastExitCode.map(String.init) ?? "unknown")
+        - Errors: \(errorsCount), Warnings: \(warningsCount)
+
+        ## Error lines (\(errorLines.count))
+        \(errorLines.joined(separator: "\n"))
+
+        ## Log tail
+        \(tail.joined(separator: "\n"))
+        """
+    }
+
+    private func buildCommandDescription() -> String {
+        let path = getXcodeBuildPath()
+        let scheme = selectedScheme ?? "Automatic"
+        return "\(path) -scheme \(scheme) -configuration \(selectedConfiguration) -destination \"\(selectedDestination)\" build"
     }
 
     public func cleanBuild(projectURL: URL? = nil) {

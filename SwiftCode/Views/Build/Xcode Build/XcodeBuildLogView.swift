@@ -277,21 +277,29 @@ struct XcodeBuildLogView: View {
 
                 Spacer()
 
-                if !errorLogs.isEmpty || buildManager.currentStatus == .failed {
+                if buildManager.isAssistFixRunning {
+                    HStack(spacing: 6) {
+                        ProgressView().controlSize(.small)
+                        Text(buildManager.assistFixStatus.isEmpty ? "Fixing with Assist…" : buildManager.assistFixStatus)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                        Button("Stop") {
+                            buildManager.stopAssistFixLoop()
+                        }
+                        .buttonStyle(.bordered)
+                        .controlSize(.small)
+                    }
+                } else if !errorLogs.isEmpty || buildManager.currentStatus == .failed {
                     Button {
-                        NotificationCenter.default.post(
-                            name: NSNotification.Name("com.swiftcode.assist.triggerQuickFix"),
-                            object: nil,
-                            userInfo: [
-                                "prompt": "Diagnose and fix Xcode build error: \(errorLogs.first?.message ?? "Build failed with exit code")\n\nFull log context:\n\(buildManager.buildLogs.suffix(30).joined(separator: "\n"))"
-                            ]
-                        )
+                        buildManager.startAssistFixLoop()
                     } label: {
-                        Label("Fix with Assist", systemImage: "wand.and.stars")
+                        Label("Fix Build with Assist", systemImage: "wand.and.stars")
                             .font(.caption.bold())
                     }
                     .buttonStyle(.bordered)
                     .controlSize(.small)
+                    .help("Capture all logs and project context, then let Assist iteratively fix the build until xcodebuild reports BUILD SUCCEEDED.")
                 }
             }
         }
@@ -422,17 +430,28 @@ struct XcodeBuildLogView: View {
                                     Label("Errors (\(errorLogs.count))", systemImage: "exclamationmark.octagon")
                                         .font(.headline)
                                     Spacer()
-                                    Button {
-                                        NotificationCenter.default.post(
-                                            name: NSNotification.Name("com.swiftcode.assist.triggerQuickFix"),
-                                            object: nil,
-                                            userInfo: ["prompt": "Fix compile errors:\n" + errorLogs.map { $0.message }.joined(separator: "\n")]
-                                        )
-                                    } label: {
-                                        Label("Fix with Assist", systemImage: "wand.and.stars")
-                                            .font(.caption)
+                                    if buildManager.isAssistFixRunning {
+                                        HStack(spacing: 6) {
+                                            ProgressView().controlSize(.small)
+                                            Text("Attempt \(buildManager.assistFixAttempt)/\(buildManager.maxAssistFixAttempts)")
+                                                .font(.caption)
+                                                .foregroundStyle(.secondary)
+                                            Button("Stop") {
+                                                buildManager.stopAssistFixLoop()
+                                            }
+                                            .buttonStyle(.bordered)
+                                            .controlSize(.small)
+                                        }
+                                    } else {
+                                        Button {
+                                            buildManager.startAssistFixLoop()
+                                        } label: {
+                                            Label("Fix Build with Assist", systemImage: "wand.and.stars")
+                                                .font(.caption)
+                                        }
+                                        .buttonStyle(.bordered)
+                                        .help("Capture all logs and project context, then let Assist iteratively fix the build until xcodebuild reports BUILD SUCCEEDED.")
                                     }
-                                    .buttonStyle(.bordered)
                                 }
 
                                 Divider()
