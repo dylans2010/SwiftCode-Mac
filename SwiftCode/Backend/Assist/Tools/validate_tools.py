@@ -28,6 +28,9 @@ runs in CI/Linux. Checks:
      without a nearby truncation marker.
  10. failure error codes (WARNING): .failure() calls without a code:
      AssistToolErrorCode argument.
+ 11. ToolCallMap coverage: every registered tool has a title / SF symbol /
+     tint entry in SwiftCode/Views/Assist/ToolCallMap.swift (the UI bridge
+     for native tool calls), and vice versa; every entry is well-formed.
 
 Usage: python3 validate_tools.py [--repo <path>] [--strict]
 Exit code 1 on any FAIL (or WARN under --strict).
@@ -477,6 +480,37 @@ def main():
         warn(f"errorcode: {fname}: {len(lnums)} .failure() call(s) without code: (lines {shown})")
     if not missing_code:
         ok("errorcode: every .failure() carries an AssistToolErrorCode")
+
+    # --- 11. ToolCallMap coverage -------------------------------------
+    # Every registered tool ID must have a presentation entry in
+    # SwiftCode/Views/Assist/ToolCallMap.swift (the UI bridge for native
+    # tool calls), and every map entry must resolve to a registered tool.
+    # Normalization matches ToolCallMap.descriptor(for:): lowercase, "-" -> "_".
+    toolcallmap = repo / "SwiftCode/Views/Assist/ToolCallMap.swift"
+    if not toolcallmap.exists():
+        fail("toolcallmap: SwiftCode/Views/Assist/ToolCallMap.swift missing")
+    else:
+        map_text = toolcallmap.read_text()
+        map_keys = set(re.findall(r'^\s*"([a-z0-9_]+)": ToolCallDescriptor\(', map_text, re.M))
+        norm = lambda t: t.lower().replace("-", "_")
+        registered_norm = {norm(t) for t in registered_ids}
+        missing_map = sorted(registered_norm - map_keys)
+        if missing_map:
+            fail(f"toolcallmap: registered tools missing from ToolCallMap: {missing_map}")
+        else:
+            ok(f"toolcallmap: all {len(registered_norm)} registered tools mapped")
+        orphan_map = sorted(map_keys - registered_norm)
+        if orphan_map:
+            fail(f"toolcallmap: map entries with no registered tool: {orphan_map}")
+        else:
+            ok("toolcallmap: no orphan map entries")
+        malformed = [k for k in map_keys if not re.search(
+            rf'"{re.escape(k)}": ToolCallDescriptor\(title: "[^"]+", symbolName: "[^"]+", tint: \.\w+\)',
+            map_text)]
+        if malformed:
+            fail(f"toolcallmap: malformed entries: {malformed}")
+        else:
+            ok("toolcallmap: all entries carry title, symbolName, and tint")
 
     print(f"\n{len(failures)} failure(s), {len(warnings)} warning(s)")
     if failures:
