@@ -58,11 +58,8 @@ public struct DeviceConnectConsole: View {
 
                 if filteredLogs.contains(where: { $0.severity == .error }) {
                     Button {
-                        NotificationCenter.default.post(
-                            name: NSNotification.Name("com.swiftcode.assist.triggerQuickFix"),
-                            object: nil,
-                            userInfo: ["prompt": "Diagnose and fix the Device Connect deployment failure. Verify device installation, simctl commands, and build products."]
-                        )
+                        let logText = filteredLogs.map { $0.message }.joined(separator: "\n")
+                        AssistNavigationRouter.openAssistWithNewSession(prompt: "Diagnose and fix the Device Connect deployment failure. Verify device installation, simctl commands, and build products. Logs:\n\(logText)")
                     } label: {
                         Label("Fix with Assist", systemImage: "sparkles")
                     }

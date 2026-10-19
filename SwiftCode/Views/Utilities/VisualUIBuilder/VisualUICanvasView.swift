@@ -658,9 +658,25 @@ struct SimulatorArtboardView: View {
                                             .foregroundColor(.white)
 
                                         if let file = diag.file {
-                                            Text("File: \(file)")
-                                                .font(.caption2.monospaced())
-                                                .foregroundColor(.secondary)
+                                            HStack(spacing: 8) {
+                                                Text("File: \(file)")
+                                                    .font(.caption2.monospaced())
+                                                    .foregroundColor(.secondary)
+                                                    .lineLimit(1)
+                                                    .truncationMode(.middle)
+                                                Spacer()
+                                                if AssistNavigationRouter.resolvedFileURL(for: file) != nil {
+                                                    Button {
+                                                        AssistNavigationRouter.openFileInEditor(resolving: file)
+                                                    } label: {
+                                                        Label("Open", systemImage: "arrow.up.forward.app")
+                                                            .font(.caption2)
+                                                    }
+                                                    .buttonStyle(.bordered)
+                                                    .controlSize(.small)
+                                                    .help("Open this file in the editor")
+                                                }
+                                            }
                                         }
 
                                         if let fix = diag.suggestedFix {

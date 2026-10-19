@@ -66,11 +66,7 @@ public struct RunFullAppView: View {
 
                 if runManager.runLogs.contains(where: { $0.localizedCaseInsensitiveContains("failed") || $0.localizedCaseInsensitiveContains("error") || $0.localizedCaseInsensitiveContains("exit code") }) {
                     Button {
-                        NotificationCenter.default.post(
-                            name: NSNotification.Name("com.swiftcode.assist.triggerQuickFix"),
-                            object: nil,
-                            userInfo: ["prompt": "Diagnose and fix Full App Run build/launch failure using fix_artboards tool. Logs:\n\(runManager.runLogs.joined(separator: "\n"))"]
-                        )
+                        AssistNavigationRouter.openAssistWithNewSession(prompt: "Diagnose and fix this Full App Run build/launch failure using the fix_artboards tool. Logs:\n\(runManager.runLogs.joined(separator: "\n"))")
                     } label: {
                         Label("Fix with Assist", systemImage: "sparkles")
                     }

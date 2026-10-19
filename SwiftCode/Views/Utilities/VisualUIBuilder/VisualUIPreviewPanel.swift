@@ -144,11 +144,7 @@ public struct VisualUIPreviewPanel: View {
                                                         .foregroundColor(.red)
                                                     Spacer()
                                                     Button {
-                                                        NotificationCenter.default.post(
-                                                            name: NSNotification.Name("com.swiftcode.assist.triggerQuickFix"),
-                                                            object: nil,
-                                                            userInfo: ["prompt": "Diagnose and fix Artboard compile error using fix_artboards: \(errorMsg)"]
-                                                        )
+                                                        AssistNavigationRouter.openAssistWithNewSession(prompt: "Diagnose and fix this Artboard compile error using the fix_artboards tool: \(errorMsg)")
                                                     } label: {
                                                         Label("Fix with Assist", systemImage: "sparkles")
                                                     }
@@ -337,9 +333,25 @@ struct PreviewDiagnosticsPanel: View {
                                 }
 
                                 if let file = diag.file {
-                                    Text("File: \(file)\(diag.line.map { ":\($0)" } ?? "")")
-                                        .font(.caption)
-                                        .foregroundColor(.secondary)
+                                    HStack(spacing: 8) {
+                                        Text("File: \(file)\(diag.line.map { ":\($0)" } ?? "")")
+                                            .font(.caption)
+                                            .foregroundColor(.secondary)
+                                            .lineLimit(1)
+                                            .truncationMode(.middle)
+                                        Spacer()
+                                        if AssistNavigationRouter.resolvedFileURL(for: file) != nil {
+                                            Button {
+                                                AssistNavigationRouter.openFileInEditor(resolving: file)
+                                            } label: {
+                                                Label("Open", systemImage: "arrow.up.forward.app")
+                                                    .font(.caption)
+                                            }
+                                            .buttonStyle(.bordered)
+                                            .controlSize(.small)
+                                            .help("Open this file in the editor")
+                                        }
+                                    }
                                 }
 
                                 Text(diag.description)
@@ -438,10 +450,6 @@ struct PreviewDiagnosticsPanel: View {
     private func triggerAssistFix() {
         let stage = session?.status ?? "Failed"
         let diagText = session?.diagnostics.map { $0.description }.joined(separator: "\n") ?? ""
-        NotificationCenter.default.post(
-            name: NSNotification.Name("com.swiftcode.assist.triggerQuickFix"),
-            object: nil,
-            userInfo: ["prompt": "Diagnose and fix SwiftUI preview failure using fix_artboards. Stage: \(stage), Diagnostics: \(diagText)"]
-        )
+        AssistNavigationRouter.openAssistWithNewSession(prompt: "Diagnose and fix this SwiftUI preview failure using the fix_artboards tool. Stage: \(stage), Diagnostics: \(diagText)")
     }
 }

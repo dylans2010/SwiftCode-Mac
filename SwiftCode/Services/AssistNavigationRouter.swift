@@ -43,8 +43,19 @@ public enum AssistNavigationRouter {
     /// Opens a file in the editor via the workspace's established open-file path.
     /// Relative paths are resolved against the active project directory.
     public static func openFileInEditor(resolving path: String) {
+        guard let url = resolvedFileURL(for: path) else { return }
+        NotificationCenter.default.post(
+            name: NSNotification.Name("com.swiftcode.openFileInWorkspace"),
+            object: nil,
+            userInfo: ["filePath": url.path]
+        )
+    }
+
+    /// Resolves a diagnostic-reported file reference to an existing file URL,
+    /// or nil when it cannot be opened (e.g. "Active Document", "Build Logs").
+    public static func resolvedFileURL(for path: String) -> URL? {
         let trimmed = path.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else { return }
+        guard !trimmed.isEmpty else { return nil }
 
         let url: URL
         if trimmed.hasPrefix("/") {
@@ -57,21 +68,16 @@ public enum AssistNavigationRouter {
                 ?? URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
             // Compiler diagnostics often report paths like
             // ".../Project/Sources/Foo.swift"; try the raw path first, then
-            // the last two components relative to the project root.
+            // the last few components relative to the project root.
             let direct = URL(fileURLWithPath: trimmed)
             if FileManager.default.fileExists(atPath: direct.path) {
-                url = direct
-            } else {
-                let comps = trimmed.split(separator: "/").suffix(3).joined(separator: "/")
-                url = base.appendingPathComponent(comps)
+                return direct
             }
+            let comps = trimmed.split(separator: "/").suffix(3).joined(separator: "/")
+            url = base.appendingPathComponent(comps)
         }
 
-        guard FileManager.default.fileExists(atPath: url.path) else { return }
-        NotificationCenter.default.post(
-            name: NSNotification.Name("com.swiftcode.openFileInWorkspace"),
-            object: nil,
-            userInfo: ["filePath": url.path]
-        )
+        guard FileManager.default.fileExists(atPath: url.path) else { return nil }
+        return url
     }
 }

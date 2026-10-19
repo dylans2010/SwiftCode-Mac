@@ -171,11 +171,7 @@ struct LivePreviewSubView: View {
                                                     .foregroundColor(.red)
                                                 Spacer()
                                                 Button {
-                                                    NotificationCenter.default.post(
-                                                        name: NSNotification.Name("com.swiftcode.assist.triggerQuickFix"),
-                                                        object: nil,
-                                                        userInfo: ["prompt": "Diagnose and fix Artboard compilation failure using fix_artboards tool. Error:\n\(errorMsg)"]
-                                                    )
+                                                    AssistNavigationRouter.openAssistWithNewSession(prompt: "Diagnose and fix this Artboard compilation failure using the fix_artboards tool. Error:\n\(errorMsg)")
                                                 } label: {
                                                     Label("Fix with Assist", systemImage: "sparkles")
                                                 }
@@ -229,11 +225,7 @@ struct LivePreviewSubView: View {
                                                     .foregroundColor(.red)
                                                 Spacer()
                                                 Button {
-                                                    NotificationCenter.default.post(
-                                                        name: NSNotification.Name("com.swiftcode.assist.triggerQuickFix"),
-                                                        object: nil,
-                                                        userInfo: ["prompt": "Diagnose and resolve SwiftUI Preview compilation error using fix_artboards tool. Logs:\n\(previewManager.buildLogs.joined(separator: "\n"))"]
-                                                    )
+                                                    AssistNavigationRouter.openAssistWithNewSession(prompt: "Diagnose and resolve this SwiftUI Preview compilation error using the fix_artboards tool. Logs:\n\(previewManager.buildLogs.joined(separator: "\n"))")
                                                 } label: {
                                                     Label("Fix with Assist", systemImage: "sparkles")
                                                 }
