@@ -747,6 +747,104 @@ public enum CapabilityCatalog {
             payload: .none,
             defaultValue: true
         ),
+
+        // MARK: Modern Apple Services & DriverKit Capabilities
+        CapabilityDefinition(
+            rawKey: "com.apple.developer.driverkit",
+            name: "DriverKit",
+            explanation: "Allows developing user-space device drivers on macOS and iPadOS.",
+            symbol: "cpu.fill",
+            section: .systemExtensions,
+            payload: .none,
+            defaultValue: true,
+            requiresSpecialApproval: true
+        ),
+        CapabilityDefinition(
+            rawKey: "com.apple.developer.driverkit.transport.usb",
+            name: "DriverKit USB Transport",
+            explanation: "Allows user-space drivers to communicate directly with USB hardware.",
+            symbol: "cable.connector",
+            section: .systemExtensions,
+            payload: .none,
+            defaultValue: true,
+            requiresSpecialApproval: true
+        ),
+        CapabilityDefinition(
+            rawKey: "com.apple.developer.game-center",
+            name: "Game Center",
+            explanation: "Enables Game Center leaderboards, achievements, challenges, and multiplayer matchmaking.",
+            symbol: "gamecontroller.fill",
+            section: .services,
+            payload: .none,
+            defaultValue: true
+        ),
+        CapabilityDefinition(
+            rawKey: "com.apple.developer.healthkit.access",
+            name: "HealthKit Clinical Records",
+            explanation: "Allows the app to read health, lab result, and clinical record data with user permission.",
+            symbol: "cross.case.fill",
+            section: .personal,
+            payload: .none,
+            defaultValue: true,
+            requiresSpecialApproval: true
+        ),
+        CapabilityDefinition(
+            rawKey: "com.apple.developer.usernotifications.communication",
+            name: "Communication Notifications",
+            explanation: "Attributes notifications to personal contacts for incoming calls and messaging conversations.",
+            symbol: "phone.bubble.fill",
+            section: .services,
+            payload: .none,
+            defaultValue: true
+        ),
+        CapabilityDefinition(
+            rawKey: "com.apple.developer.carkey",
+            name: "CarKey Digital Keys",
+            explanation: "Allows the device to store digital car keys, lock, unlock, and start compatible vehicles.",
+            symbol: "car.fill",
+            section: .services,
+            payload: .none,
+            defaultValue: true,
+            requiresSpecialApproval: true
+        ),
+        CapabilityDefinition(
+            rawKey: "com.apple.developer.sensorkit.reader.allow",
+            name: "SensorKit Data",
+            explanation: "Enables ambient sensor and device usage telemetry for approved health research studies.",
+            symbol: "sensor.fill",
+            section: .personal,
+            payload: .none,
+            defaultValue: true,
+            requiresSpecialApproval: true
+        ),
+        CapabilityDefinition(
+            rawKey: "com.apple.developer.weatherkit",
+            name: "WeatherKit",
+            explanation: "Enables Apple WeatherKit framework access for high-resolution global weather forecasts.",
+            symbol: "cloud.sun.rain.fill",
+            section: .services,
+            payload: .none,
+            defaultValue: true
+        ),
+        CapabilityDefinition(
+            rawKey: "com.apple.developer.usernotifications.critical-alerts",
+            name: "Critical Alerts",
+            explanation: "Allows high-priority medical or security notifications that bypass Do Not Disturb and the mute switch.",
+            symbol: "exclamationmark.triangle.fill",
+            section: .services,
+            payload: .none,
+            defaultValue: true,
+            requiresSpecialApproval: true
+        ),
+        CapabilityDefinition(
+            rawKey: "com.apple.developer.kernel.extended-virtual-addressing",
+            name: "Extended Virtual Addressing",
+            explanation: "Grants 64-bit applications access to an extended virtual address space on compatible devices.",
+            symbol: "memorychip",
+            section: .hardenedRuntime,
+            payload: .none,
+            defaultValue: true
+        ),
     ]
 
     /// All raw entitlement keys managed by capability toggles, including composite keys.

@@ -603,10 +603,10 @@ public final class XcodeBuildManager: Sendable {
             return
         }
         isAssistFixRunning = true
-        assistFixAttempt = 0
-        assistFixStatus = "Starting Assist repair…"
-        appendLog("[SYSTEM] Fix Build with Assist started (up to \(maxAssistFixAttempts) attempts).")
-        Task { await runAssistFixLoop() }
+        assistFixAttempt = 1
+        assistFixStatus = "Waiting for Assist to diagnose and fix…"
+        appendLog("[SYSTEM] Fix Build with Assist started: waiting for model response…")
+        Task { await runAssistFix() }
     }
 
     public func stopAssistFixLoop() {
@@ -616,61 +616,31 @@ public final class XcodeBuildManager: Sendable {
         appendLog("[SYSTEM] Fix Build with Assist stopped by user.")
     }
 
-    private func runAssistFixLoop() async {
-        while isAssistFixRunning && assistFixAttempt < maxAssistFixAttempts {
-            assistFixAttempt += 1
-            let attempt = assistFixAttempt
-            assistFixStatus = "Attempt \(attempt) of \(maxAssistFixAttempts): Assist is fixing…"
-            appendLog("[SYSTEM] Fix attempt \(attempt)/\(maxAssistFixAttempts): sending diagnostics to Assist…")
+    private func runAssistFix() async {
+        assistFixStatus = "Waiting for model: Assist is diagnosing build errors…"
+        appendLog("[SYSTEM] Sending build diagnostic bundle to Assist…")
 
-            let bundle = buildDiagnosticBundle()
-            let prompt = """
-            The Xcode build failed and needs fixing. This is repair attempt \(attempt) of \(maxAssistFixAttempts).
+        let bundle = buildDiagnosticBundle()
+        let prompt = """
+        The Xcode build failed and needs fixing.
 
-            Diagnose the errors in the bundle below and apply real fixes to the project code (edit files, adjust build settings, fix imports — whatever the errors require). When you finish fixing, reply with a short summary of what you changed. I will rebuild automatically to verify.
+        Diagnose the errors in the bundle below and apply real fixes to the project code (edit files, adjust build settings, fix imports — whatever the errors require). When you finish fixing, reply with a short summary of what you changed.
 
-            \(bundle)
-            """
+        \(bundle)
+        """
 
-            if attempt == 1 {
-                await MainActor.run {
-                    AssistNavigationRouter.revealAssistPanel()
-                    AssistManager.shared.clearSession()
-                }
-            } else {
-                await MainActor.run { AssistNavigationRouter.revealAssistPanel() }
-            }
-
-            // sendMessage awaits the full Assist turn, so when it returns the
-            // fixes (if any) are in place and we can rebuild to verify.
-            await AssistManager.shared.sendMessage(prompt)
-
-            guard isAssistFixRunning else { break }
-
-            assistFixStatus = "Attempt \(attempt) of \(maxAssistFixAttempts): rebuilding to verify…"
-            appendLog("[SYSTEM] Fix attempt \(attempt): rebuilding to verify…")
-            await runBuild()
-
-            let logText = buildLogs.joined(separator: "\n")
-            let succeeded = currentStatus == .succeeded
-                || (lastExitCode == 0 && !buildDidFail(exitCode: lastExitCode ?? -1))
-                || logText.localizedCaseInsensitiveContains("BUILD SUCCEEDED")
-
-            if succeeded {
-                assistFixStatus = "Build succeeded after \(attempt) attempt(s)."
-                appendLog("[SYSTEM] Fix Build with Assist: BUILD SUCCEEDED on attempt \(attempt).")
-                isAssistFixRunning = false
-                return
-            }
-
-            appendLog("[ERROR] Fix attempt \(attempt) still failing — preparing next attempt.")
+        await MainActor.run {
+            AssistNavigationRouter.revealAssistPanel()
         }
 
-        if isAssistFixRunning {
-            isAssistFixRunning = false
-            assistFixStatus = "All \(maxAssistFixAttempts) attempts exhausted — manual review needed."
-            appendLog("[ERROR] Fix Build with Assist: exhausted \(maxAssistFixAttempts) attempts without BUILD SUCCEEDED. The full logs above are available for manual review.")
-        }
+        // Wait for the model to finish without retrying
+        await AssistManager.shared.sendMessage(prompt)
+
+        guard isAssistFixRunning else { return }
+
+        isAssistFixRunning = false
+        assistFixStatus = "Assist completed diagnosis."
+        appendLog("[SYSTEM] Fix Build with Assist finished: model response received.")
     }
 
     /// Full diagnostic bundle: project context, failed command, error lines, log tail.

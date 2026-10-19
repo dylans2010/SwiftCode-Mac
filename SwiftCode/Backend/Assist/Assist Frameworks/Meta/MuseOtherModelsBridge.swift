@@ -259,6 +259,7 @@ public final class MuseOtherModelsBridge: @unchecked Sendable {
     /// Executes an Assist turn using the user's chosen third-party/custom model under the Muse SDK architecture.
     public func executeTurn(
         prompt: String,
+        history: [AssistMessage] = [],
         workspaceRoot: String,
         overrideModelID: String? = nil,
         onTextDelta: @escaping @Sendable (String) -> Void,
@@ -374,9 +375,17 @@ public final class MuseOtherModelsBridge: @unchecked Sendable {
         systemPromptParts.append(toolkitDirective)
 
         let fullSystemPrompt = systemPromptParts.joined(separator: "\n\n")
-        let messages = [
-            AIMessage(role: .user, content: prompt)
-        ]
+        var messages: [AIMessage] = []
+        for msg in history {
+            let trimmed = msg.content.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !trimmed.isEmpty else { continue }
+            let role: AIMessage.Role = (msg.role == .user) ? .user : .assistant
+            messages.append(AIMessage(role: role, content: trimmed))
+        }
+        let cleanPrompt = prompt.trimmingCharacters(in: .whitespacesAndNewlines)
+        if messages.isEmpty || messages.last?.content != cleanPrompt {
+            messages.append(AIMessage(role: .user, content: prompt))
+        }
 
         // 3. Simulated Thinking Tier Header (if thinking effort configured)
         let effort = AppSettings.shared.metaReasoningEffort.isEmpty ? "high" : AppSettings.shared.metaReasoningEffort
@@ -652,20 +661,37 @@ public final class MuseLocalProxyServer: @unchecked Sendable {
                 let headers = "HTTP/1.1 200 OK\r\nContent-Type: text/event-stream\r\nCache-Control: no-cache\r\nConnection: keep-alive\r\n\r\n"
                 connection.send(content: Data(headers.utf8), completion: .contentProcessed({ _ in }))
 
-                var prompt = "Hello"
-                if let json = try? JSONSerialization.jsonObject(with: body) as? [String: Any],
-                   let input = json["input"] as? [[String: Any]] {
-                    for item in input {
-                        if let content = item["content"] as? String {
-                            prompt = content
+                var chatMessages: [AIMessage] = []
+                if let json = try? JSONSerialization.jsonObject(with: body) as? [String: Any] {
+                    if let rawMessages = json["messages"] as? [[String: Any]] {
+                        for item in rawMessages {
+                            let roleStr = item["role"] as? String ?? "user"
+                            let content = item["content"] as? String ?? ""
+                            if !content.isEmpty {
+                                let role: AIMessage.Role = (roleStr == "assistant") ? .assistant : (roleStr == "system" ? .system : .user)
+                                chatMessages.append(AIMessage(role: role, content: content))
+                            }
+                        }
+                    } else if let input = json["input"] as? [[String: Any]] {
+                        for item in input {
+                            let roleStr = item["role"] as? String ?? "user"
+                            let content = item["content"] as? String ?? ""
+                            if !content.isEmpty {
+                                let role: AIMessage.Role = (roleStr == "assistant") ? .assistant : .user
+                                chatMessages.append(AIMessage(role: role, content: content))
+                            }
                         }
                     }
+                }
+
+                if chatMessages.isEmpty {
+                    chatMessages = [AIMessage(role: .user, content: "Hello")]
                 }
 
                 Task {
                     do {
                         try await LLMService.shared.streamChat(
-                            messages: [AIMessage(role: .user, content: prompt)],
+                            messages: chatMessages,
                             model: active.modelID,
                             systemPrompt: "You are Assist operating under the Meta Muse SDK bridge with third-party model \(active.displayName).",
                             providerOverride: nil,

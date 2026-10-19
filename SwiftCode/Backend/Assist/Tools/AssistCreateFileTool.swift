@@ -58,6 +58,9 @@ public struct AssistCreateFileTool: AssistTool {
             // Write updated content
             try context.fileSystem.writeFile(at: path, content: content)
 
+            // Auto-register new file on Xcode project.pbxproj
+            _ = try? XcodeProjWriter.shared.addFileReference(filePath: path, projectURL: context.workspaceRoot)
+
             LiveDiffStreamer.shared.completeEdit(filePath: path, finalContent: content)
 
             if let verifiedDisk = try? context.fileSystem.readFile(at: path) {

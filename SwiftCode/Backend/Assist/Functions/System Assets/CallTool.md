@@ -38,6 +38,9 @@ When calling tools using any model (including Muse SDK models), you must **ALWAY
 - ❌ NEVER use `Muse.Use Workers`, `muse.workflow`, `Muse.file_read`, or `Muse.<tool>`.
 - ✅ ALWAYS use the exact canonical tool names from `AvailableTools.md` (e.g. `use_workers`, `file_read`, `code_replace`, `use_terminal`, `report_to_user`).
 
+### Mandatory PBXproj Registration on File Creation
+EVERY SINGLE TIME Assist adds a new file to the project (e.g. via `file_write`, `file_create`, `code_generate`, or script output), it MUST register it on the `project.pbxproj` files so Xcode can recognize the newly added files.
+
 ---
 
 ## 2. Reuse Prior Results & Resilient Iteration

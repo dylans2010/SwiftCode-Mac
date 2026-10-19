@@ -433,7 +433,7 @@ struct XcodeBuildLogView: View {
                                     if buildManager.isAssistFixRunning {
                                         HStack(spacing: 6) {
                                             ProgressView().controlSize(.small)
-                                            Text("Attempt \(buildManager.assistFixAttempt)/\(buildManager.maxAssistFixAttempts)")
+                                            Text(buildManager.assistFixStatus.isEmpty ? "Waiting for Assist…" : buildManager.assistFixStatus)
                                                 .font(.caption)
                                                 .foregroundStyle(.secondary)
                                             Button("Stop") {

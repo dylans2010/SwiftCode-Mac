@@ -234,6 +234,7 @@ public final class MetaAssistProvider: Sendable {
     /// Initializes host session and executes prompt turn streaming text output back.
     public func executeTurn(
         prompt: String,
+        history: [AssistMessage] = [],
         workspaceRoot: String,
         onTextDelta: @escaping @Sendable (String) -> Void,
         onThinkingDelta: (@Sendable (String) -> Void)? = nil
@@ -250,6 +251,7 @@ public final class MetaAssistProvider: Sendable {
                 logger.warning("Local proxy startup failed, using direct bridge: \(error.localizedDescription)")
                 try await MuseOtherModelsBridge.shared.executeTurn(
                     prompt: prompt,
+                    history: history,
                     workspaceRoot: workspaceRoot,
                     onTextDelta: onTextDelta,
                     onThinkingDelta: onThinkingDelta
@@ -264,6 +266,7 @@ public final class MetaAssistProvider: Sendable {
                 // If CLI is not present on developer's machine, execute directly via MuseOtherModelsBridge
                 try await MuseOtherModelsBridge.shared.executeTurn(
                     prompt: prompt,
+                    history: history,
                     workspaceRoot: workspaceRoot,
                     onTextDelta: onTextDelta,
                     onThinkingDelta: onThinkingDelta
@@ -373,7 +376,27 @@ public final class MetaAssistProvider: Sendable {
             fullPromptParts.append(retrievedInstructions)
         }
         fullPromptParts.append(toolkitDirective)
-        fullPromptParts.append("# USER REQUEST\n\(prompt)")
+
+        // Previous Conversation Memory for Muse
+        let filteredHistory = history.filter {
+            let t = $0.content.trimmingCharacters(in: .whitespacesAndNewlines)
+            return !t.isEmpty && t != prompt.trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+        if !filteredHistory.isEmpty {
+            let historyText = filteredHistory.suffix(12).map { msg in
+                let roleName = (msg.role == .user) ? "User" : "Assist"
+                return "[\(roleName)]:\n\(msg.content)"
+            }.joined(separator: "\n\n")
+
+            fullPromptParts.append("""
+            # PREVIOUS CONVERSATION HISTORY:
+            The following is the recent conversation history in this project session. Maintain full continuity with past messages, decisions, and discussions so the user never has to repeat context.
+
+            \(historyText)
+            """)
+        }
+
+        fullPromptParts.append("# CURRENT USER REQUEST\n\(prompt)")
 
         let effectivePrompt = fullPromptParts.joined(separator: "\n\n")
         let permissionsManager = AssistPermissionsManager()

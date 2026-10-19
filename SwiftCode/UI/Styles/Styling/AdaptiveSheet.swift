@@ -9,7 +9,7 @@ public struct AdaptiveSheet<Content: View>: View {
 
     public var body: some View {
         content
-            .frame(minWidth: 500, minHeight: 400)
+            .frame(minWidth: 880, maxWidth: 960, minHeight: 520, maxHeight: 600)
             .macDesktopOptimized()
     }
 }

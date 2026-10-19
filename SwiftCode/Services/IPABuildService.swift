@@ -105,7 +105,195 @@ public final class IPABuildService: Sendable {
     }
 
     public func getShellScriptPath() -> String {
-        return Bundle.main.path(forResource: "build_ipa", ofType: "sh") ?? "SwiftCode/Resources/build_ipa.sh"
+        let fm = FileManager.default
+
+        // 1. Check main bundle resources
+        if let bundlePath = Bundle.main.path(forResource: "build_ipa", ofType: "sh"), fm.fileExists(atPath: bundlePath) {
+            chmodExecutable(at: bundlePath)
+            return bundlePath
+        }
+
+        if let resourceURL = Bundle.main.resourceURL?.appendingPathComponent("build_ipa.sh"), fm.fileExists(atPath: resourceURL.path) {
+            chmodExecutable(at: resourceURL.path)
+            return resourceURL.path
+        }
+
+        // 2. Check development source tree
+        let sourcePath = "/Users/dylan/SwiftCode-Mac/SwiftCode/Resources/build_ipa.sh"
+        if fm.fileExists(atPath: sourcePath) {
+            chmodExecutable(at: sourcePath)
+            return sourcePath
+        }
+
+        // 3. Check current working directory relative
+        let cwdPath = URL(fileURLWithPath: fm.currentDirectoryPath).appendingPathComponent("SwiftCode/Resources/build_ipa.sh").path
+        if fm.fileExists(atPath: cwdPath) {
+            chmodExecutable(at: cwdPath)
+            return cwdPath
+        }
+
+        let cwdShort = URL(fileURLWithPath: fm.currentDirectoryPath).appendingPathComponent("Resources/build_ipa.sh").path
+        if fm.fileExists(atPath: cwdShort) {
+            chmodExecutable(at: cwdShort)
+            return cwdShort
+        }
+
+        // 4. Fallback: Write embedded script to Application Support
+        let appSupport = fm.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
+        let scriptDir = appSupport.appendingPathComponent("SwiftCode/Scripts", isDirectory: true)
+        try? fm.createDirectory(at: scriptDir, withIntermediateDirectories: true)
+        let fallbackScriptURL = scriptDir.appendingPathComponent("build_ipa.sh")
+
+        let embeddedScript = """
+        #!/bin/bash
+        set -e
+        ERR_INVALID_APP=10
+        ERR_MISSING_PLIST=11
+        ERR_TEMP_FAILED=12
+        ERR_PACKAGING_FAILED=13
+        APP_PATH="$1"
+        OUTPUT_DIR="$2"
+        IPA_NAME="$3"
+        echo "[SHELL] Initiating SwiftCode IPA Build Pipeline..."
+        echo "[SHELL] Target App Bundle: $APP_PATH"
+        echo "[SHELL] Output Directory: $OUTPUT_DIR"
+        if [ ! -d "$APP_PATH" ]; then
+            echo "[ERROR] The specified .app bundle is missing or invalid: $APP_PATH"
+            exit $ERR_INVALID_APP
+        fi
+        if [[ "$APP_PATH" != *.app ]]; then
+            echo "[ERROR] Invalid package extension. Must be a compiled '.app' bundle."
+            exit $ERR_INVALID_APP
+        fi
+        PLIST_PATH="$APP_PATH/Info.plist"
+        if [ ! -f "$PLIST_PATH" ]; then
+            echo "[ERROR] Info.plist not found inside the app bundle."
+            exit $ERR_MISSING_PLIST
+        fi
+        echo "[SHELL] Parsing application Info.plist specifications..."
+        BUNDLE_ID=$(defaults read "$PLIST_PATH" CFBundleIdentifier 2>/dev/null || echo "Unknown")
+        DISPLAY_NAME=$(defaults read "$PLIST_PATH" CFBundleDisplayName 2>/dev/null || defaults read "$PLIST_PATH" CFBundleName 2>/dev/null || echo "App")
+        VERSION=$(defaults read "$PLIST_PATH" CFBundleShortVersionString 2>/dev/null || echo "1.0")
+        BUILD=$(defaults read "$PLIST_PATH" CFBundleVersion 2>/dev/null || echo "1")
+        echo "[SHELL] Display Name: $DISPLAY_NAME"
+        echo "[SHELL] Bundle Identifier: $BUNDLE_ID"
+        echo "[SHELL] Short Version: $VERSION"
+        echo "[SHELL] Build Number: $BUILD"
+        TEMP_DIR=$(mktemp -d -t swiftcode-ipa-build)
+        echo "[SHELL] Created clean temporary packaging workspace: $TEMP_DIR"
+        cleanup() {
+            echo "[SHELL] Performing workspace cleanup..."
+            rm -rf "$TEMP_DIR"
+            echo "[SHELL] Cleanup completed cleanly."
+        }
+        trap cleanup EXIT
+        PAYLOAD_DIR="$TEMP_DIR/Payload"
+        mkdir -p "$PAYLOAD_DIR"
+        echo "[SHELL] Aligning Payload structures..."
+        cp -RP "$APP_PATH" "$PAYLOAD_DIR/"
+        if [ -z "$IPA_NAME" ]; then
+            IPA_NAME="${DISPLAY_NAME// /_}.ipa"
+        fi
+        mkdir -p "$OUTPUT_DIR"
+        FINAL_IPA_PATH="$OUTPUT_DIR/$IPA_NAME"
+        echo "[SHELL] Compressing Payload container..."
+        cd "$TEMP_DIR"
+        zip -r -y "$FINAL_IPA_PATH" "Payload" > /dev/null
+        echo "[SUCCESS] IPA container packaging completed successfully!"
+        echo "[SUCCESS] Output File: $FINAL_IPA_PATH"
+        ls -lh "$FINAL_IPA_PATH"
+        exit 0
+        """
+
+        try? embeddedScript.write(to: fallbackScriptURL, atomically: true, encoding: .utf8)
+        chmodExecutable(at: fallbackScriptURL.path)
+        return fallbackScriptURL.path
+    }
+
+    private func chmodExecutable(at path: String) {
+        let p = Process()
+        p.executableURL = URL(fileURLWithPath: "/bin/chmod")
+        p.arguments = ["+x", path]
+        try? p.run()
+        p.waitUntilExit()
+    }
+
+    /// Searches for a compiled .app bundle for the specified project name:
+    /// 1. Local project build directory: <projectURL>/build/DerivedData/Build/Products/...
+    /// 2. Managed builds directory: ~/Library/Application Support/SwiftCode/Builds/<projectName>/...
+    /// 3. Xcode global DerivedData: ~/Library/Developer/Xcode/DerivedData/<projectName>-*/Build/Products/...
+    public func findCompiledAppBundle(projectName: String, projectURL: URL?) -> URL? {
+        let fm = FileManager.default
+        var candidateURLs: [URL] = []
+
+        // 1. Check local project build/DerivedData
+        if let projectURL {
+            let localProducts = projectURL.appendingPathComponent("build/DerivedData/Build/Products", isDirectory: true)
+            if fm.fileExists(atPath: localProducts.path) {
+                if let app = findAppBundle(named: projectName, in: localProducts) {
+                    candidateURLs.append(app)
+                }
+            }
+            let directBuild = projectURL.appendingPathComponent("build", isDirectory: true)
+            if fm.fileExists(atPath: directBuild.path) {
+                if let app = findAppBundle(named: projectName, in: directBuild) {
+                    candidateURLs.append(app)
+                }
+            }
+        }
+
+        // 2. Check managed builds directory
+        if let managedApp = newestManagedAppBundle(projectName: projectName) {
+            candidateURLs.append(managedApp)
+        }
+
+        // 3. Check Xcode global DerivedData: ~/Library/Developer/Xcode/DerivedData
+        let home = fm.homeDirectoryForCurrentUser
+        let xcodeDerivedData = home.appendingPathComponent("Library/Developer/Xcode/DerivedData", isDirectory: true)
+        if fm.fileExists(atPath: xcodeDerivedData.path) {
+            if let entries = try? fm.contentsOfDirectory(at: xcodeDerivedData, includingPropertiesForKeys: [.contentModificationDateKey], options: .skipsHiddenFiles) {
+                let matchingDirs = entries.filter { $0.lastPathComponent.hasPrefix(projectName + "-") || $0.lastPathComponent == projectName }
+                for dir in matchingDirs {
+                    let products = dir.appendingPathComponent("Build/Products", isDirectory: true)
+                    if fm.fileExists(atPath: products.path), let app = findAppBundle(named: projectName, in: products) {
+                        candidateURLs.append(app)
+                    }
+                }
+            }
+        }
+
+        // Sort candidates by modification date (newest first)
+        return candidateURLs.sorted { u1, u2 in
+            let d1 = (try? u1.resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate) ?? .distantPast
+            let d2 = (try? u2.resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate) ?? .distantPast
+            return d1 > d2
+        }.first
+    }
+
+    private func findAppBundle(named projectName: String, in directory: URL) -> URL? {
+        let fm = FileManager.default
+        guard let enumerator = fm.enumerator(at: directory, includingPropertiesForKeys: [.contentModificationDateKey], options: [.skipsHiddenFiles]) else { return nil }
+        var bestMatch: URL? = nil
+        var bestDate = Date.distantPast
+        let targetName = "\(projectName.lowercased()).app"
+
+        for case let url as URL in enumerator {
+            guard url.pathExtension == "app" else { continue }
+            enumerator.skipDescendants()
+            let date = (try? url.resourceValues(forKeys: [.contentModificationDateKey]).contentModificationDate) ?? .distantPast
+            if url.lastPathComponent.lowercased() == targetName {
+                if date > bestDate {
+                    bestDate = date
+                    bestMatch = url
+                }
+            } else if bestMatch == nil || date > bestDate {
+                if bestMatch?.lastPathComponent.lowercased() != targetName && date > bestDate {
+                    bestDate = date
+                    bestMatch = url
+                }
+            }
+        }
+        return bestMatch
     }
 
     public func cancelPackaging() {
@@ -431,7 +619,7 @@ public final class IPABuildService: Sendable {
         appendLog(clean, isError: isError)
     }
 
-    private func appendLog(_ message: String, isError: Bool) {
+    public func appendLog(_ message: String, isError: Bool) {
         logs.append(IPABuildLogEntry(message: message, isError: isError))
     }
 }

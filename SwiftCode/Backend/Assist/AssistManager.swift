@@ -1169,6 +1169,7 @@ public final class AssistManager: ObservableObject {
         }
 
         let messageID = await MainActor.run { self.messages.last?.id }
+        let historySnapshot = await MainActor.run { Array(self.messages.dropLast()) }
         if let messageID {
             await MainActor.run { self.requestMetricsByMessageID[messageID] = metrics }
         }
@@ -1188,6 +1189,7 @@ public final class AssistManager: ObservableObject {
             do {
                 try await MetaAssistProvider.shared.executeTurn(
                     prompt: content,
+                    history: historySnapshot,
                     workspaceRoot: workspaceRoot,
                     onTextDelta: { [weak self] delta in
                         Task { @MainActor [weak self] in

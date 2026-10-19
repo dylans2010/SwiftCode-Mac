@@ -406,6 +406,9 @@ final class ProjectSessionStore {
                 DocumentCoordinator.shared.previewSession = nil
                 DocumentCoordinator.shared.inspectorSelection = nil
 
+                // Auto-discover and decode .xcstrings localization files immediately on project open
+                LocalizationCore.shared.scanProjectFiles(projectURL: loadedProject.directoryURL)
+
                 // Update last opened date in library
                 if let idx = self.projects.firstIndex(where: { $0.id == project.id }) {
                     var updated = self.projects[idx]

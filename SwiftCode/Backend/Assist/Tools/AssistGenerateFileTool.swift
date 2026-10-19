@@ -49,6 +49,7 @@ public struct AssistGenerateFileTool: AssistTool {
 
         do {
             try context.fileSystem.writeFile(at: path, content: rendered)
+            _ = try? XcodeProjWriter.shared.addFileReference(filePath: path, projectURL: context.workspaceRoot)
             return .success("Generated file \(path) using template '\(template)'", data: ["path": path])
         } catch {
             return .failure("Failed generating file \(path): \(error.localizedDescription)")

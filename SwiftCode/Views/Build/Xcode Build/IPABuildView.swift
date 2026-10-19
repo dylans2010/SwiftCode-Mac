@@ -63,7 +63,17 @@ public struct IPABuildView: View {
                                     .foregroundStyle(.secondary)
                             }
 
-                            HStack {
+                            HStack(spacing: 8) {
+                                Button {
+                                    Task { await findAndSelectAppBundle() }
+                                } label: {
+                                    Label("Find Bundle", systemImage: "magnifyingglass.circle.fill")
+                                }
+                                .buttonStyle(.borderedProminent)
+                                .controlSize(.small)
+                                .disabled(service.isBusy || activeProjectName == nil)
+                                .help("Search DerivedData for the active project's compiled .app bundle")
+
                                 Button("Choose existing .app…") {
                                     selectExistingAppBundle()
                                 }
@@ -463,6 +473,25 @@ public struct IPABuildView: View {
                     alert.runModal()
                 }
             }
+        }
+    }
+
+    private func findAndSelectAppBundle() async {
+        guard let projectName = activeProjectName else {
+            showAlert(title: "No Project Open", message: "Please open an Xcode project to find its compiled bundle in DerivedData.")
+            return
+        }
+
+        buildService.appendLog("[SYSTEM] Searching DerivedData for '\(projectName).app'...", isError: false)
+        if let foundURL = buildService.findCompiledAppBundle(projectName: projectName, projectURL: activeProjectURL) {
+            await parseSelectedAppBundle(url: foundURL)
+            buildService.appendLog("[SUCCESS] Found compiled bundle in DerivedData: \(foundURL.path)", isError: false)
+        } else {
+            showAlert(
+                title: "Bundle Not Found",
+                message: "No compiled '\(projectName).app' found in project DerivedData or Xcode cache. Build the project first using 'Build with xcodebuild & Package' or select an existing bundle manually."
+            )
+            buildService.appendLog("[ERROR] No compiled '\(projectName).app' found in DerivedData.", isError: true)
         }
     }
 

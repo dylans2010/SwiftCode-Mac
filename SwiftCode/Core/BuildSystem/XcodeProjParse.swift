@@ -441,4 +441,112 @@ public final class XcodeProjWriter {
     ) throws -> XcodeProjModel {
         return try updateBuildSetting(key: platformKey, value: version, projectURL: projectURL)
     }
+
+    /// Adds and registers a file in project.pbxproj:
+    /// - Adds PBXFileReference
+    /// - Adds PBXBuildFile in PBXSourcesBuildPhase (if source) or PBXResourcesBuildPhase (if resource)
+    /// - Adds to PBXGroup children
+    @discardableResult
+    public func addFileReference(
+        filePath: String,
+        projectURL: URL? = nil
+    ) throws -> XcodeProjModel {
+        let effectiveProjectURL: URL
+        if let projectURL {
+            effectiveProjectURL = projectURL
+        } else if let coordURL = DocumentCoordinator.shared.projectURL {
+            effectiveProjectURL = coordURL
+        } else if let sessionURL = ProjectSessionStore.shared.activeProject?.directoryURL {
+            effectiveProjectURL = sessionURL
+        } else {
+            throw NSError(domain: "XcodeProjWriter", code: 404, userInfo: [NSLocalizedDescriptionKey: "No active Xcode project found."])
+        }
+
+        let xcodeprojURL: URL
+        if effectiveProjectURL.pathExtension == "xcodeproj" {
+            xcodeprojURL = effectiveProjectURL
+        } else {
+            let fm = FileManager.default
+            if let entries = try? fm.contentsOfDirectory(at: effectiveProjectURL, includingPropertiesForKeys: nil),
+               let proj = entries.first(where: { $0.pathExtension == "xcodeproj" }) {
+                xcodeprojURL = proj
+            } else {
+                xcodeprojURL = effectiveProjectURL
+            }
+        }
+
+        let pbxprojURL = resolvePbxprojURL(for: xcodeprojURL)
+        guard FileManager.default.fileExists(atPath: pbxprojURL.path) else {
+            throw NSError(domain: "XcodeProjWriter", code: 404, userInfo: [NSLocalizedDescriptionKey: "project.pbxproj not found at \(pbxprojURL.path)"])
+        }
+
+        var content = try String(contentsOf: pbxprojURL, encoding: .utf8)
+        let fileName = (filePath as NSString).lastPathComponent
+        let fileExt = (filePath as NSString).pathExtension.lowercased()
+
+        // Check if already registered
+        if content.contains("/* \(fileName) */") || content.contains("/* \(fileName) in Sources */") || content.contains("/* \(fileName) in Resources */") {
+            return try XcodeProjParse.shared.parse(projectURL: xcodeprojURL)
+        }
+
+        let fileRefID = String(UUID().uuidString.replacingOccurrences(of: "-", with: "").prefix(24).uppercased())
+        let buildFileID = String(UUID().uuidString.replacingOccurrences(of: "-", with: "").prefix(24).uppercased())
+
+        let isSourceCode = ["swift", "m", "mm", "c", "cpp"].contains(fileExt)
+        let isResource = ["xcstrings", "strings", "stringsdict", "storyboard", "xib", "png", "jpg", "jpeg", "json", "plist", "sh", "txt"].contains(fileExt)
+
+        let fileType: String
+        switch fileExt {
+        case "swift": fileType = "sourcecode.swift"
+        case "m", "c": fileType = "sourcecode.c.c"
+        case "mm", "cpp": fileType = "sourcecode.cpp.cpp"
+        case "h": fileType = "sourcecode.c.h"
+        case "xcstrings": fileType = "text.json.xcstrings"
+        case "strings": fileType = "text.plist.strings"
+        case "plist": fileType = "text.plist.xml"
+        case "sh": fileType = "text.script.sh"
+        default: fileType = "text"
+        }
+
+        // 1. Add to PBXFileReference section
+        let fileRefEntry = "\t\t\(fileRefID) /* \(fileName) */ = {isa = PBXFileReference; lastKnownFileType = \(fileType); path = \(fileName); sourceTree = \"<group>\"; };\n"
+        if let range = content.range(of: "/* Begin PBXFileReference section */") {
+            content.insert(contentsOf: fileRefEntry, at: range.upperBound)
+        }
+
+        // 2. Add to PBXBuildFile section if source or resource
+        if isSourceCode {
+            let buildFileEntry = "\t\t\(buildFileID) /* \(fileName) in Sources */ = {isa = PBXBuildFile; fileRef = \(fileRefID) /* \(fileName) */; };\n"
+            if let range = content.range(of: "/* Begin PBXBuildFile section */") {
+                content.insert(contentsOf: buildFileEntry, at: range.upperBound)
+            }
+            if let phaseRange = content.range(of: "/* Sources */ = {") {
+                let searchRange = phaseRange.lowerBound..<content.endIndex
+                if let filesRange = content.range(of: "files = (\n", options: [], range: searchRange) {
+                    content.insert(contentsOf: "\t\t\t\t\(buildFileID) /* \(fileName) in Sources */,\n", at: filesRange.upperBound)
+                }
+            }
+        } else if isResource {
+            let buildFileEntry = "\t\t\(buildFileID) /* \(fileName) in Resources */ = {isa = PBXBuildFile; fileRef = \(fileRefID) /* \(fileName) */; };\n"
+            if let range = content.range(of: "/* Begin PBXBuildFile section */") {
+                content.insert(contentsOf: buildFileEntry, at: range.upperBound)
+            }
+            if let phaseRange = content.range(of: "/* Resources */ = {") {
+                let searchRange = phaseRange.lowerBound..<content.endIndex
+                if let filesRange = content.range(of: "files = (\n", options: [], range: searchRange) {
+                    content.insert(contentsOf: "\t\t\t\t\(buildFileID) /* \(fileName) in Resources */,\n", at: filesRange.upperBound)
+                }
+            }
+        }
+
+        // 3. Add to Main Group or matching group's children
+        if let mainGroupRange = content.range(of: "children = (\n") {
+            content.insert(contentsOf: "\t\t\t\t\(fileRefID) /* \(fileName) */,\n", at: mainGroupRange.upperBound)
+        }
+
+        try content.write(to: pbxprojURL, atomically: true, encoding: .utf8)
+        let newModel = try XcodeProjParse.shared.parse(projectURL: xcodeprojURL)
+        ProjectResolutionService.shared.parsedProjects[xcodeprojURL] = newModel
+        return newModel
+    }
 }

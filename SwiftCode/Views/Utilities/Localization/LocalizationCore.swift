@@ -53,6 +53,7 @@ public final class LocalizationCore {
 
     public var availableFiles: [LocalizationFile] = []
     public var isScanning: Bool = false
+    public var projectRootURL: URL? = nil
 
     // Changing selectedFile dynamically loads the actual keys and translations from disk!
     public var selectedFile: LocalizationFile? = nil {
@@ -79,12 +80,13 @@ public final class LocalizationCore {
 
     /// Run the directory scanning processes asynchronously on detached background contexts
     /// (Task.detached(priority: .userInitiated)) and publish updates to the @MainActor thread.
-    public func scanProjectFiles() {
+    public func scanProjectFiles(projectURL: URL? = nil) {
         guard !isScanning else { return }
         isScanning = true
 
-        let rootPath = FileManager.default.currentDirectoryPath
-        let rootURL = URL(fileURLWithPath: rootPath)
+        let resolvedURL = projectURL ?? self.projectRootURL ?? DocumentCoordinator.shared.projectURL ?? ProjectSessionStore.shared.activeProject?.directoryURL ?? URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
+        self.projectRootURL = resolvedURL
+        let rootURL = resolvedURL
 
         Task.detached(priority: .userInitiated) {
             logger.log("Beginning asynchronous off-thread file system scanning for localizations...")
@@ -154,10 +156,14 @@ public final class LocalizationCore {
 
             // Safe MainActor publishing update
             let finalFound = found
+            let xcstringsFiles = finalFound.filter { $0.type == "xcstrings" }
+            let preferred = xcstringsFiles.first(where: { $0.name == "Localizable.xcstrings" }) ?? xcstringsFiles.first ?? finalFound.first
+
             await MainActor.run {
                 self.availableFiles = finalFound
-                if self.selectedFile == nil {
-                    self.selectedFile = finalFound.first
+                self.selectedFile = preferred
+                if let preferred {
+                    self.loadFileContents(preferred)
                 }
                 self.isScanning = false
             }
@@ -166,8 +172,16 @@ public final class LocalizationCore {
 
     // MARK: - Disk Read / Write Engine
 
+    private func resolveFileURL(for file: LocalizationFile) -> URL {
+        if file.path.hasPrefix("/") {
+            return URL(fileURLWithPath: file.path)
+        }
+        let root = projectRootURL ?? DocumentCoordinator.shared.projectURL ?? ProjectSessionStore.shared.activeProject?.directoryURL ?? URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
+        return root.appendingPathComponent(file.path)
+    }
+
     private func loadFileContents(_ file: LocalizationFile) {
-        let fileURL = URL(fileURLWithPath: FileManager.default.currentDirectoryPath).appendingPathComponent(file.path)
+        let fileURL = resolveFileURL(for: file)
         guard FileManager.default.fileExists(atPath: fileURL.path) else { return }
 
         logger.log("Reading real localization asset from disk: \(file.path)")
@@ -232,7 +246,7 @@ public final class LocalizationCore {
 
     public func saveFileContents() {
         guard let file = selectedFile else { return }
-        let fileURL = URL(fileURLWithPath: FileManager.default.currentDirectoryPath).appendingPathComponent(file.path)
+        let fileURL = resolveFileURL(for: file)
 
         logger.log("Serializing and writing updated localizations back to disk at: \(file.path)")
 

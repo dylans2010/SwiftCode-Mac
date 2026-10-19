@@ -67,6 +67,11 @@ public struct AssistWriteFileTool: AssistTool {
             // Write updated content
             try context.fileSystem.writeFile(at: path, content: content)
 
+            // Auto-register new file on Xcode project.pbxproj
+            if isNewFile {
+                _ = try? XcodeProjWriter.shared.addFileReference(filePath: path, projectURL: context.workspaceRoot)
+            }
+
             // Complete in-flight diff stream
             LiveDiffStreamer.shared.completeEdit(filePath: path, finalContent: content)
 

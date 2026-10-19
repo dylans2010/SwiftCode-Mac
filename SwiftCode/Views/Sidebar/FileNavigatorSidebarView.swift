@@ -325,40 +325,201 @@ struct FileNavigatorSidebarView: View {
         }
         // Double Click Workflow Popover
         .popover(isPresented: $showingWorkflowPopover, attachmentAnchor: .rect(.bounds)) {
-            VStack(alignment: .leading, spacing: 12) {
-                Text(selectedNodeForWorkflow?.url.lastPathComponent ?? "File Actions")
-                    .font(.headline)
-                    .foregroundColor(.primary)
+            if let node = selectedNodeForWorkflow {
+                VStack(alignment: .leading, spacing: 8) {
+                    HStack(spacing: 8) {
+                        Image(systemName: FileSymbolsShow.symbol(forPathExtension: node.url.pathExtension, isFolder: node.kind == .folder))
+                            .foregroundStyle(FileSymbolsShow.color(forPathExtension: node.url.pathExtension, isFolder: node.kind == .folder))
+                        Text(node.url.lastPathComponent)
+                            .font(.headline)
+                            .lineLimit(1)
+                    }
 
-                Divider()
+                    Divider()
 
-                Button {
-                    showingWorkflowPopover = false
-                    if let node = selectedNodeForWorkflow {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Button {
+                            showingWorkflowPopover = false
+                            openInNewTab(url: node.url)
+                        } label: {
+                            Label("Open in New Tab", systemImage: "doc.badge.plus")
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                        }
+                        .buttonStyle(.plain)
+                        .padding(.vertical, 3)
+
+                        Button {
+                            showingWorkflowPopover = false
+                            openInNewWindow(url: node.url)
+                        } label: {
+                            Label("Open in New Window", systemImage: "macwindow.badge.plus")
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                        }
+                        .buttonStyle(.plain)
+                        .padding(.vertical, 3)
+
+                        Button {
+                            showingWorkflowPopover = false
+                            openInExternalEditor(url: node.url)
+                        } label: {
+                            Label("Open in External Editor", systemImage: "arrow.up.forward.app")
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                        }
+                        .buttonStyle(.plain)
+                        .padding(.vertical, 3)
+
+                        Button {
+                            showingWorkflowPopover = false
+                            openTerminal(at: node.url)
+                        } label: {
+                            Label("Open Terminal at Location", systemImage: "terminal")
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                        }
+                        .buttonStyle(.plain)
+                        .padding(.vertical, 3)
+
+                        Menu {
+                            Button("Source Code") {
+                                showingWorkflowPopover = false
+                                openInNewTab(url: node.url)
+                            }
+                            Button("Plain Text") {
+                                showingWorkflowPopover = false
+                                openInNewTab(url: node.url)
+                            }
+                            Button("External Editor") {
+                                showingWorkflowPopover = false
+                                openInExternalEditor(url: node.url)
+                            }
+                            Button("Xcode") {
+                                showingWorkflowPopover = false
+                                openInXcode(url: node.url)
+                            }
+                        } label: {
+                            Label("Open As...", systemImage: "arrow.up.right.square")
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                        }
+                        .menuStyle(.borderlessButton)
+                        .padding(.vertical, 3)
+
+                        Button {
+                            showingWorkflowPopover = false
+                            bookmarkFile(url: node.url)
+                        } label: {
+                            Label("Bookmark File", systemImage: "bookmark")
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                        }
+                        .buttonStyle(.plain)
+                        .padding(.vertical, 3)
+
+                        Button {
+                            showingWorkflowPopover = false
+                            findInSelectedFile(url: node.url)
+                        } label: {
+                            Label("Find In Selected File", systemImage: "doc.text.magnifyingglass")
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                        }
+                        .buttonStyle(.plain)
+                        .padding(.vertical, 3)
+
+                        Button {
+                            showingWorkflowPopover = false
+                            addReferenceToProject(url: node.url)
+                        } label: {
+                            Label("Add Reference", systemImage: "plus.rectangle.on.folder")
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                        }
+                        .buttonStyle(.plain)
+                        .padding(.vertical, 3)
+                    }
+
+                    Divider()
+
+                    Button {
+                        showingWorkflowPopover = false
                         renamingNodeID = node.id
                         inlineRenameText = node.url.lastPathComponent
+                    } label: {
+                        Label("Rename...", systemImage: "pencil")
+                            .frame(maxWidth: .infinity, alignment: .leading)
                     }
-                } label: {
-                    Label("Rename...", systemImage: "pencil")
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                }
-                .buttonStyle(.bordered)
+                    .buttonStyle(.plain)
+                    .padding(.vertical, 3)
 
-                Button(role: .destructive) {
-                    showingWorkflowPopover = false
-                    if let node = selectedNodeForWorkflow {
+                    Button(role: .destructive) {
+                        showingWorkflowPopover = false
                         selectedNodeForDelete = node
                         showingDeleteConfirm = true
+                    } label: {
+                        Label("Delete", systemImage: "trash")
+                            .foregroundColor(.red)
+                            .frame(maxWidth: .infinity, alignment: .leading)
                     }
-                } label: {
-                    Label("Delete", systemImage: "trash")
-                        .foregroundColor(.red)
-                        .frame(maxWidth: .infinity, alignment: .leading)
+                    .buttonStyle(.plain)
+                    .padding(.vertical, 3)
                 }
-                .buttonStyle(.bordered)
+                .padding(12)
+                .frame(width: 250)
             }
-            .padding()
-            .frame(width: 220)
+        }
+    }
+
+    // MARK: - Double-Click & Context Actions
+
+    private func openTerminal(at url: URL) {
+        let isDir = (try? url.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) == true
+        let targetDir = isDir ? url : url.deletingLastPathComponent()
+        if let terminalURL = NSWorkspace.shared.urlForApplication(withBundleIdentifier: "com.apple.Terminal") {
+            NSWorkspace.shared.open([targetDir], withApplicationAt: terminalURL, configuration: NSWorkspace.OpenConfiguration())
+        } else {
+            NSWorkspace.shared.open(targetDir)
+        }
+    }
+
+    private func openInNewTab(url: URL) {
+        ProjectSessionStore.shared.openFile(atPath: url.path)
+        NotificationCenter.default.post(name: NSNotification.Name("com.swiftcode.openFileInWorkspace"), object: url)
+    }
+
+    private func openInNewWindow(url: URL) {
+        NSWorkspace.shared.open(url)
+    }
+
+    private func openInExternalEditor(url: URL) {
+        NSWorkspace.shared.open(url)
+    }
+
+    private func openInXcode(url: URL) {
+        if let xcodeURL = NSWorkspace.shared.urlForApplication(withBundleIdentifier: "com.apple.dt.Xcode") {
+            NSWorkspace.shared.open([url], withApplicationAt: xcodeURL, configuration: NSWorkspace.OpenConfiguration())
+        } else {
+            NSWorkspace.shared.open(url)
+        }
+    }
+
+    private func bookmarkFile(url: URL) {
+        BookmarkStore.shared.add(
+            fileName: url.lastPathComponent,
+            lineNumber: 1,
+            filePath: url.path,
+            title: url.lastPathComponent,
+            url: url.absoluteString
+        )
+    }
+
+    private func findInSelectedFile(url: URL) {
+        openInNewTab(url: url)
+        NotificationCenter.default.post(name: NSNotification.Name("TriggerEditorFind"), object: url)
+    }
+
+    private func addReferenceToProject(url: URL) {
+        do {
+            _ = try XcodeProjWriter.shared.addFileReference(filePath: url.path, projectURL: nil)
+            Task {
+                await viewModel.refresh()
+            }
+        } catch {
+            print("Failed to add reference to Xcode project: \(error)")
         }
     }
 
@@ -421,6 +582,53 @@ struct FileNavigatorSidebarView: View {
             Button("Open in Editor") {
                 viewModel.selectedNodeID = node.id
             }
+
+            Button("Open in New Tab") {
+                openInNewTab(url: node.url)
+            }
+
+            Button("Open in New Window") {
+                openInNewWindow(url: node.url)
+            }
+
+            Button("Open in External Editor") {
+                openInExternalEditor(url: node.url)
+            }
+
+            Button("Open Terminal at Location") {
+                openTerminal(at: node.url)
+            }
+
+            Menu("Open As") {
+                Button("Source Code") {
+                    openInNewTab(url: node.url)
+                }
+                Button("Plain Text") {
+                    openInNewTab(url: node.url)
+                }
+                Button("External Editor") {
+                    openInExternalEditor(url: node.url)
+                }
+                Button("Xcode") {
+                    openInXcode(url: node.url)
+                }
+            }
+
+            Divider()
+
+            Button("Bookmark File") {
+                bookmarkFile(url: node.url)
+            }
+
+            Button("Find In Selected File") {
+                findInSelectedFile(url: node.url)
+            }
+
+            Button("Add Reference") {
+                addReferenceToProject(url: node.url)
+            }
+
+            Divider()
 
             Button(favorites.contains(node.url.path) ? "Remove from Favorites" : "Add to Favorites") {
                 toggleFavorite(path: node.url.path)
@@ -724,6 +932,77 @@ struct ProjectTreeNodeView: View {
             Button("Open in Editor") {
                 viewModel.selectedNodeID = node.id
             }
+
+            Button("Open in New Tab") {
+                ProjectSessionStore.shared.openFile(atPath: node.url.path)
+                NotificationCenter.default.post(name: NSNotification.Name("com.swiftcode.openFileInWorkspace"), object: node.url)
+            }
+
+            Button("Open in New Window") {
+                NSWorkspace.shared.open(node.url)
+            }
+
+            Button("Open in External Editor") {
+                NSWorkspace.shared.open(node.url)
+            }
+
+            Button("Open Terminal at Location") {
+                let isDir = (try? node.url.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) == true
+                let targetDir = isDir ? node.url : node.url.deletingLastPathComponent()
+                if let term = NSWorkspace.shared.urlForApplication(withBundleIdentifier: "com.apple.Terminal") {
+                    NSWorkspace.shared.open([targetDir], withApplicationAt: term, configuration: NSWorkspace.OpenConfiguration())
+                } else {
+                    NSWorkspace.shared.open(targetDir)
+                }
+            }
+
+            Menu("Open As") {
+                Button("Source Code") {
+                    ProjectSessionStore.shared.openFile(atPath: node.url.path)
+                    NotificationCenter.default.post(name: NSNotification.Name("com.swiftcode.openFileInWorkspace"), object: node.url)
+                }
+                Button("Plain Text") {
+                    ProjectSessionStore.shared.openFile(atPath: node.url.path)
+                    NotificationCenter.default.post(name: NSNotification.Name("com.swiftcode.openFileInWorkspace"), object: node.url)
+                }
+                Button("External Editor") {
+                    NSWorkspace.shared.open(node.url)
+                }
+                Button("Xcode") {
+                    if let xcodeURL = NSWorkspace.shared.urlForApplication(withBundleIdentifier: "com.apple.dt.Xcode") {
+                        NSWorkspace.shared.open([node.url], withApplicationAt: xcodeURL, configuration: NSWorkspace.OpenConfiguration())
+                    } else {
+                        NSWorkspace.shared.open(node.url)
+                    }
+                }
+            }
+
+            Divider()
+
+            Button("Bookmark File") {
+                BookmarkStore.shared.add(
+                    fileName: node.url.lastPathComponent,
+                    lineNumber: 1,
+                    filePath: node.url.path,
+                    title: node.url.lastPathComponent,
+                    url: node.url.absoluteString
+                )
+            }
+
+            Button("Find In Selected File") {
+                ProjectSessionStore.shared.openFile(atPath: node.url.path)
+                NotificationCenter.default.post(name: NSNotification.Name("com.swiftcode.openFileInWorkspace"), object: node.url)
+                NotificationCenter.default.post(name: NSNotification.Name("TriggerEditorFind"), object: node.url)
+            }
+
+            Button("Add Reference") {
+                _ = try? XcodeProjWriter.shared.addFileReference(filePath: node.url.path, projectURL: nil)
+                Task {
+                    await viewModel.refresh()
+                }
+            }
+
+            Divider()
 
             Button(favorites.contains(node.url.path) ? "Remove from Favorites" : "Add to Favorites") {
                 toggleFavorite(path: node.url.path)

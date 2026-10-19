@@ -497,6 +497,7 @@
 		4a7cd18e57721625cc579a4e /* SDKCodeEditorShellView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1c1e6e78b2626519bc8b184f /* SDKCodeEditorShellView.swift */; };
 		5042A0A253E483E0A60FB55B /* JSONToDartView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 274C103D6321266994AAF994 /* JSONToDartView.swift */; };
 		50449986FA13E01B106DB1E6 /* BuildingXcodeProject.swift in Sources */ = {isa = PBXBuildFile; fileRef = 50449986FA13E01B106DB1E5 /* BuildingXcodeProject.swift */; };
+		3A1B570AF9E4F916D3CCA145 /* build_ipa.sh in Resources */ = {isa = PBXBuildFile; fileRef = 3A1B570AF9E4F916D3CCA144 /* build_ipa.sh */; };
 		50D0D0AED75DBA2F34F935A8 /* SFSymbolsReferenceView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FDF84F7206A228709DB3EDD0 /* SFSymbolsReferenceView.swift */; };
 		510287B125804BF682415391 /* GitBranch.swift in Sources */ = {isa = PBXBuildFile; fileRef = 595FA7D22183D3ACCE8D6400 /* GitBranch.swift */; };
 		511F21B043B88EE7C1CE71B5 /* DiskUsageAnalyzerDevToolView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 37BC644D5C1459878A3A9846 /* DiskUsageAnalyzerDevToolView.swift */; };
@@ -10898,6 +10899,7 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				3A1B570AF9E4F916D3CCA145 /* build_ipa.sh in Resources */,
 				SNDBLD000000000000000001 /* SwiftCode_Notification_A.aiff in Resources */,
 				SNDBLD000000000000000002 /* SwiftCode_Notification_B.aiff in Resources */,
 				SNDBLD000000000000000003 /* SwiftCode_Message_A.aiff in Resources */,

@@ -34,7 +34,7 @@ When creating a new application project:
 1. **Analyze Target Platform & Bundle ID:** Extract app name, reverse-domain bundle identifier, target Apple platform (`iOS`, `macOS`, `watchOS`, `visionOS`), and template.
 2. **Execute App Creation:** Scaffold the application workspace using native project creation capabilities.
 3. **Session Switching:** Scaffolding automatically sets up the project files on disk and establishes the active workspace session in the newly created project directory.
-4. **Register Source Files:** Register newly created `.swift` source files in the newly created project's `.xcodeproj/project.pbxproj` build phase.
+4. **Mandatory PBXproj Registration on EVERY File Addition:** EVERY SINGLE TIME Assist adds a new file to the project, it MUST register it on the `project.pbxproj` files so Xcode can recognize the newly added files.
 
 ---
 

@@ -32,6 +32,7 @@ public struct AssistCopyFileTool: AssistTool {
 
         do {
             try context.fileSystem.copyFile(from: source, to: destination)
+            _ = try? XcodeProjWriter.shared.addFileReference(filePath: destination, projectURL: context.workspaceRoot)
             return .success("Successfully copied file from \(source) to \(destination)")
         } catch {
             return .failure("Failed to copy file: \(error.localizedDescription)")

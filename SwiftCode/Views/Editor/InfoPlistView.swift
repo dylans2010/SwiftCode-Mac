@@ -136,6 +136,16 @@ public enum InfoPlistTemplateCatalog {
             InfoPlistTemplate(key: "CFBundleDocumentTypes", name: "Document Types", symbol: "doc", category: "URL Types", kind: .array, defaultValue: [Any]()),
             InfoPlistTemplate(key: "UTExportedTypeDeclarations", name: "Exported Type Declarations", symbol: "arrow.up.doc", category: "URL Types", kind: .array, defaultValue: [Any]()),
             InfoPlistTemplate(key: "UTImportedTypeDeclarations", name: "Imported Type Declarations", symbol: "arrow.down.doc", category: "URL Types", kind: .array, defaultValue: [Any]()),
+
+            // Additional Modern App Keys
+            InfoPlistTemplate(key: "NSSupportsLiveActivities", name: "Supports Live Activities", symbol: "waveform.path.ecg", category: "Display & Scene", kind: .boolean, defaultValue: true),
+            InfoPlistTemplate(key: "UIApplicationSceneManifest", name: "Application Scene Manifest", symbol: "rectangle.split.2x1", category: "Display & Scene", kind: .dictionary, defaultValue: ["UIApplicationSupportsMultipleScenes": true] as [String: Any]),
+            InfoPlistTemplate(key: "NSUserActivityTypes", name: "User Activity Types (Handoff / Siri)", symbol: "hand.raised", category: "Behavior & Lifecycle", kind: .array, defaultValue: ["com.example.app.activity"] as [Any]),
+            InfoPlistTemplate(key: "UIWhitePointAdaptivityStyle", name: "White Point Adaptivity Style (True Tone)", symbol: "sun.max", category: "Display & Scene", kind: .string, defaultValue: "UIWhitePointAdaptivityStyleStandard"),
+            InfoPlistTemplate(key: "UIRequiresPersistentWiFi", name: "Requires Persistent Wi-Fi", symbol: "wifi", category: "Network & Security", kind: .boolean, defaultValue: false),
+            InfoPlistTemplate(key: "WKCompanionAppBundleIdentifier", name: "watchOS Companion App Bundle ID", symbol: "applewatch", category: "Identity", kind: .string, defaultValue: "$(PRODUCT_BUNDLE_IDENTIFIER)"),
+            InfoPlistTemplate(key: "NSUbiquitousContainers", name: "iCloud Drive Document Containers", symbol: "icloud.and.arrow.up", category: "Behavior & Lifecycle", kind: .dictionary, defaultValue: [:] as [String: Any]),
+            InfoPlistTemplate(key: "NSPersistentStoreFileProtectionKey", name: "Persistent Store File Protection", symbol: "lock.shield", category: "Network & Security", kind: .string, defaultValue: "NSFileProtectionComplete"),
         ]
         // Privacy usage descriptions come from the curated metadata catalog.
         for meta in InfoPlistNSStrings.all {

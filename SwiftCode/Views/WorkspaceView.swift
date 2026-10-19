@@ -504,11 +504,15 @@ struct WorkspaceView: View {
                 case .simulatorMain: SimulatorMainView()
                 case .searchDocumentation: SearchDocumentationView()
                 case .sfSymbolsBrowser: SFSymbolPickerView()
-                case .snippetsLibrary: SnippetsLibraryView()
+                case .snippetsLibrary:
+                    SnippetsLibraryView()
+                        .frame(minWidth: 880, maxWidth: 960, minHeight: 520, maxHeight: 600)
                 case .codeRefactoring: CodeRefactoringView()
                 case .errorDiagnostics: ErrorDiagnosticsView()
                 case .codeIntelligence: CodeIntelligenceView()
-                case .workspaceProfiles: WorkspaceProfilesView()
+                case .workspaceProfiles:
+                    WorkspaceProfilesView()
+                        .frame(minWidth: 880, maxWidth: 960, minHeight: 520, maxHeight: 600)
                 case .gitHub: GitHubIntegrationView(project: project)
                 case .devTools: DevToolsMainView()
                 case .sourceControl:
@@ -589,7 +593,7 @@ struct WorkspaceView: View {
 
                 case .deviceConnect:
                     DeviceConnectView()
-                        .frame(minWidth: 880, minHeight: 650)
+                        .frame(minWidth: 880, maxWidth: 960, minHeight: 520, maxHeight: 600)
 
                 case .virtualization:
                     SCVirtualizationView()
