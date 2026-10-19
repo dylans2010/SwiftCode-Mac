@@ -67,6 +67,46 @@ actor BinaryManager {
         return try await run(.graphviz, arguments: ["-Tsvg", dotURL.path, "-o", outputPath])
     }
 
+    /// Outcome of the Graphviz availability check / install attempt.
+    enum GraphvizAvailability: Sendable {
+        /// `dot` was already on PATH (or bundled).
+        case available
+        /// `dot` was missing and Homebrew just installed it successfully.
+        case installedNow
+        /// `dot` is missing and Homebrew itself is not installed, so we cannot
+        /// install it automatically. Carries install guidance for the UI.
+        case brewMissing
+        /// `dot` is missing and the `brew install graphviz` attempt failed.
+        case installFailed(String)
+    }
+
+    /// Ensures Graphviz (`dot`) is usable, installing it via Homebrew when it
+    /// is missing. Never shells out through /bin/sh — brew is launched with a
+    /// fixed executable path and an argv array.
+    func ensureGraphvizAvailable() async -> GraphvizAvailability {
+        if await validate(binary: .graphviz) { return .available }
+
+        // Drop any stale negative cache entry before re-probing.
+        binaryCache[.graphviz] = nil
+
+        let brewCandidates = ["/opt/homebrew/bin/brew", "/usr/local/bin/brew"]
+        guard let brewPath = brewCandidates.first(where: { FileManager.default.isExecutableFile(atPath: $0) }) else {
+            return .brewMissing
+        }
+
+        do {
+            let result = try await runExecutable(brewPath, arguments: ["install", "graphviz"], workingDirectory: nil)
+            binaryCache[.graphviz] = nil
+            if result.isSuccess, await validate(binary: .graphviz) {
+                return .installedNow
+            }
+            let detail = result.mergedOutput.trimmingCharacters(in: .whitespacesAndNewlines)
+            return .installFailed(detail.isEmpty ? "brew install graphviz exited with code \(result.exitCode)." : detail)
+        } catch {
+            return .installFailed(error.localizedDescription)
+        }
+    }
+
     func runTreeSitterParser(filePath: String) async throws -> BinaryExecutionResult {
         try await run(.treeSitter, arguments: ["parse", filePath])
     }
