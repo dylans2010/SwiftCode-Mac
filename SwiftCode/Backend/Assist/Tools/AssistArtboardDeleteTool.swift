@@ -55,5 +55,3 @@ public struct AssistArtboardDeleteTool: AssistTool {
         return .success("Artboard '\(deleted.name)' (ID: \(deleted.id.uuidString)) deleted successfully.")
     }
 }
-
-@MainActor

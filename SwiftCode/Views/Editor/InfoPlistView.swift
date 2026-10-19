@@ -75,7 +75,7 @@ public struct InfoPlistTemplate: Identifiable {
 public enum InfoPlistTemplateCatalog {
     public static let categories = ["Identity", "Display", "Privacy", "URL Types", "Behavior"]
 
-    public static let all: [InfoPlistTemplate] = {
+    nonisolated(unsafe) public static let all: [InfoPlistTemplate] = {
         var list: [InfoPlistTemplate] = [
             InfoPlistTemplate(key: "CFBundleIdentifier", name: "Bundle Identifier", symbol: "app.badge", category: "Identity", kind: .string, defaultValue: "$(PRODUCT_BUNDLE_IDENTIFIER)"),
             InfoPlistTemplate(key: "CFBundleName", name: "Bundle Name", symbol: "app", category: "Identity", kind: .string, defaultValue: "$(PRODUCT_NAME)"),

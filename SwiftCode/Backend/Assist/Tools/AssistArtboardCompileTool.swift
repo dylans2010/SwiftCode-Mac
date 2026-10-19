@@ -64,5 +64,3 @@ public struct AssistArtboardCompileTool: AssistTool {
         }
     }
 }
-
-@MainActor

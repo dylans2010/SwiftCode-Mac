@@ -212,11 +212,11 @@ struct WorkspaceProfilesView: View {
                 }
 
                 if manager.profiles.isEmpty {
-                    ContentUnavailableView(
-                        "No profiles yet",
-                        systemImage: "square.stack.3d.up",
-                        description: Text("Create a profile to save a build configuration and environment variables you can switch between.")
-                    ) {
+                    ContentUnavailableView {
+                        Label("No profiles yet", systemImage: "square.stack.3d.up")
+                    } description: {
+                        Text("Create a profile to save a build configuration and environment variables you can switch between.")
+                    } actions: {
                         Button("Create profile") {
                             prepareCreate()
                         }

@@ -74,7 +74,7 @@ public enum CapabilityCatalog {
     public static let iCloudContainersKey = "com.apple.developer.icloud-container-identifiers"
     public static let iCloudKVStoreKey = "com.apple.developer.ubiquity-kvstore-identifier"
 
-    public static let definitions: [CapabilityDefinition] = [
+    nonisolated(unsafe) public static let definitions: [CapabilityDefinition] = [
         // MARK: App Sandbox
         CapabilityDefinition(
             rawKey: "com.apple.security.app-sandbox",

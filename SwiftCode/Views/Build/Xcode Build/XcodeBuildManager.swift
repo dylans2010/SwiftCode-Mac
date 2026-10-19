@@ -663,13 +663,13 @@ public final class XcodeBuildManager: Sendable {
                 return
             }
 
-            appendLog("[ERROR] Fix attempt \(attempt) still failing — preparing next attempt.", isError: true)
+            appendLog("[ERROR] Fix attempt \(attempt) still failing — preparing next attempt.")
         }
 
         if isAssistFixRunning {
             isAssistFixRunning = false
             assistFixStatus = "All \(maxAssistFixAttempts) attempts exhausted — manual review needed."
-            appendLog("[ERROR] Fix Build with Assist: exhausted \(maxAssistFixAttempts) attempts without BUILD SUCCEEDED. The full logs above are available for manual review.", isError: true)
+            appendLog("[ERROR] Fix Build with Assist: exhausted \(maxAssistFixAttempts) attempts without BUILD SUCCEEDED. The full logs above are available for manual review.")
         }
     }
 

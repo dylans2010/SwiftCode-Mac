@@ -85,5 +85,3 @@ public struct AssistArtboardUpdateTool: AssistTool {
         ])
     }
 }
-
-@MainActor

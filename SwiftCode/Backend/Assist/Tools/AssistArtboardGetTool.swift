@@ -91,5 +91,3 @@ public struct AssistArtboardGetTool: AssistTool {
         }
     }
 }
-
-@MainActor

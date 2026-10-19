@@ -489,7 +489,7 @@ public struct AssistGitHubRepoTool: AssistTool {
         let tree = try await client.tree(owner: repo.owner, repo: repo.repo, ref: resolvedRef, recursive: true)
 
         // Classify every entry before fetching anything.
-        var textFiles: [GitHubTreeEntry] = []
+        var textFiles: [AssistGitHubTreeEntry] = []
         var skippedBinary: [String] = []
         var skippedOversize: [String] = []
         var skippedDirs: [String] = []
@@ -591,7 +591,7 @@ public struct AssistGitHubRepoTool: AssistTool {
     // MARK: - Path classification
 
     /// Extensions that are never useful as decoded text.
-    static let binaryExtensions: Set<String> = [
+    nonisolated static let binaryExtensions: Set<String> = [
         "png", "jpg", "jpeg", "gif", "webp", "bmp", "ico", "icns", "tiff",
         "pdf", "zip", "gz", "tar", "bz2", "xz", "7z", "dmg", "pkg",
         "mp3", "mp4", "mov", "wav", "aiff", "m4a",
@@ -604,28 +604,28 @@ public struct AssistGitHubRepoTool: AssistTool {
 
     /// Directory prefixes excluded from full-repository retrieval (build
     /// artifacts, vendored dependencies, VCS metadata).
-    static let skippedDirectoryPrefixes = [
+    nonisolated static let skippedDirectoryPrefixes = [
         ".git/", "node_modules/", "Pods/", "Carthage/", "DerivedData/",
         "build/", ".build/", "vendor/", "__pycache__/", ".venv/"
     ]
 
-    static func isBinaryPath(_ path: String) -> Bool {
+    nonisolated static func isBinaryPath(_ path: String) -> Bool {
         let ext = (path as NSString).pathExtension.lowercased()
         return !ext.isEmpty && binaryExtensions.contains(ext)
     }
 
-    static func isSkippedDirectory(_ path: String) -> Bool {
+    nonisolated static func isSkippedDirectory(_ path: String) -> Bool {
         skippedDirectoryPrefixes.contains { path.hasPrefix($0) || path == String($0.dropLast()) }
     }
 
     /// Text files worth searching: source, config, docs, data.
-    static func isSearchablePath(_ path: String) -> Bool {
+    nonisolated static func isSearchablePath(_ path: String) -> Bool {
         if isBinaryPath(path) || isSkippedDirectory(path) { return false }
         return true
     }
 
     /// Ranking for fetch_repository: query hits > project config > docs > rest.
-    static func priorityScore(path: String, queryTokens: [String]) -> Int {
+    nonisolated static func priorityScore(path: String, queryTokens: [String]) -> Int {
         let lower = path.lowercased()
         var score = 0
         for token in queryTokens where !token.isEmpty {
@@ -640,7 +640,7 @@ public struct AssistGitHubRepoTool: AssistTool {
     /// Binary sniffing on raw bytes: NUL byte or invalid UTF-8.
     /// (The 8KB prefix probe below is a sniffing heuristic, not output
     /// truncation — callers report truncation explicitly where it applies.)
-    static func isBinaryData(_ data: Data) -> Bool {
+    nonisolated static func isBinaryData(_ data: Data) -> Bool {
         if data.contains(0) { return true }
         return String(data: data.prefix(8192), encoding: .utf8) == nil && !data.isEmpty
     }
@@ -662,7 +662,7 @@ private struct GitHubRepoInfo: Sendable {
     let sizeKB: Int?
 }
 
-private struct GitHubTreeEntry: Sendable {
+private struct AssistGitHubTreeEntry: Sendable {
     let path: String
     let type: String // "blob" | "tree"
     let size: Int?
@@ -670,7 +670,7 @@ private struct GitHubTreeEntry: Sendable {
 }
 
 private struct GitHubTree: Sendable {
-    let entries: [GitHubTreeEntry]
+    let entries: [AssistGitHubTreeEntry]
     let truncated: Bool
 }
 
@@ -682,7 +682,7 @@ private struct GitHubContentEntry: Sendable {
     let downloadURL: String?
 }
 
-private enum GitHubFileContent: Sendable {
+private enum AssistGitHubFileContent: Sendable {
     case text(String)
     case binary(size: Int, reason: String)
 }
@@ -789,12 +789,12 @@ private final class GitHubAPIClient: Sendable {
               let rawEntries = AssistJSON.array(d["tree"]) else {
             throw AssistRemoteFetchError.decodingFailed("repository tree")
         }
-        let entries: [GitHubTreeEntry] = rawEntries.compactMap { item in
+        let entries: [AssistGitHubTreeEntry] = rawEntries.compactMap { item in
             guard let e = AssistJSON.object(item),
                   let path = e["path"] as? String,
                   let type = e["type"] as? String,
                   let sha = e["sha"] as? String else { return nil }
-            return GitHubTreeEntry(path: path, type: type, size: e["size"] as? Int, sha: sha)
+            return AssistGitHubTreeEntry(path: path, type: type, size: e["size"] as? Int, sha: sha)
         }
         return GitHubTree(entries: entries, truncated: (d["truncated"] as? Bool) ?? false)
     }
@@ -849,7 +849,7 @@ private final class GitHubAPIClient: Sendable {
     /// File content: Contents API (base64) with a raw-download fallback for
     /// large files the Contents API refuses. Binary files are classified,
     /// never decoded as text.
-    func fileContent(owner: String, repo: String, ref: String, path: String, maxBytes: Int) async throws -> GitHubFileContent {
+    func fileContent(owner: String, repo: String, ref: String, path: String, maxBytes: Int) async throws -> AssistGitHubFileContent {
         var components = URLComponents(url: apiURL("/repos/\(owner)/\(repo)/contents/\(encodedPath(path))"), resolvingAgainstBaseURL: false)!
         components.queryItems = [URLQueryItem(name: "ref", value: ref)]
         let response = try await get(components.url!)
@@ -885,7 +885,7 @@ private final class GitHubAPIClient: Sendable {
         throw AssistRemoteFetchError.decodingFailed("no retrievable content for '\(path)'")
     }
 
-    private func classify(data: Data, path: String, size: Int, maxBytes: Int) -> GitHubFileContent {
+    private func classify(data: Data, path: String, size: Int, maxBytes: Int) -> AssistGitHubFileContent {
         if AssistGitHubRepoTool.isBinaryData(data) {
             return .binary(size: size, reason: "non-text bytes detected")
         }

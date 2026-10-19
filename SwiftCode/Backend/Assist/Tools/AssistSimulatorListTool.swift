@@ -72,7 +72,3 @@ public struct AssistSimulatorListTool: AssistTool {
         AssistToolingSupport.runProcess(executablePath: executablePath, arguments: arguments, workingDirectory: workingDirectory)
     }
 }
-
-// MARK: - Artboard Subsystem Tools
-
-@MainActor

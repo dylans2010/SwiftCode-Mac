@@ -49,5 +49,3 @@ public struct AssistArtboardListTool: AssistTool {
         ])
     }
 }
-
-@MainActor

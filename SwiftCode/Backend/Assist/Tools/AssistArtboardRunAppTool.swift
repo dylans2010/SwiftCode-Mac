@@ -40,5 +40,3 @@ public struct AssistArtboardRunAppTool: AssistTool {
         }
     }
 }
-
-@MainActor

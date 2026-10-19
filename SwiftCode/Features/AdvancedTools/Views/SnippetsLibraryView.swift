@@ -373,11 +373,11 @@ struct SnippetsLibraryView: View {
                 }
 
                 if snippets.isEmpty {
-                    ContentUnavailableView(
-                        "No snippets yet",
-                        systemImage: "curlybraces",
-                        description: Text("Save reusable code templates here so you can copy or insert them later.")
-                    ) {
+                    ContentUnavailableView {
+                        Label("No snippets yet", systemImage: "curlybraces")
+                    } description: {
+                        Text("Save reusable code templates here so you can copy or insert them later.")
+                    } actions: {
                         Button("Add snippet") {
                             prepareCreate()
                         }

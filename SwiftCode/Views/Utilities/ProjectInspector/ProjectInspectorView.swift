@@ -301,14 +301,14 @@ struct ProjectInspectorView: View {
     @ViewBuilder
     private func projectTab() -> some View {
         VStack(alignment: .leading, spacing: 20) {
-            projectSummaryCard
+            projectSummaryCard()
 
             if scanner.xcodeProjectFound {
-                targetsCard
-                schemesAndConfigsCard
-                signingSummaryCard
-                buildSettingsCard
-                dependenciesCard
+                targetsCard()
+                schemesAndConfigsCard()
+                signingSummaryCard()
+                buildSettingsCard()
+                dependenciesCard()
             } else {
                 GroupBox {
                     ContentUnavailableView(
@@ -321,7 +321,7 @@ struct ProjectInspectorView: View {
                 .groupBoxStyle(ModernGroupBoxStyle())
             }
 
-            sourceFilesCard
+            sourceFilesCard()
         }
         .padding(24)
     }
@@ -476,7 +476,7 @@ struct ProjectInspectorView: View {
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     } else {
-                        FlowLayout(spacing: 8) {
+                        ProjectInspectorFlowLayout(spacing: 8) {
                             ForEach(scanner.buildConfigurations, id: \.self) { config in
                                 Text(config)
                                     .font(.caption)
@@ -1251,7 +1251,7 @@ Generated: \(Date().description)
 
 // MARK: - Adaptive flow layout for configuration chips
 
-private struct FlowLayout: Layout {
+private struct ProjectInspectorFlowLayout: Layout {
     var spacing: CGFloat = 8
 
     func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {

@@ -455,7 +455,7 @@ public struct IPABuildView: View {
                     if FileManager.default.fileExists(atPath: url.path) {
                         try FileManager.default.removeItem(at: url)
                     }
-                    try FileManager.default.copyItem(atPath: ipaPath, to: url.path)
+                    try FileManager.default.copyItem(atPath: ipaPath, toPath: url.path)
                 } catch {
                     let alert = NSAlert()
                     alert.messageText = "Download Failed"
