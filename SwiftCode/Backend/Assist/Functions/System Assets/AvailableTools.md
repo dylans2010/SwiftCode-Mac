@@ -275,6 +275,7 @@ Example F — Answering a general programming question. Answer directly when the
 - `asset_image_add` (safeMutation) — create `imageName.imageset/` + valid Contents.json + copy workspace image, verified.
 - `strings_localization` (safeMutation) — get/set/delete one key in `.strings` or `.xcstrings` (per-locale).
 - `localization_audit` (safeRead) — missing keys per locale + keys never referenced in Swift.
+- `localize_app` (safeMutation) — full app localization (up to 3 languages/session): discover NSLocalizedString/String(localized:) keys in Swift, create/merge `Localizable.xcstrings` (source language, per-locale state/value, supplied translations; untranslated keys written as state `new`), set Info.plist `CFBundleLocalizations` + `CFBundleDevelopmentRegion`, RTL detection. Actions: `localize` (default), `status`, `set_development_region`. Data keys: languages, layoutDirection, sourceLanguage, keysAdded. Follows `LocalizingApps.md`.
 - `plist_edit` (safeMutation) — get/set/delete plist keys via plist serialization, atomic write + verify.
 
 ## Code Quality & Analysis

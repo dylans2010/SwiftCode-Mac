@@ -49,6 +49,7 @@ Rules that govern this library:
 | `ArtifactsGuidelines.md` | Native Markdown artifact workflow: when to create artifacts, quality standards, display titles, Plan/Autopilot integration | Any durable deliverable: reports, analyses, plans, summaries |
 | `UsingSystem.md` | Operating instructions for the `use_system` tool: when to diagnose vs. not, tool-selection priority, authorization limits, error handling, verification | macOS system diagnostics, dev-environment failures, network/service/log investigation, authorized config changes |
 | `UsingApp.md` | Operating instructions for the `use_app` tool: native macOS application interaction, UI inspection, pointer/keyboard synthetic input, visual verification, safeguards | Operating third-party macOS applications, UI automation, verifying built apps |
+| `LocalizingApps.md` | Full Apple-app localization procedure: String Catalogs, NSLocalizedString/String(localized:), plurals, formatters, RTL, XLIFF workflow, scheme testing, App Store Connect metadata | App localization tasks, new-language requests |
 
 ---
 
@@ -78,6 +79,7 @@ Genuine dependencies in this library:
 - `AgenticLoop.md` → `CallTool.md`, `ErrorHandling.md`
 - `ExecutionPlans.md` → `AgenticLoop.md`
 - `FileOperations.md` → `Safeguards.md`
+- `LocalizingApps.md` → `CallTool.md`
 
 Retrieving a document retrieves its dependencies where the budget allows; `Safeguards.md` is always preserved first under pressure.
 

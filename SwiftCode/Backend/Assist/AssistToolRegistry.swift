@@ -233,6 +233,7 @@ public final class AssistToolRegistry {
         register(AssistAssetImageAddTool())
         register(AssistStringsLocalizationTool())
         register(AssistLocalizationAuditTool())
+        register(AssistLocalizeAppTool())
         register(AssistPlistEditTool())
         // Code quality & analysis
         register(AssistDeadCodeScanTool())
