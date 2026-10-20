@@ -1110,6 +1110,255 @@ public enum CapabilityCatalog {
             defaultValue: true,
             requiresSpecialApproval: true
         ),
+
+        // MARK: - Virtualization & Hypervisor
+        CapabilityDefinition(
+            rawKey: "com.apple.developer.virtualization",
+            name: "Virtualization Framework",
+            explanation: "Allows the application to create, configure, and boot virtual machines on macOS.",
+            symbol: "desktopcomputer.trianglebadge.exclamationmark",
+            section: .systemExtensions,
+            payload: .none,
+            defaultValue: true
+        ),
+        CapabilityDefinition(
+            rawKey: "com.apple.developer.hypervisor",
+            name: "Hypervisor Framework",
+            explanation: "Permits user-space software to manage CPU and memory virtualization directly via Hypervisor.framework.",
+            symbol: "cpu.fill",
+            section: .systemExtensions,
+            payload: .none,
+            defaultValue: true
+        ),
+
+        // MARK: - Proximity & Contactless Payments
+        CapabilityDefinition(
+            rawKey: "com.apple.developer.proximity-reader.payment.acceptance",
+            name: "Tap to Pay on iPhone",
+            explanation: "Enables contactless in-person payment acceptance using ProximityReader on supported iPhones.",
+            symbol: "wave.3.forward.circle.fill",
+            section: .services,
+            payload: .none,
+            defaultValue: true,
+            requiresSpecialApproval: true
+        ),
+        CapabilityDefinition(
+            rawKey: "com.apple.developer.proximity-reader.identity.acceptance",
+            name: "Tap to Present ID",
+            explanation: "Allows reading and verifying mobile driver's licenses and state IDs via ProximityReader.",
+            symbol: "person.text.rectangle.fill",
+            section: .services,
+            payload: .none,
+            defaultValue: true,
+            requiresSpecialApproval: true
+        ),
+        CapabilityDefinition(
+            rawKey: "com.apple.developer.payment-pass-provisioning",
+            name: "In-App Card Provisioning",
+            explanation: "Allows adding payment cards and transit passes directly to Apple Wallet without user manual entry.",
+            symbol: "creditcard.and.123",
+            section: .services,
+            payload: .none,
+            defaultValue: true,
+            requiresSpecialApproval: true
+        ),
+
+        // MARK: - Accessories, Hardware & Vision
+        CapabilityDefinition(
+            rawKey: "com.apple.developer.dock-accessory",
+            name: "DockKit Accessory Tracking",
+            explanation: "Allows motorized tracking stands and docks to track subjects automatically via DockKit.",
+            symbol: "video.badge.waveform",
+            section: .services,
+            payload: .none,
+            defaultValue: true
+        ),
+        CapabilityDefinition(
+            rawKey: "com.apple.developer.cameracapture",
+            name: "Headless Camera Capture",
+            explanation: "Permits specialized camera capture without active viewfinders on visionOS and enterprise macOS.",
+            symbol: "camera.viewfinder",
+            section: .services,
+            payload: .none,
+            defaultValue: true,
+            requiresSpecialApproval: true
+        ),
+        CapabilityDefinition(
+            rawKey: "com.apple.developer.carplay-charging",
+            name: "CarPlay EV Charging",
+            explanation: "Allows navigation and charging station discovery for electric vehicles within Apple CarPlay.",
+            symbol: "bolt.car.fill",
+            section: .services,
+            payload: .none,
+            defaultValue: true
+        ),
+        CapabilityDefinition(
+            rawKey: "com.apple.developer.carplay-parking",
+            name: "CarPlay Parking",
+            explanation: "Enables parking location finders, reservations, and payment assistance inside Apple CarPlay.",
+            symbol: "parkingsign.circle.fill",
+            section: .services,
+            payload: .none,
+            defaultValue: true
+        ),
+
+        // MARK: - Streaming, Fonts & Media Analysis
+        CapabilityDefinition(
+            rawKey: "com.apple.developer.coremedia.hls.low-latency",
+            name: "Low-Latency HLS",
+            explanation: "Allows video streaming playback and publishing using Apple's sub-second Low-Latency HLS standard.",
+            symbol: "play.tv.fill",
+            section: .services,
+            payload: .none,
+            defaultValue: true
+        ),
+        CapabilityDefinition(
+            rawKey: "com.apple.developer.media-analysis",
+            name: "Media Analysis Engine",
+            explanation: "Provides accelerated media analysis and computer vision processing pipelines via Vision framework.",
+            symbol: "waveform.path.badge.plus",
+            section: .services,
+            payload: .none,
+            defaultValue: true
+        ),
+        CapabilityDefinition(
+            rawKey: "com.apple.developer.user-fonts",
+            name: "Custom Font Provider",
+            explanation: "Enables font management applications to register and install custom fonts for system-wide app usage.",
+            symbol: "textformat",
+            section: .personal,
+            payload: .none,
+            defaultValue: true
+        ),
+
+        // MARK: - System Extensions & Credential Providers
+        CapabilityDefinition(
+            rawKey: "com.apple.developer.system-extension.install",
+            name: "System Extension Installation",
+            explanation: "Allows macOS applications to install driver, network, and endpoint security system extensions.",
+            symbol: "gearshape.arrow.triangle.2.circlepath",
+            section: .systemExtensions,
+            payload: .none,
+            defaultValue: true,
+            requiresSpecialApproval: true
+        ),
+        CapabilityDefinition(
+            rawKey: "com.apple.developer.authentication-services.autofill-credential-provider",
+            name: "AutoFill Credential Provider",
+            explanation: "Enables third-party password and passkey managers to provide autofill credentials system-wide.",
+            symbol: "key.viewfinder",
+            section: .services,
+            payload: .none,
+            defaultValue: true
+        ),
+        CapabilityDefinition(
+            rawKey: "com.apple.developer.identity-lookup",
+            name: "SMS & Call Spam Filtering",
+            explanation: "Enables IdentityLookup extensions to identify and block nuisance phone calls and SMS spam.",
+            symbol: "phone.down.waves.left.and.right",
+            section: .services,
+            payload: .none,
+            defaultValue: true
+        ),
+        CapabilityDefinition(
+            rawKey: "com.apple.developer.networking.hotspot-helper",
+            name: "Hotspot Helper",
+            explanation: "Allows negotiating authentication for complex public Wi-Fi networks using NEHotspotHelper.",
+            symbol: "wifi.exclamationmark",
+            section: .services,
+            payload: .none,
+            defaultValue: true,
+            requiresSpecialApproval: true
+        ),
+
+        // MARK: - HealthKit & SensorKit Telemetry
+        CapabilityDefinition(
+            rawKey: "com.apple.developer.healthkit.recalibrate-estimates",
+            name: "HealthKit Recalibrate Estimates",
+            explanation: "Allows authorized clinical and research applications to request recalibration of health baseline metrics.",
+            symbol: "heart.text.square",
+            section: .personal,
+            payload: .none,
+            defaultValue: true,
+            requiresSpecialApproval: true
+        ),
+        CapabilityDefinition(
+            rawKey: "com.apple.developer.sensorkit.ambient-light-sensor",
+            name: "SensorKit Ambient Light Sensor",
+            explanation: "Provides access to ambient illuminance and chromaticity telemetry for approved research studies.",
+            symbol: "sun.max.trianglebadge.exclamationmark",
+            section: .personal,
+            payload: .none,
+            defaultValue: true,
+            requiresSpecialApproval: true
+        ),
+        CapabilityDefinition(
+            rawKey: "com.apple.developer.sensorkit.device-usage",
+            name: "SensorKit Device Usage Telemetry",
+            explanation: "Provides device unlock counts, app category usage, and notification metrics for behavioral health research.",
+            symbol: "chart.bar.xaxis",
+            section: .personal,
+            payload: .none,
+            defaultValue: true,
+            requiresSpecialApproval: true
+        ),
+        CapabilityDefinition(
+            rawKey: "com.apple.developer.sensorkit.speech-metrics",
+            name: "SensorKit Speech Metrics",
+            explanation: "Provides acoustic speech metrics and vocal biomarker telemetry for cognitive and speech research.",
+            symbol: "waveform.and.mic",
+            section: .personal,
+            payload: .none,
+            defaultValue: true,
+            requiresSpecialApproval: true
+        ),
+
+        // MARK: - App Sandbox Hardware & Preferences
+        CapabilityDefinition(
+            rawKey: "com.apple.security.device.usb",
+            name: "Sandbox USB Device Access",
+            explanation: "Enables sandboxed macOS apps to communicate directly with connected USB hardware devices.",
+            symbol: "cable.connector.horizontal",
+            section: .sandbox,
+            payload: .none,
+            defaultValue: true
+        ),
+        CapabilityDefinition(
+            rawKey: "com.apple.security.device.bluetooth",
+            name: "Sandbox Bluetooth Access",
+            explanation: "Enables sandboxed macOS apps to discover, pair, and communicate with Bluetooth and BLE peripherals.",
+            symbol: "bolt.horizontal.circle",
+            section: .sandbox,
+            payload: .none,
+            defaultValue: true
+        ),
+        CapabilityDefinition(
+            rawKey: "com.apple.security.device.serial",
+            name: "Sandbox Serial Ports",
+            explanation: "Permits sandboxed macOS apps to open and transfer data across serial interfaces and UART modems.",
+            symbol: "point.3.connected.trianglepath.dotted",
+            section: .sandbox,
+            payload: .none,
+            defaultValue: true
+        ),
+        CapabilityDefinition(
+            rawKey: "com.apple.security.temporary-exception.shared-preference.read-only",
+            name: "Temporary Exception: Shared Prefs Read-Only",
+            explanation: "Grants read-only access to user defaults/preferences from another application domain outside sandbox.",
+            symbol: "exclamationmark.shield",
+            section: .sandbox,
+            payload: .idList(placeholder: "Domain bundle identifier (e.g. com.apple.finder)"),
+            defaultValue: [String]()
+        ),
+        CapabilityDefinition(
+            rawKey: "com.apple.security.temporary-exception.shared-preference.read-write",
+            name: "Temporary Exception: Shared Prefs Read-Write",
+            explanation: "Grants read and write access to user defaults/preferences from another application domain outside sandbox.",
+            symbol: "exclamationmark.shield.fill",
+            section: .sandbox,
+            payload: .idList(placeholder: "Domain bundle identifier (e.g. com.apple.finder)"),
+            defaultValue: [String]()
+        ),
     ]
 
     /// All raw entitlement keys managed by capability toggles, including composite keys.

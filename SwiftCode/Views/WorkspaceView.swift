@@ -589,7 +589,7 @@ struct WorkspaceView: View {
 
                 case .localizationManager:
                     LocalizationManagerView()
-                        .frame(minWidth: 1000, minHeight: 700)
+                        .frame(minWidth: 1080, idealWidth: 1200, minHeight: 700, idealHeight: 780)
 
                 case .deviceConnect:
                     DeviceConnectView()

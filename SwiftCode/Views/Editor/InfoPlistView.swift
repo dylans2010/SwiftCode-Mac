@@ -155,6 +155,9 @@ public enum InfoPlistTemplateCatalog {
             InfoPlistTemplate(key: "UIRequiredDeviceCapabilities", name: "Required Device Capabilities", symbol: "cpu.fill", category: "Hardware & Capabilities", kind: .array, defaultValue: ["arm64", "metal"] as [Any]),
             InfoPlistTemplate(key: "GCSupportedControllerTypes", name: "Supported Game Controller Profiles", symbol: "gamecontroller", category: "Hardware & Capabilities", kind: .array, defaultValue: ["GCExtendedGamepad", "GCStandardGamepad"] as [Any]),
             InfoPlistTemplate(key: "GCSupportsControllerUserInteraction", name: "Gamepad User Interaction Supported", symbol: "gamecontroller.fill", category: "Hardware & Capabilities", kind: .boolean, defaultValue: true),
+            InfoPlistTemplate(key: "NSSupportsPurgeableMemory", name: "Supports Purgeable Memory", symbol: "memorychip", category: "Hardware & Capabilities", kind: .boolean, defaultValue: true),
+            InfoPlistTemplate(key: "UIApplicationShortcutItems", name: "Home Screen Quick Action Shortcuts", symbol: "square.stack.3d.up", category: "Behavior & Lifecycle", kind: .array, defaultValue: [["UIApplicationShortcutItemType": "com.example.search", "UIApplicationShortcutItemTitle": "Search"]] as [Any]),
+            InfoPlistTemplate(key: "NSServices", name: "macOS System Services Menu Actions", symbol: "macwindow.on.rectangle", category: "Behavior & Lifecycle", kind: .array, defaultValue: [Any]()),
 
             // Fonts & Assets
             InfoPlistTemplate(key: "UIAppFonts", name: "Application Fonts Provided by App", symbol: "textformat.size", category: "Fonts & Assets", kind: .array, defaultValue: ["Inter-Regular.ttf", "Outfit-Bold.ttf"] as [Any]),

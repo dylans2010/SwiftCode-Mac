@@ -368,6 +368,51 @@ public struct EntitlementsCatalog {
             recommendedUsage: "Required when consuming Apple Weather service APIs.",
             sfSymbol: "cloud.sun.rain.fill",
             displayColorHex: "#007AFF"
+        ),
+        EntitlementMetadata(
+            displayName: "Virtualization Framework",
+            rawKey: "com.apple.developer.virtualization",
+            category: .capabilities,
+            entitlementDescription: "Allows the app to create, configure, and boot virtual machines on macOS.",
+            supportedPlatforms: [.macOS],
+            minimumOS: "11.0",
+            defaultValue: "true",
+            valueType: .boolean,
+            validationRules: "Must be boolean",
+            searchKeywords: ["virtualization", "vm", "virtual machine", "hypervisor"],
+            recommendedUsage: "Required to launch Linux and macOS virtual machines via Virtualization.framework.",
+            sfSymbol: "desktopcomputer.trianglebadge.exclamationmark",
+            displayColorHex: "#5856D6"
+        ),
+        EntitlementMetadata(
+            displayName: "Tap to Pay on iPhone",
+            rawKey: "com.apple.developer.proximity-reader.payment.acceptance",
+            category: .capabilities,
+            entitlementDescription: "Enables contactless in-person payment acceptance using ProximityReader on supported iPhones.",
+            supportedPlatforms: [.iOS],
+            minimumOS: "15.4",
+            defaultValue: "true",
+            valueType: .boolean,
+            validationRules: "Must be boolean",
+            searchKeywords: ["tap to pay", "contactless", "payment", "proximity"],
+            recommendedUsage: "Required for accepting EMV contactless credit and debit cards.",
+            sfSymbol: "wave.3.forward.circle.fill",
+            displayColorHex: "#34C759"
+        ),
+        EntitlementMetadata(
+            displayName: "DockKit Accessory Tracking",
+            rawKey: "com.apple.developer.dock-accessory",
+            category: .hardware,
+            entitlementDescription: "Allows motorized tracking stands and docks to track subjects automatically via DockKit.",
+            supportedPlatforms: [.iOS],
+            minimumOS: "17.0",
+            defaultValue: "true",
+            valueType: .boolean,
+            validationRules: "Must be boolean",
+            searchKeywords: ["dockkit", "dock", "tracking", "motorized", "stand"],
+            recommendedUsage: "Required for subject tracking with DockKit motorized hardware.",
+            sfSymbol: "video.badge.waveform",
+            displayColorHex: "#FF9500"
         )
     ]
 }

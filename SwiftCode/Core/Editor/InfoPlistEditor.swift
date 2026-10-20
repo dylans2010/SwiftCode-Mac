@@ -408,6 +408,86 @@ public struct InfoPlistNSStrings: Sendable {
             valueType: .string,
             recommendedWording: "This app uses camera posture data to position interactive spatial windows in your space.",
             searchKeywords: ["camera", "posture", "spatial", "visionos", "tracking"]
+        ),
+        InfoPlistNSString(
+            key: "NSFaceIDUsageDescription",
+            name: "Face ID Authentication",
+            category: "Privacy - Biometrics",
+            description: "Required to authenticate user access securely using Face ID.",
+            sfSymbol: "faceid",
+            valueType: .string,
+            recommendedWording: "This app uses Face ID to protect your secure notes and transactions.",
+            searchKeywords: ["face id", "biometrics", "auth", "security", "passcode"]
+        ),
+        InfoPlistNSString(
+            key: "NSSpeechRecognitionUsageDescription",
+            name: "Speech Recognition",
+            category: "Privacy - Speech",
+            description: "Required to transcribe spoken audio into text on-device or via Apple servers.",
+            sfSymbol: "waveform",
+            valueType: .string,
+            recommendedWording: "This app uses speech recognition to transcribe your audio recordings into searchable text.",
+            searchKeywords: ["speech", "dictation", "transcribe", "voice", "audio"]
+        ),
+        InfoPlistNSString(
+            key: "NSMotionUsageDescription",
+            name: "Motion & Fitness",
+            category: "Privacy - Motion",
+            description: "Required to track accelerometer, gyroscope, and step-counting activity metrics.",
+            sfSymbol: "figure.walk",
+            valueType: .string,
+            recommendedWording: "This app accesses device motion data to track your daily workout steps and cadence.",
+            searchKeywords: ["motion", "fitness", "steps", "gyroscope", "accelerometer", "pedometer"]
+        ),
+        InfoPlistNSString(
+            key: "NSCalendarsFullAccessUsageDescription",
+            name: "Calendars (Full Access - iOS 17+)",
+            category: "Privacy - Calendars",
+            description: "Required on iOS 17+ to read, create, and modify events across all user calendars.",
+            sfSymbol: "calendar.badge.clock",
+            valueType: .string,
+            recommendedWording: "This app requires full calendar access to view scheduled meetings and sync deadlines.",
+            searchKeywords: ["calendar", "full access", "ios 17", "events", "meetings"]
+        ),
+        InfoPlistNSString(
+            key: "NSCalendarsWriteOnlyAccessUsageDescription",
+            name: "Calendars (Write-Only - iOS 17+)",
+            category: "Privacy - Calendars",
+            description: "Required on iOS 17+ to create and add new events without viewing existing user calendars.",
+            sfSymbol: "calendar.badge.plus",
+            valueType: .string,
+            recommendedWording: "This app requires write-only calendar access to save purchased ticket events.",
+            searchKeywords: ["calendar", "write only", "ios 17", "add event", "booking"]
+        ),
+        InfoPlistNSString(
+            key: "NSRemindersFullAccessUsageDescription",
+            name: "Reminders (Full Access - iOS 17+)",
+            category: "Privacy - Reminders",
+            description: "Required on iOS 17+ to view and organize tasks across user reminders lists.",
+            sfSymbol: "checklist",
+            valueType: .string,
+            recommendedWording: "This app requires full Reminders access to sync task lists with your productivity board.",
+            searchKeywords: ["reminders", "tasks", "full access", "ios 17", "todo"]
+        ),
+        InfoPlistNSString(
+            key: "NSLocalNetworkUsageDescription",
+            name: "Local Network Access",
+            category: "Privacy - Local Network",
+            description: "Required to discover and communicate with devices and servers on the user's local network.",
+            sfSymbol: "network",
+            valueType: .string,
+            recommendedWording: "This app connects to devices on your Wi-Fi network to stream media and sync documents.",
+            searchKeywords: ["local network", "lan", "wifi", "bonjour", "discover", "p2p"]
+        ),
+        InfoPlistNSString(
+            key: "NSLocationDefaultAccuracyReduced",
+            name: "Reduced Accuracy Location",
+            category: "Privacy - Location",
+            description: "Indicates that the app by default requests approximate rather than precise GPS coordinates.",
+            sfSymbol: "location.circle",
+            valueType: .string,
+            recommendedWording: "This app requests approximate location by default to show regional weather reports.",
+            searchKeywords: ["location", "accuracy", "approximate", "gps", "privacy"]
         )
     ]
 }
