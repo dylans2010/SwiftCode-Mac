@@ -690,7 +690,7 @@ struct AssistSettingsView: View {
                                 VStack(alignment: .leading, spacing: 2) {
                                     Text("Use Meta's Slash Commands")
                                         .font(.system(size: 13, weight: .medium))
-                                    Text("Type \"/\" on AssistMainView to list and run all commands from Meta Code.")
+                                    Text("Type \"/\" on Assist to list and run all commands from Muse Code.")
                                         .font(.caption2)
                                         .foregroundStyle(.secondary)
                                 }

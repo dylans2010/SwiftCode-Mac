@@ -659,7 +659,16 @@ public final class AssistAgentSession: Sendable {
 
             let toolSchemas = {
                 let phaseTools = AssistToolRouter.shared.filterTools(for: classification.primaryIntent, status: self.state.status, in: registry)
-                return AssistToolRouter.shared.serializeToolSchemas(phaseTools)
+                if phaseTools.isEmpty {
+                    return AssistToolRouter.shared.serializeToolSchemas(registry.allTools)
+                } else {
+                    var combined = phaseTools
+                    let seen = Set(phaseTools.map(\.id))
+                    for tool in registry.allTools where !seen.contains(tool.id) {
+                        combined.append(tool)
+                    }
+                    return AssistToolRouter.shared.serializeToolSchemas(combined)
+                }
             }()
             let assetSystemPrompt: String
             do {

@@ -19,9 +19,9 @@ Capability-level reference for the internal capabilities Assist can invoke durin
 
 ## Tool-Selection Hierarchy
 
-Priority 1 — Dedicated native tool. When a native tool can complete the operation correctly, use it. Filesystem work (list/read/write/edit/search/metadata) always uses native tools, never shell equivalents (`ls`, `cat`, `grep`, `find`, shell redirection, `sed`).
+Priority 1 — Dedicated native tool (MANDATORY PREFERENCE). ALWAYS prefer using native tools over terminal commands. Native tools are sandboxed, permission-checked, structured, and inherently safer for the user and their project files. All registered tools are available in the model's environment; never report that a tool is not available in the environment. Filesystem work (list/read/write/edit/search/metadata) always uses native tools, never shell equivalents (`ls`, `cat`, `grep`, `find`, shell redirection, `sed`).
 
-Priority 2 — `use_terminal` for command-oriented operations. Use it when the task genuinely requires command execution: `xcodebuild` (when no native build tool fits), test suites, package-manager commands, compilers/CLI utilities, build scripts, diagnostics, Git commands with no suitable native Git tool, specialized shell-only operations. Do not force native tools to do work outside their capabilities.
+Priority 2 — `use_terminal` for command-oriented operations (SUPER RARE). Terminal execution must be SUPER RARE, used ONLY as an extreme last resort when no native tool exists to execute the requested operation (e.g. specialized third-party CLIs, custom environment scripts). Do not force native tools to do work outside their capabilities, but never reach for the terminal when a native tool can perform the task.
 
 Priority 3 — No tool when no tool is needed. Answer directly when the information is already available: explaining a concept, describing a known API, drafting from conversation context. Never invoke tools merely because they exist, and never repeat a call whose valid result is already in context.
 

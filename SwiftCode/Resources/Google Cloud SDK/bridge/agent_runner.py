@@ -911,38 +911,34 @@ class AgentRunner:
             dynamic_tools = []
             builtin_tools = []
 
+            # Always register all provided SwiftCode native tools as dynamic tools
+            # so that all native tools are fully available to the model and never missing from its environment.
+            for t_schema in registered_tools_schemas:
+                if isinstance(t_schema, dict) and "name" in t_schema:
+                    wrapper = self._build_swift_tool_wrapper(session_id, t_schema)
+                    dynamic_tools.append(wrapper)
+
+            if enable_subagents:
+                builtin_tools.append(types.BuiltinTools.START_SUBAGENT)
+
             if toolkit.lower() == "cloud":
-                # Cloud mode: use Antigravity SDK's built-in tools (view_file, edit_file, run_command, etc.)
-                builtin_tools = list(types.BuiltinTools.default())
+                # In Cloud toolkit mode, also incorporate Antigravity SDK's built-in tools
+                for bt in types.BuiltinTools.default():
+                    if bt not in builtin_tools:
+                        builtin_tools.append(bt)
                 if not enable_subagents and types.BuiltinTools.START_SUBAGENT in builtin_tools:
                     builtin_tools.remove(types.BuiltinTools.START_SUBAGENT)
 
-                cloud_instruction = (
-                    "\n\n[ASSIST TOOLKIT: Antigravity Cloud Tools]\n"
-                    "You are operating with Google Antigravity Cloud tools.\n"
-                    "- Use built-in tools (view_file, edit_file, create_file, run_command, list_directory, search_directory) to inspect and modify the project.\n"
-                    "- Complete the requested changes autonomously."
-                )
-                system_instructions = (system_instructions + cloud_instruction).strip()
-            else:
-                # System mode (Default): use SwiftCode native tools passed over the bridge
-                if enable_subagents:
-                    builtin_tools.append(types.BuiltinTools.START_SUBAGENT)
-
-                for t_schema in registered_tools_schemas:
-                    if isinstance(t_schema, dict) and "name" in t_schema:
-                        wrapper = self._build_swift_tool_wrapper(session_id, t_schema)
-                        dynamic_tools.append(wrapper)
-
-                system_instruction = (
-                    "\n\n[ASSIST TOOLKIT: SwiftCode System Tools]\n"
-                    "You are operating with SwiftCode's native System tools.\n"
-                    "- Use the provided tools (file_write, file_read, code_replace, file_create, use_terminal, etc.) to inspect, modify, and build the project.\n"
-                    "- When specifying file paths, use relative paths from the workspace root (e.g., 'Sources/App.swift').\n"
-                    "- Modify code directly using tools; do not output code blocks without saving them.\n"
-                    "- Act autonomously and verify your changes."
-                )
-                system_instructions = (system_instructions + system_instruction).strip()
+            tool_mandate_instruction = (
+                "\n\n[MANDATORY TOOL POLICY & AVAILABILITY]\n"
+                "- ALL TOOLS ARE FULLY AVAILABLE: Every tool registered in your environment is active, operational, and accessible. NEVER report, claim, or assume that a tool was not available in your environment.\n"
+                "- ALWAYS PREFER NATIVE TOOLS: You MUST ALWAYS prefer using native tools instead of running terminal commands. Native tools are sandboxed, permission-checked, and far safer for the user and their workspace.\n"
+                "- TERMINAL EXECUTION MUST BE SUPER RARE: Using the actual terminal (use_terminal or run_command) must be SUPER RARE and used ONLY when there is no native tool to execute the task.\n"
+                "- When modifying files, use dedicated file tools directly (code_replace, file_write, file_create) instead of terminal shell scripts or echo/cat commands.\n"
+                "- When inspecting files or searching code, use native tools (file_read, search_text, search_symbol, tree_view) rather than shell commands (cat, grep, ls, find).\n"
+                "- All file paths must be workspace-relative."
+            )
+            system_instructions = (system_instructions + tool_mandate_instruction).strip()
 
             # Build policies
             session_policies = []

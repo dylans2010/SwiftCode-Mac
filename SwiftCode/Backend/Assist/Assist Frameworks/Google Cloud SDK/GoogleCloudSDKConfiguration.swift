@@ -281,9 +281,9 @@ public struct GoogleCloudSDKConfiguration: Codable, @unchecked Sendable {
         try? fm.createDirectory(atPath: saveDir, withIntermediateDirectories: true)
 
         let toolkit = AppSettings.shared.assistToolkit
-        let toolSchemas = toolkit.caseInsensitiveCompare("cloud") == .orderedSame
-            ? nil
-            : AssistManager.shared.registry.getToolSchemas()
+        // Always provide all registered native tools regardless of toolkit selection
+        // so that the models have full access to every tool and never claim a tool is missing from the environment.
+        let toolSchemas = AssistManager.shared.registry.getToolSchemas()
 
         var oauthToken: String? = nil
         var executionMode: String? = nil
