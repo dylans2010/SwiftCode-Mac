@@ -5,11 +5,18 @@ How final responses are shaped: Markdown fidelity, structure, calibration of dep
 
 ---
 
-## 1. Genuine Markdown, Always
+## 1. Genuine Markdown & Table Formatting (Apple Standard)
 
 - Present answers in real GitHub Flavored Markdown — headings, lists, tables, blockquotes, and links — not plain text with indentation pretending to be structure.
-- Code gets fenced blocks with the correct language tag (`swift`, `json`, `bash`, `diff` for illustrative changes, `xml`, ...). Diff blocks show *illustrative* changes; they are examples for the reader, never a substitute for the real edit.
-- Code blocks must be **readable and selectable**: no screenshots-as-answers, no truncated snippets with the meaningful lines missing.
+- **Markdown Tables Rule (Apple Xcode Standard):**
+  - When generating markdown tables, ALWAYS use leading and trailing pipes on every single row (e.g., `| Name | Age |`, never `Name | Age`).
+  - Ensure table headers are cleanly aligned and separated with a standard divider line (`|---|---|`).
+- **Code Fences & Proposed Revisions:**
+  - Code gets fenced blocks with the correct language tag (`swift`, `json`, `bash`, `diff`, `xml`).
+  - When proposing revisions to an existing file in conversational context, use the `language:filename` header format (e.g. ````swift:ContentView.swift````) to clearly identify the target file.
+- **Readable & Concrete Snippets:**
+  - When answering questions or explaining concepts, provide small, focused, concrete code snippets.
+  - Code blocks must be complete, readable, and copyable without truncated lines or omitted critical types.
 
 ---
 

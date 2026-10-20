@@ -1,7 +1,7 @@
 <!-- system-index-depends: Safeguards.md -->
-# SwiftUsage.md — Swift 6 & Native macOS Discipline
+# SwiftUsage.md — Modern Swift 6 & Apple Platform Engineering Discipline
 
-Concurrency, UI, and platform conventions for anything Assist generates or reasons about in Swift. This is behavioral guidance, not an API catalog — no invented APIs.
+Authoritative architectural guidelines, SwiftUI performance rules, concurrency patterns, and platform conventions for all code Assist reasons about or generates. This guidance reflects Apple's internal developer training and Xcode intelligence assets.
 
 ---
 
@@ -13,74 +13,160 @@ Concurrency, UI, and platform conventions for anything Assist generates or reaso
 
 ---
 
-## 1. Swift 6 Concurrency Discipline
+## 1. Swift 6 Concurrency & Actor Discipline
 
-- **Actors own I/O services and mutable shared state.** Thread-safe caches, task registries, and in-flight operation tracking live behind actor boundaries with complete data isolation.
-- **`@MainActor` owns UI and observable state.** View models, `@Published` state, and anything touched by SwiftUI/AppKit must be main-isolated. Coordinator objects in AppKit bridges are main-isolated too.
-- **Structured concurrency by default.** Prefer `async`/`await`, task groups, and `Task` hierarchies over unstructured spawning. Detached tasks (`Task.detached`) are for genuinely isolated work (e.g. heavy file enumeration, folder audits), never as a way to escape isolation.
-- **Honor cancellation.** Check `Task.isCancelled` at sensible boundaries in long operations and clean up (remove in-flight registrations, release resources) on both success and error paths.
-- **Sendable everywhere it crosses boundaries.** Values shared between tasks or actors must be `Sendable`; treat a non-Sendable capture as a defect, not a warning to suppress.
-- **No blocking the main thread.** File I/O, parsing, and process work run off the main actor (`Task.detached`); results return to `@MainActor` for UI updates.
+- **Structured Concurrency by Default:**
+  - Always prefer `async`/`await`, `TaskGroup`, and structured task hierarchies over unstructured spawning.
+  - Avoid `Task.detached` unless performing genuinely independent background computation (e.g., massive file indexing or hash calculation) where inheriting context is undesirable.
+- **Strict Actor Isolation Boundaries:**
+  - **`@MainActor` owns UI and observable state:** All SwiftUI view models, observable models, coordinator objects, and UI update pipelines must be isolated to `@MainActor`.
+  - **Actors own mutable shared state and I/O:** Thread-safe caches, network session managers, and data registries live behind actor boundaries with complete data isolation.
+- **Sendable Types Across Boundaries:**
+  - All data passing across task or actor boundaries must conform to `Sendable`. Treat compiler warnings for non-Sendable closures or types as strict errors to be fixed immediately.
+- **No Blocking the Main Thread:**
+  - Never run synchronous disk I/O, heavy JSON parsing, or blocking operations on the `@MainActor`. Offload to async methods and return to `@MainActor` for state mutation.
+- **Cancellation Cooperative Discipline:**
+  - Long-running async tasks must periodically check `Task.isCancelled` and abort cleanly, releasing resources on both success and error paths.
 
 ---
 
-## 2. SwiftUI Layout & Overload Resolution Rules
+## 2. SwiftUI Architecture & Performance (Apple Specialist Standard)
 
-### Rule A: Split Fixed & Flexible Frame Modifiers
-- **DO NOT** mix fixed constraints and flexible constraints (such as `width:` and `maxHeight:`) inside a single `.frame()` modifier.
-- **DO** chain them as separate modifiers:
+### A. View Structure & Memoization
+- **Separate Structs Over Computed Properties:**
+  - Factor complex sub-sections into dedicated `View` structs rather than computed properties (`var headerView: some View { ... }`).
+  - SwiftUI memoizes `View` structs based on their inputs (`Equatable` checks); computed properties bypass memoization and re-evaluate every time the parent view evaluates.
+- **Minimal View Initialization:**
+  - Keep `init` methods of views lightweight and side-effect free. Never allocate heavy objects, perform disk operations, or register notifications inside a view initializer.
+- **Avoid Single-Child `Group` Anti-Pattern:**
+  - Never wrap a single view in a `Group` solely to apply view modifiers. Apply modifiers directly to the target view.
+
+### B. Observation & Dataflow (`@Observable` Over `ObservableObject`)
+- **Unconditional Preference for `@Observable`:**
+  - Use the Observation framework (`@Observable`) for all model state. Do NOT use legacy `ObservableObject`, `@Published`, or `Combine` in modern Swift.
+- **Narrow Value-Type Inputs:**
+  - Pass only the specific properties a child view reads, rather than passing an entire monolithic model or parent state struct.
+- **Per-Property Observation Granularity:**
+  - Observation tracks property reads at runtime during `body` execution. If a parent view accesses `model.title`, changing `model.subtitle` will NOT re-render the parent, provided the property is only accessed in the child view.
+- **Row Views in Collections:**
+  - Pass individual model items (conforming to `Identifiable`) directly into row subviews so individual row updates do not invalidate the entire list.
+- **Isolating `.onChange` Side Effects:**
+  - Use the modern 2-parameter `.onChange(of:initial:)` modifier:
+    ```swift
+    .onChange(of: selectedFilter, initial: false) { oldValue, newValue in
+        Task { await reloadData(for: newValue) }
+    }
+    ```
+  - Never use the deprecated single-parameter `.onChange(of:perform:)`.
+
+### C. Environment Values & `@Entry` Macro
+- **Custom Environment Keys:** Use the modern `@Entry` macro inside `EnvironmentValues`:
   ```swift
-  // CORRECT:
-  .frame(width: 240)
-  .frame(maxHeight: .infinity)
+  extension EnvironmentValues {
+      @Entry var documentTheme: ThemeStyle = .standard
+  }
+  ```
+- **Avoid Closure and Class Defaults in `@Entry`:**
+  - Never store closures or class-typed defaults directly in `@Entry` unless they are stable singletons. Storing unstable closures or re-allocated class instances causes dependent views to invalidate on every render cycle.
 
-  // INCORRECT (Triggers SwiftUI frame layout compiler errors):
-  .frame(width: 240, maxHeight: .infinity)
+### D. Modifiers & View Identity Preservation
+- **Ternary Modifiers Over Branching `@ViewBuilder`:**
+  - Avoid `if`/`else` branches when toggling modifiers:
+    ```swift
+    // CORRECT (preserves view identity and smooth animations):
+    Text("Status")
+        .opacity(isActive ? 1.0 : 0.5)
+        .foregroundStyle(isActive ? .primary : .secondary)
+
+    // INCORRECT (destroys view identity, resets state, glitches animation):
+    if isActive {
+        Text("Status").opacity(1.0).foregroundStyle(.primary)
+    } else {
+        Text("Status").opacity(0.5).foregroundStyle(.secondary)
+    }
+    ```
+- **Unifying ShapeStyle with `AnyShapeStyle`:**
+  - When a ternary returns two different `ShapeStyle` types (e.g. `Color` vs `LinearGradient`), wrap in `AnyShapeStyle` rather than `AnyView`.
+
+### E. ForEach & List Performance Discipline
+- **Stable Identity:**
+  - Never use collection array indices as IDs (`ForEach(0..<items.count, id: \.self)`) when items can be inserted, deleted, or reordered.
+  - Avoid `id: \.self` on complex mutable structs. Ensure items conform to `Identifiable` and use their stable unique `id`.
+- **List Fast Path:**
+  - Keep list row views uniform (single unary view type per row) to allow SwiftUI's underlying list virtualization to hit the fast rendering path.
+- **Precomputed Collections:**
+  - Never filter or sort collections inline inside `body` (`ForEach(items.filter { $0.isValid }.sorted(...))`). Filter and sort inside the `@Observable` model and expose precomputed arrays.
+
+### F. Modern Frame Modifiers (SwiftUI Frame Layout Rule)
+- **Split Fixed and Flexible Constraints:**
+  - Do NOT mix fixed constraints and flexible constraints (such as `width:` and `maxHeight:`) inside a single `.frame()` modifier.
+  - Chain them as separate modifiers:
+    ```swift
+    .frame(width: 240)
+    .frame(maxHeight: .infinity)
+    ```
+
+---
+
+## 3. Soft-Deprecated SwiftUI APIs & Migration Map
+
+Always migrate soft-deprecated APIs to their modern Apple replacements:
+
+| Soft-Deprecated API | Modern Apple Replacement | Rationale / Benefits |
+|---|---|---|
+| `NavigationView` | `NavigationStack` or `NavigationSplitView` | State-driven path routing, native multi-column layout on macOS/iPadOS |
+| `.onChange(of:perform:)` | `.onChange(of:initial:) { old, new in }` | Explicit previous and new value tracking; optional initial evaluation |
+| `.cornerRadius(radius)` | `.clipShape(RoundedRectangle(cornerRadius: radius))` | Better antialiasing, works with modern shape styles and borders |
+| `.overlay(content, alignment:)` | `.overlay(alignment:) { ... }` | ViewBuilder syntax avoids eager closure construction |
+| `.background(content, alignment:)` | `.background(alignment:) { ... }` | ViewBuilder syntax with full layout support |
+| `.foregroundColor(color)` | `.foregroundStyle(style)` | Supports rich styles (gradients, materials, hierarchical colors) |
+| `.accentColor(color)` | `.tint(color)` | Standardized modern tinting across controls, tabs, and toolbars |
+| `ObservableObject` / `@Published` | `@Observable` macro | Property-level fine-grained invalidation without Combine overhead |
+| `XCTUnwrap(val)` | `try #require(val)` (Swift Testing) | Modern Swift Testing macro integration |
+| `XCTAssertEqual(a, b)` | `#expect(a == b)` (Swift Testing) | Expressive macro-based expectations with detailed failure traces |
+
+---
+
+## 4. Modern Apple Frameworks & Standards
+
+### A. Liquid Glass Design Language
+- Adopt Apple's Liquid Glass material design across macOS, iOS, iPadOS, and visionOS.
+- Use `.glassBackgroundEffect()`, hierarchical materials (`.ultraThinMaterial`, `.thinMaterial`), and adaptive blur containers.
+- Structure layouts with translucent, content-adaptive chrome that responds dynamically to window resizing and light/dark modes.
+
+### B. FoundationModels (On-Device Apple Intelligence)
+- Ground on Apple's `FoundationModels` framework for on-device inference.
+- Utilize macros for structured generation of types and type-safe schema constraints.
+- Provide clean fallbacks and asynchronous streaming interfaces when orchestrating model interactions.
+
+### C. Swift Testing Framework
+- For all new unit tests and test suites, use the Swift Testing framework (`import Testing`):
+  ```swift
+  import Testing
+
+  @Suite("Document Parser Tests")
+  struct DocumentParserTests {
+      @Test("Parse valid header")
+      func parseValidHeader() throws {
+          let document = try #require(loadDocument("sample.md"))
+          #expect(document.title == "Expected Title")
+      }
+  }
   ```
 
-### Rule B: Extract Subviews to Avoid Overload Ambiguity in `ForEach`
-- When the Swift compiler fails to resolve overloads in a `ForEach` block (often throwing misleading `Binding<C>` or `Binding<Subject>` conversion errors), the root cause is type-checker overload in complex closure expressions.
-- **Resolution:** Extract row content into a dedicated local `struct` subview and move complex conditional styling into explicit computed properties returning concrete `Color` types.
+### D. Memory Safety & C Bounds-Safety (`-fbounds-safety`)
+- In mixed Swift/C/C++ codebases, enforce bounds safety:
+  - Use pointer annotations: `__counted_by(len)`, `__single`, `__sized_by(bytes)`, `__null_terminated`.
+  - Prefer Swift's modern safe buffer types (`Span`, `InlineArray`) over raw pointers.
 
 ---
 
-## 3. Native macOS Patterns
+## 5. Native macOS Platform Conventions
 
-- **SwiftUI first.** Build with native SwiftUI views; drop to AppKit only where SwiftUI lacks the control (rich text, custom text systems, `VZVirtualMachineView`), via `NSViewRepresentable` / `NSViewControllerRepresentable` with a Coordinator and `@MainActor` isolation.
-- **Navigation:** `NavigationSplitView` (or `NavigationStack`) for hierarchical structure; never shoehorn iOS-style navigation onto macOS.
-- **Native chrome:** real toolbars (`.toolbar`), menus, keyboard shortcuts, and `NSSavePanel`/`NSOpenPanel` for document export/import. SF Symbols for icons.
-- **Responsive layouts over fixed dimensions.** Intrinsic sizing, flexible containers, proper min/ideal window frames (`.frame(minWidth: 600, minHeight: 400)`). UI must behave at arbitrary window sizes, not one hardcoded frame.
-- **States are real UI:** friendly empty states, loading states, and error states for lists and async work — never blank panes, never fake spinners masking slow code.
-- **No placeholders.** Never emit `// TODO: implement later` or mock empty functions for core capabilities. If Assist writes Swift, it writes the real logic: persistence, filtering, searching, and UI updates fully implemented.
+- **Navigation Architecture:** Use `NavigationSplitView` for multi-column macOS apps. Never shoehorn compact mobile navigation onto desktop screens.
+- **Window Management & Responsive Frames:** Always declare sensible minimum and ideal frame sizes (`.frame(minWidth: 700, minHeight: 480)`). Test layout responsiveness at arbitrary sizes.
+- **Native Chrome:** Standard macOS toolbar (`.toolbar`), menus, keyboard shortcuts (`.keyboardShortcut`), and `NSSavePanel`/`NSOpenPanel` for file import/export.
+- **Real Code Over Placeholders:** Never emit `// TODO:` or empty placeholder functions. All generated Swift must be fully functional, typed, and integrated.
+- **Dynamic Model Discovery:** Never hardcode static model lists; query available models dynamically through provider APIs.
+- **Secure Keychain Credential Storage:** API keys and sensitive tokens must be read from Keychain or environment variables, never committed or hardcoded in source.
 
----
-
-## 4. Error Handling
-
-- Graceful error UI instead of crashes. File I/O and decoding errors are expected failure modes, handled and surfaced, never force-unwrapped away.
-- Report real diagnostics (error domain, underlying cause) rather than generic "something went wrong" states.
-
----
-
-## 5. Dynamic Model Discovery
-
-- This is standing user behavior, applied to anything Assist generates: **discover available models dynamically through the provider's real discovery mechanism — never hardcode a model list as authoritative.**
-- When Assist-generated code needs a model list, it asks the provider what exists (respecting the provider's free/paid, capability, and filtering conventions) and presents that. A static catalog in code is a fallback of last resort, clearly marked as such, never the source of truth.
-
----
-
-## 6. Credential Handling (Conventions Only)
-
-- API keys, OAuth tokens, and keychain items are never logged, shown in diffs, written into repository files, or echoed into generated code.
-- Secrets live in the Keychain (`KeychainService`), environment variables, or another secure store — see `Safeguards.md` for the binding rules. Assist-generated code must read credentials from those stores, never embed them.
-
----
-
-## 4. Native Swift Analysis Tools
-
-- `call_hierarchy` — definition, callers, and callees for a function name.
-- `type_hierarchy` — declarations with inheritance/conformance; focus on one type for ancestors/descendants.
-- `protocol_conformance_list` — every type conforming to a protocol.
-- `import_graph` — file-level imports; which files import a module.
-- `comment_density_report` / `api_docs_coverage` — documentation health.
-- `code_comment_extract` — `///` and `/** */` comments per symbol or file.

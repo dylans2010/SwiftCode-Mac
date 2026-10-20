@@ -47,25 +47,47 @@ Interpolated values are fine and stay in one key:
 Text("Downloaded \(count) files")   // one key: "Downloaded %@ files"
 ```
 
-### Programmatic lookup — `NSLocalizedString`
+### Models & Non-View Types — `LocalizedStringResource` (Apple Specialist Standard)
+
+When storing localizable copy in non-view types (models, view models, enums, error types):
+- **Use `LocalizedStringResource` instead of `String`**:
+  ```swift
+  enum TabItem: LocalizedStringResource {
+      case home = "Home"
+      case settings = "Settings"
+  }
+
+  struct NetworkError: LocalizedError {
+      let message: LocalizedStringResource
+      var errorDescription: String? { String(localized: message) }
+  }
+  ```
+  `LocalizedStringResource` is `Sendable`, preserves translation keys across actor boundaries, and defers string resolution until the point of presentation with the active locale.
+
+### Swift Packages & Frameworks — `bundle: #bundle` / `.module`
+
+In Swift packages and frameworks, strings must resolve from the package bundle rather than `Bundle.main`:
+```swift
+Text("welcome.title", bundle: .module)
+let title = String(localized: "action.retry", bundle: #bundle)
+```
+Omitting the bundle causes string lookup to search `Bundle.main`, failing silently at runtime in modular projects.
+
+### Programmatic lookup — `String(localized:)` & `NSLocalizedString`
 
 For UIKit/AppKit code, view models, error messages, notifications:
 
 ```swift
-let title = NSLocalizedString("settings.title", comment: "Title of the Settings screen")
-// Explicit table (rarely needed):
-let t = NSLocalizedString("key", tableName: "Localizable", comment: "")
+let title = String(localized: "settings.title", comment: "Title of the Settings screen")
+let legacy = NSLocalizedString("settings.title", comment: "Title of the Settings screen")
 ```
 
 Rules: keys are namespaced (`feature.identifier`), comments describe context for translators, and the default table is `Localizable` — keys with another `tableName` live in a separate table, not the main catalog.
 
-### Swift 5.7+ — `String(localized:)`
+### Locale-Aware Text Case & List Formatting
 
-```swift
-label.stringValue = String(localized: "status.syncing")
-```
-
-This behaves like `NSLocalizedString` and is what `localize_app` scans for, together with `NSLocalizedString(...)`.
+- **Avoid `.uppercased()` / `.lowercased()` in UI:** Casing is locale-sensitive (e.g., German 'ß' or Turkish 'i'). In SwiftUI, use the `.textCase(.uppercase)` modifier to ensure proper locale transformations.
+- **List Formatting:** Use `.formatted(.list(type: .and, width: .standard))` instead of manually joining strings with commas and "and".
 
 ### Strings that must NOT go in the Localizable catalog
 

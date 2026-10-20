@@ -58,12 +58,47 @@ In native Xcode projects, builds invoke the toolchain against the user's active 
 
 ---
 
-## 5. Generating Unit Tests
+## 5. Modern Swift Testing Framework (Apple Standard)
 
-When an objective calls for adding test coverage for a Swift source file:
-1. Generate modern XCTest or Swift Testing suites matching the source interface.
-2. Register the newly generated test file in the active project's `.xcodeproj` build phase.
-3. Build the project and verify with the test runner.
+When adding or generating test coverage for Swift code:
+- **First Choice: Swift Testing (`import Testing`)**:
+  Always use the modern Swift Testing framework with Swift Macros unless the codebase exclusively uses a legacy `XCTestCase` suite that cannot be modernized:
+  ```swift
+  import Testing
+
+  // Optional: @Suite can take a descriptive name
+  @Suite("User Authentication Tests")
+  struct AuthenticationTests {
+
+      @Test("Successful credential validation")
+      func validateCredentials() async throws {
+          let user = try #require(authenticateUser(name: "Dylan"))
+          #expect(user.isAuthenticated, "User should be authenticated upon valid credentials.")
+      }
+
+      @Test("Optional unwrapping with require")
+      func optionalUnwrapping() throws {
+          let token: String? = fetchSessionToken()
+          // Similar to XCTUnwrap, halts the test if nil:
+          let unwrappedToken = try #require(token)
+          #expect(!unwrappedToken.isEmpty)
+      }
+  }
+  ```
+- **UI Testing**: Use `XCUIAutomation` for automated UI and screen interactions.
+- **Test File Registration**: EVERY SINGLE TIME a new test file is created, it MUST be registered in the target test bundle in `project.pbxproj`.
+- **Run & Verify**: Execute tests with `project_test` and ensure zero failures.
+
+---
+
+## 6. Security Build Settings & Compiler Hardening (Apple Xcode Standard)
+
+Progressively enforce Apple's security-oriented build settings and compiler hardening:
+- **Enhanced Security Compiler Warnings:** Enable `-Wall`, `-Wextra`, and security-focused compiler warnings to detect uninitialized variables, buffer overflows, and unsafe pointer conversions.
+- **C++ Hardening:** For mixed projects, enable `CLANG_CXX_STANDARD_LIBRARY_HARDENING` and bounds-safe buffers (`ENABLE_CPLUSPLUS_BOUNDS_SAFE_BUFFERS`).
+- **Pointer Authentication:** For arm64e architectures, ensure pointer authentication (`ENABLE_POINTER_AUTHENTICATION`) is active.
+- **Stack Zero Initialization:** Ensure stack variables are zero-initialized to prevent uninitialized memory disclosure (`CLANG_ENABLE_STACK_ZERO_INITIALIZATION`).
+- **Memory Safety & Bounds-Safety:** Enforce C `-fbounds-safety` language extensions on native C/C++ buffers.
 
 ---
 

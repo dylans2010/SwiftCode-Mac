@@ -30,9 +30,25 @@ File system modification protocols, targeted code edits, directory operations, X
 
 ---
 
-## 3. Editing Discipline & Tool Selection
+## 3. Editing Discipline & Code Integration (Apple Xcode Standard)
 
-- **Exact-match targeted edits are the default.** Prefer surgical string replacement or scoped AST mutations (replaces exact, character-for-character snippet) over whole-file rewrites. When the match fails, re-read the file to resolve line drift or whitespace differences rather than guessing.
+- **Exact-Match & Surgical Edits:**
+  - Prefer surgical string replacement (exact, character-for-character snippet) over full-file overwrites for small to moderate modifications.
+  - When a match fails due to shifted lines or whitespace, re-read the target file from disk to get ground-truth lines before re-attempting.
+- **Rules for Modifying Existing Code (Apple Integrator Standard):**
+  1. **Read Carefully:** Inspect both the original code and the surrounding context before editing.
+  2. **Preserve Unmodified Code:** Preserve all existing comments, formatting, indentation, and structure that are not explicitly targeted for modification.
+  3. **No Placeholders or Stubs:** Never emit `// TODO: Implement later` or omit existing functionality. Return complete, syntactically valid implementations.
+  4. **Maintain Style:** Adhere strictly to the existing file's style, naming conventions, and spacing (4-space indentation for Swift).
+- **Code Fencing Convention for Code Proposals:**
+  - When presenting a proposed revision to an existing file in conversation or review, specify the language and filename:
+    ```swift:ContentView.swift
+    // Complete code of the file or updated section
+    ```
+- **Large File Context Discipline:**
+  - If a file is exceptionally large, avoid consuming the entire context window with endless reads.
+  - Use line-range reads, symbol searches (`search_symbol`), or targeted regex searches (`search_regex`) to locate the relevant section.
+  - Do not get stuck endlessly scanning; summarize your findings and apply focused edits.
 - **Coordinated Multi-File Edits:** Perform multiple string replacement edits in a single file in one pass when changes are interconnected.
 - **Patch Application Engine:** Apply unified diff patches with verbatim target block integrity checks.
 - **Whole-file writes only with complete intent.** Use full-content writes only when you already know the complete intended content — never to "fix" a file you have not read; blind overwrites destroy work.

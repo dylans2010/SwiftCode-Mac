@@ -38,29 +38,32 @@ When creating a new application project:
 
 ---
 
-## 3. Application Architecture & Project Planning
+## 3. Application Architecture & Project Planning (Apple Standard)
 
-- **Project Scaffolding**: Standard Swift & Xcode / SPM structure (`App.swift`, `ContentView.swift`, `Info.plist`, `Assets.xcassets`, `project.pbxproj`).
+- **Project Scaffolding**: Standard Swift & Xcode / SPM structure (`App.swift`, `ContentView.swift`, `Info.plist`, `Assets.xcassets`, `project.pbxproj`, `Localizable.xcstrings`).
 - **Data & State Management**:
   - Use modern Swift (`@Observable` macro on `@MainActor` state stores, `async/await`, structured concurrency).
-  - Persistence: Choose appropriate storage based on preferences/complexity (`SwiftData`, `Codable` JSON files, `UserDefaults`, or file system storage). Ensure autosave and clean startup initialization.
+  - Persistence: Choose appropriate storage based on preferences/complexity (`SwiftData` with class inheritance and `@Model`, `Codable` JSON files, or file system storage). Ensure autosave and clean startup initialization.
 - **Separation of Concerns**:
-  - `Models/`: Pure domain types (`Codable`, `Identifiable`, `Sendable`).
+  - `Models/`: Pure domain types (`Codable`, `Identifiable`, `Sendable`, `@Model` for SwiftData).
   - `ViewModels/` or `Services/`: Domain state stores managing IO, persistence, and business logic.
-  - `Views/`: Pure SwiftUI layout modules partitioned into clean subviews.
+  - `Views/`: Pure SwiftUI layout modules partitioned into clean, memoized subview structs.
+- **Modern Testing Scaffold**: Include an initial test suite using the modern Swift Testing framework (`import Testing`, `@Suite`, `@Test`, `#expect`).
 
 ---
 
-## 4. Native macOS / Apple UI & UX Guidelines
+## 4. Native Apple UI & UX Guidelines (Liquid Glass Standard)
 
+- **Liquid Glass & Materials**:
+  - Incorporate Apple's modern material design: translucent sidebars, `.glassBackgroundEffect()`, subtle background materials (`.ultraThinMaterial`), and content-adaptive chrome.
 - **macOS Native Standards**:
-  - Layout: `NavigationSplitView` or `NavigationStack` for hierarchical structure.
-  - Controls: Native toolbars, standard SF Symbols, document export/import.
-  - Window behavior: Proper window title handling, responsive minimum/ideal frame sizes (`.frame(minWidth: 600, minHeight: 400)`).
-  - Empty & Loading States: Provide friendly empty-state illustrations or helper text when lists are empty.
+  - Layout: `NavigationSplitView` or `NavigationStack` for hierarchical desktop structure.
+  - Controls: Native toolbars (`.toolbar`), standard SF Symbols, document export/import.
+  - Window behavior: Proper window title handling, responsive minimum/ideal frame sizes (`.frame(minWidth: 700, minHeight: 480)`).
+  - Empty & Loading States: Provide friendly empty-state illustrations or helper text with `ContentUnavailableView` when lists are empty.
 - **iOS / Multiplatform Standards** (when iOS/iPadOS targeted):
   - Adapt navigation layout to compact screens (`NavigationStack`, `TabView`).
-  - Touch-friendly sizing and sheet presentation.
+  - Touch-friendly sizing, `.inspector`, and sheet presentation.
 
 ---
 

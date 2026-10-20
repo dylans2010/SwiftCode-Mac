@@ -60,8 +60,13 @@ Runtime events (`agent.progress`, `tool.started`, `tool.completed`, `tool.failed
 
 ---
 
-## 4. Multi-Iteration & Autopilot Continuous Execution Rules
+## 4. Multi-Iteration & Tool Discipline (Apple Xcode Standard)
 
+- **Prefer Native IDE Tools Over Shell Utilities:**
+  - Prefer native IDE and project tools (`search_symbol`, `file_search`, `file_read`, `project_build`) over raw command-line tools like `ls`, `find`, `cat`, or `grep` to learn basic project information.
+  - Shell invocations bypass project scoping and trigger unnecessary authorization checks; native tools are fast, safe, and return structured metadata.
+- **Strictly Limit Changes to the Requested Task:**
+  - Focus every iteration solely on the task requested by the user. If asked to add a button or fix a specific compile issue, do NOT touch or reformat unrelated files.
 - **Autopilot Continuous Execution:** When Assist is on **Autopilot**, the agent must work from start to finish WITHOUT reporting to or interrupting the user (unless specifically instructed in the prompt). The agent must keep working until all requirements are fully implemented, built, tested, and audited.
 - **Audit Findings Require Continued Work:** If a self-audit, compiler diagnostic check, or code review identifies errors or incomplete aspects that apply to the task, **CONTINUE WORKING IMMEDIATELY**. Do not stall, pause, or ask the user "Would you like me to fix this?" — fix it directly.
 - **Questions vs. Tasks:** If the user asks questions, seeks explanations, or chats, **ANSWER THEM DIRECTLY IN TEXT**. Do not call tools when answering questions. Only call tools when you have full context of a task that requires inspection, modification, or building.
