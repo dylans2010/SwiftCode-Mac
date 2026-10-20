@@ -748,33 +748,112 @@ public enum CapabilityCatalog {
             defaultValue: true
         ),
 
-        // MARK: Modern Apple Services & DriverKit Capabilities
+        // MARK: - Advanced App Sandbox
         CapabilityDefinition(
-            rawKey: "com.apple.developer.driverkit",
-            name: "DriverKit",
-            explanation: "Allows developing user-space device drivers on macOS and iPadOS.",
-            symbol: "cpu.fill",
-            section: .systemExtensions,
+            rawKey: "com.apple.security.files.bookmarks.app-scope",
+            name: "Security-Scoped Bookmarks (App-Scope)",
+            explanation: "Allows the sandboxed app to create and resolve app-scoped bookmarks to retain file access across launches.",
+            symbol: "bookmark.fill",
+            section: .sandbox,
+            payload: .none,
+            defaultValue: true
+        ),
+        CapabilityDefinition(
+            rawKey: "com.apple.security.files.bookmarks.document-scope",
+            name: "Security-Scoped Bookmarks (Document-Scope)",
+            explanation: "Allows the app to embed document-scoped bookmarks referencing external assets inside saved project files.",
+            symbol: "doc.badge.plus",
+            section: .sandbox,
+            payload: .none,
+            defaultValue: true
+        ),
+        CapabilityDefinition(
+            rawKey: "com.apple.security.files.all",
+            name: "All Files Access (Temporary Exception)",
+            explanation: "Grants broad read-write access to files across the entire filesystem. Requires explicit App Store justification.",
+            symbol: "externaldrive.badge.xmark",
+            section: .sandbox,
             payload: .none,
             defaultValue: true,
             requiresSpecialApproval: true
         ),
         CapabilityDefinition(
-            rawKey: "com.apple.developer.driverkit.transport.usb",
-            name: "DriverKit USB Transport",
-            explanation: "Allows user-space drivers to communicate directly with USB hardware.",
-            symbol: "cable.connector",
-            section: .systemExtensions,
+            rawKey: "com.apple.security.scripting-targets",
+            name: "AppleScript Scripting Targets",
+            explanation: "Authorizes the sandboxed app to send Apple Events to specific designated scriptable applications.",
+            symbol: "applescript",
+            section: .sandbox,
+            payload: .idList(placeholder: "com.apple.mail"),
+            defaultValue: [String]()
+        ),
+
+        // MARK: - Advanced Hardened Runtime
+        CapabilityDefinition(
+            rawKey: "com.apple.security.cs.disable-executable-page-protection",
+            name: "Disable Executable Page Protection",
+            explanation: "Allows modifying memory pages marked as executable without unmapping first. Required by certain JIT runtimes.",
+            symbol: "shield.slash",
+            section: .hardenedRuntime,
             payload: .none,
-            defaultValue: true,
-            requiresSpecialApproval: true
+            defaultValue: true
         ),
         CapabilityDefinition(
-            rawKey: "com.apple.developer.game-center",
-            name: "Game Center",
-            explanation: "Enables Game Center leaderboards, achievements, challenges, and multiplayer matchmaking.",
-            symbol: "gamecontroller.fill",
-            section: .services,
+            rawKey: "com.apple.security.get-task-allow",
+            name: "Debugging Permissions (Get Task Allow)",
+            explanation: "Permits debuggers and profilers like LLDB and Instruments to attach to the application process.",
+            symbol: "ant.fill",
+            section: .hardenedRuntime,
+            payload: .none,
+            defaultValue: true
+        ),
+
+        // MARK: - Advanced iCloud & Push
+        CapabilityDefinition(
+            rawKey: "com.apple.developer.icloud-container-development-container-identifiers",
+            name: "iCloud Development Containers",
+            explanation: "Specifies custom container identifiers used when testing against the iCloud Development sandbox environment.",
+            symbol: "icloud.and.arrow.down",
+            section: .cloud,
+            payload: .idList(placeholder: "iCloud.com.example.app"),
+            defaultValue: [String]()
+        ),
+        CapabilityDefinition(
+            rawKey: "com.apple.developer.usernotifications.filtering",
+            name: "Notification Service Filtering",
+            explanation: "Authorizes the Notification Service Extension to inspect and suppress incoming remote push notifications before display.",
+            symbol: "line.3.horizontal.decrease.circle.fill",
+            section: .cloud,
+            payload: .none,
+            defaultValue: true
+        ),
+
+        // MARK: - Advanced Sharing
+        CapabilityDefinition(
+            rawKey: "keychain-cloud-circle",
+            name: "iCloud Keychain Synchronization",
+            explanation: "Enables synchronizing credentials and tokens stored in the Keychain across the user's iCloud devices.",
+            symbol: "key.icloud.fill",
+            section: .sharing,
+            payload: .none,
+            defaultValue: true
+        ),
+        CapabilityDefinition(
+            rawKey: "com.apple.developer.shared-web-credentials",
+            name: "Shared Web Credentials",
+            explanation: "Allows sharing username and password credentials seamlessly between this app and your websites.",
+            symbol: "globe.badge.chevron.backward",
+            section: .sharing,
+            payload: .idList(placeholder: "example.com"),
+            defaultValue: [String]()
+        ),
+
+        // MARK: - Advanced Personal Information
+        CapabilityDefinition(
+            rawKey: "com.apple.security.personal-information.reminders",
+            name: "Reminders Access",
+            explanation: "Allows the sandboxed app to read and create reminders in the user's Reminders store.",
+            symbol: "list.bullet.clipboard.fill",
+            section: .personal,
             payload: .none,
             defaultValue: true
         ),
@@ -789,20 +868,20 @@ public enum CapabilityCatalog {
             requiresSpecialApproval: true
         ),
         CapabilityDefinition(
-            rawKey: "com.apple.developer.usernotifications.communication",
-            name: "Communication Notifications",
-            explanation: "Attributes notifications to personal contacts for incoming calls and messaging conversations.",
-            symbol: "phone.bubble.fill",
-            section: .services,
+            rawKey: "com.apple.developer.healthkit.background-delivery",
+            name: "HealthKit Background Delivery",
+            explanation: "Enables background observation updates when new health records or sample data are recorded.",
+            symbol: "heart.text.square.fill",
+            section: .personal,
             payload: .none,
             defaultValue: true
         ),
         CapabilityDefinition(
-            rawKey: "com.apple.developer.carkey",
-            name: "CarKey Digital Keys",
-            explanation: "Allows the device to store digital car keys, lock, unlock, and start compatible vehicles.",
-            symbol: "car.fill",
-            section: .services,
+            rawKey: "com.apple.developer.contacts.notes",
+            name: "Contacts Full Notes Access",
+            explanation: "Grants permission to read and write note fields on contacts. Requires Apple approval.",
+            symbol: "note.text",
+            section: .personal,
             payload: .none,
             defaultValue: true,
             requiresSpecialApproval: true
@@ -817,33 +896,219 @@ public enum CapabilityCatalog {
             defaultValue: true,
             requiresSpecialApproval: true
         ),
+
+        // MARK: - Modern Apple Services & Hardware
         CapabilityDefinition(
-            rawKey: "com.apple.developer.weatherkit",
-            name: "WeatherKit",
-            explanation: "Enables Apple WeatherKit framework access for high-resolution global weather forecasts.",
-            symbol: "cloud.sun.rain.fill",
-            section: .services,
-            payload: .none,
-            defaultValue: true
-        ),
-        CapabilityDefinition(
-            rawKey: "com.apple.developer.usernotifications.critical-alerts",
-            name: "Critical Alerts",
-            explanation: "Allows high-priority medical or security notifications that bypass Do Not Disturb and the mute switch.",
-            symbol: "exclamationmark.triangle.fill",
+            rawKey: "com.apple.developer.carkey",
+            name: "CarKey Digital Keys",
+            explanation: "Allows the device to store digital car keys, lock, unlock, and start compatible vehicles.",
+            symbol: "car.fill",
             section: .services,
             payload: .none,
             defaultValue: true,
             requiresSpecialApproval: true
         ),
         CapabilityDefinition(
-            rawKey: "com.apple.developer.kernel.extended-virtual-addressing",
-            name: "Extended Virtual Addressing",
-            explanation: "Grants 64-bit applications access to an extended virtual address space on compatible devices.",
-            symbol: "memorychip",
-            section: .hardenedRuntime,
+            rawKey: "com.apple.developer.matter.allow-setup-payload",
+            name: "Matter Accessory Setup",
+            explanation: "Enables discovering, commissioning, and controlling Matter smart accessories in HomeKit ecosystems.",
+            symbol: "m.circle.fill",
+            section: .services,
             payload: .none,
             defaultValue: true
+        ),
+        CapabilityDefinition(
+            rawKey: "com.apple.developer.carplay-audio",
+            name: "CarPlay Audio",
+            explanation: "Enables CarPlay dashboard integration for audio streaming and podcast playback apps.",
+            symbol: "car.side.fill",
+            section: .services,
+            payload: .none,
+            defaultValue: true
+        ),
+        CapabilityDefinition(
+            rawKey: "com.apple.developer.carplay-navigation",
+            name: "CarPlay Navigation",
+            explanation: "Enables CarPlay dashboard turn-by-turn navigation displays and audio prompts.",
+            symbol: "arrow.triangle.turn.up.right.diamond.fill",
+            section: .services,
+            payload: .none,
+            defaultValue: true,
+            requiresSpecialApproval: true
+        ),
+        CapabilityDefinition(
+            rawKey: "com.apple.developer.carplay-messaging",
+            name: "CarPlay Messaging",
+            explanation: "Allows communication and messaging apps to compose and read messages via Siri in CarPlay.",
+            symbol: "message.and.waveform.fill",
+            section: .services,
+            payload: .none,
+            defaultValue: true,
+            requiresSpecialApproval: true
+        ),
+        CapabilityDefinition(
+            rawKey: "com.apple.developer.classkit-environment",
+            name: "ClassKit Environment",
+            explanation: "Authorizes the app to create educational activities and submit student progress to Schoolwork.",
+            symbol: "graduationcap.fill",
+            section: .services,
+            payload: .choice(options: ["development", "production"]),
+            defaultValue: "development"
+        ),
+        CapabilityDefinition(
+            rawKey: "com.apple.developer.push-to-talk",
+            name: "Push to Talk (PTT)",
+            explanation: "Enables real-time half-duplex Walkie-Talkie style voice transmission with system background channels.",
+            symbol: "speaker.wave.2.bubble.left.fill",
+            section: .services,
+            payload: .none,
+            defaultValue: true
+        ),
+        CapabilityDefinition(
+            rawKey: "com.apple.developer.storekit.external-link.account",
+            name: "StoreKit External Link Account",
+            explanation: "Allows reader apps to include links to external websites for account creation and subscription management.",
+            symbol: "arrow.up.right.square.fill",
+            section: .services,
+            payload: .none,
+            defaultValue: true,
+            requiresSpecialApproval: true
+        ),
+        CapabilityDefinition(
+            rawKey: "com.apple.developer.storekit.external-purchase-link",
+            name: "StoreKit External Purchase Link",
+            explanation: "Authorizes linking to external payment options where permitted by regional regulations.",
+            symbol: "creditcard.and.123",
+            section: .services,
+            payload: .none,
+            defaultValue: true,
+            requiresSpecialApproval: true
+        ),
+        CapabilityDefinition(
+            rawKey: "com.apple.developer.live-activities",
+            name: "Live Activities Background Updates",
+            explanation: "Allows pushing real-time dynamic ActivityKit updates to the Dynamic Island and Lock Screen.",
+            symbol: "waveform.path.badge.plus",
+            section: .services,
+            payload: .none,
+            defaultValue: true
+        ),
+        CapabilityDefinition(
+            rawKey: "inter-app-audio",
+            name: "Inter-App Audio",
+            explanation: "Allows real-time audio and MIDI streaming between compatible audio synthesis and effects apps.",
+            symbol: "hifispeaker.2.fill",
+            section: .services,
+            payload: .none,
+            defaultValue: true
+        ),
+        CapabilityDefinition(
+            rawKey: "com.apple.developer.camera.spatial-video",
+            name: "Spatial Video Capture",
+            explanation: "Enables recording spatial stereoscopic video on supported hardware devices.",
+            symbol: "video.badge.plus",
+            section: .services,
+            payload: .none,
+            defaultValue: true
+        ),
+        CapabilityDefinition(
+            rawKey: "com.apple.developer.accessory-setup-kit",
+            name: "AccessorySetupKit",
+            explanation: "Allows seamless discovery and pairing of Bluetooth and Wi-Fi accessories without privacy alerts.",
+            symbol: "antenna.radiowaves.left.and.right.circle.fill",
+            section: .services,
+            payload: .none,
+            defaultValue: true
+        ),
+        CapabilityDefinition(
+            rawKey: "com.apple.developer.journal.media-donation",
+            name: "Journaling Suggestions Donation",
+            explanation: "Enables donating workouts, photos, and location visits to iOS Journaling suggestions.",
+            symbol: "book.pages.fill",
+            section: .services,
+            payload: .none,
+            defaultValue: true
+        ),
+        CapabilityDefinition(
+            rawKey: "com.apple.developer.translation",
+            name: "System Translation",
+            explanation: "Provides access to system on-device and cloud translation capabilities via Translation framework.",
+            symbol: "character.bubble.fill",
+            section: .services,
+            payload: .none,
+            defaultValue: true
+        ),
+
+        // MARK: - DriverKit & System Extensions
+        CapabilityDefinition(
+            rawKey: "com.apple.developer.driverkit.transport.usb",
+            name: "DriverKit USB Transport",
+            explanation: "Allows user-space drivers to communicate directly with USB hardware.",
+            symbol: "cable.connector",
+            section: .systemExtensions,
+            payload: .none,
+            defaultValue: true,
+            requiresSpecialApproval: true
+        ),
+        CapabilityDefinition(
+            rawKey: "com.apple.developer.driverkit.transport.hid",
+            name: "DriverKit HID Transport",
+            explanation: "Allows user-space drivers to control Human Interface Devices like game controllers, keyboards, and mice.",
+            symbol: "gamecontroller",
+            section: .systemExtensions,
+            payload: .none,
+            defaultValue: true,
+            requiresSpecialApproval: true
+        ),
+        CapabilityDefinition(
+            rawKey: "com.apple.developer.driverkit.transport.serial",
+            name: "DriverKit Serial Transport",
+            explanation: "Permits user-space DriverKit extensions to interface with serial bus hardware and converters.",
+            symbol: "cable.connector.horizontal",
+            section: .systemExtensions,
+            payload: .none,
+            defaultValue: true,
+            requiresSpecialApproval: true
+        ),
+        CapabilityDefinition(
+            rawKey: "com.apple.developer.driverkit.family.scsi",
+            name: "DriverKit SCSI Storage Family",
+            explanation: "Allows user-space device drivers for SCSI controllers and mass-storage devices.",
+            symbol: "externaldrive.fill.badge.checkmark",
+            section: .systemExtensions,
+            payload: .none,
+            defaultValue: true,
+            requiresSpecialApproval: true
+        ),
+        CapabilityDefinition(
+            rawKey: "com.apple.developer.driverkit.family.networking",
+            name: "DriverKit Ethernet Networking Family",
+            explanation: "Allows user-space device drivers for wired Ethernet network interface controllers (NICs).",
+            symbol: "network.badge.shield.half.filled",
+            section: .systemExtensions,
+            payload: .none,
+            defaultValue: true,
+            requiresSpecialApproval: true
+        ),
+        CapabilityDefinition(
+            rawKey: "com.apple.developer.driverkit.family.audio",
+            name: "DriverKit Audio Family",
+            explanation: "Allows developing user-space DriverKit extensions for USB and Thunderbolt audio interfaces.",
+            symbol: "speaker.wave.3.fill",
+            section: .systemExtensions,
+            payload: .none,
+            defaultValue: true,
+            requiresSpecialApproval: true
+        ),
+        CapabilityDefinition(
+            rawKey: "com.apple.developer.networking.custom-protocol",
+            name: "Custom Network Protocol",
+            explanation: "Permits NetworkExtension packet tunnels to implement custom proprietary VPN protocols.",
+            symbol: "shield.checkered",
+            section: .systemExtensions,
+            payload: .none,
+            defaultValue: true,
+            requiresSpecialApproval: true
         ),
     ]
 

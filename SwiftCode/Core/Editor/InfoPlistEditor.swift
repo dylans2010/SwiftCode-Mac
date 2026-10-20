@@ -248,6 +248,166 @@ public struct InfoPlistNSStrings: Sendable {
             valueType: .string,
             recommendedWording: "This app needs network volume access to save to your local NAS server.",
             searchKeywords: ["network volume", "server", "nas", "share"]
+        ),
+        InfoPlistNSString(
+            key: "NSAppleMusicUsageDescription",
+            name: "Apple Music & Media Library",
+            category: "Privacy - Media Library",
+            description: "Required to access user music library, playlists, and media playback.",
+            sfSymbol: "music.note.house.fill",
+            valueType: .string,
+            recommendedWording: "This app requires access to your Apple Music library to create and play custom audio playlists.",
+            searchKeywords: ["music", "media", "apple music", "library", "audio", "playlists"]
+        ),
+        InfoPlistNSString(
+            key: "NSHealthShareUsageDescription",
+            name: "HealthKit (Read Data)",
+            category: "Privacy - Health",
+            description: "Required to read user health, fitness, and wellness metrics from HealthKit.",
+            sfSymbol: "heart.fill",
+            valueType: .string,
+            recommendedWording: "This app reads your activity, step count, and workout history to display wellness analytics.",
+            searchKeywords: ["health", "fitness", "healthkit", "workout", "steps", "heart", "read"]
+        ),
+        InfoPlistNSString(
+            key: "NSHealthUpdateUsageDescription",
+            name: "HealthKit (Write Data)",
+            category: "Privacy - Health",
+            description: "Required to record workout, mindfulness, and nutrition metrics into HealthKit.",
+            sfSymbol: "heart.text.square.fill",
+            valueType: .string,
+            recommendedWording: "This app writes your completed workout sessions and active calories directly into Apple Health.",
+            searchKeywords: ["health", "workout", "record", "write", "save", "calories"]
+        ),
+        InfoPlistNSString(
+            key: "NSHealthClinicalHealthRecordsShareUsageDescription",
+            name: "Clinical Health Records",
+            category: "Privacy - Health",
+            description: "Required to securely access user clinical lab results and immunization records.",
+            sfSymbol: "cross.case.fill",
+            valueType: .string,
+            recommendedWording: "This app allows you to view and organize your clinical lab results and immunization history securely.",
+            searchKeywords: ["clinical", "records", "medical", "doctor", "health", "lab"]
+        ),
+        InfoPlistNSString(
+            key: "NSHomeKitUsageDescription",
+            name: "HomeKit Accessories",
+            category: "Privacy - HomeKit",
+            description: "Required to discover, configure, and automate HomeKit smart home accessories.",
+            sfSymbol: "house.fill",
+            valueType: .string,
+            recommendedWording: "This app connects to your HomeKit accessories to automate lighting and room environments.",
+            searchKeywords: ["homekit", "home", "smart accessories", "lights", "iot", "automation"]
+        ),
+        InfoPlistNSString(
+            key: "NSSiriUsageDescription",
+            name: "Siri & Shortcuts",
+            category: "Privacy - Siri",
+            description: "Required to process voice commands and handle app shortcuts using Siri.",
+            sfSymbol: "waveform.badge.magnifyingglass",
+            valueType: .string,
+            recommendedWording: "This app uses Siri to let you execute quick voice actions and shortcuts hands-free.",
+            searchKeywords: ["siri", "voice", "shortcuts", "assistant", "intent"]
+        ),
+        InfoPlistNSString(
+            key: "NSNFCReaderUsageDescription",
+            name: "NFC Tag Reading",
+            category: "Privacy - NFC",
+            description: "Required to scan and interact with NFC tags, smart posters, and contactless cards.",
+            sfSymbol: "wave.3.forward.circle.fill",
+            valueType: .string,
+            recommendedWording: "This app needs NFC access to scan smart tags and configure nearby accessories.",
+            searchKeywords: ["nfc", "tag", "rfid", "contactless", "scan", "reader"]
+        ),
+        InfoPlistNSString(
+            key: "NSNearbyInteractionUsageDescription",
+            name: "Nearby Interaction (Ultra Wideband)",
+            category: "Privacy - Nearby Interaction",
+            description: "Required to measure precise distance and direction to nearby devices using UWB.",
+            sfSymbol: "location.viewfinder",
+            valueType: .string,
+            recommendedWording: "This app uses Ultra Wideband to show precise distance and direction to nearby companion devices.",
+            searchKeywords: ["nearby", "uwb", "ultra wideband", "direction", "distance", "spatial"]
+        ),
+        InfoPlistNSString(
+            key: "NSNearbyInteractionAllowOnceUsageDescription",
+            name: "Nearby Interaction (One-Time)",
+            category: "Privacy - Nearby Interaction",
+            description: "Required for one-time sessions measuring distance to nearby companion accessories.",
+            sfSymbol: "location.viewfinder",
+            valueType: .string,
+            recommendedWording: "This app uses Ultra Wideband to locate your lost items nearby during this session.",
+            searchKeywords: ["nearby", "uwb", "once", "find", "locate"]
+        ),
+        InfoPlistNSString(
+            key: "NSFocusStatusUsageDescription",
+            name: "Focus Status",
+            category: "Privacy - Focus",
+            description: "Required to check whether the user has active Focus modes silencing notifications.",
+            sfSymbol: "moon.stars.fill",
+            valueType: .string,
+            recommendedWording: "This app checks your Focus status so teammates know when your notifications are silenced.",
+            searchKeywords: ["focus", "dnd", "do not disturb", "status", "silenced", "modes"]
+        ),
+        InfoPlistNSString(
+            key: "NSAppleEventsUsageDescription",
+            name: "Apple Events (macOS Scripting)",
+            category: "Privacy - Apple Events",
+            description: "Required on macOS to send Apple Events and script other desktop applications.",
+            sfSymbol: "applescript",
+            valueType: .string,
+            recommendedWording: "This app requires Apple Events access to automate workflows in Finder, Xcode, and Terminal.",
+            searchKeywords: ["applescript", "apple events", "automate", "macos", "scripting", "terminal"]
+        ),
+        InfoPlistNSString(
+            key: "NSSystemAdministrationUsageDescription",
+            name: "System Administration",
+            category: "Privacy - System Administration",
+            description: "Required to perform privileged system administration and configuration operations.",
+            sfSymbol: "wrench.and.screwdriver.fill",
+            valueType: .string,
+            recommendedWording: "This app requires administrative privileges to install background toolchains and services.",
+            searchKeywords: ["admin", "root", "privileged", "system administration", "install"]
+        ),
+        InfoPlistNSString(
+            key: "NSFallDetectionUsageDescription",
+            name: "Fall Detection",
+            category: "Privacy - Fall Detection",
+            description: "Required to receive fall detection events and emergency trigger alerts on Apple Watch.",
+            sfSymbol: "figure.fall",
+            valueType: .string,
+            recommendedWording: "This app monitors fall detection events to notify your emergency contacts immediately.",
+            searchKeywords: ["fall", "emergency", "safety", "watch", "health"]
+        ),
+        InfoPlistNSString(
+            key: "NSCriticalAlertUsageDescription",
+            name: "Critical Alerts",
+            category: "Privacy - Critical Alerts",
+            description: "Required to explain why the app sends urgent medical or emergency alarms bypassing mute.",
+            sfSymbol: "exclamationmark.triangle.fill",
+            valueType: .string,
+            recommendedWording: "This app delivers critical security alarms that sound even when Do Not Disturb is active.",
+            searchKeywords: ["critical", "alert", "alarm", "emergency", "bypass", "sound"]
+        ),
+        InfoPlistNSString(
+            key: "NSSensorKitUsageDescription",
+            name: "SensorKit Research",
+            category: "Privacy - SensorKit",
+            description: "Required to collect approved ambient telemetry for medical and scientific research studies.",
+            sfSymbol: "sensor.fill",
+            valueType: .string,
+            recommendedWording: "This app collects sensor telemetry for the university health and sleep research study.",
+            searchKeywords: ["sensor", "sensorkit", "research", "telemetry", "study"]
+        ),
+        InfoPlistNSString(
+            key: "NSCameraPostureUsageDescription",
+            name: "Camera Posture & Spatial Tracking",
+            category: "Privacy - Camera Posture",
+            description: "Required on visionOS and macOS to access camera position and posture tracking data.",
+            sfSymbol: "visionpro",
+            valueType: .string,
+            recommendedWording: "This app uses camera posture data to position interactive spatial windows in your space.",
+            searchKeywords: ["camera", "posture", "spatial", "visionos", "tracking"]
         )
     ]
 }

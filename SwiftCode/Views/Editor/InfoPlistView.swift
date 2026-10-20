@@ -73,7 +73,7 @@ public struct InfoPlistTemplate: Identifiable {
 }
 
 public enum InfoPlistTemplateCatalog {
-    public static let categories = ["All", "Identity", "Display & Scene", "Network & Security", "Behavior & Lifecycle", "URL Types", "Orientations", "Privacy"]
+    public static let categories = ["All", "Identity", "Display & Scene", "Network & Security", "Behavior & Lifecycle", "Hardware & Capabilities", "Fonts & Assets", "URL Types", "Orientations", "Privacy"]
 
     nonisolated(unsafe) public static let all: [InfoPlistTemplate] = {
         var list: [InfoPlistTemplate] = [
@@ -92,10 +92,17 @@ public enum InfoPlistTemplateCatalog {
             InfoPlistTemplate(key: "LSApplicationCategoryType", name: "App Category", symbol: "square.grid.2x2", category: "Identity", kind: .string, defaultValue: "public.app-category.developer-tools"),
             InfoPlistTemplate(key: "ITSAppUsesNonExemptEncryption", name: "App Uses Non-Exempt Encryption", symbol: "lock.shield", category: "Identity", kind: .boolean, defaultValue: false),
             InfoPlistTemplate(key: "LSHasLocalizedDisplayName", name: "Localized Display Name", symbol: "character.book.closed", category: "Identity", kind: .boolean, defaultValue: true),
+            InfoPlistTemplate(key: "CFBundleGetInfoString", name: "Get Info String", symbol: "info.bubble", category: "Identity", kind: .string, defaultValue: "1.0, Copyright © 2026"),
+            InfoPlistTemplate(key: "LSArchitecturePriority", name: "Architecture Priority Order", symbol: "cpu", category: "Identity", kind: .array, defaultValue: ["arm64", "x86_64"] as [Any]),
+            InfoPlistTemplate(key: "LSBackgroundOnly", name: "Background-Only App", symbol: "eye.slash.fill", category: "Identity", kind: .boolean, defaultValue: false),
+            InfoPlistTemplate(key: "LSFileQuarantineEnabled", name: "File Quarantine Enabled", symbol: "lock.shield.fill", category: "Identity", kind: .boolean, defaultValue: true),
+            InfoPlistTemplate(key: "WKCompanionAppBundleIdentifier", name: "watchOS Companion App Bundle ID", symbol: "applewatch", category: "Identity", kind: .string, defaultValue: "$(PRODUCT_BUNDLE_IDENTIFIER)"),
 
             // Display & Scene
             InfoPlistTemplate(key: "CFBundleIconName", name: "Icon Name", symbol: "app.dashed", category: "Display & Scene", kind: .string, defaultValue: "AppIcon"),
             InfoPlistTemplate(key: "UILaunchStoryboardName", name: "Launch Storyboard Name", symbol: "play.rectangle", category: "Display & Scene", kind: .string, defaultValue: "LaunchScreen"),
+            InfoPlistTemplate(key: "UILaunchScreen", name: "Launch Screen Configuration", symbol: "photo.artframe", category: "Display & Scene", kind: .dictionary, defaultValue: ["UIImageName": "LaunchImage", "UIColorName": "LaunchBackground"] as [String: Any]),
+            InfoPlistTemplate(key: "UIStatusBarStyle", name: "Status Bar Style", symbol: "battery.100.bolt", category: "Display & Scene", kind: .string, defaultValue: "UIStatusBarStyleDefault"),
             InfoPlistTemplate(key: "LSMinimumSystemVersion", name: "Minimum System Version", symbol: "desktopcomputer", category: "Display & Scene", kind: .string, defaultValue: "13.0"),
             InfoPlistTemplate(key: "NSPrincipalClass", name: "Principal Class", symbol: "pyramid", category: "Display & Scene", kind: .string, defaultValue: "NSApplication"),
             InfoPlistTemplate(key: "NSHighResolutionCapable", name: "High Resolution Capable", symbol: "sparkles", category: "Display & Scene", kind: .boolean, defaultValue: true),
@@ -106,13 +113,26 @@ public enum InfoPlistTemplateCatalog {
             InfoPlistTemplate(key: "UIUserInterfaceStyle", name: "User Interface Style Override", symbol: "circle.righthalf.filled", category: "Display & Scene", kind: .string, defaultValue: "Automatic"),
             InfoPlistTemplate(key: "UISupportsDocumentBrowser", name: "Supports Document Browser", symbol: "folder.badge.gearshape", category: "Display & Scene", kind: .boolean, defaultValue: false),
             InfoPlistTemplate(key: "NSApplicationCrashOnExceptions", name: "Crash on Exceptions", symbol: "exclamationmark.octagon", category: "Display & Scene", kind: .boolean, defaultValue: true),
+            InfoPlistTemplate(key: "NSSupportsAutomaticGraphicsSwitching", name: "Automatic Graphics Switching (macOS)", symbol: "bolt.batteryblock", category: "Display & Scene", kind: .boolean, defaultValue: true),
+            InfoPlistTemplate(key: "NSRequiresAquaSystemAppearance", name: "Requires Aqua Appearance (Light Only)", symbol: "sun.max.fill", category: "Display & Scene", kind: .boolean, defaultValue: false),
+            InfoPlistTemplate(key: "UIPreferredDefaultInterfaceOrientation", name: "Preferred Default Interface Orientation", symbol: "rectangle.portrait.rotate", category: "Display & Scene", kind: .string, defaultValue: "UIInterfaceOrientationPortrait"),
+            InfoPlistTemplate(key: "NSSupportsLiveActivities", name: "Supports Live Activities", symbol: "waveform.path.ecg", category: "Display & Scene", kind: .boolean, defaultValue: true),
+            InfoPlistTemplate(key: "NSSupportsLiveActivitiesFrequentUpdates", name: "Live Activities Frequent Updates", symbol: "waveform.path.badge.plus", category: "Display & Scene", kind: .boolean, defaultValue: true),
+            InfoPlistTemplate(key: "UIApplicationSceneManifest", name: "Application Scene Manifest", symbol: "rectangle.split.2x1", category: "Display & Scene", kind: .dictionary, defaultValue: ["UIApplicationSupportsMultipleScenes": true] as [String: Any]),
+            InfoPlistTemplate(key: "UIWhitePointAdaptivityStyle", name: "White Point Adaptivity Style (True Tone)", symbol: "sun.max", category: "Display & Scene", kind: .string, defaultValue: "UIWhitePointAdaptivityStyleStandard"),
 
             // Network & Security
             InfoPlistTemplate(key: "NSAppTransportSecurity", name: "App Transport Security Settings", symbol: "shield", category: "Network & Security", kind: .dictionary, defaultValue: ["NSAllowsArbitraryLoads": false] as [String: Any]),
             InfoPlistTemplate(key: "NSAllowsArbitraryLoads", name: "Allows Arbitrary Loads (ATS Bypass)", symbol: "lock.open", category: "Network & Security", kind: .boolean, defaultValue: true),
+            InfoPlistTemplate(key: "NSAllowsArbitraryLoadsForMedia", name: "Allows Arbitrary Loads For Media", symbol: "play.circle", category: "Network & Security", kind: .boolean, defaultValue: true),
+            InfoPlistTemplate(key: "NSAllowsArbitraryLoadsInWebContent", name: "Allows Arbitrary Loads In Web Views", symbol: "globe", category: "Network & Security", kind: .boolean, defaultValue: true),
             InfoPlistTemplate(key: "NSAllowsLocalNetworking", name: "Allows Local Networking", symbol: "wifi.router", category: "Network & Security", kind: .boolean, defaultValue: true),
+            InfoPlistTemplate(key: "NSExceptionDomains", name: "ATS Exception Domains", symbol: "network.badge.shield.half.filled", category: "Network & Security", kind: .dictionary, defaultValue: ["localhost": ["NSExceptionAllowsInsecureHTTPLoads": true, "NSIncludesSubdomains": true]] as [String: Any]),
             InfoPlistTemplate(key: "NSLocalNetworkUsageDescription", name: "Local Network Usage Description", symbol: "network", category: "Network & Security", kind: .string, defaultValue: "This app requires access to the local network to discover companion devices."),
             InfoPlistTemplate(key: "NSBonjourServices", name: "Bonjour Services", symbol: "antenna.radiowaves.left.and.right", category: "Network & Security", kind: .array, defaultValue: ["_http._tcp"] as [Any]),
+            InfoPlistTemplate(key: "UIRequiresPersistentWiFi", name: "Requires Persistent Wi-Fi", symbol: "wifi", category: "Network & Security", kind: .boolean, defaultValue: false),
+            InfoPlistTemplate(key: "NSPersistentStoreFileProtectionKey", name: "Persistent Store File Protection", symbol: "lock.shield", category: "Network & Security", kind: .string, defaultValue: "NSFileProtectionComplete"),
+            InfoPlistTemplate(key: "NSExtension", name: "App Extension Attributes", symbol: "puzzlepiece.extension", category: "Network & Security", kind: .dictionary, defaultValue: ["NSExtensionPointIdentifier": "com.apple.widgetkit-extension"] as [String: Any]),
 
             // Behavior & Lifecycle
             InfoPlistTemplate(key: "LSUIElement", name: "Agent / Menu Bar App (No Dock Icon)", symbol: "eye.slash", category: "Behavior & Lifecycle", kind: .boolean, defaultValue: false),
@@ -125,10 +145,25 @@ public enum InfoPlistTemplateCatalog {
             InfoPlistTemplate(key: "UIApplicationSupportsIndirectInputEvents", name: "Supports Indirect Input Events", symbol: "cursorarrow.rays", category: "Behavior & Lifecycle", kind: .boolean, defaultValue: true),
             InfoPlistTemplate(key: "UIBackgroundModes", name: "Background Modes", symbol: "arrow.triangle.2.circlepath", category: "Behavior & Lifecycle", kind: .array, defaultValue: ["fetch", "remote-notification"] as [Any]),
             InfoPlistTemplate(key: "BGTaskSchedulerPermittedIdentifiers", name: "Permitted Background Task IDs", symbol: "clock.badge.checkmark", category: "Behavior & Lifecycle", kind: .array, defaultValue: ["com.example.app.refresh"] as [Any]),
+            InfoPlistTemplate(key: "UIApplicationExitsOnSuspend", name: "Application Exits On Suspend", symbol: "xmark.circle", category: "Behavior & Lifecycle", kind: .boolean, defaultValue: false),
+            InfoPlistTemplate(key: "LSEnvironment", name: "Launch Environment Variables", symbol: "terminal", category: "Behavior & Lifecycle", kind: .dictionary, defaultValue: ["MY_ENV_VAR": "value"] as [String: Any]),
+            InfoPlistTemplate(key: "UISupportsFullScreenInDisplayCutout", name: "Supports Display Cutout / Notch Layout", symbol: "iphone.gen3", category: "Behavior & Lifecycle", kind: .boolean, defaultValue: true),
+            InfoPlistTemplate(key: "NSUserActivityTypes", name: "User Activity Types (Handoff / Siri)", symbol: "hand.raised", category: "Behavior & Lifecycle", kind: .array, defaultValue: ["com.example.app.activity"] as [Any]),
+            InfoPlistTemplate(key: "NSUbiquitousContainers", name: "iCloud Drive Document Containers", symbol: "icloud.and.arrow.up", category: "Behavior & Lifecycle", kind: .dictionary, defaultValue: [:] as [String: Any]),
+
+            // Hardware & Capabilities
+            InfoPlistTemplate(key: "UIRequiredDeviceCapabilities", name: "Required Device Capabilities", symbol: "cpu.fill", category: "Hardware & Capabilities", kind: .array, defaultValue: ["arm64", "metal"] as [Any]),
+            InfoPlistTemplate(key: "GCSupportedControllerTypes", name: "Supported Game Controller Profiles", symbol: "gamecontroller", category: "Hardware & Capabilities", kind: .array, defaultValue: ["GCExtendedGamepad", "GCStandardGamepad"] as [Any]),
+            InfoPlistTemplate(key: "GCSupportsControllerUserInteraction", name: "Gamepad User Interaction Supported", symbol: "gamecontroller.fill", category: "Hardware & Capabilities", kind: .boolean, defaultValue: true),
+
+            // Fonts & Assets
+            InfoPlistTemplate(key: "UIAppFonts", name: "Application Fonts Provided by App", symbol: "textformat.size", category: "Fonts & Assets", kind: .array, defaultValue: ["Inter-Regular.ttf", "Outfit-Bold.ttf"] as [Any]),
+            InfoPlistTemplate(key: "UIPrerenderedIcon", name: "Icon Already Includes Gloss Effects", symbol: "app.fill", category: "Fonts & Assets", kind: .boolean, defaultValue: false),
 
             // Orientations
             InfoPlistTemplate(key: "UISupportedInterfaceOrientations", name: "Supported Interface Orientations", symbol: "iphone", category: "Orientations", kind: .array, defaultValue: ["UIInterfaceOrientationPortrait", "UIInterfaceOrientationLandscapeLeft", "UIInterfaceOrientationLandscapeRight"] as [Any]),
             InfoPlistTemplate(key: "UISupportedInterfaceOrientations~ipad", name: "Supported Interface Orientations (iPad)", symbol: "ipad", category: "Orientations", kind: .array, defaultValue: ["UIInterfaceOrientationPortrait", "UIInterfaceOrientationPortraitUpsideDown", "UIInterfaceOrientationLandscapeLeft", "UIInterfaceOrientationLandscapeRight"] as [Any]),
+            InfoPlistTemplate(key: "UIInterfaceOrientation", name: "Initial Interface Orientation", symbol: "iphone", category: "Orientations", kind: .string, defaultValue: "UIInterfaceOrientationPortrait"),
 
             // URL Types
             InfoPlistTemplate(key: "CFBundleURLTypes", name: "URL Types", symbol: "link", category: "URL Types", kind: .array, defaultValue: [["CFBundleURLName": "", "CFBundleURLSchemes": ["myapp"]]] as [Any]),
@@ -136,16 +171,7 @@ public enum InfoPlistTemplateCatalog {
             InfoPlistTemplate(key: "CFBundleDocumentTypes", name: "Document Types", symbol: "doc", category: "URL Types", kind: .array, defaultValue: [Any]()),
             InfoPlistTemplate(key: "UTExportedTypeDeclarations", name: "Exported Type Declarations", symbol: "arrow.up.doc", category: "URL Types", kind: .array, defaultValue: [Any]()),
             InfoPlistTemplate(key: "UTImportedTypeDeclarations", name: "Imported Type Declarations", symbol: "arrow.down.doc", category: "URL Types", kind: .array, defaultValue: [Any]()),
-
-            // Additional Modern App Keys
-            InfoPlistTemplate(key: "NSSupportsLiveActivities", name: "Supports Live Activities", symbol: "waveform.path.ecg", category: "Display & Scene", kind: .boolean, defaultValue: true),
-            InfoPlistTemplate(key: "UIApplicationSceneManifest", name: "Application Scene Manifest", symbol: "rectangle.split.2x1", category: "Display & Scene", kind: .dictionary, defaultValue: ["UIApplicationSupportsMultipleScenes": true] as [String: Any]),
-            InfoPlistTemplate(key: "NSUserActivityTypes", name: "User Activity Types (Handoff / Siri)", symbol: "hand.raised", category: "Behavior & Lifecycle", kind: .array, defaultValue: ["com.example.app.activity"] as [Any]),
-            InfoPlistTemplate(key: "UIWhitePointAdaptivityStyle", name: "White Point Adaptivity Style (True Tone)", symbol: "sun.max", category: "Display & Scene", kind: .string, defaultValue: "UIWhitePointAdaptivityStyleStandard"),
-            InfoPlistTemplate(key: "UIRequiresPersistentWiFi", name: "Requires Persistent Wi-Fi", symbol: "wifi", category: "Network & Security", kind: .boolean, defaultValue: false),
-            InfoPlistTemplate(key: "WKCompanionAppBundleIdentifier", name: "watchOS Companion App Bundle ID", symbol: "applewatch", category: "Identity", kind: .string, defaultValue: "$(PRODUCT_BUNDLE_IDENTIFIER)"),
-            InfoPlistTemplate(key: "NSUbiquitousContainers", name: "iCloud Drive Document Containers", symbol: "icloud.and.arrow.up", category: "Behavior & Lifecycle", kind: .dictionary, defaultValue: [:] as [String: Any]),
-            InfoPlistTemplate(key: "NSPersistentStoreFileProtectionKey", name: "Persistent Store File Protection", symbol: "lock.shield", category: "Network & Security", kind: .string, defaultValue: "NSFileProtectionComplete"),
+            InfoPlistTemplate(key: "LSHandlerRank", name: "Document Handler Rank", symbol: "star.fill", category: "URL Types", kind: .string, defaultValue: "Owner"),
         ]
         // Privacy usage descriptions come from the curated metadata catalog.
         for meta in InfoPlistNSStrings.all {
