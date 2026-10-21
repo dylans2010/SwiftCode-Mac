@@ -256,7 +256,7 @@ final class ExtensionManager: ObservableObject {
                 assetPaths: [], isInstalled: true, isEnabled: true, isUserCreated: false),
 
             ExtensionManifest(id: "aidocgen", name: "AI Doc Generator", version: "1.0.0",
-                description: "Auto-generate Swift DocC documentation comments using AI.",
+                description: "Auto-generate Swift documentation comments using AI.",
                 author: "SwiftCode", category: .ai,
                 capabilities: [.aiAssistant], entryPoint: "AIDocGenExtensionView.swift",
                 assetPaths: [], isInstalled: true, isEnabled: true, isUserCreated: false),
@@ -285,8 +285,8 @@ final class ExtensionManager: ObservableObject {
                 capabilities: [.buildTool], entryPoint: "SwiftPackageManagerExtensionView.swift",
                 assetPaths: [], isInstalled: true, isEnabled: true, isUserCreated: false),
 
-            ExtensionManifest(id: "doccgenerator", name: "DocC Generator", version: "1.0.0",
-                description: "Build and preview Apple DocC documentation directly in the IDE.",
+            ExtensionManifest(id: "doccgenerator", name: "Documentation Generator", version: "1.0.0",
+                description: "Build and preview Apple documentation directly in the IDE.",
                 author: "SwiftCode", category: .tools,
                 capabilities: [.command], entryPoint: "DocCGeneratorExtensionView.swift",
                 assetPaths: [], isInstalled: true, isEnabled: true, isUserCreated: false),

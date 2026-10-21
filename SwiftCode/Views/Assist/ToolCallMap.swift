@@ -169,13 +169,13 @@ public enum ToolCallMap: Sendable {
         "dir_size_report": ToolCallDescriptor(title: "Directory Size Report", symbolName: "folder.fill", tint: .blue),
         // MARK: - disk
         "disk_space_analyzer": ToolCallDescriptor(title: "Disk Space Analyzer", symbolName: "internaldrive.fill", tint: .gray),
-        // MARK: - docc
-        "docc_build": ToolCallDescriptor(title: "Build DocC Docs", symbolName: "hammer.fill", tint: .orange),
+        // MARK: - documentation
+        "docc_build": ToolCallDescriptor(title: "Build Documentation", symbolName: "hammer.fill", tint: .orange),
         // MARK: - docs
         "docs_generate": ToolCallDescriptor(title: "Generate Docs", symbolName: "book.fill", tint: .brown),
         "docs_index_build": ToolCallDescriptor(title: "Docs Index Build", symbolName: "hammer.fill", tint: .orange),
         // MARK: - docstring
-        "docstring_generator": ToolCallDescriptor(title: "DocC Documentation Generator", symbolName: "book.fill", tint: .brown),
+        "docstring_generator": ToolCallDescriptor(title: "Documentation Generator", symbolName: "book.fill", tint: .brown),
         // MARK: - duplicate
         "duplicate_code_scan": ToolCallDescriptor(title: "Duplicate Code Scan", symbolName: "checkmark.shield.fill", tint: .teal),
         // MARK: - empty

@@ -3,7 +3,7 @@ import SwiftUI
 // MARK: - AI Doc Generator Extension View
 struct AIDocGenExtensionView: View {
     @State private var isEnabled = true
-    @State private var docStyle = "docc"
+    @State private var docStyle = "appleDocs"
     @State private var autoTrigger = false
     @State private var includeExamples = true
 
@@ -18,7 +18,7 @@ struct AIDocGenExtensionView: View {
             }
             Section {
                 Picker("Documentation Style", selection: $docStyle) {
-                    Text("Apple DocC (/// style)").tag("docc")
+                    Text("Apple Documentation (/// style)").tag("appleDocs")
                     Text("Markdown").tag("markdown")
                     Text("Jazzy").tag("jazzy")
                 }
@@ -33,7 +33,7 @@ struct AIDocGenExtensionView: View {
                 Text("Usage")
             }
             Section {
-                Text("Auto-generates Swift DocC documentation comments for functions, types, and properties using AI. Works best with clear function signatures.")
+                Text("Auto-generates Swift documentation comments for functions, types, and properties using AI. Works best with clear function signatures.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             } header: {

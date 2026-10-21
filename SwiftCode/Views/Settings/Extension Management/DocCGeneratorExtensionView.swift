@@ -1,6 +1,6 @@
 import SwiftUI
 
-// MARK: - DocC Generator Extension View
+// MARK: - Documentation Generator Extension View
 struct DocCGeneratorExtensionView: View {
     @State private var isEnabled = true
     @State private var autoBuildOnSave = false
@@ -13,17 +13,17 @@ struct DocCGeneratorExtensionView: View {
     var body: some View {
         Form {
             Section {
-                Toggle("Enable DocC Generator", isOn: $isEnabled)
+                Toggle("Enable Documentation Generator", isOn: $isEnabled)
                 Toggle("Auto-Build on Save", isOn: $autoBuildOnSave)
                 Toggle("Inherited Documentation", isOn: $enableInheritedDocs)
             } header: {
-                Label("DocC Generator", systemImage: "books.vertical.fill")
+                Label("Documentation Generator", systemImage: "books.vertical.fill")
             }
             Section {
                 HStack {
                     Text("Output Path")
                     Spacer()
-                    TextField(".build/plugins/Swift-DocC", text: $outputPath)
+                    TextField("Output path", text: $outputPath)
                         .multilineTextAlignment(.trailing)
                         .foregroundStyle(.secondary)
                         .font(.system(.caption, design: .monospaced))
@@ -37,13 +37,13 @@ struct DocCGeneratorExtensionView: View {
                 Text("Output Settings")
             }
             Section {
-                Text("Build and preview Apple DocC documentation directly in the IDE. Generates a static documentation catalog that can be hosted or submitted with your package.")
+                Text("Build and preview Apple documentation directly in the IDE. Generates a static documentation catalog that can be hosted or submitted with your package.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             } header: {
                 Text("About")
             }
         }
-        .navigationTitle("DocC Generator")
+        .navigationTitle("Documentation Generator")
     }
 }

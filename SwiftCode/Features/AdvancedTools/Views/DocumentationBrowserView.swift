@@ -2,6 +2,7 @@ import SwiftUI
 import AppKit
 import WebKit
 import os
+import SQLite3
 
 // MARK: - Native Window Manager
 @MainActor
@@ -200,8 +201,7 @@ final class DocSymbolsLoader {
         let currentDir = FileManager.default.currentDirectoryPath
         let candidates = [
             URL(fileURLWithPath: currentDir).appendingPathComponent("SwiftCode/Resources/Documentation Assets"),
-            URL(fileURLWithPath: currentDir).appendingPathComponent("Resources/Documentation Assets"),
-            URL(fileURLWithPath: "/Users/dylan/SwiftCode-Mac/SwiftCode/Resources/Documentation Assets")
+            URL(fileURLWithPath: currentDir).appendingPathComponent("Resources/Documentation Assets")
         ]
 
         for candidate in candidates {
@@ -223,53 +223,123 @@ final class DocSymbolsLoader {
 
         logger.info("Indexing documentation on device from offline Documentation Assets...")
 
-        // Attempt 1: Index directly from the DocC JSON topics in Documentation Assets
+        var merged: [DocSymbol] = []
+        var seenNames = Set<String>()
+        func absorb(_ newSymbols: [DocSymbol]) {
+            for sym in newSymbols where !sym.name.isEmpty && !seenNames.contains(sym.name) {
+                seenNames.insert(sym.name)
+                merged.append(sym)
+                symbolIndex[sym.name.lowercased()] = sym
+            }
+        }
+
         if let assetsURL = getDocumentationAssetsURL() {
+            // Attempt 1: Load from the bundled Documentation.sqlite database in Documentation Assets
+            let dbURL = assetsURL.appendingPathComponent("Documentation.sqlite")
+            if FileManager.default.fileExists(atPath: dbURL.path) {
+                do {
+                    let dbSymbols = try loadFromSQLiteDatabase(at: dbURL)
+                    absorb(dbSymbols)
+                    logger.info("Loaded \(dbSymbols.count) symbols from Documentation.sqlite.")
+                } catch {
+                    logger.warning("Failed to load Documentation.sqlite: \(error.localizedDescription), trying fallback...")
+                }
+            }
+
+            // Attempt 2: Index the documentation topic files in Documentation Assets (fills any gaps)
             let dataDir = assetsURL.appendingPathComponent("data/documentation/developerdocumentation")
             if FileManager.default.fileExists(atPath: dataDir.path) {
                 do {
-                    let symbols = try indexFromDocCDataDirectory(dataDir, assetsBaseURL: assetsURL)
-                    if !symbols.isEmpty {
-                        cachedSymbols = symbols
-                        logger.info("Successfully indexed \(symbols.count) symbols directly from Documentation Assets DocC files.")
-                        return symbols
-                    }
+                    let dataSymbols = try indexFromDocumentationDataDirectory(dataDir, assetsBaseURL: assetsURL)
+                    absorb(dataSymbols)
+                    logger.info("Indexed \(dataSymbols.count) symbols from Documentation Assets topic files.")
                 } catch {
-                    logger.warning("Failed to index DocC data directory: \(error.localizedDescription), trying fallback...")
+                    logger.warning("Failed to index documentation data directory: \(error.localizedDescription), trying fallback...")
                 }
             }
         }
 
-        // Attempt 2: Load from bundled DocSymbols.json (which contains the indexed symbols)
+        // Attempt 3: Load from bundled DocSymbols.json (which contains the indexed symbols)
         if let jsonURL = Bundle.main.url(forResource: "DocSymbols", withExtension: "json") ??
             getDocumentationAssetsURL()?.deletingLastPathComponent().appendingPathComponent("DocSymbols.json") {
             do {
                 let data = try Data(contentsOf: jsonURL)
                 let decoded = try JSONDecoder().decode([DocSymbol].self, from: data)
-                var validSymbols: [DocSymbol] = []
-                var seen = Set<String>()
-
-                for sym in decoded where !sym.name.isEmpty {
-                    if !seen.contains(sym.name) {
-                        seen.insert(sym.name)
-                        validSymbols.append(sym)
-                        symbolIndex[sym.name.lowercased()] = sym
-                    }
+                absorb(decoded)
+                if !decoded.isEmpty {
+                    logger.info("Loaded \(decoded.count) symbols from DocSymbols.json")
                 }
-
-                cachedSymbols = validSymbols
-                logger.info("Successfully loaded and verified \(validSymbols.count) symbols from DocSymbols.json")
-                return validSymbols
             } catch {
                 logger.error("Failed to decode DocSymbols.json: \(error.localizedDescription)")
             }
         }
 
+        if !merged.isEmpty {
+            merged.sort { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
+            cachedSymbols = merged
+            logger.info("Successfully indexed \(merged.count) on-device documentation symbols in total.")
+            return merged
+        }
+
         throw LoaderError.fileNotFound
     }
 
-    /// Reads and indexes DocC JSON files directly into DocSymbol models
-    private static func indexFromDocCDataDirectory(_ dir: URL, assetsBaseURL: URL) throws -> [DocSymbol] {
+    /// Reads all documentation symbols from the bundled Documentation.sqlite database.
+    private static func loadFromSQLiteDatabase(at dbURL: URL) throws -> [DocSymbol] {
+        var db: OpaquePointer?
+        guard sqlite3_open_v2(dbURL.path, &db, SQLITE_OPEN_READONLY, nil) == SQLITE_OK else {
+            if let db {
+                sqlite3_close(db)
+            }
+            throw LoaderError.fileNotFound
+        }
+        defer { sqlite3_close(db) }
+
+        let sql = "SELECT name, kind, framework, abstract, syntax, code_sample, availability, platforms_json, inherits_from, conforms_to_json, see_also_json, path FROM documentation ORDER BY name COLLATE NOCASE"
+        var statement: OpaquePointer?
+        guard sqlite3_prepare_v2(db, sql, -1, &statement, nil) == SQLITE_OK else {
+            throw LoaderError.decodingError(NSError(domain: "DocSymbolsLoader", code: 1, userInfo: [NSLocalizedDescriptionKey: "Failed to prepare the documentation database query."]))
+        }
+        defer { sqlite3_finalize(statement) }
+
+        func columnText(_ index: Int32) -> String {
+            guard let textPtr = sqlite3_column_text(statement, index) else { return "" }
+            return String(cString: textPtr)
+        }
+        func decodeStringArray(_ json: String) -> [String] {
+            guard let data = json.data(using: .utf8),
+                  let decoded = try? JSONDecoder().decode([String].self, from: data) else { return [] }
+            return decoded
+        }
+        func decodePlatforms(_ json: String) -> [String: String] {
+            guard let data = json.data(using: .utf8),
+                  let decoded = try? JSONDecoder().decode([String: String].self, from: data) else { return [:] }
+            return decoded
+        }
+
+        var symbols: [DocSymbol] = []
+        while sqlite3_step(statement) == SQLITE_ROW {
+            let inheritsRaw = columnText(8)
+            symbols.append(DocSymbol(
+                name: columnText(0),
+                kind: columnText(1),
+                framework: columnText(2),
+                summary: columnText(3),
+                syntax: columnText(4),
+                platforms: decodePlatforms(columnText(7)),
+                inheritsFrom: inheritsRaw.isEmpty ? nil : inheritsRaw,
+                conformsTo: decodeStringArray(columnText(9)),
+                codeSample: columnText(5),
+                availability: columnText(6),
+                seeAlso: decodeStringArray(columnText(10)),
+                docPath: columnText(11)
+            ))
+        }
+        return symbols
+    }
+
+    /// Reads and indexes documentation JSON topic files directly into DocSymbol models
+    private static func indexFromDocumentationDataDirectory(_ dir: URL, assetsBaseURL: URL) throws -> [DocSymbol] {
         let fileURLs = try FileManager.default.contentsOfDirectory(at: dir, includingPropertiesForKeys: nil)
             .filter { $0.pathExtension == "json" }
 
@@ -447,8 +517,8 @@ final class DocSymbolsLoader {
         return symbolIndex[name.lowercased()]
     }
 
-    /// Resolves local file URL for offline DocC preview of a symbol
-    static func localDocCURL(for symbol: DocSymbol) -> URL? {
+    /// Resolves local file URL for offline documentation preview of a symbol
+    static func localDocumentationURL(for symbol: DocSymbol) -> URL? {
         guard let assetsURL = getDocumentationAssetsURL() else { return nil }
         let directHTML = assetsURL.appendingPathComponent("documentation/developerdocumentation/\(symbol.name.lowercased())/index.html")
         if FileManager.default.fileExists(atPath: directHTML.path) {
@@ -504,12 +574,12 @@ struct NativeDocumentationBrowserWorkspaceView: View {
     @State private var isLoadingDatabase = false
     @State private var databaseLoadError: String? = nil
 
-    // Detail Pane Presentation Mode (Native Inspector vs Offline DocC Viewer)
+    // Detail Pane Presentation Mode (Native Inspector vs Offline Web Viewer)
     @State private var detailPresentationMode: DetailViewMode = .nativeCard
 
     enum DetailViewMode: String, CaseIterable, Identifiable {
         case nativeCard = "Native Inspector"
-        case doccViewer = "DocC Offline Viewer"
+        case webViewer = "Offline Web Viewer"
         var id: String { rawValue }
     }
 
@@ -831,7 +901,7 @@ struct NativeDocumentationBrowserWorkspaceView: View {
                     Text("Indexing Offline Documentation...")
                         .font(.headline)
                         .foregroundColor(.secondary)
-                    Text("Scanning local DocC bundles & symbol archives")
+                    Text("Scanning local documentation bundles & symbol archives")
                         .font(.caption)
                         .foregroundColor(.secondary)
                 }
@@ -894,7 +964,7 @@ struct NativeDocumentationBrowserWorkspaceView: View {
         }
         .frame(minWidth: 320, idealWidth: 360, maxWidth: 440)
 
-        // Right Pane: Details / Offline DocC View
+        // Right Pane: Details / Offline Documentation View
         Group {
             if let sym = selectedSymbol {
                 symbolDetailsPane(sym)
@@ -1302,7 +1372,7 @@ Select a symbol from the left sidebar to generate targeted API breakdowns, concu
             if detailPresentationMode == .nativeCard {
                 nativeSymbolDetailCard(sym)
             } else {
-                offlineDocCWebRenderer(sym)
+                offlineWebRenderer(sym)
             }
         }
         .onChange(of: sym) { _, newValue in
@@ -1539,8 +1609,8 @@ Select a symbol from the left sidebar to generate targeted API breakdowns, concu
         .background(Color(NSColor.controlBackgroundColor))
     }
 
-    private func offlineDocCWebRenderer(_ sym: DocSymbol) -> some View {
-        OfflineDocCWebView(symbol: sym)
+    private func offlineWebRenderer(_ sym: DocSymbol) -> some View {
+        OfflineDocumentationWebView(symbol: sym)
             .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
@@ -1857,9 +1927,9 @@ ON DELETE CASCADE;
     }
 }
 
-// MARK: - Offline DocC WebKit View (100% Offline from Documentation Assets)
+// MARK: - Offline Documentation WebKit View (100% Offline from Documentation Assets)
 
-private struct OfflineDocCWebView: NSViewRepresentable {
+private struct OfflineDocumentationWebView: NSViewRepresentable {
     let symbol: DocSymbol
 
     func makeNSView(context: Context) -> WKWebView {
@@ -1909,7 +1979,7 @@ p { font-size: 15px; line-height: 1.6; color: #ccc; }
 </style>
 </head>
 <body>
-<span class="badge">OFFLINE DOCC ARCHIVE</span>
+<span class="badge">OFFLINE DOCUMENTATION ARCHIVE</span>
 <h1>\(symbol.name)</h1>
 <p><strong>Framework:</strong> \(symbol.framework) | <strong>Availability:</strong> \(symbol.availability)</p>
 <hr style="border: 0; border-top: 1px solid #444; margin: 20px 0;">
