@@ -1,0 +1,48 @@
+[
+  {
+    "code": "en-US",
+    "name": "English",
+    "slug": "en",
+    "default": true
+  },
+  {
+    "code": "zh-CN",
+    "name": "简体中文",
+    "slug": "cn"
+  },
+  {
+    "code": "ja-JP",
+    "name": "日本語",
+    "slug": "jp"
+  },
+  {
+    "code": "ko-KR",
+    "name": "한국어",
+    "slug": "kr"
+  },
+  {
+    "code": "es-419",
+    "name": "Español",
+    "slug": "la"
+  },
+  {
+    "code": "de-DE",
+    "name": "Deutsch",
+    "slug": "de"
+  },
+  {
+    "code": "fr-FR",
+    "name": "Français",
+    "slug": "fr"
+  },
+  {
+    "code": "it-IT",
+    "name": "Italiano",
+    "slug": "it"
+  },
+  {
+    "code": "pt-BR",
+    "name": "Português",
+    "slug": "br"
+  }
+]

@@ -1,0 +1,137 @@
+/* Copyright © 2012 Apple Inc. All rights reserved. */
+
+html {
+    height: 100%;
+    overflow: hidden;
+    font-family: 'Lucida Grande';
+}
+
+body {
+    margin: 0;
+    overflow: hidden;
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    height: 100%;
+}
+
+header {
+    background-image: url("Search.pdf");
+    background-repeat: no-repeat;
+    background-size: 3em 3em /* = 36px when <header> font-size is 12px */;
+    background-position: -webkit-calc(16px + 2px/* fudge due to text offset */) center;
+    padding: 16px;
+    padding-left: -webkit-calc(3em + 2 * 16px);
+    margin-bottom: -16px;
+}
+
+header {
+    -webkit-user-select: none;
+    cursor: default;
+    position: relative;
+    z-index: 0;
+}
+
+header h1 {
+    font-size: 24px;
+    font-weight: normal;
+    margin: 0;
+}
+
+q {
+    quotes: "“" "”" "‘" "’";
+    cursor: text;
+    -webkit-user-select: text;
+}
+
+#content {
+    -webkit-box-flex: 1;
+    overflow: auto;
+    padding-top: -webkit-calc(8px + 4px/* shadow */);
+    padding-left: -webkit-calc(3em/* icon = 36px when <header> and #content font-sizes are both 12px */ + 2 * 16px/* icon padding */);
+    padding-right: 16px;
+    padding-bottom: 8px;
+}
+
+article {
+    padding-left: -webkit-calc(1em * (16 / 12)/* = 16px when <article> font-size is 12px */ + 1em * (4 / 12));
+    color: #808080;
+}
+
+article > div {
+    display: -webkit-box;
+    max-width: 100%;
+}
+
+article > div > * {
+    -webkit-box-flex: 2;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+article > div > :nth-child(2) {
+    -webkit-box-flex: 1;
+    min-width: 10em;
+    text-align: right;
+}
+
+article > div:last-child {
+    padding-bottom: 16px;
+}
+
+article h2 {
+    -webkit-box-flex: 0 !important;
+    font-size: 14px;
+    margin: 0;
+    margin-left: -webkit-calc(-1em * (16 / 14) - 1em * (4 / 14));
+    padding-left: -webkit-calc(1em * (16 / 14) + 1em * (4 / 14));
+    max-width: 100%;
+}
+
+article h2 a {
+    margin-left: -webkit-calc(-1em * (16 / 14) - 1em * (4 / 14));
+    padding-left: -webkit-calc(1em * (16 / 14) + 1em * (4 / 14));
+    vertical-align: top;
+}
+
+a img.icon {
+    width: -webkit-calc(1em * (16 / 14)) /* = 16px when <h2> font-size is 14px */;
+    height: -webkit-calc(1em * (16 / 14));
+    margin-left: -webkit-calc(-1em * (16 / 14) - 1em * (4 / 14));
+    margin-right: -webkit-calc(1em * (4 / 14));
+    padding-top: -webkit-calc((1em * (16 / 14) - 1em) / 2);
+    -webkit-user-drag: none;
+}
+
+article .scope {
+    -webkit-box-flex: 1 !important;
+    text-align: left !important;
+    min-width: 0 !important;
+    padding-top: -webkit-calc(1em * ((14 - 12) / 12)) /* difference between <h2> and .scope font sizes */;
+}
+
+article .scope::before {
+    content: "(";
+    padding-left: 0.5em;
+}
+
+article .scope::after {
+    content: ")";
+}
+
+article a, article a:visited {
+    text-decoration: none;
+    color: #3366cc;
+}
+
+article p {
+    margin: 0;
+}
+
+/* Hide scopes and availabilities in narrow windows instead of truncating too much of titles */
+@media screen and (max-width: 42em) {
+    article > div > :nth-child(2) {
+        display: none;
+    }
+}
+
