@@ -1744,6 +1744,7 @@
 		D48EB73DDC4EC7ADD58C1C7B /* DocumentationAIScanView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F60787477E14031160E05A3B /* DocumentationAIScanView.swift */; };
 		D48EB73DDC4EC7ADD58C1C7F /* DocumentationBrowserView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F60787477E14031160E05A32 /* DocumentationBrowserView.swift */; };
 		D48EB73DDC4EC7ADD58C1CAA /* DocSymbols.json in Resources */ = {isa = PBXBuildFile; fileRef = F60787477E14031160E05AAA /* DocSymbols.json */; };
+		DOCASSET0000000000000002 /* Documentation Assets in Resources */ = {isa = PBXBuildFile; fileRef = DOCASSET0000000000000001 /* Documentation Assets */; };
 		D511BA30CC86403B98E03D99 /* DeviceInfoView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1BEA802E7AB3436CBFB82334 /* DeviceInfoView.swift */; };
 		D5571086FD964664A9A37CE0 /* ExecuteTerminalCommand.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5BF7298E4FA7469BBCEC2DCE /* ExecuteTerminalCommand.swift */; };
 		D5781290A80F075CE5578FAC /* AssistBreakdownTaskTool.swift in Sources */ = {isa = PBXBuildFile; fileRef = 214F4A907150AFEE77AF7658 /* AssistBreakdownTaskTool.swift */; };
@@ -5735,6 +5736,7 @@
 		F60787477E14031160E05A44 /* ProjectNotesWorkspaceState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProjectNotesWorkspaceState.swift; sourceTree = "<group>"; };
 		F60787477E14031160E05A46 /* ProjectNotesWorkspaceView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProjectNotesWorkspaceView.swift; sourceTree = "<group>"; };
 		F60787477E14031160E05AAA /* DocSymbols.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = DocSymbols.json; sourceTree = "<group>"; };
+		DOCASSET0000000000000001 /* Documentation Assets */ = {isa = PBXFileReference; lastKnownFileType = folder; path = "Documentation Assets"; sourceTree = "<group>"; };
 		F60918861E595AC72A6C72F8 /* BuildLogDecoder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BuildLogDecoder.swift; sourceTree = "<group>"; };
 		F65A3FDC991F7D91CA5531EE /* JSONToSwiftView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JSONToSwiftView.swift; sourceTree = "<group>"; };
 		F68E78007D38BEDEADAC1868 /* GitHistoryView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GitHistoryView.swift; sourceTree = "<group>"; };
@@ -8037,6 +8039,7 @@
 				SNDGRP000000000000000001 /* Sounds */,
 				9202E3117A117B2EA9BD82E4 /* File Templates */,
 				F60787477E14031160E05AAA /* DocSymbols.json */,
+				DOCASSET0000000000000001 /* Documentation Assets */,
 				180ED1F5157DACBE8B1D139C /* Codex */,
 				ECAAA1260294B0DD15620104 /* Symbols/sfsymbol4.txt */,
 				ECAAA1260294B0DD15620105 /* Symbols/sfsymbol5.txt */,
@@ -10958,6 +10961,7 @@
 				SNDBLD000000000000000056 /* SwiftCode_Warning_Caution.aiff in Resources */,
 				SNDBLD000000000000000057 /* SwiftCode_Error_Attention.aiff in Resources */,
 				D48EB73DDC4EC7ADD58C1CAA /* DocSymbols.json in Resources */,
+				DOCASSET0000000000000002 /* Documentation Assets in Resources */,
 				600B4ED1612FABB403A598E2 /* package.json in Resources */,
 				4B170D36F9DA274C8C143C69 /* bridge.js in Resources */,
 				CE6D6B3F7D9EE6AD37DBDC74 /* avfoundation_processing.SKILLS.md in Resources */,
