@@ -73,17 +73,10 @@ public class DocumentationBrowserWindowController: NSWindowController {
 // ====================================================================
 
 public struct DocumentationBrowserView: View {
-    @Environment(\.dismiss) private var dismiss
-
     public init() {}
 
     public var body: some View {
-        Color.clear
-            .frame(width: 0, height: 0)
-            .onAppear {
-                DocumentationBrowserWindowManager.shared.showWindow()
-                dismiss()
-            }
+        NativeDocumentationBrowserWorkspaceView()
     }
 }
 
@@ -169,11 +162,8 @@ struct CodeSnippet: Identifiable, Codable, Hashable, Sendable {
 }
 
 // MARK: - On-Device Offline Documentation Indexer & Loader
-@globalActor actor DocSymbolsLoaderActor {
-    static let shared = DocSymbolsLoaderActor()
-}
 
-@DocSymbolsLoaderActor
+@MainActor
 final class DocSymbolsLoader {
     private static let logger = Logger(subsystem: "com.swiftcode.assist", category: "DocSymbolsLoader")
     private static var cachedSymbols: [DocSymbol]? = nil
@@ -182,12 +172,13 @@ final class DocSymbolsLoader {
 
     /// Resolves the absolute file URL to the offline "Documentation Assets" directory.
     static func getDocumentationAssetsURL() -> URL? {
-        if let resolved = resolvedAssetsDirectory {
+        if let resolved = resolvedAssetsDirectory, FileManager.default.fileExists(atPath: resolved.path) {
             return resolved
         }
 
         // 1. Check in Bundle.main resources
-        if let bundleDir = Bundle.main.url(forResource: "Documentation Assets", withExtension: nil) {
+        if let bundleDir = Bundle.main.url(forResource: "Documentation Assets", withExtension: nil),
+           FileManager.default.fileExists(atPath: bundleDir.path) {
             resolvedAssetsDirectory = bundleDir
             return bundleDir
         }
@@ -197,11 +188,13 @@ final class DocSymbolsLoader {
             return resURL
         }
 
-        // 2. Check development workspace paths
+        // 2. Check development workspace & standard known paths
         let currentDir = FileManager.default.currentDirectoryPath
-        let candidates = [
+        let candidates: [URL] = [
             URL(fileURLWithPath: currentDir).appendingPathComponent("SwiftCode/Resources/Documentation Assets"),
-            URL(fileURLWithPath: currentDir).appendingPathComponent("Resources/Documentation Assets")
+            URL(fileURLWithPath: currentDir).appendingPathComponent("Resources/Documentation Assets"),
+            URL(fileURLWithPath: "/Users/dylan/SwiftCode-Mac/SwiftCode/Resources/Documentation Assets"),
+            URL(fileURLWithPath: "/Applications/SwiftCode.app/Contents/Resources/Documentation Assets")
         ]
 
         for candidate in candidates {
@@ -696,6 +689,17 @@ struct NativeDocumentationBrowserWorkspaceView: View {
                 .padding(.horizontal, 10)
                 .padding(.vertical, 4)
                 .background(Color.green.opacity(0.12), in: Capsule())
+
+                // Standalone pop-out window button
+                Button {
+                    DocumentationBrowserWindowManager.shared.showWindow()
+                } label: {
+                    Label("Pop Out Window", systemImage: "macwindow.on.rectangle")
+                        .font(.caption.bold())
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+                .help("Open in a separate dedicated documentation window")
             }
             .padding()
             .background(Color(NSColor.windowBackgroundColor))
@@ -969,7 +973,19 @@ struct NativeDocumentationBrowserWorkspaceView: View {
             if let sym = selectedSymbol {
                 symbolDetailsPane(sym)
             } else {
-                documentationHubHomeView()
+                if detailPresentationMode == .webViewer {
+                    OfflineDocumentationViewerContainer(
+                        initialPath: "/documentation/developerdocumentation",
+                        symbol: nil,
+                        onSelectSymbol: { symbolName in
+                            if let matched = DocSymbolsLoader.lookupSymbol(symbolName) {
+                                self.selectedSymbol = matched
+                            }
+                        }
+                    )
+                } else {
+                    documentationHubHomeView()
+                }
             }
         }
         .frame(minWidth: 600)
@@ -1610,8 +1626,16 @@ Select a symbol from the left sidebar to generate targeted API breakdowns, concu
     }
 
     private func offlineWebRenderer(_ sym: DocSymbol) -> some View {
-        OfflineDocumentationWebView(symbol: sym)
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
+        OfflineDocumentationViewerContainer(
+            initialPath: sym.docPath.isEmpty ? "/documentation/developerdocumentation/\(sym.name.lowercased())" : sym.docPath,
+            symbol: sym,
+            onSelectSymbol: { symbolName in
+                if let matched = DocSymbolsLoader.lookupSymbol(symbolName) {
+                    self.selectedSymbol = matched
+                }
+            }
+        )
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
     private func documentationHubHomeView() -> some View {
@@ -1640,7 +1664,53 @@ Select a symbol from the left sidebar to generate targeted API breakdowns, concu
                         .font(.title3)
                         .foregroundStyle(.secondary)
                 }
-                .padding(.bottom, 10)
+                .padding(.bottom, 4)
+
+                // Quick launch banner for official DocC web catalog
+                Button {
+                    detailPresentationMode = .webViewer
+                } label: {
+                    HStack(spacing: 16) {
+                        ZStack {
+                            RoundedRectangle(cornerRadius: 12)
+                                .fill(Color.orange.opacity(0.15))
+                                .frame(width: 48, height: 48)
+                            Image(systemName: "safari.fill")
+                                .font(.title3)
+                                .foregroundStyle(.orange)
+                        }
+
+                        VStack(alignment: .leading, spacing: 3) {
+                            HStack(spacing: 8) {
+                                Text("Browse Official Apple DocC Web Catalog")
+                                    .font(.headline)
+                                    .foregroundStyle(.primary)
+                                Text("100% OFFLINE")
+                                    .font(.system(size: 9, weight: .black, design: .monospaced))
+                                    .padding(.horizontal, 6)
+                                    .padding(.vertical, 2)
+                                    .background(Color.green.opacity(0.15), in: Capsule())
+                                    .foregroundStyle(.green)
+                            }
+                            Text("Render the full interactive WebKit documentation archive with Apple's technology navigation tree, search, and topics.")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+
+                        Spacer()
+
+                        Image(systemName: "arrow.right.circle.fill")
+                            .font(.title3)
+                            .foregroundStyle(.orange)
+                    }
+                    .padding(14)
+                    .background(Color.secondary.opacity(0.04), in: RoundedRectangle(cornerRadius: 12))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 12)
+                            .stroke(Color.secondary.opacity(0.1), lineWidth: 1)
+                    )
+                }
+                .buttonStyle(.plain)
 
                 // Grid of Frameworks
                 VStack(alignment: .leading, spacing: 14) {
@@ -1927,72 +1997,325 @@ ON DELETE CASCADE;
     }
 }
 
-// MARK: - Offline Documentation WebKit View (100% Offline from Documentation Assets)
+// MARK: - Offline Documentation WebKit View & Container (100% Offline from Documentation Assets)
 
-private struct OfflineDocumentationWebView: NSViewRepresentable {
-    let symbol: DocSymbol
+final class DocCURLSchemeHandler: NSObject, WKURLSchemeHandler {
+    private let assetsDirectory: URL
+    private let lock = NSLock()
+    private var stoppedTasks = Set<ObjectIdentifier>()
+
+    init(assetsDirectory: URL) {
+        self.assetsDirectory = assetsDirectory
+        super.init()
+    }
+
+    func webView(_ webView: WKWebView, start urlSchemeTask: WKURLSchemeTask) {
+        let taskID = ObjectIdentifier(urlSchemeTask)
+        guard let url = urlSchemeTask.request.url else {
+            urlSchemeTask.didFailWithError(NSError(domain: "DocCScheme", code: 400, userInfo: [NSLocalizedDescriptionKey: "Invalid URL"]))
+            return
+        }
+
+        var relativePath = url.path
+        if relativePath.hasPrefix("/") {
+            relativePath = String(relativePath.dropFirst())
+        }
+
+        var fileURL = assetsDirectory.appendingPathComponent(relativePath)
+        var isDir: ObjCBool = false
+
+        if FileManager.default.fileExists(atPath: fileURL.path, isDirectory: &isDir) {
+            if isDir.boolValue {
+                let candidate = fileURL.appendingPathComponent("index.html")
+                if FileManager.default.fileExists(atPath: candidate.path) {
+                    fileURL = candidate
+                } else {
+                    fileURL = assetsDirectory.appendingPathComponent("index.html")
+                }
+            }
+        } else {
+            // Check inside DeveloperDocumentation.doccarchive subfolder
+            let archiveCandidate = assetsDirectory.appendingPathComponent("DeveloperDocumentation.doccarchive").appendingPathComponent(relativePath)
+            if FileManager.default.fileExists(atPath: archiveCandidate.path, isDirectory: &isDir) {
+                if isDir.boolValue {
+                    fileURL = archiveCandidate.appendingPathComponent("index.html")
+                } else {
+                    fileURL = archiveCandidate
+                }
+            } else if url.path.hasPrefix("/documentation") || url.path.isEmpty || url.path == "/" {
+                // Return index.html SPA entrypoint so the DocC Vue router can mount the route
+                fileURL = assetsDirectory.appendingPathComponent("index.html")
+            }
+        }
+
+        guard FileManager.default.fileExists(atPath: fileURL.path),
+              let data = try? Data(contentsOf: fileURL) else {
+            lock.lock()
+            let isStopped = stoppedTasks.contains(taskID)
+            lock.unlock()
+            if !isStopped {
+                let error = NSError(domain: "DocCScheme", code: 404, userInfo: [NSLocalizedDescriptionKey: "Asset not found: \(url.path)"])
+                urlSchemeTask.didFailWithError(error)
+            }
+            return
+        }
+
+        let mimeType: String
+        switch fileURL.pathExtension.lowercased() {
+        case "html": mimeType = "text/html; charset=utf-8"
+        case "css": mimeType = "text/css; charset=utf-8"
+        case "js": mimeType = "application/javascript; charset=utf-8"
+        case "json": mimeType = "application/json; charset=utf-8"
+        case "svg": mimeType = "image/svg+xml"
+        case "ico": mimeType = "image/x-icon"
+        case "jpg", "jpeg": mimeType = "image/jpeg"
+        case "png": mimeType = "image/png"
+        case "gif": mimeType = "image/gif"
+        case "mp4": mimeType = "video/mp4"
+        case "pdf": mimeType = "application/pdf"
+        case "woff": mimeType = "font/woff"
+        case "woff2": mimeType = "font/woff2"
+        default: mimeType = "application/octet-stream"
+        }
+
+        lock.lock()
+        defer { lock.unlock() }
+        if stoppedTasks.contains(taskID) { return }
+
+        let response = HTTPURLResponse(
+            url: url,
+            statusCode: 200,
+            httpVersion: "HTTP/1.1",
+            headerFields: [
+                "Content-Type": mimeType,
+                "Content-Length": "\(data.count)",
+                "Access-Control-Allow-Origin": "*",
+                "Cache-Control": "public, max-age=3600"
+            ]
+        ) ?? URLResponse(url: url, mimeType: mimeType, expectedContentLength: data.count, textEncodingName: "utf-8")
+
+        urlSchemeTask.didReceive(response)
+        urlSchemeTask.didReceive(data)
+        urlSchemeTask.didFinish()
+    }
+
+    func webView(_ webView: WKWebView, stop urlSchemeTask: WKURLSchemeTask) {
+        let taskID = ObjectIdentifier(urlSchemeTask)
+        lock.lock()
+        stoppedTasks.insert(taskID)
+        lock.unlock()
+    }
+}
+
+struct OfflineDocumentationViewerContainer: View {
+    let initialPath: String
+    let symbol: DocSymbol?
+    var onSelectSymbol: ((String) -> Void)? = nil
+
+    @State private var webView = WKWebView()
+    @State private var canGoBack = false
+    @State private var canGoForward = false
+    @State private var currentURLString = ""
+
+    private var targetURL: URL {
+        let cleanPath = initialPath.hasPrefix("/") ? initialPath : "/\(initialPath)"
+        return URL(string: "docc://developer.apple.com\(cleanPath)") ?? URL(string: "docc://developer.apple.com/documentation/developerdocumentation")!
+    }
+
+    var body: some View {
+        VStack(spacing: 0) {
+            // WebKit Documentation Toolbar
+            HStack(spacing: 12) {
+                // Navigation controls
+                HStack(spacing: 4) {
+                    Button {
+                        webView.goBack()
+                    } label: {
+                        Image(systemName: "chevron.backward")
+                            .font(.system(size: 13, weight: .semibold))
+                    }
+                    .disabled(!canGoBack)
+                    .buttonStyle(.plain)
+                    .padding(6)
+                    .background(canGoBack ? Color.secondary.opacity(0.12) : Color.clear, in: RoundedRectangle(cornerRadius: 6))
+                    .help("Go Back")
+
+                    Button {
+                        webView.goForward()
+                    } label: {
+                        Image(systemName: "chevron.forward")
+                            .font(.system(size: 13, weight: .semibold))
+                    }
+                    .disabled(!canGoForward)
+                    .buttonStyle(.plain)
+                    .padding(6)
+                    .background(canGoForward ? Color.secondary.opacity(0.12) : Color.clear, in: RoundedRectangle(cornerRadius: 6))
+                    .help("Go Forward")
+
+                    Button {
+                        webView.reload()
+                    } label: {
+                        Image(systemName: "arrow.clockwise")
+                            .font(.system(size: 12, weight: .semibold))
+                    }
+                    .buttonStyle(.plain)
+                    .padding(6)
+                    .background(Color.secondary.opacity(0.12), in: RoundedRectangle(cornerRadius: 6))
+                    .help("Reload Documentation")
+
+                    Button {
+                        loadURL(URL(string: "docc://developer.apple.com/documentation/developerdocumentation")!)
+                    } label: {
+                        Image(systemName: "house.fill")
+                            .font(.system(size: 12))
+                    }
+                    .buttonStyle(.plain)
+                    .padding(6)
+                    .background(Color.secondary.opacity(0.12), in: RoundedRectangle(cornerRadius: 6))
+                    .help("Documentation Home (All Technologies)")
+                }
+
+                // Address & Breadcrumb Badge
+                HStack(spacing: 6) {
+                    Image(systemName: "lock.shield.fill")
+                        .font(.system(size: 11))
+                        .foregroundStyle(.green)
+                    Text(displayPath)
+                        .font(.system(size: 11, weight: .medium, design: .monospaced))
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+                    Spacer()
+                    Text("Offline DocC")
+                        .font(.system(size: 9, weight: .bold, design: .monospaced))
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 2)
+                        .background(Color.orange.opacity(0.15), in: Capsule())
+                        .foregroundStyle(.orange)
+                }
+                .padding(.horizontal, 10)
+                .padding(.vertical, 5)
+                .background(Color.secondary.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+
+                // External Safari Preview Button
+                Button {
+                    openInSafari()
+                } label: {
+                    HStack(spacing: 5) {
+                        Image(systemName: "safari")
+                            .font(.caption)
+                        Text("Open in Safari")
+                            .font(.caption.bold())
+                    }
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 5)
+                    .background(Color.blue.opacity(0.12), in: RoundedRectangle(cornerRadius: 8))
+                    .foregroundStyle(.blue)
+                }
+                .buttonStyle(.plain)
+                .help("Launch in external Safari browser via local preview server")
+            }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 8)
+            .background(Color(NSColor.windowBackgroundColor))
+
+            Divider()
+
+            // Main WebKit View
+            OfflineDocumentationWKWebView(
+                webView: webView,
+                targetURL: targetURL,
+                assetsURL: DocSymbolsLoader.getDocumentationAssetsURL(),
+                canGoBack: $canGoBack,
+                canGoForward: $canGoForward,
+                currentURLString: $currentURLString,
+                onNavigate: { newURL in
+                    let last = newURL.lastPathComponent
+                    if !last.isEmpty && last != "developerdocumentation" {
+                        onSelectSymbol?(last)
+                    }
+                }
+            )
+        }
+    }
+
+    private var displayPath: String {
+        if !currentURLString.isEmpty, let url = URL(string: currentURLString) {
+            return url.path
+        }
+        return initialPath
+    }
+
+    private func loadURL(_ url: URL) {
+        webView.load(URLRequest(url: url))
+    }
+
+    private func openInSafari() {
+        guard let assetsURL = DocSymbolsLoader.getDocumentationAssetsURL() else { return }
+        let cleanPath = initialPath.hasPrefix("/") ? initialPath : "/\(initialPath)"
+
+        let task = Process()
+        task.launchPath = "/bin/bash"
+        task.arguments = [
+            "-c",
+            "cd '\(assetsURL.path)' && (pgrep -f 'http.server 8765' >/dev/null || nohup python3 -m http.server 8765 >/dev/null 2>&1 &) && sleep 0.2 && open 'http://localhost:8765\(cleanPath)'"
+        ]
+        try? task.run()
+    }
+}
+
+private struct OfflineDocumentationWKWebView: NSViewRepresentable {
+    let webView: WKWebView
+    let targetURL: URL
+    let assetsURL: URL?
+    @Binding var canGoBack: Bool
+    @Binding var canGoForward: Bool
+    @Binding var currentURLString: String
+    var onNavigate: ((URL) -> Void)?
+
+    class Coordinator: NSObject, WKNavigationDelegate {
+        var parent: OfflineDocumentationWKWebView
+
+        init(_ parent: OfflineDocumentationWKWebView) {
+            self.parent = parent
+        }
+
+        func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
+            DispatchQueue.main.async {
+                self.parent.canGoBack = webView.canGoBack
+                self.parent.canGoForward = webView.canGoForward
+                if let url = webView.url {
+                    self.parent.currentURLString = url.absoluteString
+                    self.parent.onNavigate?(url)
+                }
+            }
+        }
+    }
+
+    func makeCoordinator() -> Coordinator {
+        Coordinator(self)
+    }
 
     func makeNSView(context: Context) -> WKWebView {
-        let config = WKWebViewConfiguration()
+        let config = webView.configuration
         config.defaultWebpagePreferences.allowsContentJavaScript = true
-        let webView = WKWebView(frame: .zero, configuration: config)
-        loadOfflineDocumentation(on: webView)
+        if let assets = assetsURL {
+            let handler = DocCURLSchemeHandler(assetsDirectory: assets)
+            config.setURLSchemeHandler(handler, forURLScheme: "docc")
+        }
+        config.preferences.setValue(true, forKey: "allowFileAccessFromFileURLs")
+        config.setValue(true, forKey: "allowUniversalAccessFromFileURLs")
+
+        webView.navigationDelegate = context.coordinator
+        webView.load(URLRequest(url: targetURL))
         return webView
     }
 
-    func updateNSView(_ webView: WKWebView, context: Context) {
-        loadOfflineDocumentation(on: webView)
-    }
-
-    private func loadOfflineDocumentation(on webView: WKWebView) {
-        guard let assetsURL = DocSymbolsLoader.getDocumentationAssetsURL() else {
-            let errorHTML = "<html><body style='font-family: -apple-system; padding: 40px; color: #888;'><h2>Offline Assets Directory Not Found</h2><p>Ensure Documentation Assets are copied to Resources.</p></body></html>"
-            webView.loadHTMLString(errorHTML, baseURL: nil)
+    func updateNSView(_ nsView: WKWebView, context: Context) {
+        context.coordinator.parent = self
+        if let current = nsView.url, current.path == targetURL.path {
             return
         }
-
-        // Try direct article folder
-        let directHTML = assetsURL.appendingPathComponent("documentation/developerdocumentation/\(symbol.name.lowercased())/index.html")
-        if FileManager.default.fileExists(atPath: directHTML.path) {
-            webView.loadFileURL(directHTML, allowingReadAccessTo: assetsURL)
-            return
-        }
-
-        // Try root index.html
-        let rootHTML = assetsURL.appendingPathComponent("index.html")
-        if FileManager.default.fileExists(atPath: rootHTML.path) {
-            webView.loadFileURL(rootHTML, allowingReadAccessTo: assetsURL)
-            return
-        }
-
-        let fallbackHTML = """
-<!DOCTYPE html>
-<html>
-<head>
-<meta charset="utf-8">
-<style>
-body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; padding: 40px; background: #1e1e1e; color: #ddd; }
-h1 { color: #fff; margin-bottom: 4px; }
-.badge { display: inline-block; background: #ff9f0a; color: #000; font-weight: bold; padding: 2px 8px; border-radius: 4px; font-size: 11px; }
-pre { background: #2d2d2d; padding: 16px; border-radius: 8px; overflow-x: auto; color: #58a6ff; font-family: "SF Mono", monospace; font-size: 13px; }
-p { font-size: 15px; line-height: 1.6; color: #ccc; }
-</style>
-</head>
-<body>
-<span class="badge">OFFLINE DOCUMENTATION ARCHIVE</span>
-<h1>\(symbol.name)</h1>
-<p><strong>Framework:</strong> \(symbol.framework) | <strong>Availability:</strong> \(symbol.availability)</p>
-<hr style="border: 0; border-top: 1px solid #444; margin: 20px 0;">
-<h3>Overview</h3>
-<p>\(symbol.summary)</p>
-<h3>Declaration</h3>
-<pre>\(symbol.syntax)</pre>
-<h3>Sample Usage</h3>
-<pre>\(symbol.codeSample)</pre>
-</body>
-</html>
-"""
-        webView.loadHTMLString(fallbackHTML, baseURL: assetsURL)
+        nsView.load(URLRequest(url: targetURL))
     }
 }
 
