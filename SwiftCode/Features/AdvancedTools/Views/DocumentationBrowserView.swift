@@ -1579,7 +1579,7 @@ Select a symbol from the left sidebar to generate targeted API breakdowns, concu
                         Text("See Also & Related APIs")
                             .font(.title2.bold())
 
-                        FlowLayout(spacing: 8) {
+                        DocFlowLayout(spacing: 8) {
                             ForEach(sym.seeAlso, id: \.self) { relatedName in
                                 Button {
                                     if let target = DocSymbolsLoader.lookupSymbol(relatedName) {
@@ -1998,7 +1998,7 @@ p { font-size: 15px; line-height: 1.6; color: #ccc; }
 
 // MARK: - Flow Layout Helper for Tags & Chips
 
-private struct FlowLayout: Layout {
+private struct DocFlowLayout: Layout {
     var spacing: CGFloat = 8
 
     func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {

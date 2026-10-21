@@ -236,7 +236,7 @@ struct GitWorktreesView: View {
 
                                 Divider()
 
-                                FlowLayout(spacing: 8) {
+                                WorktreeFlowLayout(spacing: 8) {
                                     Button {
                                         openWorktreeInSwiftCode(wt)
                                     } label: {
@@ -671,7 +671,7 @@ struct GitWorktreesView: View {
 
 // MARK: - Supporting FlowLayout for Buttons
 
-struct FlowLayout: Layout {
+private struct WorktreeFlowLayout: Layout {
     var spacing: CGFloat
 
     func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
