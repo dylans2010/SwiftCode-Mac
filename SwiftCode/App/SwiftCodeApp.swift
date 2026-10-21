@@ -69,6 +69,10 @@ struct SwiftCodeApp: App {
             .environmentObject(codeSuggestionsML)
             .environmentObject(gistService)
             .onOpenURL { url in
+                if url.scheme == "docc" || url.pathExtension.lowercased() == "doccarchive" {
+                    DocumentationBrowserWindowManager.shared.openURL(url)
+                    return
+                }
                 if GitHubOAuth.shared.handleOpenURL(url) {
                     return
                 }

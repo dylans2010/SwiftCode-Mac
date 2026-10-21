@@ -9,6 +9,7 @@ import SQLite3
 public final class DocumentationBrowserWindowManager: NSObject, NSWindowDelegate {
     public static let shared = DocumentationBrowserWindowManager()
     private var windowController: DocumentationBrowserWindowController?
+    public var pendingURLToOpen: URL? = nil
 
     public func showWindow() {
         if let existing = windowController {
@@ -22,6 +23,12 @@ public final class DocumentationBrowserWindowManager: NSObject, NSWindowDelegate
         wc.window?.makeKeyAndOrderFront(nil)
     }
 
+    public func openURL(_ url: URL) {
+        pendingURLToOpen = url
+        showWindow()
+        NotificationCenter.default.post(name: .openDocCURLNotification, object: url)
+    }
+
     public func closeWindow() {
         windowController?.close()
         windowController = nil
@@ -31,6 +38,10 @@ public final class DocumentationBrowserWindowManager: NSObject, NSWindowDelegate
     public func windowWillClose(_ notification: Notification) {
         windowController = nil
     }
+}
+
+public extension Notification.Name {
+    static let openDocCURLNotification = Notification.Name("com.swiftcode.openDocCURLNotification")
 }
 
 // MARK: - Native Window Controller
@@ -569,6 +580,8 @@ struct NativeDocumentationBrowserWorkspaceView: View {
 
     // Detail Pane Presentation Mode (Native Inspector vs Offline Web Viewer)
     @State private var detailPresentationMode: DetailViewMode = .nativeCard
+    @State private var activeWebPath: String = "/documentation/developerdocumentation"
+    @State private var activeCustomArchiveURL: URL? = nil
 
     enum DetailViewMode: String, CaseIterable, Identifiable {
         case nativeCard = "Native Inspector"
@@ -719,10 +732,60 @@ struct NativeDocumentationBrowserWorkspaceView: View {
             }
         }
         .onAppear {
+            if let pending = DocumentationBrowserWindowManager.shared.pendingURLToOpen {
+                DocumentationBrowserWindowManager.shared.pendingURLToOpen = nil
+                handleIncomingDocURL(pending)
+            }
             Task {
                 await loadDatabase()
                 loadSnippets()
             }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .openDocCURLNotification)) { notification in
+            guard let url = notification.object as? URL else { return }
+            handleIncomingDocURL(url)
+        }
+    }
+
+    private func handleIncomingDocURL(_ url: URL) {
+        selectedWorkspaceTab = "Apple Docs"
+        detailPresentationMode = .webViewer
+
+        if url.pathExtension.lowercased() == "doccarchive" {
+            activeCustomArchiveURL = url
+            activeWebPath = "/documentation"
+            selectedSymbol = nil
+            return
+        }
+
+        activeCustomArchiveURL = nil
+
+        var targetPath = url.path
+        if !targetPath.hasPrefix("/") {
+            targetPath = "/\(targetPath)"
+        }
+
+        if targetPath.isEmpty || targetPath == "/" {
+            targetPath = "/documentation/developerdocumentation"
+        }
+
+        activeWebPath = targetPath
+
+        // Try to identify a symbol from the URL components
+        let components = url.pathComponents.filter { $0 != "/" && !$0.isEmpty }
+        if let last = components.last, let matched = DocSymbolsLoader.lookupSymbol(last) {
+            selectedSymbol = matched
+        } else if components.count >= 2, let candidate = DocSymbolsLoader.lookupSymbol(components[components.count - 2]) {
+            selectedSymbol = candidate
+        } else {
+            var found: DocSymbol? = nil
+            for comp in components.reversed() {
+                if let sym = DocSymbolsLoader.lookupSymbol(comp) {
+                    found = sym
+                    break
+                }
+            }
+            selectedSymbol = found
         }
     }
 
@@ -975,8 +1038,9 @@ struct NativeDocumentationBrowserWorkspaceView: View {
             } else {
                 if detailPresentationMode == .webViewer {
                     OfflineDocumentationViewerContainer(
-                        initialPath: "/documentation/developerdocumentation",
+                        initialPath: activeWebPath,
                         symbol: nil,
+                        customArchiveURL: activeCustomArchiveURL,
                         onSelectSymbol: { symbolName in
                             if let matched = DocSymbolsLoader.lookupSymbol(symbolName) {
                                 self.selectedSymbol = matched
@@ -1626,9 +1690,18 @@ Select a symbol from the left sidebar to generate targeted API breakdowns, concu
     }
 
     private func offlineWebRenderer(_ sym: DocSymbol) -> some View {
-        OfflineDocumentationViewerContainer(
-            initialPath: sym.docPath.isEmpty ? "/documentation/developerdocumentation/\(sym.name.lowercased())" : sym.docPath,
+        let path: String
+        if !activeWebPath.isEmpty && activeWebPath.lowercased().contains(sym.name.lowercased()) {
+            path = activeWebPath
+        } else if !sym.docPath.isEmpty {
+            path = sym.docPath
+        } else {
+            path = "/documentation/developerdocumentation/\(sym.name.lowercased())"
+        }
+        return OfflineDocumentationViewerContainer(
+            initialPath: path,
             symbol: sym,
+            customArchiveURL: activeCustomArchiveURL,
             onSelectSymbol: { symbolName in
                 if let matched = DocSymbolsLoader.lookupSymbol(symbolName) {
                     self.selectedSymbol = matched
@@ -2001,11 +2074,13 @@ ON DELETE CASCADE;
 
 final class DocCURLSchemeHandler: NSObject, WKURLSchemeHandler {
     private let assetsDirectory: URL
+    private let customArchiveDirectory: URL?
     private let lock = NSLock()
     private var stoppedTasks = Set<ObjectIdentifier>()
 
-    init(assetsDirectory: URL) {
+    init(assetsDirectory: URL, customArchiveDirectory: URL? = nil) {
         self.assetsDirectory = assetsDirectory
+        self.customArchiveDirectory = customArchiveDirectory
         super.init()
     }
 
@@ -2021,20 +2096,37 @@ final class DocCURLSchemeHandler: NSObject, WKURLSchemeHandler {
             relativePath = String(relativePath.dropFirst())
         }
 
-        var fileURL = assetsDirectory.appendingPathComponent(relativePath)
+        var fileURL: URL? = nil
         var isDir: ObjCBool = false
 
-        if FileManager.default.fileExists(atPath: fileURL.path, isDirectory: &isDir) {
-            if isDir.boolValue {
-                let candidate = fileURL.appendingPathComponent("index.html")
-                if FileManager.default.fileExists(atPath: candidate.path) {
-                    fileURL = candidate
+        // 1. Check custom archive directory if provided
+        if let custom = customArchiveDirectory {
+            let candidate = custom.appendingPathComponent(relativePath)
+            if FileManager.default.fileExists(atPath: candidate.path, isDirectory: &isDir) {
+                if isDir.boolValue {
+                    let html = candidate.appendingPathComponent("index.html")
+                    fileURL = FileManager.default.fileExists(atPath: html.path) ? html : custom.appendingPathComponent("index.html")
                 } else {
-                    fileURL = assetsDirectory.appendingPathComponent("index.html")
+                    fileURL = candidate
                 }
             }
-        } else {
-            // Check inside DeveloperDocumentation.doccarchive subfolder
+        }
+
+        // 2. Check assets directory
+        if fileURL == nil {
+            let candidate = assetsDirectory.appendingPathComponent(relativePath)
+            if FileManager.default.fileExists(atPath: candidate.path, isDirectory: &isDir) {
+                if isDir.boolValue {
+                    let html = candidate.appendingPathComponent("index.html")
+                    fileURL = FileManager.default.fileExists(atPath: html.path) ? html : assetsDirectory.appendingPathComponent("index.html")
+                } else {
+                    fileURL = candidate
+                }
+            }
+        }
+
+        // 3. Check inside DeveloperDocumentation.doccarchive subfolder
+        if fileURL == nil {
             let archiveCandidate = assetsDirectory.appendingPathComponent("DeveloperDocumentation.doccarchive").appendingPathComponent(relativePath)
             if FileManager.default.fileExists(atPath: archiveCandidate.path, isDirectory: &isDir) {
                 if isDir.boolValue {
@@ -2042,14 +2134,20 @@ final class DocCURLSchemeHandler: NSObject, WKURLSchemeHandler {
                 } else {
                     fileURL = archiveCandidate
                 }
-            } else if url.path.hasPrefix("/documentation") || url.path.isEmpty || url.path == "/" {
-                // Return index.html SPA entrypoint so the DocC Vue router can mount the route
-                fileURL = assetsDirectory.appendingPathComponent("index.html")
             }
         }
 
-        guard FileManager.default.fileExists(atPath: fileURL.path),
-              let data = try? Data(contentsOf: fileURL) else {
+        // 4. Fallback to index.html for SPA documentation routes
+        if fileURL == nil, url.path.hasPrefix("/documentation") || url.path.hasPrefix("/tutorials") || url.path.isEmpty || url.path == "/" {
+            let spaCandidate = customArchiveDirectory?.appendingPathComponent("index.html") ?? assetsDirectory.appendingPathComponent("index.html")
+            if FileManager.default.fileExists(atPath: spaCandidate.path) {
+                fileURL = spaCandidate
+            }
+        }
+
+        guard let resolvedURL = fileURL,
+              FileManager.default.fileExists(atPath: resolvedURL.path),
+              let data = try? Data(contentsOf: resolvedURL) else {
             lock.lock()
             let isStopped = stoppedTasks.contains(taskID)
             lock.unlock()
@@ -2061,7 +2159,7 @@ final class DocCURLSchemeHandler: NSObject, WKURLSchemeHandler {
         }
 
         let mimeType: String
-        switch fileURL.pathExtension.lowercased() {
+        switch resolvedURL.pathExtension.lowercased() {
         case "html": mimeType = "text/html; charset=utf-8"
         case "css": mimeType = "text/css; charset=utf-8"
         case "js": mimeType = "application/javascript; charset=utf-8"
@@ -2097,6 +2195,7 @@ final class DocCURLSchemeHandler: NSObject, WKURLSchemeHandler {
         urlSchemeTask.didReceive(response)
         urlSchemeTask.didReceive(data)
         urlSchemeTask.didFinish()
+        stoppedTasks.remove(taskID)
     }
 
     func webView(_ webView: WKWebView, stop urlSchemeTask: WKURLSchemeTask) {
@@ -2107,15 +2206,37 @@ final class DocCURLSchemeHandler: NSObject, WKURLSchemeHandler {
     }
 }
 
+@MainActor
+final class DocCWebViewController: ObservableObject {
+    @Published var canGoBack: Bool = false
+    @Published var canGoForward: Bool = false
+    @Published var currentURLString: String = ""
+    weak var webView: WKWebView?
+
+    func goBack() {
+        webView?.goBack()
+    }
+
+    func goForward() {
+        webView?.goForward()
+    }
+
+    func reload() {
+        webView?.reload()
+    }
+
+    func load(url: URL) {
+        webView?.load(URLRequest(url: url))
+    }
+}
+
 struct OfflineDocumentationViewerContainer: View {
     let initialPath: String
     let symbol: DocSymbol?
+    var customArchiveURL: URL? = nil
     var onSelectSymbol: ((String) -> Void)? = nil
 
-    @State private var webView = WKWebView()
-    @State private var canGoBack = false
-    @State private var canGoForward = false
-    @State private var currentURLString = ""
+    @StateObject private var controller = DocCWebViewController()
 
     private var targetURL: URL {
         let cleanPath = initialPath.hasPrefix("/") ? initialPath : "/\(initialPath)"
@@ -2129,31 +2250,31 @@ struct OfflineDocumentationViewerContainer: View {
                 // Navigation controls
                 HStack(spacing: 4) {
                     Button {
-                        webView.goBack()
+                        controller.goBack()
                     } label: {
                         Image(systemName: "chevron.backward")
                             .font(.system(size: 13, weight: .semibold))
                     }
-                    .disabled(!canGoBack)
+                    .disabled(!controller.canGoBack)
                     .buttonStyle(.plain)
                     .padding(6)
-                    .background(canGoBack ? Color.secondary.opacity(0.12) : Color.clear, in: RoundedRectangle(cornerRadius: 6))
+                    .background(controller.canGoBack ? Color.secondary.opacity(0.12) : Color.clear, in: RoundedRectangle(cornerRadius: 6))
                     .help("Go Back")
 
                     Button {
-                        webView.goForward()
+                        controller.goForward()
                     } label: {
                         Image(systemName: "chevron.forward")
                             .font(.system(size: 13, weight: .semibold))
                     }
-                    .disabled(!canGoForward)
+                    .disabled(!controller.canGoForward)
                     .buttonStyle(.plain)
                     .padding(6)
-                    .background(canGoForward ? Color.secondary.opacity(0.12) : Color.clear, in: RoundedRectangle(cornerRadius: 6))
+                    .background(controller.canGoForward ? Color.secondary.opacity(0.12) : Color.clear, in: RoundedRectangle(cornerRadius: 6))
                     .help("Go Forward")
 
                     Button {
-                        webView.reload()
+                        controller.reload()
                     } label: {
                         Image(systemName: "arrow.clockwise")
                             .font(.system(size: 12, weight: .semibold))
@@ -2164,7 +2285,7 @@ struct OfflineDocumentationViewerContainer: View {
                     .help("Reload Documentation")
 
                     Button {
-                        loadURL(URL(string: "docc://developer.apple.com/documentation/developerdocumentation")!)
+                        controller.load(url: URL(string: "docc://developer.apple.com/documentation/developerdocumentation")!)
                     } label: {
                         Image(systemName: "house.fill")
                             .font(.system(size: 12))
@@ -2222,12 +2343,10 @@ struct OfflineDocumentationViewerContainer: View {
 
             // Main WebKit View
             OfflineDocumentationWKWebView(
-                webView: webView,
+                controller: controller,
                 targetURL: targetURL,
                 assetsURL: DocSymbolsLoader.getDocumentationAssetsURL(),
-                canGoBack: $canGoBack,
-                canGoForward: $canGoForward,
-                currentURLString: $currentURLString,
+                customArchiveURL: customArchiveURL,
                 onNavigate: { newURL in
                     let last = newURL.lastPathComponent
                     if !last.isEmpty && last != "developerdocumentation" {
@@ -2239,14 +2358,10 @@ struct OfflineDocumentationViewerContainer: View {
     }
 
     private var displayPath: String {
-        if !currentURLString.isEmpty, let url = URL(string: currentURLString) {
+        if !controller.currentURLString.isEmpty, let url = URL(string: controller.currentURLString) {
             return url.path
         }
         return initialPath
-    }
-
-    private func loadURL(_ url: URL) {
-        webView.load(URLRequest(url: url))
     }
 
     private func openInSafari() {
@@ -2264,15 +2379,13 @@ struct OfflineDocumentationViewerContainer: View {
 }
 
 private struct OfflineDocumentationWKWebView: NSViewRepresentable {
-    let webView: WKWebView
+    @ObservedObject var controller: DocCWebViewController
     let targetURL: URL
     let assetsURL: URL?
-    @Binding var canGoBack: Bool
-    @Binding var canGoForward: Bool
-    @Binding var currentURLString: String
+    var customArchiveURL: URL? = nil
     var onNavigate: ((URL) -> Void)?
 
-    class Coordinator: NSObject, WKNavigationDelegate {
+    class Coordinator: NSObject, WKNavigationDelegate, WKUIDelegate {
         var parent: OfflineDocumentationWKWebView
 
         init(_ parent: OfflineDocumentationWKWebView) {
@@ -2281,13 +2394,49 @@ private struct OfflineDocumentationWKWebView: NSViewRepresentable {
 
         func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
             DispatchQueue.main.async {
-                self.parent.canGoBack = webView.canGoBack
-                self.parent.canGoForward = webView.canGoForward
+                self.parent.controller.canGoBack = webView.canGoBack
+                self.parent.controller.canGoForward = webView.canGoForward
                 if let url = webView.url {
-                    self.parent.currentURLString = url.absoluteString
+                    self.parent.controller.currentURLString = url.absoluteString
                     self.parent.onNavigate?(url)
                 }
             }
+        }
+
+        func webView(_ webView: WKWebView, decidePolicyFor navigationAction: WKNavigationAction, decisionHandler: @escaping (WKNavigationActionPolicy) -> Void) {
+            guard let url = navigationAction.request.url else {
+                decisionHandler(.allow)
+                return
+            }
+
+            if url.scheme == "docc" {
+                decisionHandler(.allow)
+                return
+            }
+
+            if url.scheme == "http" || url.scheme == "https" {
+                if url.host == "developer.apple.com" {
+                    var doccURLStr = url.absoluteString.replacingOccurrences(of: "https://", with: "docc://")
+                    doccURLStr = doccURLStr.replacingOccurrences(of: "http://", with: "docc://")
+                    if let doccURL = URL(string: doccURLStr) {
+                        decisionHandler(.cancel)
+                        webView.load(URLRequest(url: doccURL))
+                        return
+                    }
+                }
+                NSWorkspace.shared.open(url)
+                decisionHandler(.cancel)
+                return
+            }
+
+            decisionHandler(.allow)
+        }
+
+        func webView(_ webView: WKWebView, createWebViewWith configuration: WKWebViewConfiguration, for navigationAction: WKNavigationAction, windowFeatures: WKWindowFeatures) -> WKWebView? {
+            if navigationAction.targetFrame == nil {
+                webView.load(navigationAction.request)
+            }
+            return nil
         }
     }
 
@@ -2296,22 +2445,27 @@ private struct OfflineDocumentationWKWebView: NSViewRepresentable {
     }
 
     func makeNSView(context: Context) -> WKWebView {
-        let config = webView.configuration
+        let config = WKWebViewConfiguration()
         config.defaultWebpagePreferences.allowsContentJavaScript = true
         if let assets = assetsURL {
-            let handler = DocCURLSchemeHandler(assetsDirectory: assets)
+            let handler = DocCURLSchemeHandler(assetsDirectory: assets, customArchiveDirectory: customArchiveURL)
             config.setURLSchemeHandler(handler, forURLScheme: "docc")
         }
         config.preferences.setValue(true, forKey: "allowFileAccessFromFileURLs")
         config.setValue(true, forKey: "allowUniversalAccessFromFileURLs")
 
+        let webView = WKWebView(frame: .zero, configuration: config)
         webView.navigationDelegate = context.coordinator
+        webView.uiDelegate = context.coordinator
+
+        controller.webView = webView
         webView.load(URLRequest(url: targetURL))
         return webView
     }
 
     func updateNSView(_ nsView: WKWebView, context: Context) {
         context.coordinator.parent = self
+        controller.webView = nsView
         if let current = nsView.url, current.path == targetURL.path {
             return
         }

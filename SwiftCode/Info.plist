@@ -20,6 +20,22 @@
 			<key>LSTypeIsPackage</key>
 			<true/>
 		</dict>
+		<dict>
+			<key>CFBundleTypeIconSystemImageName</key>
+			<string>books.vertical</string>
+			<key>CFBundleTypeName</key>
+			<string>DocC Documentation Archive</string>
+			<key>CFBundleTypeRole</key>
+			<string>Viewer</string>
+			<key>LSHandlerRank</key>
+			<string>Alternate</string>
+			<key>LSItemContentTypes</key>
+			<array>
+				<string>com.apple.documentation.doccarchive</string>
+			</array>
+			<key>LSTypeIsPackage</key>
+			<true/>
+		</dict>
 	</array>
 	<key>CFBundleIconFile</key>
 	<string>AppIcon</string>
@@ -37,6 +53,16 @@
 				<string>swiftcode</string>
 				<string>antigravity</string>
 				<string>appwrite-callback-6a670d0b0022e5f964b4</string>
+			</array>
+		</dict>
+		<dict>
+			<key>CFBundleTypeRole</key>
+			<string>Viewer</string>
+			<key>CFBundleURLName</key>
+			<string>com.swiftcode.docc</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>docc</string>
 			</array>
 		</dict>
 	</array>
@@ -116,6 +142,32 @@
 				<key>public.filename-extension</key>
 				<array>
 					<string>scproj</string>
+				</array>
+			</dict>
+		</dict>
+	</array>
+	<key>UTImportedTypeDeclarations</key>
+	<array>
+		<dict>
+			<key>UTTypeConformsTo</key>
+			<array>
+				<string>com.apple.package</string>
+				<string>public.composite-content</string>
+			</array>
+			<key>UTTypeDescription</key>
+			<string>DocC Documentation Archive</string>
+			<key>UTTypeIcons</key>
+			<dict>
+				<key>UTTypeIconSystemImageName</key>
+				<string>books.vertical</string>
+			</dict>
+			<key>UTTypeIdentifier</key>
+			<string>com.apple.documentation.doccarchive</string>
+			<key>UTTypeTagSpecification</key>
+			<dict>
+				<key>public.filename-extension</key>
+				<array>
+					<string>doccarchive</string>
 				</array>
 			</dict>
 		</dict>
