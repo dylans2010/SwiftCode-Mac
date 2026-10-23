@@ -157,6 +157,58 @@ public struct DocSymbol: Identifiable, Codable, Hashable, Sendable {
     }
 }
 
+// MARK: - Documentation Hierarchy & Sections Models
+
+public struct DocCSectionData: Identifiable, Hashable, Sendable {
+    public var id: String { title }
+    public let title: String
+    public let icon: String
+    public var collections: [DocCCollectionData]
+
+    public init(title: String, icon: String, collections: [DocCCollectionData]) {
+        self.title = title
+        self.icon = icon
+        self.collections = collections
+    }
+}
+
+public struct DocCCollectionData: Identifiable, Hashable, Sendable {
+    public var id: String { path }
+    public let title: String
+    public let path: String
+    public let icon: String
+    public var groups: [DocCGroupData]
+
+    public init(title: String, path: String, icon: String, groups: [DocCGroupData]) {
+        self.title = title
+        self.path = path
+        self.icon = icon
+        self.groups = groups
+    }
+}
+
+public struct DocCGroupData: Identifiable, Hashable, Sendable {
+    public var id: String { title }
+    public let title: String
+    public var items: [DocCTopicData]
+
+    public init(title: String, items: [DocCTopicData]) {
+        self.title = title
+        self.items = items
+    }
+}
+
+public struct DocCTopicData: Identifiable, Hashable, Sendable {
+    public var id: String { path }
+    public let title: String
+    public let path: String
+
+    public init(title: String, path: String) {
+        self.title = title
+        self.path = path
+    }
+}
+
 // MARK: - Saved Code Snippet Model
 
 struct CodeSnippet: Identifiable, Codable, Hashable, Sendable {
@@ -535,6 +587,228 @@ final class DocSymbolsLoader {
         return nil
     }
 
+    /// Loads all 5 canonical documentation sections from offline assets with fallback
+    static func loadDocumentationSections() -> [DocCSectionData] {
+        if let assetsURL = getDocumentationAssetsURL() {
+            let jsonURL = assetsURL.appendingPathComponent("index/index.json")
+            if let parsed = parseSections(from: jsonURL), !parsed.isEmpty {
+                return parsed
+            }
+            let archiveIndexURL = assetsURL.appendingPathComponent("DeveloperDocumentation.doccarchive/index/index.json")
+            if let parsed = parseSections(from: archiveIndexURL), !parsed.isEmpty {
+                return parsed
+            }
+        }
+        return defaultSections()
+    }
+
+    private static func parseSections(from jsonURL: URL) -> [DocCSectionData]? {
+        guard let data = try? Data(contentsOf: jsonURL),
+              let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let langs = json["interfaceLanguages"] as? [String: Any],
+              let swift = langs["swift"] as? [[String: Any]],
+              let root = swift.first,
+              let children = root["children"] as? [[String: Any]] else {
+            return nil
+        }
+
+        func sectionIcon(for title: String) -> String {
+            switch title {
+            case "User Interface": return "macwindow.on.rectangle"
+            case "Core & System Services": return "gearshape.2.fill"
+            case "Data & Persistence": return "cylinder.split.1x2.fill"
+            case "Graphics & Media": return "photo.tv.fill"
+            case "System Integration": return "app.connected.to.app.below.fill"
+            default: return "folder.fill"
+            }
+        }
+
+        func frameworkIcon(for title: String) -> String {
+            switch title {
+            case "SwiftUI": return "square.stack.3d.down.right.fill"
+            case "UIKit": return "apps.iphone"
+            case "AppKit": return "macwindow"
+            case "Foundation": return "cube.box.fill"
+            case "Swift": return "swift"
+            case "Combine": return "waveform.path.ecg"
+            case "SwiftData": return "cylinder.split.1x2.fill"
+            case "CoreData": return "internaldrive.fill"
+            case "Metal": return "cpu.fill"
+            case "CoreGraphics": return "paintpalette.fill"
+            case "AVFoundation": return "play.tv.fill"
+            case "AppIntents": return "bolt.badge.automatic.fill"
+            default: return "doc.text.fill"
+            }
+        }
+
+        var sections: [DocCSectionData] = []
+        var currentSection: DocCSectionData? = nil
+
+        for child in children {
+            let type = child["type"] as? String ?? ""
+            let title = child["title"] as? String ?? ""
+            let path = child["path"] as? String ?? ""
+
+            if type == "groupMarker" {
+                if let sec = currentSection {
+                    sections.append(sec)
+                }
+                currentSection = DocCSectionData(title: title, icon: sectionIcon(for: title), collections: [])
+            } else if type == "collection" {
+                var coll = DocCCollectionData(title: title, path: path, icon: frameworkIcon(for: title), groups: [])
+                if let subchildren = child["children"] as? [[String: Any]] {
+                    var currentGroup: DocCGroupData? = nil
+                    for sub in subchildren {
+                        let subType = sub["type"] as? String ?? ""
+                        let subTitle = sub["title"] as? String ?? ""
+                        let subPath = sub["path"] as? String ?? ""
+                        if subType == "groupMarker" {
+                            if let grp = currentGroup {
+                                coll.groups.append(grp)
+                            }
+                            currentGroup = DocCGroupData(title: subTitle, items: [])
+                        } else {
+                            let item = DocCTopicData(title: subTitle, path: subPath)
+                            if currentGroup == nil {
+                                currentGroup = DocCGroupData(title: "Overview", items: [])
+                            }
+                            currentGroup?.items.append(item)
+                        }
+                    }
+                    if let grp = currentGroup {
+                        coll.groups.append(grp)
+                    }
+                }
+                if currentSection == nil {
+                    currentSection = DocCSectionData(title: "General", icon: "folder.fill", collections: [])
+                }
+                currentSection?.collections.append(coll)
+            }
+        }
+        if let sec = currentSection {
+            sections.append(sec)
+        }
+        return sections
+    }
+
+    private static func defaultSections() -> [DocCSectionData] {
+        return [
+            DocCSectionData(title: "User Interface", icon: "macwindow.on.rectangle", collections: [
+                DocCCollectionData(title: "SwiftUI", path: "/documentation/developerdocumentation/swiftui", icon: "square.stack.3d.down.right.fill", groups: [
+                    DocCGroupData(title: "Essentials", items: [
+                        DocCTopicData(title: "View", path: "/documentation/developerdocumentation/view"),
+                        DocCTopicData(title: "App", path: "/documentation/developerdocumentation/app"),
+                        DocCTopicData(title: "Text", path: "/documentation/developerdocumentation/text"),
+                        DocCTopicData(title: "Button", path: "/documentation/developerdocumentation/button")
+                    ]),
+                    DocCGroupData(title: "State & Data Flow", items: [
+                        DocCTopicData(title: "State", path: "/documentation/developerdocumentation/state"),
+                        DocCTopicData(title: "Binding", path: "/documentation/developerdocumentation/binding"),
+                        DocCTopicData(title: "Environment", path: "/documentation/developerdocumentation/environment")
+                    ]),
+                    DocCGroupData(title: "Layout & Navigation", items: [
+                        DocCTopicData(title: "NavigationStack", path: "/documentation/developerdocumentation/navigationstack"),
+                        DocCTopicData(title: "VStack", path: "/documentation/developerdocumentation/vstack"),
+                        DocCTopicData(title: "List", path: "/documentation/developerdocumentation/list")
+                    ])
+                ]),
+                DocCCollectionData(title: "UIKit", path: "/documentation/developerdocumentation/uikit", icon: "apps.iphone", groups: [
+                    DocCGroupData(title: "Views & View Controllers", items: [
+                        DocCTopicData(title: "UIView", path: "/documentation/developerdocumentation/uiview"),
+                        DocCTopicData(title: "UIViewController", path: "/documentation/developerdocumentation/uiviewcontroller"),
+                        DocCTopicData(title: "UIWindow", path: "/documentation/developerdocumentation/uiwindow")
+                    ]),
+                    DocCGroupData(title: "Controls", items: [
+                        DocCTopicData(title: "UIButton", path: "/documentation/developerdocumentation/uibutton"),
+                        DocCTopicData(title: "UITableView", path: "/documentation/developerdocumentation/uitableview")
+                    ])
+                ]),
+                DocCCollectionData(title: "AppKit", path: "/documentation/developerdocumentation/appkit", icon: "macwindow", groups: [
+                    DocCGroupData(title: "Windows & Views", items: [
+                        DocCTopicData(title: "NSView", path: "/documentation/developerdocumentation/nsview"),
+                        DocCTopicData(title: "NSWindow", path: "/documentation/developerdocumentation/nswindow"),
+                        DocCTopicData(title: "NSViewController", path: "/documentation/developerdocumentation/nsviewcontroller")
+                    ])
+                ])
+            ]),
+            DocCSectionData(title: "Core & System Services", icon: "gearshape.2.fill", collections: [
+                DocCCollectionData(title: "Foundation", path: "/documentation/developerdocumentation/foundation", icon: "cube.box.fill", groups: [
+                    DocCGroupData(title: "Fundamentals", items: [
+                        DocCTopicData(title: "URL", path: "/documentation/developerdocumentation/url"),
+                        DocCTopicData(title: "Data", path: "/documentation/developerdocumentation/data"),
+                        DocCTopicData(title: "Date", path: "/documentation/developerdocumentation/date")
+                    ]),
+                    DocCGroupData(title: "Networking & Persistence", items: [
+                        DocCTopicData(title: "URLSession", path: "/documentation/developerdocumentation/urlsession"),
+                        DocCTopicData(title: "FileManager", path: "/documentation/developerdocumentation/filemanager"),
+                        DocCTopicData(title: "JSONDecoder", path: "/documentation/developerdocumentation/jsondecoder")
+                    ])
+                ]),
+                DocCCollectionData(title: "Swift", path: "/documentation/developerdocumentation/swift", icon: "swift", groups: [
+                    DocCGroupData(title: "Collections", items: [
+                        DocCTopicData(title: "Array", path: "/documentation/developerdocumentation/array"),
+                        DocCTopicData(title: "Dictionary", path: "/documentation/developerdocumentation/dictionary")
+                    ]),
+                    DocCGroupData(title: "Concurrency", items: [
+                        DocCTopicData(title: "Task", path: "/documentation/developerdocumentation/task"),
+                        DocCTopicData(title: "Actor", path: "/documentation/developerdocumentation/actor")
+                    ])
+                ]),
+                DocCCollectionData(title: "Combine", path: "/documentation/developerdocumentation/combine", icon: "waveform.path.ecg", groups: [
+                    DocCGroupData(title: "Publishers & Subscribers", items: [
+                        DocCTopicData(title: "Publisher", path: "/documentation/developerdocumentation/publisher"),
+                        DocCTopicData(title: "AnyPublisher", path: "/documentation/developerdocumentation/anypublisher"),
+                        DocCTopicData(title: "PassthroughSubject", path: "/documentation/developerdocumentation/passthroughsubject")
+                    ])
+                ])
+            ]),
+            DocCSectionData(title: "Data & Persistence", icon: "cylinder.split.1x2.fill", collections: [
+                DocCCollectionData(title: "SwiftData", path: "/documentation/developerdocumentation/swiftdata", icon: "cylinder.split.1x2.fill", groups: [
+                    DocCGroupData(title: "Modeling", items: [
+                        DocCTopicData(title: "Model", path: "/documentation/developerdocumentation/model"),
+                        DocCTopicData(title: "ModelContainer", path: "/documentation/developerdocumentation/modelcontainer"),
+                        DocCTopicData(title: "ModelContext", path: "/documentation/developerdocumentation/modelcontext")
+                    ])
+                ]),
+                DocCCollectionData(title: "CoreData", path: "/documentation/developerdocumentation/coredata", icon: "internaldrive.fill", groups: [
+                    DocCGroupData(title: "Core Stack", items: [
+                        DocCTopicData(title: "NSPersistentContainer", path: "/documentation/developerdocumentation/nspersistentcontainer"),
+                        DocCTopicData(title: "NSManagedObject", path: "/documentation/developerdocumentation/nsmanagedobject")
+                    ])
+                ])
+            ]),
+            DocCSectionData(title: "Graphics & Media", icon: "photo.tv.fill", collections: [
+                DocCCollectionData(title: "Metal", path: "/documentation/developerdocumentation/metal", icon: "cpu.fill", groups: [
+                    DocCGroupData(title: "Device & Commands", items: [
+                        DocCTopicData(title: "MTLDevice", path: "/documentation/developerdocumentation/mtldevice"),
+                        DocCTopicData(title: "MTLCommandQueue", path: "/documentation/developerdocumentation/mtlcommandqueue"),
+                        DocCTopicData(title: "MTLRenderPipelineState", path: "/documentation/developerdocumentation/mtlrenderpipelinestate")
+                    ])
+                ]),
+                DocCCollectionData(title: "CoreGraphics", path: "/documentation/developerdocumentation/coregraphics", icon: "paintpalette.fill", groups: [
+                    DocCGroupData(title: "Geometric Primitives", items: [
+                        DocCTopicData(title: "CGRect", path: "/documentation/developerdocumentation/cgrect"),
+                        DocCTopicData(title: "CGContext", path: "/documentation/developerdocumentation/cgcontext")
+                    ])
+                ]),
+                DocCCollectionData(title: "AVFoundation", path: "/documentation/developerdocumentation/avfoundation", icon: "play.tv.fill", groups: [
+                    DocCGroupData(title: "Playback", items: [
+                        DocCTopicData(title: "AVPlayer", path: "/documentation/developerdocumentation/avplayer"),
+                        DocCTopicData(title: "AVAudioSession", path: "/documentation/developerdocumentation/avaudiosession")
+                    ])
+                ])
+            ]),
+            DocCSectionData(title: "System Integration", icon: "app.connected.to.app.below.fill", collections: [
+                DocCCollectionData(title: "AppIntents", path: "/documentation/developerdocumentation/appintents", icon: "bolt.badge.automatic.fill", groups: [
+                    DocCGroupData(title: "Intents", items: [
+                        DocCTopicData(title: "AppIntent", path: "/documentation/developerdocumentation/appintent"),
+                        DocCTopicData(title: "AppShortcut", path: "/documentation/developerdocumentation/appshortcut")
+                    ])
+                ])
+            ])
+        ]
+    }
+
     enum LoaderError: Error, LocalizedError {
         case fileNotFound
         case emptyFile
@@ -578,14 +852,19 @@ struct NativeDocumentationBrowserWorkspaceView: View {
     @State private var isLoadingDatabase = false
     @State private var databaseLoadError: String? = nil
 
-    // Detail Pane Presentation Mode (Native Inspector vs Offline Web Viewer)
-    @State private var detailPresentationMode: DetailViewMode = .nativeCard
+    // Detail Pane Presentation Mode (Native Inspector vs Offline Web Viewer) - default to webViewer
+    @State private var detailPresentationMode: DetailViewMode = .webViewer
     @State private var activeWebPath: String = "/documentation/developerdocumentation"
     @State private var activeCustomArchiveURL: URL? = nil
+    @StateObject private var webController = DocCWebViewController()
+
+    // Canonical Documentation Sections (Loaded from offline index.json)
+    @State private var documentationSections: [DocCSectionData] = DocSymbolsLoader.loadDocumentationSections()
+    @State private var expandedFrameworks: Set<String> = ["SwiftUI", "UIKit"]
 
     enum DetailViewMode: String, CaseIterable, Identifiable {
-        case nativeCard = "Native Inspector"
         case webViewer = "Offline Web Viewer"
+        case nativeCard = "Native Inspector"
         var id: String { rawValue }
     }
 
@@ -678,7 +957,7 @@ struct NativeDocumentationBrowserWorkspaceView: View {
     var body: some View {
         VStack(spacing: 0) {
             // Workspace top navigation bar
-            HStack(spacing: 16) {
+            HStack(spacing: 14) {
                 Picker("Workspace Zone", selection: $selectedWorkspaceTab) {
                     Text("Apple Docs").tag("Apple Docs")
                     Text("Project Notes").tag("Local Notes")
@@ -686,7 +965,106 @@ struct NativeDocumentationBrowserWorkspaceView: View {
                     Text("Local AI Co-Pilot").tag("AI Assistant")
                 }
                 .pickerStyle(.segmented)
-                .frame(width: 550)
+                .frame(width: 440)
+
+                if selectedWorkspaceTab == "Apple Docs" {
+                    // WebKit Navigation controls
+                    HStack(spacing: 4) {
+                        Button {
+                            webController.goBack()
+                        } label: {
+                            Image(systemName: "chevron.backward")
+                                .font(.system(size: 12, weight: .semibold))
+                        }
+                        .disabled(!webController.canGoBack)
+                        .buttonStyle(.plain)
+                        .padding(5)
+                        .background(webController.canGoBack ? Color.secondary.opacity(0.12) : Color.clear, in: RoundedRectangle(cornerRadius: 6))
+                        .help("Go Back")
+
+                        Button {
+                            webController.goForward()
+                        } label: {
+                            Image(systemName: "chevron.forward")
+                                .font(.system(size: 12, weight: .semibold))
+                        }
+                        .disabled(!webController.canGoForward)
+                        .buttonStyle(.plain)
+                        .padding(5)
+                        .background(webController.canGoForward ? Color.secondary.opacity(0.12) : Color.clear, in: RoundedRectangle(cornerRadius: 6))
+                        .help("Go Forward")
+
+                        Button {
+                            webController.reload()
+                        } label: {
+                            Image(systemName: "arrow.clockwise")
+                                .font(.system(size: 12, weight: .semibold))
+                        }
+                        .buttonStyle(.plain)
+                        .padding(5)
+                        .background(Color.secondary.opacity(0.12), in: RoundedRectangle(cornerRadius: 6))
+                        .help("Reload Documentation")
+
+                        Button {
+                            activeWebPath = "/documentation/developerdocumentation"
+                            selectedSymbol = nil
+                            if let homeURL = URL(string: "docc://developer.apple.com/documentation/developerdocumentation") {
+                                webController.load(url: homeURL)
+                            }
+                        } label: {
+                            Image(systemName: "house.fill")
+                                .font(.system(size: 12))
+                        }
+                        .buttonStyle(.plain)
+                        .padding(5)
+                        .background(Color.secondary.opacity(0.12), in: RoundedRectangle(cornerRadius: 6))
+                        .help("Documentation Home (All Technologies)")
+                    }
+
+                    // Presentation mode switcher: labelsHidden prevents vertical text wrapping
+                    Picker("", selection: $detailPresentationMode) {
+                        ForEach(DetailViewMode.allCases) { mode in
+                            Text(mode.rawValue).tag(mode)
+                        }
+                    }
+                    .pickerStyle(.segmented)
+                    .labelsHidden()
+                    .frame(width: 250)
+
+                    if let sym = selectedSymbol {
+                        Button {
+                            toggleFavorite(sym.name)
+                        } label: {
+                            HStack(spacing: 4) {
+                                Image(systemName: favorites.contains(sym.name) ? "star.fill" : "star")
+                                    .foregroundStyle(favorites.contains(sym.name) ? .yellow : .secondary)
+                                Text(favorites.contains(sym.name) ? "Saved" : "Save")
+                                    .font(.caption.bold())
+                            }
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 4)
+                            .background(Color.secondary.opacity(0.08), in: RoundedRectangle(cornerRadius: 6))
+                        }
+                        .buttonStyle(.plain)
+                        .help("Bookmark this symbol")
+                    }
+
+                    Button {
+                        openInSafari(path: activeWebPath)
+                    } label: {
+                        HStack(spacing: 4) {
+                            Image(systemName: "safari")
+                            Text("Safari")
+                                .font(.caption.bold())
+                        }
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 4)
+                        .background(Color.blue.opacity(0.12), in: RoundedRectangle(cornerRadius: 6))
+                        .foregroundStyle(.blue)
+                    }
+                    .buttonStyle(.plain)
+                    .help("Open currently viewed documentation page in Safari")
+                }
 
                 Spacer()
 
@@ -755,6 +1133,9 @@ struct NativeDocumentationBrowserWorkspaceView: View {
             activeCustomArchiveURL = url
             activeWebPath = "/documentation"
             selectedSymbol = nil
+            if let target = URL(string: "docc://developer.apple.com/documentation") {
+                webController.load(url: target)
+            }
             return
         }
 
@@ -770,6 +1151,9 @@ struct NativeDocumentationBrowserWorkspaceView: View {
         }
 
         activeWebPath = targetPath
+        if let target = URL(string: "docc://developer.apple.com\(targetPath)") {
+            webController.load(url: target)
+        }
 
         // Try to identify a symbol from the URL components
         let components = url.pathComponents.filter { $0 != "/" && !$0.isEmpty }
@@ -793,127 +1177,46 @@ struct NativeDocumentationBrowserWorkspaceView: View {
 
     @ViewBuilder
     private func appleDocsWorkspaceView() -> some View {
-        // Sidebar Navigation
-        VStack(alignment: .leading, spacing: 0) {
-            // Top Header: "Developer Bookshelf"
-            VStack(alignment: .leading, spacing: 4) {
-                HStack(spacing: 8) {
-                    Image(systemName: "books.vertical.fill")
-                        .font(.title3)
-                        .foregroundStyle(.orange)
-                    Text("Developer Bookshelf")
-                        .font(.headline)
-                        .fontWeight(.bold)
-                }
+        HSplitView {
+            // Unified Apple Developer Documentation Sidebar
+            documentationSidebarView()
+                .frame(minWidth: 280, idealWidth: 320, maxWidth: 400)
 
-                Text("Offline Apple Developer Documentation")
-                    .font(.system(size: 10))
-                    .foregroundStyle(.secondary)
-            }
-            .padding(.horizontal, 16)
-            .padding(.vertical, 14)
-
-            Divider()
-
-            List {
-                Section {
-                    Button(action: { selectedCategory = "All"; selectedFramework = "All"; selectedPlatform = "All"; selectedKind = "All" }) {
-                        HStack {
-                            Label("All Documentation", systemImage: "book.pages.fill")
-                                .foregroundStyle(.orange)
-                            Spacer()
-                            Text("\(symbols.count)")
-                                .font(.caption2.monospaced())
-                                .foregroundStyle(.secondary)
-                        }
-                    }
-                    .buttonStyle(.plain)
-                    .padding(.vertical, 4)
-
-                    Button(action: { selectedCategory = "Favorites" }) {
-                        HStack {
-                            Label("Bookmarks & Favorites", systemImage: "star.fill")
-                                .foregroundStyle(.yellow)
-                            Spacer()
-                            let favCount = symbols.filter { favorites.contains($0.name) }.count
-                            Text("\(favCount)")
-                                .font(.caption2.monospaced())
-                                .foregroundStyle(.secondary)
-                        }
-                    }
-                    .buttonStyle(.plain)
-                    .padding(.vertical, 4)
-
-                    Button(action: { selectedCategory = "Recent" }) {
-                        HStack {
-                            Label("Recently Viewed", systemImage: "clock.fill")
-                                .foregroundStyle(.blue)
-                            Spacer()
-                            Text("\(recentlyViewed.count)")
-                                .font(.caption2.monospaced())
-                                .foregroundStyle(.secondary)
-                        }
-                    }
-                    .buttonStyle(.plain)
-                    .padding(.vertical, 4)
-                } header: {
-                    Text("Overview").font(.system(size: 10, weight: .bold)).foregroundStyle(.secondary)
-                }
-
-                Section {
-                    ForEach(frameworks.filter { $0 != "All" }, id: \.self) { fw in
-                        Button(action: { selectedFramework = fw; selectedCategory = "All"; selectedPlatform = "All" }) {
-                            HStack {
-                                Label(fw, systemImage: symbolForFramework(fw))
-                                    .foregroundStyle(colorForFramework(fw))
-                                Spacer()
-                                let count = symbols.filter { $0.framework == fw }.count
-                                Text("\(count)")
-                                    .font(.caption2.monospaced())
-                                    .foregroundStyle(.secondary)
+            // Right Pane: Details / Offline Documentation View
+            Group {
+                if detailPresentationMode == .webViewer {
+                    OfflineDocumentationViewerContainer(
+                        initialPath: activeWebPath,
+                        symbol: selectedSymbol,
+                        controller: webController,
+                        customArchiveURL: activeCustomArchiveURL,
+                        onSelectSymbol: { symbolName in
+                            if let matched = DocSymbolsLoader.lookupSymbol(symbolName) {
+                                self.selectedSymbol = matched
                             }
                         }
-                        .buttonStyle(.plain)
-                        .padding(.vertical, 2)
-                    }
-                } header: {
-                    Text("Framework Browser").font(.system(size: 10, weight: .bold)).foregroundStyle(.secondary)
-                }
-
-                Section {
-                    ForEach(platforms.filter { $0 != "All" }, id: \.self) { plt in
-                        Button(action: { selectedPlatform = plt; selectedCategory = "All"; selectedFramework = "All" }) {
-                            HStack {
-                                Label(plt, systemImage: symbolForPlatform(plt))
-                                    .foregroundStyle(colorForPlatform(plt))
-                                Spacer()
-                                let count = symbols.filter { $0.platforms[plt] != nil }.count
-                                Text("\(count)")
-                                    .font(.caption2.monospaced())
-                                    .foregroundStyle(.secondary)
-                            }
-                        }
-                        .buttonStyle(.plain)
-                        .padding(.vertical, 2)
-                    }
-                } header: {
-                    Text("Platform Availability").font(.system(size: 10, weight: .bold)).foregroundStyle(.secondary)
+                    )
+                } else if let sym = selectedSymbol {
+                    symbolDetailsPane(sym)
+                } else {
+                    documentationHubHomeView()
                 }
             }
-            .listStyle(.sidebar)
+            .frame(minWidth: 600, maxWidth: .infinity, maxHeight: .infinity)
         }
-        .frame(minWidth: 240, idealWidth: 260, maxWidth: 320)
+    }
 
-        // Center List of symbols/topics (High-performance on-device visual search list)
-        VStack(spacing: 0) {
-            // Modern search bar
+    @ViewBuilder
+    private func documentationSidebarView() -> some View {
+        VStack(alignment: .leading, spacing: 0) {
+            // Search Input Field
             HStack(spacing: 8) {
                 Image(systemName: "magnifyingglass")
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
-                TextField("Search offline symbols, declarations, APIs...", text: $searchQuery)
+                TextField("Filter documentation...", text: $searchQuery)
                     .textFieldStyle(.plain)
-                    .font(.body)
+                    .font(.system(size: 13))
                     .onChange(of: searchQuery) { _, newValue in
                         triggerAsynchronousSearch(newValue)
                     }
@@ -922,6 +1225,7 @@ struct NativeDocumentationBrowserWorkspaceView: View {
                 } else if !searchQuery.isEmpty {
                     Button {
                         searchQuery = ""
+                        debouncedSearchQuery = ""
                     } label: {
                         Image(systemName: "xmark.circle.fill")
                             .foregroundStyle(.secondary)
@@ -929,130 +1233,284 @@ struct NativeDocumentationBrowserWorkspaceView: View {
                     .buttonStyle(.plain)
                 }
             }
+            .padding(8)
+            .background(Color.secondary.opacity(0.1), in: RoundedRectangle(cornerRadius: 8))
             .padding(10)
-            .background(Color.secondary.opacity(0.12), in: RoundedRectangle(cornerRadius: 10))
-            .padding(12)
 
             Divider()
 
-            // Filter Header Summary
-            HStack {
-                Text("Showing \(filteredSymbols.count) matches")
-                    .font(.caption.bold())
-                    .foregroundStyle(.secondary)
-                Spacer()
-                if selectedFramework != "All" || selectedPlatform != "All" || selectedCategory != "All" || !debouncedSearchQuery.isEmpty {
-                    Button("Reset Filters") {
-                        selectedFramework = "All"
-                        selectedPlatform = "All"
-                        selectedCategory = "All"
-                        searchQuery = ""
-                        debouncedSearchQuery = ""
+            if !debouncedSearchQuery.isEmpty {
+                // Search Results
+                List(filteredSymbols, selection: $selectedSymbol) { sym in
+                    Button {
+                        selectSymbolItem(sym)
+                    } label: {
+                        HStack(spacing: 8) {
+                            ZStack {
+                                RoundedRectangle(cornerRadius: 4)
+                                    .fill(kindColor(sym.kind).opacity(0.15))
+                                    .frame(width: 24, height: 24)
+                                Text(kindBadgeText(sym.kind))
+                                    .font(.system(size: 10, weight: .bold, design: .monospaced))
+                                    .foregroundStyle(kindColor(sym.kind))
+                            }
+
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(sym.name)
+                                    .font(.system(size: 12, weight: .semibold))
+                                    .foregroundStyle(selectedSymbol?.name == sym.name ? .orange : .primary)
+                                Text("\(sym.framework) | \(sym.availability)")
+                                    .font(.system(size: 10))
+                                    .foregroundStyle(.secondary)
+                            }
+                            Spacer()
+                        }
+                        .padding(.vertical, 4)
+                        .padding(.horizontal, 6)
+                        .background(selectedSymbol?.name == sym.name ? Color.orange.opacity(0.12) : Color.clear, in: RoundedRectangle(cornerRadius: 6))
                     }
                     .buttonStyle(.plain)
-                    .font(.caption.bold())
-                    .foregroundStyle(.orange)
                 }
-            }
-            .padding(.horizontal, 14)
-            .padding(.vertical, 8)
-            .background(Color.secondary.opacity(0.04))
-
-            Divider()
-
-            // Symbol Results List
-            if isLoadingDatabase {
-                VStack(spacing: 16) {
-                    ProgressView()
-                        .controlSize(.large)
-                    Text("Indexing Offline Documentation...")
-                        .font(.headline)
-                        .foregroundColor(.secondary)
-                    Text("Scanning local documentation bundles & symbol archives")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                }
-                .frame(maxHeight: .infinity)
-            } else if let loadError = databaseLoadError {
-                VStack(spacing: 20) {
-                    Image(systemName: "exclamationmark.triangle.fill")
-                        .font(.system(size: 40))
-                        .foregroundColor(.red)
-
-                    Text("Database Indexing Error")
-                        .font(.headline)
-
-                    Text(loadError)
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                        .multilineTextAlignment(.center)
-                        .padding(.horizontal, 24)
-
-                    Button("Retry On-Device Indexing") {
-                        Task {
-                            await loadDatabase()
-                        }
-                    }
-                    .buttonStyle(.borderedProminent)
-                    .controlSize(.small)
-                }
-                .padding()
-                .frame(maxHeight: .infinity)
-            } else if filteredSymbols.isEmpty {
-                ContentUnavailableView("No Symbols Found", systemImage: "doc.text.magnifyingglass", description: Text("Try adjusting search terms or resetting filters."))
-                    .frame(maxHeight: .infinity)
+                .listStyle(.sidebar)
             } else {
-                List(filteredSymbols, selection: $selectedSymbol) { sym in
-                    HStack(spacing: 12) {
-                        ZStack {
-                            RoundedRectangle(cornerRadius: 6)
-                                .fill(kindColor(sym.kind).opacity(0.15))
-                                .frame(width: 28, height: 28)
-                            Text(kindBadgeText(sym.kind))
-                                .font(.system(size: 12, weight: .bold, design: .monospaced))
-                                .foregroundStyle(kindColor(sym.kind))
-                        }
-
-                        VStack(alignment: .leading, spacing: 3) {
-                            Text(sym.name)
-                                .font(.system(size: 13, weight: .bold))
-                                .foregroundStyle(.primary)
-                            Text("\(sym.framework) | \(sym.availability)")
-                                .font(.system(size: 11))
-                                .foregroundStyle(.secondary)
-                        }
-                        Spacer()
-                    }
-                    .padding(.vertical, 6)
-                    .tag(sym)
-                }
-                .listStyle(.inset)
-            }
-        }
-        .frame(minWidth: 320, idealWidth: 360, maxWidth: 440)
-
-        // Right Pane: Details / Offline Documentation View
-        Group {
-            if let sym = selectedSymbol {
-                symbolDetailsPane(sym)
-            } else {
-                if detailPresentationMode == .webViewer {
-                    OfflineDocumentationViewerContainer(
-                        initialPath: activeWebPath,
-                        symbol: nil,
-                        customArchiveURL: activeCustomArchiveURL,
-                        onSelectSymbol: { symbolName in
-                            if let matched = DocSymbolsLoader.lookupSymbol(symbolName) {
-                                self.selectedSymbol = matched
+                List {
+                    // Overview Section
+                    Section {
+                        Button {
+                            selectedCategory = "All"
+                            activeWebPath = "/documentation/developerdocumentation"
+                            selectedSymbol = nil
+                            if let homeURL = URL(string: "docc://developer.apple.com/documentation/developerdocumentation") {
+                                webController.load(url: homeURL)
+                            }
+                        } label: {
+                            HStack {
+                                Label("All Technologies", systemImage: "square.grid.2x2.fill")
+                                    .foregroundStyle(.orange)
+                                Spacer()
                             }
                         }
-                    )
-                } else {
-                    documentationHubHomeView()
+                        .buttonStyle(.plain)
+                        .padding(.vertical, 2)
+
+                        Button {
+                            selectedCategory = selectedCategory == "Favorites" ? "All" : "Favorites"
+                        } label: {
+                            HStack {
+                                Label("Bookmarks", systemImage: "star.fill")
+                                    .foregroundStyle(.yellow)
+                                Spacer()
+                                let favCount = symbols.filter { favorites.contains($0.name) }.count
+                                Text("\(favCount)")
+                                    .font(.caption2.monospaced())
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
+                        .buttonStyle(.plain)
+                        .padding(.vertical, 2)
+
+                        Button {
+                            selectedCategory = selectedCategory == "Recent" ? "All" : "Recent"
+                        } label: {
+                            HStack {
+                                Label("Recently Viewed", systemImage: "clock.fill")
+                                    .foregroundStyle(.blue)
+                                Spacer()
+                                Text("\(recentlyViewed.count)")
+                                    .font(.caption2.monospaced())
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
+                        .buttonStyle(.plain)
+                        .padding(.vertical, 2)
+                    } header: {
+                        Text("Overview")
+                            .font(.system(size: 10, weight: .bold))
+                            .foregroundStyle(.secondary)
+                    }
+
+                    if selectedCategory == "Favorites" {
+                        Section {
+                            let favSymbols = symbols.filter { favorites.contains($0.name) }
+                            if favSymbols.isEmpty {
+                                Text("No bookmarked symbols").font(.caption).foregroundStyle(.secondary)
+                            } else {
+                                ForEach(favSymbols) { sym in
+                                    symbolSidebarRow(sym)
+                                }
+                            }
+                        } header: {
+                            Text("Bookmarks").font(.system(size: 10, weight: .bold)).foregroundStyle(.secondary)
+                        }
+                    } else if selectedCategory == "Recent" {
+                        Section {
+                            let recentSymbols = recentlyViewed.compactMap { name in symbols.first { $0.name == name } }
+                            if recentSymbols.isEmpty {
+                                Text("No recently viewed symbols").font(.caption).foregroundStyle(.secondary)
+                            } else {
+                                ForEach(recentSymbols) { sym in
+                                    symbolSidebarRow(sym)
+                                }
+                            }
+                        } header: {
+                            Text("Recently Viewed").font(.system(size: 10, weight: .bold)).foregroundStyle(.secondary)
+                        }
+                    } else {
+                        // RENDER ALL 5 CANONICAL SECTIONS
+                        ForEach(documentationSections) { section in
+                            Section {
+                                ForEach(section.collections) { collection in
+                                    DisclosureGroup(
+                                        isExpanded: Binding(
+                                            get: { expandedFrameworks.contains(collection.title) },
+                                            set: { isExpanded in
+                                                if isExpanded {
+                                                    expandedFrameworks.insert(collection.title)
+                                                } else {
+                                                    expandedFrameworks.remove(collection.title)
+                                                }
+                                            }
+                                        )
+                                    ) {
+                                        ForEach(collection.groups) { grp in
+                                            VStack(alignment: .leading, spacing: 2) {
+                                                Text(grp.title.uppercased())
+                                                    .font(.system(size: 9, weight: .bold))
+                                                    .foregroundStyle(.secondary)
+                                                    .padding(.top, 4)
+                                                    .padding(.leading, 6)
+
+                                                ForEach(grp.items) { item in
+                                                    Button {
+                                                        selectTopic(item)
+                                                    } label: {
+                                                        HStack(spacing: 6) {
+                                                            Image(systemName: "doc.text.fill")
+                                                                .font(.system(size: 10))
+                                                                .foregroundStyle(selectedSymbol?.name == item.title || activeWebPath.hasSuffix(item.title.lowercased()) ? .orange : .secondary)
+                                                            Text(item.title)
+                                                                .font(.system(size: 12))
+                                                                .foregroundStyle(selectedSymbol?.name == item.title || activeWebPath.hasSuffix(item.title.lowercased()) ? .orange : .primary)
+                                                            Spacer()
+                                                        }
+                                                        .padding(.vertical, 3)
+                                                        .padding(.horizontal, 6)
+                                                        .background(selectedSymbol?.name == item.title || activeWebPath.hasSuffix(item.title.lowercased()) ? Color.orange.opacity(0.12) : Color.clear, in: RoundedRectangle(cornerRadius: 4))
+                                                    }
+                                                    .buttonStyle(.plain)
+                                                }
+                                            }
+                                        }
+                                    } label: {
+                                        Button {
+                                            selectCollection(collection)
+                                        } label: {
+                                            HStack(spacing: 8) {
+                                                Image(systemName: collection.icon)
+                                                    .font(.system(size: 13))
+                                                    .foregroundStyle(colorForFramework(collection.title))
+                                                    .frame(width: 18)
+                                                Text(collection.title)
+                                                    .font(.system(size: 13, weight: .semibold))
+                                                Spacer()
+                                            }
+                                        }
+                                        .buttonStyle(.plain)
+                                    }
+                                }
+                            } header: {
+                                HStack(spacing: 6) {
+                                    Image(systemName: section.icon)
+                                        .font(.system(size: 10, weight: .bold))
+                                    Text(section.title.uppercased())
+                                        .font(.system(size: 10, weight: .bold))
+                                }
+                                .foregroundStyle(.secondary)
+                            }
+                        }
+                    }
                 }
+                .listStyle(.sidebar)
             }
         }
-        .frame(minWidth: 600)
+    }
+
+    private func symbolSidebarRow(_ sym: DocSymbol) -> some View {
+        Button {
+            selectSymbolItem(sym)
+        } label: {
+            HStack(spacing: 8) {
+                ZStack {
+                    RoundedRectangle(cornerRadius: 4)
+                        .fill(kindColor(sym.kind).opacity(0.15))
+                        .frame(width: 22, height: 22)
+                    Text(kindBadgeText(sym.kind))
+                        .font(.system(size: 9, weight: .bold, design: .monospaced))
+                        .foregroundStyle(kindColor(sym.kind))
+                }
+
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(sym.name)
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundStyle(selectedSymbol?.name == sym.name ? .orange : .primary)
+                    Text("\(sym.framework) | \(sym.availability)")
+                        .font(.system(size: 10))
+                        .foregroundStyle(.secondary)
+                }
+                Spacer()
+            }
+            .padding(.vertical, 3)
+            .padding(.horizontal, 6)
+            .background(selectedSymbol?.name == sym.name ? Color.orange.opacity(0.12) : Color.clear, in: RoundedRectangle(cornerRadius: 4))
+        }
+        .buttonStyle(.plain)
+    }
+
+    private func selectCollection(_ collection: DocCCollectionData) {
+        expandedFrameworks.insert(collection.title)
+        activeWebPath = collection.path
+        if let targetURL = URL(string: "docc://developer.apple.com\(collection.path)") {
+            webController.load(url: targetURL)
+        }
+        if let matched = DocSymbolsLoader.lookupSymbol(collection.title) {
+            selectedSymbol = matched
+        }
+    }
+
+    private func selectTopic(_ topic: DocCTopicData) {
+        activeWebPath = topic.path
+        if let targetURL = URL(string: "docc://developer.apple.com\(topic.path)") {
+            webController.load(url: targetURL)
+        }
+        if let matched = DocSymbolsLoader.lookupSymbol(topic.title) {
+            selectedSymbol = matched
+            addToRecents(matched.name)
+        } else {
+            addToRecents(topic.title)
+        }
+    }
+
+    private func selectSymbolItem(_ sym: DocSymbol) {
+        selectedSymbol = sym
+        addToRecents(sym.name)
+        let path = sym.docPath.isEmpty ? "/documentation/developerdocumentation/\(sym.name.lowercased())" : sym.docPath
+        activeWebPath = path
+        if let targetURL = URL(string: "docc://developer.apple.com\(path)") {
+            webController.load(url: targetURL)
+        }
+    }
+
+    private func openInSafari(path: String) {
+        guard let assetsURL = DocSymbolsLoader.getDocumentationAssetsURL() else { return }
+        let cleanPath = path.hasPrefix("/") ? path : "/\(path)"
+
+        let task = Process()
+        task.launchPath = "/bin/bash"
+        task.arguments = [
+            "-c",
+            "cd '\(assetsURL.path)' && (pgrep -f 'http.server 8765' >/dev/null || nohup python3 -m http.server 8765 >/dev/null 2>&1 &) && sleep 0.2 && open 'http://localhost:8765\(cleanPath)'"
+        ]
+        try? task.run()
     }
 
     // MARK: - Snippet Library Workspace Zone
@@ -1410,49 +1868,42 @@ Select a symbol from the left sidebar to generate targeted API breakdowns, concu
     // MARK: - Details Panel Helpers
 
     private func symbolDetailsPane(_ sym: DocSymbol) -> some View {
-        VStack(spacing: 0) {
-            // Mode switcher header
-            HStack {
-                Text("Developer Documentation  >  \(sym.framework)  >  \(sym.kind.uppercased())")
-                    .font(.system(size: 11, weight: .bold, design: .monospaced))
-                    .foregroundStyle(.secondary)
-
-                Spacer()
-
-                Picker("View Mode", selection: $detailPresentationMode) {
-                    ForEach(DetailViewMode.allCases) { mode in
-                        Text(mode.rawValue).tag(mode)
-                    }
-                }
-                .pickerStyle(.segmented)
-                .frame(width: 280)
-
-                Button {
-                    toggleFavorite(sym.name)
-                } label: {
-                    HStack(spacing: 6) {
-                        Image(systemName: favorites.contains(sym.name) ? "star.fill" : "star")
-                            .foregroundStyle(favorites.contains(sym.name) ? .yellow : .secondary)
-                        Text(favorites.contains(sym.name) ? "Bookmarked" : "Bookmark")
-                            .font(.caption.bold())
-                    }
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 4)
-                    .background(Color.secondary.opacity(0.08))
-                    .cornerRadius(6)
-                }
-                .buttonStyle(.plain)
-            }
-            .padding(.horizontal, 24)
-            .padding(.vertical, 12)
-            .background(Color(NSColor.windowBackgroundColor))
-
-            Divider()
-
-            if detailPresentationMode == .nativeCard {
-                nativeSymbolDetailCard(sym)
-            } else {
+        Group {
+            if detailPresentationMode == .webViewer {
                 offlineWebRenderer(sym)
+            } else {
+                VStack(spacing: 0) {
+                    HStack {
+                        Text("\(sym.framework)  >  \(sym.name)")
+                            .font(.system(size: 12, weight: .bold, design: .monospaced))
+                            .foregroundStyle(.secondary)
+
+                        Spacer()
+
+                        Button {
+                            toggleFavorite(sym.name)
+                        } label: {
+                            HStack(spacing: 4) {
+                                Image(systemName: favorites.contains(sym.name) ? "star.fill" : "star")
+                                    .foregroundStyle(favorites.contains(sym.name) ? .yellow : .secondary)
+                                Text(favorites.contains(sym.name) ? "Bookmarked" : "Bookmark")
+                                    .font(.caption.bold())
+                            }
+                            .padding(.horizontal, 10)
+                            .padding(.vertical, 4)
+                            .background(Color.secondary.opacity(0.08))
+                            .cornerRadius(6)
+                        }
+                        .buttonStyle(.plain)
+                    }
+                    .padding(.horizontal, 24)
+                    .padding(.vertical, 10)
+                    .background(Color(NSColor.windowBackgroundColor))
+
+                    Divider()
+
+                    nativeSymbolDetailCard(sym)
+                }
             }
         }
         .onChange(of: sym) { _, newValue in
@@ -1701,6 +2152,7 @@ Select a symbol from the left sidebar to generate targeted API breakdowns, concu
         return OfflineDocumentationViewerContainer(
             initialPath: path,
             symbol: sym,
+            controller: webController,
             customArchiveURL: activeCustomArchiveURL,
             onSelectSymbol: { symbolName in
                 if let matched = DocSymbolsLoader.lookupSymbol(symbolName) {
@@ -1965,8 +2417,10 @@ Select a symbol from the left sidebar to generate targeted API breakdowns, concu
         databaseLoadError = nil
         do {
             let loadedSymbols = try await DocSymbolsLoader.loadSymbols()
+            let loadedSections = DocSymbolsLoader.loadDocumentationSections()
             await MainActor.run {
                 self.symbols = loadedSymbols
+                self.documentationSections = loadedSections
                 if self.selectedSymbol == nil {
                     self.selectedSymbol = loadedSymbols.first { $0.name == "View" } ?? loadedSymbols.first
                 }
@@ -2233,10 +2687,9 @@ final class DocCWebViewController: ObservableObject {
 struct OfflineDocumentationViewerContainer: View {
     let initialPath: String
     let symbol: DocSymbol?
+    @ObservedObject var controller: DocCWebViewController
     var customArchiveURL: URL? = nil
     var onSelectSymbol: ((String) -> Void)? = nil
-
-    @StateObject private var controller = DocCWebViewController()
 
     private var targetURL: URL {
         let cleanPath = initialPath.hasPrefix("/") ? initialPath : "/\(initialPath)"
@@ -2244,137 +2697,19 @@ struct OfflineDocumentationViewerContainer: View {
     }
 
     var body: some View {
-        VStack(spacing: 0) {
-            // WebKit Documentation Toolbar
-            HStack(spacing: 12) {
-                // Navigation controls
-                HStack(spacing: 4) {
-                    Button {
-                        controller.goBack()
-                    } label: {
-                        Image(systemName: "chevron.backward")
-                            .font(.system(size: 13, weight: .semibold))
-                    }
-                    .disabled(!controller.canGoBack)
-                    .buttonStyle(.plain)
-                    .padding(6)
-                    .background(controller.canGoBack ? Color.secondary.opacity(0.12) : Color.clear, in: RoundedRectangle(cornerRadius: 6))
-                    .help("Go Back")
-
-                    Button {
-                        controller.goForward()
-                    } label: {
-                        Image(systemName: "chevron.forward")
-                            .font(.system(size: 13, weight: .semibold))
-                    }
-                    .disabled(!controller.canGoForward)
-                    .buttonStyle(.plain)
-                    .padding(6)
-                    .background(controller.canGoForward ? Color.secondary.opacity(0.12) : Color.clear, in: RoundedRectangle(cornerRadius: 6))
-                    .help("Go Forward")
-
-                    Button {
-                        controller.reload()
-                    } label: {
-                        Image(systemName: "arrow.clockwise")
-                            .font(.system(size: 12, weight: .semibold))
-                    }
-                    .buttonStyle(.plain)
-                    .padding(6)
-                    .background(Color.secondary.opacity(0.12), in: RoundedRectangle(cornerRadius: 6))
-                    .help("Reload Documentation")
-
-                    Button {
-                        controller.load(url: URL(string: "docc://developer.apple.com/documentation/developerdocumentation")!)
-                    } label: {
-                        Image(systemName: "house.fill")
-                            .font(.system(size: 12))
-                    }
-                    .buttonStyle(.plain)
-                    .padding(6)
-                    .background(Color.secondary.opacity(0.12), in: RoundedRectangle(cornerRadius: 6))
-                    .help("Documentation Home (All Technologies)")
+        OfflineDocumentationWKWebView(
+            controller: controller,
+            targetURL: targetURL,
+            assetsURL: DocSymbolsLoader.getDocumentationAssetsURL(),
+            customArchiveURL: customArchiveURL,
+            onNavigate: { newURL in
+                let last = newURL.lastPathComponent
+                if !last.isEmpty && last != "developerdocumentation" {
+                    onSelectSymbol?(last)
                 }
-
-                // Address & Breadcrumb Badge
-                HStack(spacing: 6) {
-                    Image(systemName: "lock.shield.fill")
-                        .font(.system(size: 11))
-                        .foregroundStyle(.green)
-                    Text(displayPath)
-                        .font(.system(size: 11, weight: .medium, design: .monospaced))
-                        .lineLimit(1)
-                        .truncationMode(.middle)
-                    Spacer()
-                    Text("Offline DocC")
-                        .font(.system(size: 9, weight: .bold, design: .monospaced))
-                        .padding(.horizontal, 6)
-                        .padding(.vertical, 2)
-                        .background(Color.orange.opacity(0.15), in: Capsule())
-                        .foregroundStyle(.orange)
-                }
-                .padding(.horizontal, 10)
-                .padding(.vertical, 5)
-                .background(Color.secondary.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
-
-                // External Safari Preview Button
-                Button {
-                    openInSafari()
-                } label: {
-                    HStack(spacing: 5) {
-                        Image(systemName: "safari")
-                            .font(.caption)
-                        Text("Open in Safari")
-                            .font(.caption.bold())
-                    }
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 5)
-                    .background(Color.blue.opacity(0.12), in: RoundedRectangle(cornerRadius: 8))
-                    .foregroundStyle(.blue)
-                }
-                .buttonStyle(.plain)
-                .help("Launch in external Safari browser via local preview server")
             }
-            .padding(.horizontal, 16)
-            .padding(.vertical, 8)
-            .background(Color(NSColor.windowBackgroundColor))
-
-            Divider()
-
-            // Main WebKit View
-            OfflineDocumentationWKWebView(
-                controller: controller,
-                targetURL: targetURL,
-                assetsURL: DocSymbolsLoader.getDocumentationAssetsURL(),
-                customArchiveURL: customArchiveURL,
-                onNavigate: { newURL in
-                    let last = newURL.lastPathComponent
-                    if !last.isEmpty && last != "developerdocumentation" {
-                        onSelectSymbol?(last)
-                    }
-                }
-            )
-        }
-    }
-
-    private var displayPath: String {
-        if !controller.currentURLString.isEmpty, let url = URL(string: controller.currentURLString) {
-            return url.path
-        }
-        return initialPath
-    }
-
-    private func openInSafari() {
-        guard let assetsURL = DocSymbolsLoader.getDocumentationAssetsURL() else { return }
-        let cleanPath = initialPath.hasPrefix("/") ? initialPath : "/\(initialPath)"
-
-        let task = Process()
-        task.launchPath = "/bin/bash"
-        task.arguments = [
-            "-c",
-            "cd '\(assetsURL.path)' && (pgrep -f 'http.server 8765' >/dev/null || nohup python3 -m http.server 8765 >/dev/null 2>&1 &) && sleep 0.2 && open 'http://localhost:8765\(cleanPath)'"
-        ]
-        try? task.run()
+        )
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 }
 
