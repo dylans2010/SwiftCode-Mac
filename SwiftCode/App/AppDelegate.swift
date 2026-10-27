@@ -8,6 +8,11 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         LoggingTool.info("SwiftCode launched.")
         setupDefaultPreferences()
 
+        // Start the single update service (Sparkle 2). This only starts
+        // Sparkle's scheduled cycle; it never blocks launch. A startup
+        // failure is logged and surfaced in Settings by the service.
+        AppUpdateService.shared.start()
+
         // Restore Studio window if it was left open in previous session
         if UserDefaults.standard.bool(forKey: "com.swiftcode.sdk.studio.isOpen") {
             SDKStudioWindowManager.shared.openStudio()

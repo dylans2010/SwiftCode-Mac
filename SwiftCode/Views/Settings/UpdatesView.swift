@@ -1,21 +1,18 @@
 import SwiftUI
 
+/// Settings destination for software updates.
+///
+/// This view is only a control surface for `AppUpdateService` (Sparkle 2).
+/// It performs no version checking, downloading or installation itself,
+/// and it no longer links out to GitHub as an install path — the old
+/// `GitHubReleaseCheck` flow (which only opened a release page) was
+/// removed with this view's rewrite.
+///
+/// The same view is embedded from `SettingsView`, `GeneralSettingsView`
+/// (as a sheet) and `NativeUpdatesSettingsView`; all three routes now
+/// reach the same updater.
 struct UpdatesView: View {
-    @Environment(\.dismiss) private var dismiss
-
-    @State private var isChecking = false
-    @State private var checkResult: GitHubReleaseCheckResult?
-    @State private var errorMessage: String?
-    @State private var showingErrorAlert = false
-    @State private var diagnosticLogs = ""
-
-    private var currentBuild: Int {
-        Int(Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "0") ?? 0
-    }
-
-    private var appVersionString: String {
-        Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.0.0"
-    }
+    @ObservedObject private var updates = AppUpdateService.shared
 
     var body: some View {
         ScrollView {
@@ -34,7 +31,7 @@ struct UpdatesView: View {
                     VStack(alignment: .leading, spacing: 4) {
                         Text("Software Updates")
                             .font(.title2.bold())
-                        Text("Keep your IDE secure and optimized with the latest builds.")
+                        Text("Keep SwiftCode up to date with verified releases.")
                             .font(.subheadline)
                             .foregroundStyle(.secondary)
                     }
@@ -71,7 +68,7 @@ struct UpdatesView: View {
                                 Text("Version")
                                     .fontWeight(.medium)
                                 Spacer()
-                                Text(appVersionString)
+                                Text(AppUpdateConfiguration.currentDisplayVersion)
                                     .foregroundStyle(.secondary)
                             }
                             Divider()
@@ -79,9 +76,20 @@ struct UpdatesView: View {
                                 Text("Build Number")
                                     .fontWeight(.medium)
                                 Spacer()
-                                Text("\(currentBuild)")
+                                Text(AppUpdateConfiguration.currentBuildVersion)
                                     .font(.system(.body, design: .monospaced))
                                     .foregroundStyle(.secondary)
+                            }
+                            Divider()
+                            HStack {
+                                Text("Update Feed")
+                                    .fontWeight(.medium)
+                                Spacer()
+                                Text(AppUpdateConfiguration.feedURLString)
+                                    .font(.system(.caption, design: .monospaced))
+                                    .foregroundStyle(.secondary)
+                                    .lineLimit(1)
+                                    .truncationMode(.middle)
                             }
                         }
                         .padding(.vertical, 4)
@@ -100,83 +108,65 @@ struct UpdatesView: View {
                             Spacer()
                         }
 
-                        if isChecking {
+                        if updates.isChecking {
                             VStack(spacing: 14) {
                                 ProgressView()
                                     .progressViewStyle(.circular)
-                                Text("Querying server for build-* release artifacts...")
+                                Text("Checking the update feed…")
                                     .font(.subheadline)
                                     .foregroundStyle(.secondary)
                             }
                             .frame(maxWidth: .infinity)
                             .padding(.vertical, 20)
-                        } else if let result = checkResult {
-                            let hasUpdate = result.isUpdateAvailable(currentBuild: currentBuild)
-
+                        } else if let pending = updates.pendingUpdate {
                             VStack(spacing: 14) {
                                 HStack {
                                     VStack(alignment: .leading, spacing: 4) {
-                                        Text(hasUpdate ? "New Update Available!" : "You're Fully Up To Date")
+                                        Text("New Update Available!")
                                             .font(.headline)
-                                            .foregroundColor(hasUpdate ? .orange : .green)
-                                        Text(hasUpdate ? "A newer build is ready to be installed." : "SwiftCode is running the latest build version.")
+                                            .foregroundColor(.orange)
+                                        Text("SwiftCode \(pending.displayVersion) is ready to install.")
                                             .font(.caption)
                                             .foregroundStyle(.secondary)
                                     }
                                     Spacer()
-                                    Image(systemName: hasUpdate ? "arrow.down.circle.fill" : "checkmark.seal.fill")
+                                    Image(systemName: "arrow.down.circle.fill")
                                         .font(.title)
-                                        .foregroundColor(hasUpdate ? .orange : .green)
+                                        .foregroundColor(.orange)
                                 }
-                                .padding(.bottom, 6)
-
-                                Divider()
-
+                                Button("Show Update Window") {
+                                    updates.bringUpdateWindowToFront()
+                                }
+                                .buttonStyle(.borderedProminent)
+                                .frame(maxWidth: .infinity)
+                            }
+                        } else if updates.lastCheckWasUpToDate {
+                            VStack(spacing: 14) {
                                 HStack {
-                                    Text("Latest Tag Name")
-                                        .fontWeight(.medium)
-                                    Spacer()
-                                    Text(result.latestTag)
-                                        .font(.system(.body, design: .monospaced))
-                                        .foregroundStyle(.secondary)
-                                }
-
-                                Divider()
-
-                                HStack {
-                                    Text("Latest Build Number")
-                                        .fontWeight(.medium)
-                                    Spacer()
-                                    Text("\(result.latestBuildNumber)")
-                                        .font(.system(.body, design: .monospaced))
-                                        .foregroundStyle(.secondary)
-                                }
-
-                                if let releaseURL = result.releaseURL {
-                                    Divider()
-                                    Link(destination: releaseURL) {
-                                        HStack {
-                                            Label("Download Release on GitHub", systemImage: "arrow.up.right.square.fill")
-                                                .font(.subheadline.weight(.bold))
-                                            Spacer()
-                                            Image(systemName: "chevron.right")
-                                        }
-                                        .padding()
-                                        .background(Color.green.opacity(0.12), in: RoundedRectangle(cornerRadius: 8))
-                                        .foregroundStyle(.green)
+                                    VStack(alignment: .leading, spacing: 4) {
+                                        Text("You’re Fully Up To Date")
+                                            .font(.headline)
+                                            .foregroundColor(.green)
+                                        Text("SwiftCode is running the latest available version.")
+                                            .font(.caption)
+                                            .foregroundStyle(.secondary)
                                     }
-                                    .buttonStyle(.plain)
+                                    Spacer()
+                                    Image(systemName: "checkmark.seal.fill")
+                                        .font(.title)
+                                        .foregroundColor(.green)
+                                }
+                                if let lastCheck = updates.lastCheckDate {
+                                    Text("Last checked \(lastCheck, style: .relative).")
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
                                 }
                             }
-                        } else if let errorMessage {
+                        } else if let errorMessage = updates.lastErrorMessage {
                             VStack(alignment: .leading, spacing: 12) {
-                                HStack {
-                                    Label("Connection Interrupted", systemImage: "exclamationmark.triangle.fill")
-                                        .foregroundColor(.red)
-                                        .font(.headline)
-                                    Spacer()
-                                }
-
+                                Label("Update Check Failed", systemImage: "exclamationmark.triangle.fill")
+                                    .foregroundColor(.red)
+                                    .font(.headline)
                                 Text(errorMessage)
                                     .font(.subheadline)
                                     .foregroundColor(.red)
@@ -184,26 +174,26 @@ struct UpdatesView: View {
                                     .frame(maxWidth: .infinity, alignment: .leading)
                                     .background(Color.red.opacity(0.08))
                                     .cornerRadius(8)
-
-                                if !diagnosticLogs.isEmpty {
-                                    DisclosureGroup("Show Diagnostic Connection Logs") {
-                                        ScrollView {
-                                            Text(diagnosticLogs)
-                                                .font(.system(.caption, design: .monospaced))
-                                                .padding(8)
-                                                .frame(maxWidth: .infinity, alignment: .leading)
-                                        }
-                                        .frame(height: 100)
-                                        .background(Color.black.opacity(0.15))
-                                        .cornerRadius(6)
-                                    }
+                            }
+                        } else if let startupError = updates.startupErrorMessage {
+                            VStack(alignment: .leading, spacing: 12) {
+                                Label("Updater Could Not Start", systemImage: "exclamationmark.triangle.fill")
+                                    .foregroundColor(.red)
+                                    .font(.headline)
+                                Text(startupError)
+                                    .font(.subheadline)
+                                    .foregroundColor(.red)
+                                    .padding()
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                                    .background(Color.red.opacity(0.08))
+                                    .cornerRadius(8)
+                                Text("SwiftCode still runs normally. Fix the updater configuration and use Check for Updates to try again.")
                                     .font(.caption)
-                                    .foregroundColor(.secondary)
-                                }
+                                    .foregroundStyle(.secondary)
                             }
                         } else {
                             VStack(spacing: 8) {
-                                Text("Check for updates to download the latest builds of SwiftCode.")
+                                Text("Check for updates to see the latest version of SwiftCode.")
                                     .font(.subheadline)
                                     .foregroundStyle(.secondary)
                                     .multilineTextAlignment(.center)
@@ -214,18 +204,57 @@ struct UpdatesView: View {
 
                         Divider()
 
-                        HStack(spacing: 12) {
-                            Button {
-                                Task { await checkForUpdates() }
-                            } label: {
-                                Label(errorMessage != nil ? "Retry Check" : "Check for Updates Now", systemImage: "arrow.clockwise")
-                                    .fontWeight(.semibold)
-                                    .frame(maxWidth: .infinity)
-                            }
-                            .buttonStyle(.borderedProminent)
-                            .controlSize(.large)
-                            .tint(.blue)
-                            .disabled(isChecking)
+                        Button {
+                            updates.checkForUpdates()
+                        } label: {
+                            Label(
+                                updates.lastErrorMessage != nil ? "Retry Check" : "Check for Updates Now",
+                                systemImage: "arrow.clockwise"
+                            )
+                            .fontWeight(.semibold)
+                            .frame(maxWidth: .infinity)
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .controlSize(.large)
+                        .tint(.blue)
+                        .disabled(updates.isChecking || updates.sessionInProgress)
+                    }
+                    .padding()
+                }
+                .groupBoxStyle(ModernGroupBoxStyle())
+
+                // 3. Automatic Updates Card
+                GroupBox {
+                    VStack(alignment: .leading, spacing: 16) {
+                        Label("Automatic Updates", systemImage: "gearshape.fill")
+                            .font(.headline)
+                            .foregroundColor(.blue)
+                        Toggle(
+                            "Check for updates automatically",
+                            isOn: Binding(
+                                get: { updates.automaticallyChecksForUpdates },
+                                set: { updates.automaticallyChecksForUpdates = $0 }
+                            )
+                        )
+                        Toggle(
+                            "Automatically download and install updates in the future",
+                            isOn: Binding(
+                                get: { updates.automaticallyDownloadsUpdates },
+                                set: { updates.automaticallyDownloadsUpdates = $0 }
+                            )
+                        )
+                        .disabled(!updates.allowsAutomaticUpdates)
+                        Text("Automatic checks run about once a day. Manual checks always work, even when automatic checking is off. Skipped versions are remembered by the updater; a manual check re-offers a skipped version.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                        if !updates.publicKeyConfigured {
+                            Label(
+                                "No EdDSA public key (SUPublicEDKey) is configured yet. Update discovery works, but Sparkle will refuse to install updates until a key is generated and embedded. See Docs/Updates.md.",
+                                systemImage: "exclamationmark.triangle.fill"
+                            )
+                            .font(.caption)
+                            .foregroundStyle(.orange)
+                            .fixedSize(horizontal: false, vertical: true)
                         }
                     }
                     .padding()
@@ -235,35 +264,5 @@ struct UpdatesView: View {
             .padding(24)
         }
         .navigationTitle("Updates")
-        .alert(isPresented: $showingErrorAlert) {
-            Alert(
-                title: Text("Update Check Failed"),
-                message: Text(errorMessage ?? "An unknown network error occurred. Please check your internet connection."),
-                dismissButton: .default(Text("Dismiss"))
-            )
-        }
-    }
-
-    private func checkForUpdates() async {
-        isChecking = true
-        errorMessage = nil
-        diagnosticLogs = ""
-        defer { isChecking = false }
-
-        diagnosticLogs += "[Network] Constructing API query for github releases...\n"
-        do {
-            checkResult = try await GitHubReleaseCheck.shared.checkLatestBuild()
-            diagnosticLogs += "[Network] Successfully retrieved and parsed release data!\n"
-        } catch {
-            checkResult = nil
-            showingErrorAlert = true
-            if let checkError = error as? GitHubReleaseCheckError {
-                errorMessage = checkError.localizedDescription
-                diagnosticLogs += "[Error] Specialized GitHubReleaseCheckError occurred: \(checkError.localizedDescription)\n"
-            } else {
-                errorMessage = "Unable to check updates. \(error.localizedDescription)"
-                diagnosticLogs += "[Error] Standard error occurred: \(error.localizedDescription)\n"
-            }
-        }
     }
 }

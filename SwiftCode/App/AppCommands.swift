@@ -12,6 +12,22 @@ struct AppCommands: Commands {
             .keyboardShortcut(",", modifiers: [.command])
         }
 
+        // The one manual update entry point in the app menu. It routes
+        // to AppUpdateService (Sparkle 2); there is no other "check for
+        // updates" path. Manual checks work even when automatic
+        // checking is disabled, and a manual check re-offers a version
+        // the user previously skipped.
+        CommandGroup(after: .appInfo) {
+            // Deliberately not disabled from here: Commands views do
+            // not observe the service, so a disabled state would go
+            // stale. AppUpdateService.checkForUpdates() itself guards
+            // against duplicate sessions (it brings an existing offer
+            // window forward instead of starting a second check).
+            Button("Check for Updates…") {
+                AppUpdateService.shared.checkForUpdates()
+            }
+        }
+
         SidebarCommands()
 
         CommandGroup(replacing: .newItem) {
