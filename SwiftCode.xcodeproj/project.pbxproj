@@ -756,6 +756,9 @@
 		76e7756021b50be003d84302 /* SDKDeveloperLogger.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0b6cc61918d5317eb85cc4aa /* SDKDeveloperLogger.swift */; };
 		7731E16B3F080720F483F219 /* AssistContextPersistenceStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1DBDE0DB17CE76075E55597F /* AssistContextPersistenceStore.swift */; };
 		775C17DFAC2EE718919A321 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 775C17DFAC2EE718919A322 /* SettingsView.swift */; };
+		SRMBLD000000000000000001 /* SettingsRoutingManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = SRMREF000000000000000001 /* SettingsRoutingManager.swift */; };
+		NSVBLD000000000000000001 /* NativeSettingsViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = NSVREF000000000000000001 /* NativeSettingsViews.swift */; };
+		NSWBLD000000000000000001 /* NativeSettingsWindowController.swift in Sources */ = {isa = PBXBuildFile; fileRef = NSWREF000000000000000001 /* NativeSettingsWindowController.swift */; };
 		77BCA66E82BE4E0BA9848DA9 /* StopRunningProcess.swift in Sources */ = {isa = PBXBuildFile; fileRef = 515C9B1EFC434E7DBF9311C6 /* StopRunningProcess.swift */; };
 		77D862C1351DCDAE0F8559C2 /* AssistVersionControlOperator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 61FF804206ECCD45E291353C /* AssistVersionControlOperator.swift */; };
 		7808E237955A9412830DF5AF /* AssistComplexityAnalysisTool.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5BBED032DA77DFA0B0598605 /* AssistComplexityAnalysisTool.swift */; };
@@ -3693,6 +3696,9 @@
 		770308227209166D70F0AAF4 /* CodeColoringTheme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CodeColoringTheme.swift; sourceTree = "<group>"; };
 		770CF196F59D43FEAD5B27E3 /* GitBranchTool.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GitBranchTool.swift; sourceTree = "<group>"; };
 		775C17DFAC2EE718919A322 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
+		SRMREF000000000000000001 /* SettingsRoutingManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsRoutingManager.swift; sourceTree = "<group>"; };
+		NSVREF000000000000000001 /* NativeSettingsViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NativeSettingsViews.swift; sourceTree = "<group>"; };
+		NSWREF000000000000000001 /* NativeSettingsWindowController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NativeSettingsWindowController.swift; sourceTree = "<group>"; };
 		77899CB4994EC5DDC149C892 /* EditorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EditorView.swift; sourceTree = "<group>"; };
 		7798D51E6991DBC5F6BB8F5B /* TextDeduplicatorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TextDeduplicatorView.swift; sourceTree = "<group>"; };
 		7810EC1128924A86AE466690 /* RSAKeyGeneratorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RSAKeyGeneratorView.swift; sourceTree = "<group>"; };
@@ -9601,6 +9607,9 @@
 				EFF77474F2B5DCBDAA9C86B9 /* AddedMCPServersView.swift */,
 				EFF81BFD5C258111DF44879C /* AddMCPServerView.swift */,
 				775C17DFAC2EE718919A322 /* SettingsView.swift */,
+				SRMREF000000000000000001 /* SettingsRoutingManager.swift */,
+				NSVREF000000000000000001 /* NativeSettingsViews.swift */,
+				NSWREF000000000000000001 /* NativeSettingsWindowController.swift */,
 				02BC29E58C19C690DD971DA0 /* NewSettingsView.swift */,
 				E5C09D1515DC441A8619FDB6 /* AssistSettingsView.swift */,
 				MTA0011515DC441A8619FDB1 /* MetaAssistModelsUI.swift */,
@@ -12503,6 +12512,9 @@
 				CE3CDC8FCF4BBB848CB8E5CF /* BrowseSkillsView.swift in Sources */,
 				CEB1145BBC6B959F2E4E8FBD /* DraftSkillWithAIView.swift in Sources */,
 				775C17DFAC2EE718919A321 /* SettingsView.swift in Sources */,
+				SRMBLD000000000000000001 /* SettingsRoutingManager.swift in Sources */,
+				NSVBLD000000000000000001 /* NativeSettingsViews.swift in Sources */,
+				NSWBLD000000000000000001 /* NativeSettingsWindowController.swift in Sources */,
 				12095A22ECC64B12B6DEC8A6 /* RepositoryExplorerView.swift in Sources */,
 				B5BBAC4D7E5740458D5ED6D2 /* RepositoryAutomationBuilderView.swift in Sources */,
 				F318D8970C6E4868B8F89D31 /* SwiftCodeWorkflows/WorkflowModels.swift in Sources */,

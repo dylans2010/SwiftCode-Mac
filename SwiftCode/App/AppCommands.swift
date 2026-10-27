@@ -4,6 +4,13 @@ struct AppCommands: Commands {
     private var sessionStore = ProjectSessionStore.shared
 
     var body: some Commands {
+        CommandGroup(replacing: .appSettings) {
+            Button("Settings...") {
+                SettingsRoutingManager.shared.showSettings()
+            }
+            .keyboardShortcut(",", modifiers: [.command])
+        }
+
         SidebarCommands()
 
         CommandGroup(replacing: .newItem) {
@@ -60,7 +67,7 @@ struct AppCommands: Commands {
             .keyboardShortcut("d", modifiers: [.command, .option])
 
             Button("Settings") {
-                SettingsWindowManager.shared.showSettings()
+                SettingsRoutingManager.shared.showSettings()
             }
 
             Button("Source Control") {

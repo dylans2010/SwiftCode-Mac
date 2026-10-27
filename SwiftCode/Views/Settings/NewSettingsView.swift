@@ -10,7 +10,7 @@ public struct SettingsView: View {
         Color.clear
             .frame(width: 0, height: 0)
             .onAppear {
-                SettingsWindowManager.shared.showSettings()
+                SettingsRoutingManager.shared.showSettings()
                 dismiss()
             }
     }
@@ -30,7 +30,7 @@ public struct SettingsView: View {
                 .frame(maxWidth: 400)
 
             Button("Open Settings Window") {
-                SettingsWindowManager.shared.showSettings()
+                SettingsRoutingManager.shared.showSettings()
             }
             .buttonStyle(.borderedProminent)
             .controlSize(.large)

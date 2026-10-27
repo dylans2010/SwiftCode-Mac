@@ -365,6 +365,7 @@ final class ThemeManager {
     private init() { load() }
 
     var allThemes: [AppTheme] { AppTheme.builtIns + customThemes }
+    var themes: [AppTheme] { allThemes }
 
     func theme(for id: String) -> AppTheme? {
         allThemes.first { $0.id == id }
@@ -601,6 +602,8 @@ struct GeneralSettingsView: View {
         NavigationStack {
             ScrollView {
                 VStack(spacing: 24) {
+                    settingsExperienceSection
+
                     proSection
 
                     // System Permissions (AppPermsView) Section
@@ -1027,8 +1030,22 @@ struct GeneralSettingsView: View {
         return errors
     }
 
+    // MARK: - Settings Experience Section
+
+    private var settingsExperienceSection: some View {
+        SettingsCardSection {
+            Toggle("Use New Settings Window", isOn: $settings.useNewSettingsWindow)
+        } header: {
+            Label("Settings Experience", systemImage: "macwindow.on.rectangle")
+        } footer: {
+            Text("Switch between the legacy multi-column preferences and the modern native settings window experience.")
+        }
+    }
+
     private var quickSetupSection: some View {
         SettingsCardSection {
+            Toggle("Use New Settings Window", isOn: $settings.useNewSettingsWindow)
+
             Button {
                 showOfflineModelsSheet = true
             } label: {

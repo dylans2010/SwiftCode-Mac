@@ -78,6 +78,28 @@ public final class SettingsWindowManager: NSObject, NSWindowDelegate {
         wc.window?.makeKeyAndOrderFront(nil)
     }
 
+    public var isSettingsOpen: Bool {
+        return windowControllers.contains { $0.window?.isVisible ?? false }
+    }
+
+    @discardableResult
+    public func focusIfVisible() -> Bool {
+        if let active = windowControllers.first(where: { $0.window?.isVisible ?? false })?.window {
+            active.makeKeyAndOrderFront(nil)
+            NSApp.activate(ignoringOtherApps: true)
+            return true
+        }
+        return false
+    }
+
+    public func closeSettings() {
+        let controllers = windowControllers
+        windowControllers.removeAll()
+        for wc in controllers {
+            wc.window?.close()
+        }
+    }
+
     // MARK: - NSWindowDelegate
     public func windowWillClose(_ notification: Notification) {
         if let window = notification.object as? NSWindow,

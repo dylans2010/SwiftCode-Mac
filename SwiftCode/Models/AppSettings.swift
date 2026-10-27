@@ -491,6 +491,15 @@ class AppSettings: ObservableObject {
         didSet { debouncedSave("completionSoundID", completionSoundID) }
     }
 
+    // MARK: - Settings Window Experience
+    @Published var useNewSettingsWindow: Bool {
+        didSet {
+            debouncedSave("useNewSettingsWindow", useNewSettingsWindow)
+            UserDefaults.standard.set(useNewSettingsWindow, forKey: "useNewSettingsWindow")
+            NotificationCenter.default.post(name: NSNotification.Name("UseNewSettingsWindowDidChange"), object: useNewSettingsWindow)
+        }
+    }
+
     // MARK: - Debounced Save
 
     private var saveTask: Task<Void, Never>?
@@ -623,6 +632,7 @@ class AppSettings: ObservableObject {
         saveProjectsOnCustomFolder = UserDefaults.standard.object(forKey: "saveProjectsOnCustomFolder") as? Bool ?? false
         customProjectsFolder = UserDefaults.standard.string(forKey: "customProjectsFolder") ?? ""
         defaultOrganization = UserDefaults.standard.string(forKey: "defaultOrganization") ?? "com.SwiftCode"
+        useNewSettingsWindow = UserDefaults.standard.object(forKey: "useNewSettingsWindow") as? Bool ?? false
 
         // Initialize sound preferences with graceful migration
         let rawNotif = UserDefaults.standard.string(forKey: "notificationSoundID") ?? SoundCatalog.notificationA.id
