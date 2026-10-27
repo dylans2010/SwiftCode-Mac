@@ -130,29 +130,6 @@ public struct SwiftCodeWelcomeView: View {
                 restoreStandardWindowStyle(for: window)
             }
         }
-        .onReceive(NotificationCenter.default.publisher(for: NSWindow.didBecomeKeyNotification)) { notification in
-            guard let window = notification.object as? NSWindow,
-                  let welcomeWindow = windowHolder.window,
-                  window === welcomeWindow else {
-                return
-            }
-            applyWelcomeWindowStyle(to: window)
-        }
-        .onReceive(NotificationCenter.default.publisher(for: NSWindow.didResizeNotification)) { notification in
-            guard let window = notification.object as? NSWindow,
-                  let welcomeWindow = windowHolder.window,
-                  window === welcomeWindow else {
-                return
-            }
-            if window.styleMask.contains(.resizable) {
-                window.styleMask.remove([.resizable, .miniaturizable])
-                window.showsResizeIndicator = false
-            }
-            let fixedSize = NSSize(width: 800, height: 480)
-            if window.frame.size != fixedSize {
-                window.setContentSize(fixedSize)
-            }
-        }
     }
 
     // MARK: - Left Column (Hero & Action Buttons)
@@ -419,8 +396,10 @@ public struct SwiftCodeWelcomeView: View {
         window.toolbar = nil
 
         // The WelcomeView is NOT allowed to be minimized, resized or full screen
-        window.styleMask.remove([.resizable, .miniaturizable])
-        window.styleMask.insert([.titled, .closable, .fullSizeContentView])
+        if window.styleMask.contains(.resizable) || window.styleMask.contains(.miniaturizable) || !window.styleMask.contains(.fullSizeContentView) {
+            window.styleMask.remove([.resizable, .miniaturizable])
+            window.styleMask.insert([.titled, .closable, .fullSizeContentView])
+        }
 
         let fixedSize = NSSize(width: 800, height: 480)
         window.minSize = fixedSize
@@ -428,32 +407,19 @@ public struct SwiftCodeWelcomeView: View {
         window.showsResizeIndicator = false
         window.collectionBehavior = []
 
-        // Set intercepting delegate
-        if window.delegate !== WelcomeWindowDelegate.shared {
-            WelcomeWindowDelegate.shared.previousDelegate = window.delegate
-            WelcomeWindowDelegate.shared.isWelcomeActive = true
-            window.delegate = WelcomeWindowDelegate.shared
-        } else {
-            WelcomeWindowDelegate.shared.isWelcomeActive = true
-        }
-
         // Remove/hide the minimize button and zoom button so ONLY the close button shows
         window.standardWindowButton(.miniaturizeButton)?.isHidden = true
         window.standardWindowButton(.zoomButton)?.isHidden = true
         window.standardWindowButton(.closeButton)?.isHidden = false
 
-        if window.frame.size != fixedSize {
+        let currentContentSize = window.contentLayoutRect.size
+        if abs(currentContentSize.width - fixedSize.width) > 2 || abs(currentContentSize.height - fixedSize.height) > 2 {
             window.setContentSize(fixedSize)
             window.center()
         }
     }
 
     private func restoreStandardWindowStyle(for window: NSWindow) {
-        WelcomeWindowDelegate.shared.isWelcomeActive = false
-        if window.delegate === WelcomeWindowDelegate.shared {
-            window.delegate = WelcomeWindowDelegate.shared.previousDelegate
-        }
-
         window.isOpaque = true
         window.backgroundColor = nil
         window.showsResizeIndicator = true
@@ -704,21 +670,11 @@ struct WelcomeWindowAccessor: NSViewRepresentable {
     func makeNSView(context: Context) -> WindowTrackingView {
         let view = WindowTrackingView()
         view.onWindow = onWindow
-        DispatchQueue.main.async {
-            if let window = view.window {
-                onWindow(window)
-            }
-        }
         return view
     }
 
     func updateNSView(_ nsView: WindowTrackingView, context: Context) {
         nsView.onWindow = onWindow
-        DispatchQueue.main.async {
-            if let window = nsView.window {
-                onWindow(window)
-            }
-        }
     }
 }
 
@@ -728,59 +684,14 @@ final class WindowTrackingView: NSView {
     override func viewDidMoveToWindow() {
         super.viewDidMoveToWindow()
         if let window = self.window {
-            onWindow?(window)
+            DispatchQueue.main.async { [weak self, weak window] in
+                guard let window = window, self?.window === window else { return }
+                self?.onWindow?(window)
+            }
         }
     }
 }
 
 final class WelcomeWindowHolder {
     weak var window: NSWindow?
-}
-
-// MARK: - Welcome Window Delegate Interceptor
-
-final class WelcomeWindowDelegate: NSObject, NSWindowDelegate, @unchecked Sendable {
-    static let shared = WelcomeWindowDelegate()
-    let fixedSize = NSSize(width: 800, height: 480)
-    weak var previousDelegate: NSWindowDelegate?
-    var isWelcomeActive = true
-
-    func windowWillResize(_ sender: NSWindow, to frameSize: NSSize) -> NSSize {
-        if isWelcomeActive {
-            return fixedSize
-        }
-        return previousDelegate?.windowWillResize?(sender, to: frameSize) ?? frameSize
-    }
-
-    func windowShouldZoom(_ window: NSWindow, toFrame newFrame: NSRect) -> Bool {
-        if isWelcomeActive {
-            return false
-        }
-        return previousDelegate?.windowShouldZoom?(window, toFrame: newFrame) ?? true
-    }
-
-    func windowWillUseStandardFrame(_ window: NSWindow, defaultFrame newFrame: NSRect) -> NSRect {
-        if isWelcomeActive {
-            var frame = window.frame
-            frame.size = fixedSize
-            return frame
-        }
-        return previousDelegate?.windowWillUseStandardFrame?(window, defaultFrame: newFrame) ?? newFrame
-    }
-
-    override func responds(to aSelector: Selector!) -> Bool {
-        if aSelector == #selector(NSWindowDelegate.windowWillResize(_:to:)) ||
-           aSelector == #selector(NSWindowDelegate.windowShouldZoom(_:toFrame:)) ||
-           aSelector == #selector(NSWindowDelegate.windowWillUseStandardFrame(_:defaultFrame:)) {
-            return true
-        }
-        return super.responds(to: aSelector) || (previousDelegate?.responds(to: aSelector) ?? false)
-    }
-
-    override func forwardingTarget(for aSelector: Selector!) -> Any? {
-        if let previous = previousDelegate, previous.responds(to: aSelector) {
-            return previous
-        }
-        return super.forwardingTarget(for: aSelector)
-    }
 }
