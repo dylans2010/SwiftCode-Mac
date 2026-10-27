@@ -29,6 +29,7 @@ struct NetworkInspectorView: View {
                 }
             }
         }
+        .liquidGlass(style: .subtle, cornerRadius: 12)
         .navigationTitle("Network Inspector")
         .toolbar {
             Button("Clear") {

@@ -18,6 +18,7 @@ struct PercentageCalculatorView: View {
                     .fontWeight(.bold)
             }
             .padding()
+            .liquidGlass(style: .subtle, cornerRadius: 12)
             .textFieldStyle(.roundedBorder)
 
             Button("Calculate") {

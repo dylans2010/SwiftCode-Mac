@@ -88,6 +88,7 @@ struct CURLGeneratorDevToolView: View {
             }
             .padding()
         }
+        .liquidGlass(style: .subtle, cornerRadius: 12)
         .navigationTitle("cURL Generator")
         .onAppear {
             viewModel.generate()

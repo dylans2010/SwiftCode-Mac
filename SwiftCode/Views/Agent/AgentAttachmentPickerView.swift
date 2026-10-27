@@ -8,6 +8,8 @@ struct AgentAttachmentPickerView: View {
             Image(systemName: "plus")
         }
         .buttonStyle(.plain)
+        .padding(6)
+        .liquidGlass(style: .subtle, cornerRadius: 8)
     }
 
     private func pickAttachment() {

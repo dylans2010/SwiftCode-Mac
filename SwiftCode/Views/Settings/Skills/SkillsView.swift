@@ -140,5 +140,7 @@ struct SkillsView: View {
             }
         }
         .padding(.vertical, 4)
+        .padding(.horizontal, 8)
+        .liquidGlass(style: .subtle, cornerRadius: 10)
     }
 }

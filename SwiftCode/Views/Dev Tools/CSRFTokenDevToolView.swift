@@ -73,6 +73,7 @@ struct CSRFTokenDevToolView: View {
             }
             .padding()
         }
+        .liquidGlass(style: .subtle, cornerRadius: 12)
         .navigationTitle("CSRF Token Generator")
         .onAppear {
             viewModel.generateToken()

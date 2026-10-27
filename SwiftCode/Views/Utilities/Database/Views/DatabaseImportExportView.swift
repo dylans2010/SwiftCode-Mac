@@ -176,6 +176,7 @@ struct DatabaseImportExportView: View {
                         .padding(8)
                         .frame(maxWidth: .infinity, alignment: .leading)
                 }
+                .groupBoxStyle(.liquidGlass)
             }
 
             if !importMessage.isEmpty {
@@ -188,6 +189,7 @@ struct DatabaseImportExportView: View {
                     }
                     .frame(height: 100)
                 }
+                .groupBoxStyle(.liquidGlass)
             }
         }
     }

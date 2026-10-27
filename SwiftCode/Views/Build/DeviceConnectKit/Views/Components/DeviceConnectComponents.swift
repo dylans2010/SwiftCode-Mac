@@ -43,5 +43,6 @@ struct DeviceConnectHeader: View {
             Spacer()
         }
         .padding(.vertical, 4)
+        .liquidGlass(style: .subtle, cornerRadius: 8)
     }
 }

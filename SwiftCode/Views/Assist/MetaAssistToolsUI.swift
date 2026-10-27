@@ -231,14 +231,7 @@ public struct MetaAssistThinkingUI: View {
                     .transition(.opacity.combined(with: .move(edge: .top)))
                 }
             }
-            .background(
-                RoundedRectangle(cornerRadius: 8)
-                    .fill(Color(nsColor: .controlBackgroundColor).opacity(0.55))
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: 8)
-                    .stroke(Color.purple.opacity(0.2), lineWidth: 0.75)
-            )
+            .liquidGlass(style: .standard, cornerRadius: 8, tint: .purple)
         }
         .frame(maxWidth: .infinity, alignment: .leading)
     }

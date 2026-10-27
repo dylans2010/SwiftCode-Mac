@@ -25,6 +25,7 @@ struct GitFileRowView: View {
             Spacer()
         }
         .padding(.vertical, 4)
+        .liquidGlass(style: .subtle, cornerRadius: 6)
         .sourceControlEmbedded()
     }
 

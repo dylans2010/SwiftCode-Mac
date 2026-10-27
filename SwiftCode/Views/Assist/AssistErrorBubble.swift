@@ -25,8 +25,7 @@ public struct AssistErrorBubble: View {
             Spacer()
         }
         .padding(8)
-        .background(Color.red.opacity(0.06))
-        .cornerRadius(6)
+        .liquidGlass(style: .standard, cornerRadius: 6, tint: .red)
         .overlay(
             RoundedRectangle(cornerRadius: 6)
                 .stroke(Color.red.opacity(0.12), lineWidth: 1)

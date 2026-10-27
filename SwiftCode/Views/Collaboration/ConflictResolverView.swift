@@ -21,6 +21,8 @@ struct ConflictResolverView: View {
                             .font(.caption.bold())
                         Text(conflict.remoteChange)
                     }
+                    .padding(12)
+                    .liquidGlass(style: .subtle, cornerRadius: 12)
                     ForEach(ConflictResolutionChoice.allCases, id: \.self) { choice in
                         Button(choice.displayName) {
                             manager.resolveConflict(conflict.id, using: choice, actorID: actorID)

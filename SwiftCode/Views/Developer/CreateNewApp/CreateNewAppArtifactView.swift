@@ -20,6 +20,7 @@ public struct CreateNewAppArtifactView: View {
                 .keyboardShortcut(.defaultAction)
             }
             .padding()
+            .liquidGlass(style: .subtle, cornerRadius: 12)
             .background(Color(NSColor.windowBackgroundColor))
 
             Divider()

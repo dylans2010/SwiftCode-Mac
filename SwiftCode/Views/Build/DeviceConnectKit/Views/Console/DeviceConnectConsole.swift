@@ -67,7 +67,7 @@ public struct DeviceConnectConsole: View {
                 }
             }
             .padding(10)
-            .background(Color(NSColor.windowBackgroundColor))
+            .liquidGlass(style: .standard, cornerRadius: 0)
 
             Divider()
 

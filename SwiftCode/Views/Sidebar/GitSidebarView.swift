@@ -51,6 +51,7 @@ struct GitSidebarView: View {
                     }
                 }
                 .padding()
+                .liquidGlass(style: .subtle, cornerRadius: 12)
             } else {
                 GitNotInstalledView()
             }

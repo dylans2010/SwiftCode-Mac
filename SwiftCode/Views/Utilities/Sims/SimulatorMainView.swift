@@ -144,7 +144,7 @@ public struct SimulatorMainView: View {
             .buttonStyle(.bordered)
         }
         .padding()
-        .background(VisualEffectView(material: .headerView, blendingMode: .withinWindow))
+        .liquidGlass(style: .standard, cornerRadius: 0)
     }
 
     @ViewBuilder

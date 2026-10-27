@@ -212,7 +212,7 @@ struct PlistValidationNote: View {
         }
         .padding(8)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color(NSColor.controlBackgroundColor), in: RoundedRectangle(cornerRadius: 6))
+        .liquidGlass(style: .subtle, cornerRadius: 6)
     }
 }
 

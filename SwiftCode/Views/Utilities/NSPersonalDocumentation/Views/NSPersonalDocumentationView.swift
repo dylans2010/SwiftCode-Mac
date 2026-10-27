@@ -1323,8 +1323,10 @@ struct DocumentCreationPopoverView: View {
             VStack(alignment: .leading, spacing: 2) {
                 Text("Create New Entry")
                     .font(.headline)
+                    .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(.horizontal, 12)
                     .padding(.vertical, 8)
+                    .liquidGlass(style: .subtle, cornerRadius: 0)
 
                 Divider()
                     .padding(.bottom, 4)

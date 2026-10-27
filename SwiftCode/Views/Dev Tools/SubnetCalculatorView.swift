@@ -12,6 +12,7 @@ struct SubnetCalculatorView: View {
                 Stepper("Subnet Mask (CIDR): /\(subnetMask)", value: $subnetMask, in: 0...32)
             }
             .padding()
+            .liquidGlass(style: .subtle, cornerRadius: 12)
 
             Button("Calculate") { calculate() }
                 .buttonStyle(.borderedProminent)

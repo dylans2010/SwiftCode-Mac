@@ -66,7 +66,7 @@ public struct CollaborationConflictResolverView: View {
                         }
                     }
                     .padding()
-                    .background(Color.white.opacity(0.05), in: RoundedRectangle(cornerRadius: 16))
+                    .liquidGlass(style: .standard, cornerRadius: 16)
                 }
             }
             .padding()

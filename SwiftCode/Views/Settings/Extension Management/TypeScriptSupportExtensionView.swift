@@ -38,6 +38,8 @@ struct TypeScriptSupportExtensionView: View {
                 Text("TypeScript and TSX syntax highlighting with inline type annotations, import resolution, and tsconfig.json awareness.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
+                    .padding(10)
+                    .liquidGlass(style: .subtle, cornerRadius: 8)
             } header: {
                 Text("About")
             }

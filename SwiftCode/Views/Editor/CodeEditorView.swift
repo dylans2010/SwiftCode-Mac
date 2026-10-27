@@ -435,14 +435,7 @@ struct CodeEditorView: View {
                 }
                 .padding(.horizontal, 10)
                 .padding(.vertical, 7)
-                .background(
-                    RoundedRectangle(cornerRadius: 8)
-                        .fill(Color.white.opacity(0.06))
-                )
-                .overlay(
-                    RoundedRectangle(cornerRadius: 8)
-                        .stroke(Color.white.opacity(0.08), lineWidth: 0.5)
-                )
+                .liquidGlass(style: .subtle, cornerRadius: 8)
 
                 Button {
                     withAnimation(.easeInOut(duration: 0.2)) {

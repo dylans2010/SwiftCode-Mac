@@ -139,7 +139,8 @@ public struct SDKCodeEditorView: View {
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 6)
-        .background(Color.orange.opacity(0.12))
+        .liquidGlass(style: .subtle, cornerRadius: 8, tint: .orange)
+        .padding(6)
     }
 
     // MARK: - Save (⌘S)

@@ -55,6 +55,7 @@ struct JWTDecoderView: View {
             }
         }
         .padding()
+        .liquidGlass(style: .subtle, cornerRadius: 12)
         .navigationTitle("JWT Decoder")
     }
 

@@ -10,6 +10,7 @@ struct ColorConverterView: View {
             ColorPicker("Pick a color", selection: $color)
                 .font(.headline)
                 .padding()
+                .liquidGlass(style: .subtle, cornerRadius: 12)
                 .onChange(of: color) { updateFromColor() }
 
             RoundedRectangle(cornerRadius: 12)

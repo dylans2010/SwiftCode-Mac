@@ -28,6 +28,7 @@ struct EnvironmentSwitcherView: View {
                 Text("Switching environment will restart the networking session.")
             }
         }
+        .liquidGlass(style: .subtle, cornerRadius: 12)
         .navigationTitle("Env Switcher")
     }
 }

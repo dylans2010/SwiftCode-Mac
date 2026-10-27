@@ -32,6 +32,7 @@ struct DependencyHealthView: View {
                 }
             }
         }
+        .liquidGlass(style: .subtle, cornerRadius: 12)
         .navigationTitle("Dependency Health")
         .onAppear { runScan() }
     }

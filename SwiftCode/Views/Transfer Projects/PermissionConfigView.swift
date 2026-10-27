@@ -91,6 +91,8 @@ struct PermissionConfigView: View {
             if permission.agent.allowAgentToRunCommands || permission.versionControl.push {
                 Label("High risk permissions enabled", systemImage: "exclamationmark.triangle.fill")
                     .foregroundStyle(.orange)
+                    .padding(10)
+                    .liquidGlass(style: .subtle, cornerRadius: 8)
             }
         }
     }

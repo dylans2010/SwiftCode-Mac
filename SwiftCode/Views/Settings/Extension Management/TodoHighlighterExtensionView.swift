@@ -46,6 +46,8 @@ struct TodoHighlighterExtensionView: View {
                 Text("Highlights TODO, FIXME, MARK, and HACK comments with color-coded badges. All occurrences appear in the editor minimap and the badge count.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
+                    .padding(10)
+                    .liquidGlass(style: .subtle, cornerRadius: 8)
             } header: {
                 Text("About")
             }

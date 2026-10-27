@@ -247,6 +247,7 @@ public struct SDKCodeFileNavigatorView: View {
         }
         .padding(20)
         .frame(width: 340)
+        .liquidGlass(style: .sheet, cornerRadius: 12)
         .onAppear { newEntryName = "" }
     }
 

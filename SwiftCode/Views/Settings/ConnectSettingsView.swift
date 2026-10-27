@@ -27,6 +27,7 @@ struct ConnectSettingsView: View {
                 diagnosticsSection
             }
             .padding()
+            .groupBoxStyle(ModernGroupBoxStyle())
         }
         .onAppear {
             portInputString = "\(connectServer.configuredPort)"

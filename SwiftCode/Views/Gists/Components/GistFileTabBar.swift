@@ -45,7 +45,7 @@ struct GistFileTabBar: View {
             .padding(.horizontal, 12)
             .padding(.vertical, 8)
         }
-        .background(Color(red: 0.10, green: 0.10, blue: 0.13))
+        .liquidGlass(style: .floatingBar, cornerRadius: 0)
         .overlay(
             Rectangle()
                 .fill(Color.white.opacity(0.05))

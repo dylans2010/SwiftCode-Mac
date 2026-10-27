@@ -15,6 +15,7 @@ struct LoremIpsumGeneratorView: View {
                     .buttonStyle(.borderedProminent)
             }
             .padding([.top, .horizontal])
+            .liquidGlass(style: .subtle, cornerRadius: 12)
 
             TextEditor(text: .constant(result))
                 .font(.body)

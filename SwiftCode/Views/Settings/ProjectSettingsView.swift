@@ -545,7 +545,8 @@ struct ProjectSettingsView: View {
             }
             .buttonStyle(.plain)
         }
-        .padding(.vertical, 4)
+        .padding(12)
+        .liquidGlass(style: .subtle, cornerRadius: 8)
     }
 
     // MARK: - Build setting row builders

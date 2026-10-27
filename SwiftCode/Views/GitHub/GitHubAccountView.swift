@@ -114,6 +114,7 @@ struct GitHubAccountView: View {
                         .frame(maxWidth: .infinity, alignment: .leading)
                     }
                     .padding(.vertical, 8)
+                    .liquidGlass(style: .standard, cornerRadius: 14)
                 }
 
                 // Section 2: Developer Statistics

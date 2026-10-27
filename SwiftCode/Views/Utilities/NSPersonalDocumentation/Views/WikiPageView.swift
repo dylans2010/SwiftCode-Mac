@@ -28,7 +28,7 @@ struct WikiPageListView: View {
                 .help("New Wiki Page")
             }
             .padding()
-            .background(Color(NSColor.windowBackgroundColor))
+            .liquidGlass(style: .subtle, cornerRadius: 0)
 
             Divider()
 

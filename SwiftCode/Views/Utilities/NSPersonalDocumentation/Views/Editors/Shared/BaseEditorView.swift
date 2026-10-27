@@ -752,12 +752,7 @@ public struct BaseEditorView<ToolbarContent: View, MetadataContent: View>: View 
                         specMeta
                     }
                     .padding(12)
-                    .background(Color(NSColor.controlBackgroundColor))
-                    .cornerRadius(8)
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 8)
-                            .stroke(Color(NSColor.separatorColor), lineWidth: 1)
-                    )
+                    .liquidGlass(style: .standard, cornerRadius: 8)
                 }
             }
             .padding(16)

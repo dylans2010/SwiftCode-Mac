@@ -231,7 +231,7 @@ public struct RepositoryExplorerView: View {
                 }
             }
             .padding(12)
-            .background(Color(NSColor.windowBackgroundColor))
+            .liquidGlass(style: .subtle, cornerRadius: 10)
 
             Divider()
 

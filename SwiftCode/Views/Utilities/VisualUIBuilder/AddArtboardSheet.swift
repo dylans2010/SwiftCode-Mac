@@ -82,7 +82,7 @@ struct MyCustomView: View {
                 .buttonStyle(.plain)
             }
             .padding()
-            .background(Color(NSColor.windowBackgroundColor))
+            .liquidGlass(style: .subtle, cornerRadius: 0)
 
             Divider()
 

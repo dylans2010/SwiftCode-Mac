@@ -147,7 +147,7 @@ public struct VisualUIToolbar: View {
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 8)
-        .background(Color(NSColor.controlBackgroundColor))
+        .liquidGlass(style: .subtle, cornerRadius: 0)
         .sheet(isPresented: $showingExportSheet) {
             VisualUIExportView(document: document)
         }

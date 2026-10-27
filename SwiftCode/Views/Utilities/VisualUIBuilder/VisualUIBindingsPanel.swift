@@ -69,6 +69,7 @@ public struct VisualUIBindingsPanel: View {
                         }
                         .padding(.vertical, 4)
                     }
+                    .groupBoxStyle(.liquidGlass)
 
                     // Element Bindings Map
                     if let selectedID = document.scene.selectedNodeIDs.first,
@@ -91,6 +92,7 @@ public struct VisualUIBindingsPanel: View {
                                 }
                             }
                         }
+                        .groupBoxStyle(.liquidGlass)
 
                         // Navigation Route section
                         VisualUINavigationPanel(document: document, node: node)

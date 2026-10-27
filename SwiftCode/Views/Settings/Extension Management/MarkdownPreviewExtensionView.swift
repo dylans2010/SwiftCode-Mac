@@ -31,6 +31,8 @@ struct MarkdownPreviewExtensionView: View {
                 Text("Provides a live side-by-side preview for Markdown files. Supports GFM (GitHub Flavored Markdown), tables, task lists, and optionally KaTeX math rendering.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
+                    .padding(10)
+                    .liquidGlass(style: .subtle, cornerRadius: 8)
             } header: {
                 Text("About")
             }

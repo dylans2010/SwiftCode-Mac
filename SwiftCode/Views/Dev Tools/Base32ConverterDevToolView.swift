@@ -185,6 +185,7 @@ struct Base32ConverterDevToolView: View {
             }
             .padding()
         }
+        .liquidGlass(style: .subtle, cornerRadius: 12)
         .navigationTitle("Base32 Converter")
     }
 }

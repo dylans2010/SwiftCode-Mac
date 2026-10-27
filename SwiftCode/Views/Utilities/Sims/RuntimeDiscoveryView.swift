@@ -108,8 +108,7 @@ struct RuntimeDiscoveryView: View {
                 }
                 .padding(10)
                 .frame(maxWidth: .infinity, alignment: .leading)
-                .background(Color.secondary.opacity(0.1))
-                .cornerRadius(8)
+                .liquidGlass(style: .standard, cornerRadius: 8)
             }
         }
     }

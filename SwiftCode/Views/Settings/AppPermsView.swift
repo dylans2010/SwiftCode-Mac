@@ -432,12 +432,7 @@ public struct AppPermsView: View {
             .frame(height: 6)
         }
         .padding(16)
-        .background(Color(NSColor.controlBackgroundColor))
-        .cornerRadius(10)
-        .overlay(
-            RoundedRectangle(cornerRadius: 10)
-                .stroke(Color.secondary.opacity(0.15), lineWidth: 1)
-        )
+        .liquidGlass(style: .standard, cornerRadius: 10)
     }
 
     // MARK: - Permissions List

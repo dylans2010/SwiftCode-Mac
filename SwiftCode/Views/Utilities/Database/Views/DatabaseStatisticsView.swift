@@ -36,6 +36,6 @@ struct MetricStatCard: View {
         }
         .padding()
         .frame(minWidth: 150, alignment: .leading)
-        .background(Color.secondary.opacity(0.1), in: RoundedRectangle(cornerRadius: 8))
+        .liquidGlass(style: .standard, cornerRadius: 8)
     }
 }

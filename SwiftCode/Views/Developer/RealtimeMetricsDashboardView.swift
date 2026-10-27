@@ -13,6 +13,7 @@ struct RealtimeMetricsDashboardView: View {
             }
             .padding()
         }
+        .liquidGlass(style: .subtle, cornerRadius: 12)
         .navigationTitle("Metrics Dashboard")
         .background(Color(red: 0.05, green: 0.05, blue: 0.07).ignoresSafeArea())
     }

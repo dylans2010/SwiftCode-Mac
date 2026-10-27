@@ -70,6 +70,7 @@ struct MemberManagementView: View {
             .font(.caption)
         }
         .padding(.vertical, 4)
+        .liquidGlass(style: .subtle, cornerRadius: 12)
     }
 
     private func permissionCell(_ value: Bool) -> some View {

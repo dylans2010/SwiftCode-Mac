@@ -15,6 +15,7 @@ struct IPAddressInfoView: View {
                     .disabled(ipAddress.isEmpty || isLoading)
             }
             .padding([.top, .horizontal])
+            .liquidGlass(style: .subtle, cornerRadius: 12)
 
             if isLoading {
                 ProgressView()

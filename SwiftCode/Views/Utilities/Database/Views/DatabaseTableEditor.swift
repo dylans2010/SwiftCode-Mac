@@ -24,7 +24,7 @@ struct DatabaseTableEditor: View {
                 }
             }
             .padding()
-            .background(Color.secondary.opacity(0.08))
+            .liquidGlass(style: .subtle, cornerRadius: 0)
 
             Form {
                 Section("Table Metadata") {

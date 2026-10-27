@@ -99,6 +99,7 @@ struct CURLConverterDevToolView: View {
             }
             .padding()
         }
+        .liquidGlass(style: .subtle, cornerRadius: 12)
         .navigationTitle("cURL Converter")
         .onAppear {
             viewModel.convert()

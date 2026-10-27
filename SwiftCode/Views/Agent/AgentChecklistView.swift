@@ -8,6 +8,9 @@ struct AgentChecklistView: View {
             Text("Plan")
                 .font(.headline)
                 .padding()
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .liquidGlass(style: .subtle, cornerRadius: 8)
+                .padding([.horizontal, .top])
 
             List(state.tasks) { task in
                 HStack(alignment: .top) {

@@ -33,7 +33,7 @@ public struct VisualUIExportView: View {
                             .font(.system(.body, design: .monospaced))
                             .padding(16)
                             .frame(maxWidth: .infinity, alignment: .leading)
-                            .background(Color.secondary.opacity(0.04), in: RoundedRectangle(cornerRadius: 12))
+                            .liquidGlass(style: .standard, cornerRadius: 12)
                             .overlay(RoundedRectangle(cornerRadius: 12).stroke(Color.secondary.opacity(0.12), lineWidth: 1))
                     }
                     .padding(16)

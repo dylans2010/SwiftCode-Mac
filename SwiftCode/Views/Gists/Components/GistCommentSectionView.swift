@@ -115,6 +115,7 @@ struct GistCommentSectionView: View {
                 .padding(.leading, 32)
         }
         .padding(.vertical, 8)
+        .liquidGlass(style: .subtle, cornerRadius: 12)
     }
 
     private func loadComments() async {

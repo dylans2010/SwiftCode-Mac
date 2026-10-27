@@ -25,6 +25,7 @@ struct CSSShadowGeneratorView: View {
                 ColorPicker("Shadow Color", selection: $color)
             }
             .padding()
+            .liquidGlass(style: .subtle, cornerRadius: 12)
 
             Text("box-shadow: \(Int(hOffset))px \(Int(vOffset))px \(Int(blur))px 0px rgba(0,0,0,0.5);")
                 .font(.system(.caption, design: .monospaced))

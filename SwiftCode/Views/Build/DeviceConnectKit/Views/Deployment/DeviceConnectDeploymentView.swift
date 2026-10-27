@@ -113,7 +113,7 @@ public struct DeviceConnectDeploymentView: View {
             }
         }
         .padding(16)
-        .background(Color(NSColor.controlBackgroundColor).opacity(0.6), in: RoundedRectangle(cornerRadius: 12))
+        .liquidGlass(style: .standard, cornerRadius: 12)
         .overlay(
             RoundedRectangle(cornerRadius: 12)
                 .stroke(Color.secondary.opacity(0.12), lineWidth: 1)
@@ -181,7 +181,7 @@ public struct DeviceConnectDeploymentView: View {
             .disabled(environmentManager.isDerivedDataClearing)
         }
         .padding(14)
-        .background(Color(NSColor.controlBackgroundColor).opacity(0.5), in: RoundedRectangle(cornerRadius: 12))
+        .liquidGlass(style: .standard, cornerRadius: 12)
         .overlay(
             RoundedRectangle(cornerRadius: 12)
                 .stroke(Color.secondary.opacity(0.12), lineWidth: 1)
@@ -227,7 +227,7 @@ public struct DeviceConnectDeploymentView: View {
             }
         }
         .padding(16)
-        .background(Color(NSColor.controlBackgroundColor).opacity(0.5), in: RoundedRectangle(cornerRadius: 12))
+        .liquidGlass(style: .standard, cornerRadius: 12)
         .overlay(
             RoundedRectangle(cornerRadius: 12)
                 .stroke(Color.secondary.opacity(0.12), lineWidth: 1)

@@ -80,7 +80,7 @@ struct ArchiveManagerView: View {
                     selectedArchive = nil
                 }
                 .frame(width: 320)
-                .background(Color(NSColor.windowBackgroundColor))
+                .liquidGlass(style: .standard, cornerRadius: 0)
             }
         }
     }

@@ -50,6 +50,7 @@ public struct CodeAssistUserView: View {
             }
             .padding(.horizontal, 12)
             .padding(.vertical, 6)
+            .liquidGlass(style: .subtle, cornerRadius: 8)
         }
     }
 

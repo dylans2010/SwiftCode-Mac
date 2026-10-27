@@ -372,7 +372,7 @@ public struct EntitlementsEditorView: View {
             }
             .padding(.horizontal, 8)
             .padding(.vertical, 5)
-            .background(Color(NSColor.controlBackgroundColor), in: RoundedRectangle(cornerRadius: 8))
+            .liquidGlass(style: .subtle, cornerRadius: 8)
             .frame(width: 200)
 
             // Primary Add Capability Button

@@ -53,6 +53,8 @@ public struct SDKCodeProjectRootView: View {
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 8)
+        .liquidGlass(style: .subtle, cornerRadius: 8)
+        .padding(6)
     }
 
     /// Presents a real `NSOpenPanel` for picking a project folder.

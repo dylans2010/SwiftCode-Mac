@@ -149,7 +149,8 @@ public struct SDKCodeEditorShellView: View {
             }
             .padding(.horizontal, 10)
             .padding(.vertical, 5)
-            .background(Color(nsColor: .controlBackgroundColor))
+            .liquidGlass(style: .subtle, cornerRadius: 8)
+            .padding(6)
             Divider()
 
             switch bottomTab {

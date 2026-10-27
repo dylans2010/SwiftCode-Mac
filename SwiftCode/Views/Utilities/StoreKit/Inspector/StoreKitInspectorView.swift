@@ -205,7 +205,7 @@ struct StoreKitInspectorView: View {
                     }
                 }
                 .padding(10)
-                .background(Color(NSColor.controlBackgroundColor), in: RoundedRectangle(cornerRadius: 8))
+                .liquidGlass(style: .standard, cornerRadius: 8)
             }
             .padding(.horizontal, 12)
 
@@ -237,7 +237,7 @@ struct StoreKitInspectorView: View {
                     }
                 }
                 .padding(10)
-                .background(Color(NSColor.controlBackgroundColor), in: RoundedRectangle(cornerRadius: 8))
+                .liquidGlass(style: .standard, cornerRadius: 8)
             }
             .padding(.horizontal, 12)
 
@@ -270,10 +270,10 @@ struct StoreKitInspectorView: View {
                             .foregroundColor(.secondary)
                     }
                     .padding(6)
-                    .background(Color.secondary.opacity(0.12), in: RoundedRectangle(cornerRadius: 4))
+                    .liquidGlass(style: .standard, cornerRadius: 4)
                 }
                 .padding(10)
-                .background(Color(NSColor.controlBackgroundColor), in: RoundedRectangle(cornerRadius: 8))
+                .liquidGlass(style: .standard, cornerRadius: 8)
             }
             .padding(.horizontal, 12)
         }

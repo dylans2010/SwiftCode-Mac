@@ -44,6 +44,8 @@ struct NordThemeExtensionView: View {
                 Text("The popular Nord arctic color palette for comfortable night coding. Features cool blue tones derived from the arctic landscape.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
+                    .padding(10)
+                    .liquidGlass(style: .subtle, cornerRadius: 8)
             } header: {
                 Text("About")
             }

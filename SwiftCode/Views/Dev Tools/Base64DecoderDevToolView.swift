@@ -73,6 +73,7 @@ struct Base64DecoderDevToolView: View {
             }
             .padding()
         }
+        .liquidGlass(style: .subtle, cornerRadius: 12)
         .navigationTitle("Base64 Decoder")
     }
 }

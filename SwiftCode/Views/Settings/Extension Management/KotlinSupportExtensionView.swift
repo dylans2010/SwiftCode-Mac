@@ -31,6 +31,8 @@ struct KotlinSupportExtensionView: View {
                 Text("Provides syntax highlighting and basic IntelliSense for Kotlin files (.kt, .kts). Includes coroutine flow hints and standard library auto-imports.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
+                    .padding(10)
+                    .liquidGlass(style: .subtle, cornerRadius: 8)
             } header: {
                 Text("About")
             }

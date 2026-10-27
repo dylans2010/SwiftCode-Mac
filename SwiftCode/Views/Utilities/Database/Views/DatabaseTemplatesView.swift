@@ -174,6 +174,7 @@ struct DatabaseTemplatesView: View {
                     }
                     .padding(8)
                 }
+                .groupBoxStyle(.liquidGlass)
 
                 if !generationLog.isEmpty {
                     VStack(alignment: .leading, spacing: 8) {

@@ -141,7 +141,7 @@ public struct RecordListView: View {
                 }
             }
             .padding(14)
-            .background(Color(NSColor.windowBackgroundColor))
+            .liquidGlass(style: .subtle, cornerRadius: 0)
 
             Divider()
 

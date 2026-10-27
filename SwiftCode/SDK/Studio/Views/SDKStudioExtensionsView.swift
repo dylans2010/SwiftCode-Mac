@@ -305,6 +305,7 @@ public struct SDKStudioExtensionsView: View {
         }
         .padding()
         .frame(minWidth: 560, minHeight: 320)
+        .liquidGlass(style: .sheet, cornerRadius: 12)
     }
 
     // MARK: - Scan / enable / uninstall (registry + grant store)

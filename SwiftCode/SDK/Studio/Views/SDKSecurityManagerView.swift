@@ -435,6 +435,7 @@ public struct SDKSecurityManagerView: View {
             }
             .frame(minWidth: 480)
             .padding(20)
+            .liquidGlass(style: .sheet, cornerRadius: 12)
         }
 
         private func sheetErrorBanner(_ text: String) -> some View {

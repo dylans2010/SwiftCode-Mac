@@ -151,7 +151,7 @@ struct SearchDocumentationView: View {
                             }
                     }
                     .padding(10)
-                    .background(Color.secondary.opacity(0.12), in: RoundedRectangle(cornerRadius: 8))
+                    .liquidGlass(style: .standard, cornerRadius: 8)
 
                     Button(action: startSummarization) {
                         if isSummarizing {

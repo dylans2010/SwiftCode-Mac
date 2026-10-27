@@ -65,7 +65,7 @@ public struct CodeDictionarySearch: View {
                     .foregroundColor(.secondary)
                     .padding(.horizontal, 6)
                     .padding(.vertical, 3)
-                    .background(Color.secondary.opacity(0.12), in: RoundedRectangle(cornerRadius: 6))
+                    .liquidGlass(style: .standard, cornerRadius: 6)
             }
             .padding(18)
             .background(Color(NSColor.windowBackgroundColor).opacity(0.85))

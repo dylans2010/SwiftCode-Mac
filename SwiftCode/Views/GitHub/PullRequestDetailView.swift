@@ -84,7 +84,7 @@ struct PullRequestDetailView: View {
                 .buttonStyle(.bordered)
             }
             .padding()
-            .background(Color(NSColor.windowBackgroundColor))
+            .liquidGlass(style: .subtle, cornerRadius: 10)
 
             Divider()
 

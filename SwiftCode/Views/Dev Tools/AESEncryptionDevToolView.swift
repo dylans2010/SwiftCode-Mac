@@ -133,6 +133,7 @@ struct AESEncryptionDevToolView: View {
                         Text(viewModel.decryptedText)
                             .font(.system(.body, design: .monospaced))
                             .padding()
+                            .liquidGlass(style: .subtle, cornerRadius: 12)
                             .frame(maxWidth: .infinity, alignment: .leading)
                             .background(Color(NSColor.controlBackgroundColor))
                             .cornerRadius(8)

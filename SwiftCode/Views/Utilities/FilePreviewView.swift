@@ -115,6 +115,8 @@ struct FilePreviewView: View {
                 Text(".\(ext) files cannot be previewed here.")
                     .font(.caption).foregroundStyle(.secondary)
             }
+            .padding(24)
+            .liquidGlass(style: .standard, cornerRadius: 16)
 
         case .error(let msg):
             VStack(spacing: 12) {
@@ -124,6 +126,8 @@ struct FilePreviewView: View {
                 Text(msg).font(.caption).foregroundStyle(.secondary)
                     .multilineTextAlignment(.center).padding(.horizontal, 32)
             }
+            .padding(24)
+            .liquidGlass(style: .standard, cornerRadius: 16)
         }
     }
 

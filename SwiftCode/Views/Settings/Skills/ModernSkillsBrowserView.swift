@@ -419,6 +419,8 @@ public struct ModernSkillsBrowserView: View {
                 .multilineTextAlignment(.center)
                 .frame(maxWidth: 300)
         }
+        .padding(24)
+        .liquidGlass(style: .standard, cornerRadius: 16)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 }

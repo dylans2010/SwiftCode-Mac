@@ -39,6 +39,8 @@ struct XcodeBuildConfigurationView: View {
                         Text(validationMessage)
                             .font(.body)
                     }
+                    .padding(8)
+                    .liquidGlass(style: .subtle, cornerRadius: 8)
                 }
             }
             .formStyle(.grouped)

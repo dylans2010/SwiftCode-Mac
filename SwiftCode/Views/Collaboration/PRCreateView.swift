@@ -155,6 +155,8 @@ private struct PRCommitSelectionRow: View {
                 Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
                     .foregroundStyle(isSelected ? .green : .secondary)
             }
+            .padding(8)
+            .liquidGlass(style: .subtle, cornerRadius: 10)
         }
         .buttonStyle(.plain)
     }

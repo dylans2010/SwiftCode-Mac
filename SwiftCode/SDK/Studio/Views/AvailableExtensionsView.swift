@@ -289,6 +289,7 @@ public struct AvailableExtensionsView: View {
         }
         .padding()
         .frame(minWidth: 480, minHeight: 300)
+        .liquidGlass(style: .sheet, cornerRadius: 12)
     }
 
     // MARK: - Actions (all real)

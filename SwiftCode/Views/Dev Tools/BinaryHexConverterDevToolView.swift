@@ -109,6 +109,7 @@ struct BinaryHexConverterDevToolView: View {
                 }
             }
             .padding()
+            .liquidGlass(style: .subtle, cornerRadius: 12)
         }
         .navigationTitle("Binary Hex Converter")
     }

@@ -21,6 +21,7 @@ struct BinaryConverterView: View {
                     Text(binaryOutput)
                         .font(.system(.title2, design: .monospaced))
                         .padding()
+                        .liquidGlass(style: .subtle, cornerRadius: 12)
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .background(Color.secondary.opacity(0.1))
                         .cornerRadius(8)

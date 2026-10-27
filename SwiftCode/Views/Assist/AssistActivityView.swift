@@ -114,7 +114,7 @@ public struct AssistActivityView: View {
             }
             .padding(.horizontal, 8)
             .padding(.vertical, 4)
-            .background(Color.secondary.opacity(0.05), in: RoundedRectangle(cornerRadius: 5))
+            .liquidGlass(style: .subtle, cornerRadius: 5)
         }
         .buttonStyle(.plain)
         .accessibilityLabel(isExpanded ? "Hide activity details" : "Show activity details")

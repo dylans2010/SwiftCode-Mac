@@ -103,7 +103,7 @@ public struct CreateNewAppWizardView: View {
                 .keyboardShortcut(.cancelAction)
             }
             .padding()
-            .background(Color(NSColor.windowBackgroundColor))
+            .liquidGlass(style: .standard, cornerRadius: 12)
 
             Divider()
 

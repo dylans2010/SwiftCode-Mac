@@ -18,6 +18,7 @@ struct CollaborationDiffViewerView: View {
             }
             .pickerStyle(.segmented)
             .padding([.horizontal, .top])
+            .liquidGlass(style: .subtle, cornerRadius: 12)
 
             ScrollView([.vertical, .horizontal]) {
                 LazyVStack(alignment: .leading, spacing: 0) {

@@ -82,6 +82,8 @@ public struct SDKCodeConsoleView: View {
         }
         .padding(.horizontal, 10)
         .padding(.vertical, 6)
+        .liquidGlass(style: .subtle, cornerRadius: 8)
+        .padding(6)
     }
 
     // MARK: - Empty state

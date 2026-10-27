@@ -60,7 +60,7 @@ struct OperationsSidebarView: View {
             }
         }
         .frame(minWidth: 220, maxWidth: .infinity)
-        .background(Color(NSColor.windowBackgroundColor))
+        .liquidGlass(style: .sidebar, cornerRadius: 0)
     }
 }
 

@@ -32,7 +32,7 @@ struct DeploymentLogsView: View {
                     .font(.subheadline.bold())
                     .padding(.horizontal, 16)
                     .padding(.vertical, 8)
-                    .background(Color.blue.opacity(0.15))
+                    .liquidGlass(style: .subtle, cornerRadius: 8, tint: .blue)
                     .cornerRadius(8)
                 }
                 .disabled(logs.isEmpty || isAnalyzing)

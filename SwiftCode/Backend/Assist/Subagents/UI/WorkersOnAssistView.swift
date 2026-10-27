@@ -86,6 +86,7 @@ public struct WorkersOnAssistView: View {
         .padding(.horizontal, 6)
         .padding(.vertical, 3)
         .contentShape(Rectangle())
+        .liquidGlass(style: .subtle, cornerRadius: 6)
     }
 
     @ViewBuilder

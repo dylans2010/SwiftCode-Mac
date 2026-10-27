@@ -18,6 +18,8 @@ struct IncomingTransferView: View {
                     Button("Accept") { transferManager.respondToIncoming(accept: true) }
                 }
             }
+            .padding(12)
+            .liquidGlass(style: .standard, cornerRadius: 12)
         }
     }
 }

@@ -16,6 +16,7 @@ struct RSAKeyGeneratorView: View {
             }
             .pickerStyle(.segmented)
             .padding()
+            .liquidGlass(style: .subtle, cornerRadius: 12)
 
             Button(isGenerating ? "Generating..." : "Generate Key Pair") { generate() }
                 .buttonStyle(.borderedProminent)

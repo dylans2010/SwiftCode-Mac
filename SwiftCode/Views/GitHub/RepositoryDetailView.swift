@@ -38,6 +38,7 @@ struct RepositoryDetailView: View {
                     .pickerStyle(.segmented)
                 }
                 .padding(.vertical, 4)
+                .liquidGlass(style: .subtle, cornerRadius: 12)
             }
 
             // Local Details Info Section

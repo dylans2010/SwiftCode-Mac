@@ -9,6 +9,7 @@ struct SemVerCheckerView: View {
             TextField("Enter Semantic Version", text: $version)
                 .textFieldStyle(.roundedBorder)
                 .padding()
+                .liquidGlass(style: .subtle, cornerRadius: 12)
                 .onChange(of: version) { check() }
 
             List {

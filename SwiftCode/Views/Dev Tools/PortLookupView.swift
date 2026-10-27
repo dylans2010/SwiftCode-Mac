@@ -42,6 +42,7 @@ struct PortLookupView: View {
             TextField("Search port, service or description...", text: $searchText)
                 .textFieldStyle(.roundedBorder)
                 .padding()
+                .liquidGlass(style: .subtle, cornerRadius: 12)
 
             List(filteredPorts, id: \.0) { port in
                 HStack(alignment: .top) {

@@ -102,7 +102,7 @@ public struct SDKFirstLaunchInstallerView: View {
             }
         }
         .padding(10)
-        .background(.quaternary, in: RoundedRectangle(cornerRadius: 8))
+        .liquidGlass(style: .standard, cornerRadius: 8)
     }
 
     // MARK: - Installing

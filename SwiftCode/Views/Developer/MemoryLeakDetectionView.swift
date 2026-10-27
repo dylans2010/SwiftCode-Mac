@@ -20,6 +20,7 @@ struct MemoryLeakDetectionView: View {
                 }
             }
         }
+        .liquidGlass(style: .subtle, cornerRadius: 12)
         .navigationTitle("Memory Leak Detector")
     }
 

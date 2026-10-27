@@ -57,7 +57,7 @@ struct CodeChangesView: View {
             }
         }
         .padding()
-        .background(Color.secondary.opacity(0.05), in: RoundedRectangle(cornerRadius: 12))
+        .liquidGlass(style: .standard, cornerRadius: 12)
     }
 
     private func lineColor(_ line: String) -> Color {

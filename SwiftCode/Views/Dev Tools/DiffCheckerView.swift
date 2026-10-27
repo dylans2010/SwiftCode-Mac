@@ -51,6 +51,7 @@ struct DiffCheckerView: View {
             .frame(height: 200)
         }
         .padding()
+        .liquidGlass(style: .subtle, cornerRadius: 12)
         .navigationTitle("Diff Checker")
     }
 

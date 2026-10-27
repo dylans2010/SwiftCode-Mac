@@ -649,7 +649,7 @@ public struct InfoPlistView: View {
             }
             .padding(.horizontal, 8)
             .padding(.vertical, 4)
-            .background(Color(NSColor.controlBackgroundColor), in: RoundedRectangle(cornerRadius: 6))
+            .liquidGlass(style: .subtle, cornerRadius: 6)
             .frame(width: 220)
 
             // Undo / Redo

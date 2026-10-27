@@ -25,7 +25,7 @@ struct ModelLinkInstallGuideView: View {
                     }
                     .padding()
                     .frame(maxWidth: .infinity, alignment: .leading)
-                    .background(Color.blue.opacity(0.06), in: RoundedRectangle(cornerRadius: 12))
+                    .liquidGlass(style: .subtle, cornerRadius: 12)
 
                     // How to find a model
                     VStack(alignment: .leading, spacing: 12) {

@@ -19,6 +19,7 @@ struct AspectRatioCalculatorView: View {
             }
             .textFieldStyle(.roundedBorder)
             .padding()
+            .liquidGlass(style: .subtle, cornerRadius: 12)
 
             Button("Calculate Ratio") { calculate() }
                 .buttonStyle(.borderedProminent)

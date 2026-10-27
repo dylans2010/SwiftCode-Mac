@@ -135,6 +135,8 @@ public struct SDKStudioView: View {
                 Text(SDKInstaller.defaultPrefix.path)
                     .font(.callout.monospaced())
                     .textSelection(.enabled)
+                    .padding(6)
+                    .liquidGlass(style: .subtle, cornerRadius: 6)
                 Button("Install or Repair SDK…") { showSDKFirstLaunchInstaller = true }
                 Button("Save SDK Package…") { saveSDKPackage() }
                 Text("The installer checks the pinned GitHub release and falls back to the bundled package if the remote download is unavailable or incomplete.")

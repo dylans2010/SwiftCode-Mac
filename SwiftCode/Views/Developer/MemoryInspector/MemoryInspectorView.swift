@@ -15,6 +15,7 @@ struct MemoryInspectorView: View {
                 }
             }
         }
+        .liquidGlass(style: .subtle, cornerRadius: 12)
         .navigationTitle("Memory Inspector")
         .onAppear(perform: updateMemory)
         .onReceive(timer) { _ in updateMemory() }

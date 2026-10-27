@@ -176,7 +176,7 @@ public struct RepositoryIntelligenceView: View {
                 .disabled(isAnalyzing)
             }
             .padding()
-            .background(Color(NSColor.controlBackgroundColor))
+            .liquidGlass(style: .subtle, cornerRadius: 10)
 
             Divider()
 

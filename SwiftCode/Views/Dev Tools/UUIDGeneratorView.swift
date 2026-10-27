@@ -12,6 +12,7 @@ struct UUIDGeneratorView: View {
 
                 Toggle("Uppercase", isOn: $useUppercase)
                     .padding(.leading)
+                    .liquidGlass(style: .subtle, cornerRadius: 12)
 
                 Spacer()
 

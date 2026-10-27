@@ -48,6 +48,7 @@ public struct VirtualizationWorkspaceView: View {
         .animation(.easeInOut(duration: 0.2), value: stateStore.selectedVMID)
         .animation(.easeInOut(duration: 0.2), value: stateStore.selectedSidebarTab)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .liquidGlass(style: .subtle, cornerRadius: 12)
         .background(Color(NSColor.windowBackgroundColor))
     }
 }

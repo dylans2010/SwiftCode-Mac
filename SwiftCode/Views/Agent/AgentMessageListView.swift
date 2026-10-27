@@ -22,6 +22,9 @@ struct AgentMessageListView: View {
                                 .padding(.horizontal, 40)
                         }
                         .padding(.top, 100)
+                        .padding(24)
+                        .liquidGlass(style: .standard, cornerRadius: 16)
+                        .padding(.horizontal)
                     } else {
                         ForEach(messages) { message in
                             AgentMessageBubbleView(message: message, viewModel: viewModel)

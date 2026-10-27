@@ -38,6 +38,8 @@ struct DarkProThemeExtensionView: View {
                 Text("A professional dark theme inspired by VS Code Dark+. Optimized for long coding sessions with carefully tuned contrast ratios.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
+                    .padding(10)
+                    .liquidGlass(style: .subtle, cornerRadius: 8)
             } header: {
                 Text("About")
             }

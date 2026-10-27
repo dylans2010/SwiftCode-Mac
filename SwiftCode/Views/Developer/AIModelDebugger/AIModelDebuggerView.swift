@@ -26,6 +26,7 @@ struct AIModelDebuggerView: View {
                 }
             }
         }
+        .liquidGlass(style: .subtle, cornerRadius: 12)
         .navigationTitle("AI Model Debugger")
         .toolbar {
             Button("Clear") {

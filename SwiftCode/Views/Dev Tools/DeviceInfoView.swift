@@ -20,6 +20,7 @@ struct DeviceInfoView: View {
                 InfoRow(label: "Memory Size", value: "\(ProcessInfo.processInfo.physicalMemory / 1024 / 1024 / 1024) GB")
             }
         }
+        .liquidGlass(style: .subtle, cornerRadius: 12)
         .navigationTitle("Device Info")
     }
 

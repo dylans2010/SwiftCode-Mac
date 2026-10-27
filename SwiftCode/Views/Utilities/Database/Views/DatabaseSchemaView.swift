@@ -227,6 +227,7 @@ struct DatabaseSchemaView: View {
                     }
                     .padding(8)
                 }
+                .groupBoxStyle(.liquidGlass)
 
                 if !constraintLogs.isEmpty {
                     VStack(alignment: .leading, spacing: 6) {

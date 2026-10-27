@@ -10,7 +10,7 @@ struct GlobalSearchView: View {
         VStack(spacing: 0) {
             NativeSearchField(text: $query, placeholder: "Search all personal documentation...")
                 .padding(16)
-                .background(Color(NSColor.windowBackgroundColor))
+                .liquidGlass(style: .subtle, cornerRadius: 0)
                 .onChange(of: query) { _, _ in
                     performSearch()
                 }

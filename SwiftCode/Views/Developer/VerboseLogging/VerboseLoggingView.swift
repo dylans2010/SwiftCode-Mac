@@ -28,6 +28,7 @@ struct VerboseLoggingView: View {
                         Text(log.category.rawValue)
                             .font(.caption.bold())
                             .padding(.horizontal, 4)
+                            .liquidGlass(style: .subtle, cornerRadius: 12)
                             .background(Color.blue.opacity(0.2))
                         Spacer()
                         Text(log.timestamp, style: .time)

@@ -43,8 +43,7 @@ struct QuestionsHandleView: View {
             .disabled(!allAnswered)
         }
         .padding()
-        .background(Color.accentColor.opacity(0.1))
-        .cornerRadius(8)
+        .liquidGlass(style: .standard, cornerRadius: 8, tint: .accentColor)
     }
 
     private var allAnswered: Bool {

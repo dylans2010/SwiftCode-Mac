@@ -30,6 +30,7 @@ struct ErrorFrequencyTrackerView: View {
             }
             .padding()
         }
+        .liquidGlass(style: .subtle, cornerRadius: 12)
         .navigationTitle("Error Tracker")
     }
 }

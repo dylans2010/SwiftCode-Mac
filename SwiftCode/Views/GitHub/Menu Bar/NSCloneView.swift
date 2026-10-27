@@ -70,6 +70,7 @@ public struct NSCloneView: View {
             .disabled(cloneURL.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || isLoading)
         }
         .padding()
+        .liquidGlass(style: .sheet, cornerRadius: 12)
         .frame(width: 280)
         .alert("Replace Local Code?", isPresented: $showReplaceAlert) {
             Button("Replace and Clone", role: .destructive) {

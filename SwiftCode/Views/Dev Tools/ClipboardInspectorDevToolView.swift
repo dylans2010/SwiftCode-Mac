@@ -38,6 +38,7 @@ struct ClipboardInspectorDevToolView: View {
                 }
             }
             .padding()
+            .liquidGlass(style: .subtle, cornerRadius: 12)
             .background(Color(NSColor.windowBackgroundColor))
 
             Divider()

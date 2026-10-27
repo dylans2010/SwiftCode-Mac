@@ -88,6 +88,7 @@ struct AdvancedRegexDebuggerDevToolView: View {
                         Text(viewModel.explanation)
                             .font(.subheadline)
                             .padding()
+                            .liquidGlass(style: .subtle, cornerRadius: 12)
                             .frame(maxWidth: .infinity, alignment: .leading)
                             .background(Color(NSColor.controlBackgroundColor))
                             .cornerRadius(8)

@@ -15,6 +15,8 @@ struct FoldersView: View {
             if projects.isEmpty {
                 ContentUnavailableView("No Projects", systemImage: "folder", description: Text("Add projects to this folder from the Home page."))
                     .listRowBackground(Color.clear)
+                    .padding()
+                    .liquidGlass(style: .standard, cornerRadius: 16)
             } else {
                 AdaptiveGrid(projects, id: \.id) { project in
                     HomeProjectCardView(project: project) {

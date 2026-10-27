@@ -25,6 +25,7 @@ struct BcryptHashGeneratorView: View {
             Spacer()
         }
         .padding()
+        .liquidGlass(style: .subtle, cornerRadius: 12)
         .navigationTitle("Hash Generator")
     }
 

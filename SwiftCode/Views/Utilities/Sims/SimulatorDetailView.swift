@@ -15,6 +15,7 @@ struct SimulatorDetailView: View {
             .padding(.horizontal, 16)
             .padding(.top, 12)
             .padding(.bottom, 12)
+            .liquidGlass(style: .subtle, cornerRadius: 0)
 
             Divider()
 

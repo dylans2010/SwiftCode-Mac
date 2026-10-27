@@ -181,7 +181,8 @@ public struct SDKGrantManagerView: View {
                 }
             }
         }
-        .padding(.vertical, 4)
+        .padding(12)
+        .liquidGlass(style: .standard, cornerRadius: 12)
     }
 
     private func grantStateBadge(for grant: SDKGrantRecord) -> some View {

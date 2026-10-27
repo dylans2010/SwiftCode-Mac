@@ -44,6 +44,8 @@ public struct SDKManifestInspectorView: View {
             }
             .padding(.horizontal, 16)
             .padding(.vertical, 10)
+            .liquidGlass(style: .subtle, cornerRadius: 8)
+            .padding(8)
 
             Divider()
 

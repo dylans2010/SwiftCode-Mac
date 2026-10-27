@@ -80,6 +80,8 @@ struct TransferProjectsHomeView: View {
                                     .controlSize(.small)
                             }
                         }
+                        .padding(12)
+                        .liquidGlass(style: .subtle, cornerRadius: 12)
 
                         Button {
                             Task { try? await transferManager.startTransfer(project: project, to: selectedPeer, permission: permission) }

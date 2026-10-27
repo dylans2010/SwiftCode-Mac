@@ -555,8 +555,7 @@ public struct AppIconSelectView: View {
                 }
                 .padding(.horizontal, 12)
                 .padding(.vertical, 8)
-                .background(RoundedRectangle(cornerRadius: 10).fill(Color.primary.opacity(0.05)))
-                .overlay(RoundedRectangle(cornerRadius: 10).stroke(Color.primary.opacity(0.08), lineWidth: 1))
+                .liquidGlass(style: .subtle, cornerRadius: 10)
                 
                 // Active count tag
                 Text("\(filteredVariants.count) Icons Available")

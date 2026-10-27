@@ -90,6 +90,7 @@ struct EncryptionToolDevToolView: View {
             }
             .padding()
         }
+        .liquidGlass(style: .subtle, cornerRadius: 12)
         .navigationTitle("Encryption Hash Tool")
         .onAppear {
             viewModel.compute()

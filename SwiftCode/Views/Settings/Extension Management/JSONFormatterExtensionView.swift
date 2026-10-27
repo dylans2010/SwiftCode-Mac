@@ -31,6 +31,8 @@ struct JSONFormatterExtensionView: View {
                 Text("Pretty-prints and validates JSON files with collapsible nodes. Highlights syntax errors and provides inline validation as you type.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
+                    .padding(10)
+                    .liquidGlass(style: .subtle, cornerRadius: 8)
             } header: {
                 Text("About")
             }

@@ -23,6 +23,7 @@ struct DatabaseBackupView: View {
                 }
                 .padding(8)
             }
+            .groupBoxStyle(.liquidGlass)
             .padding()
 
             Divider()

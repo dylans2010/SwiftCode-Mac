@@ -78,7 +78,7 @@ public struct DeviceConnectToolbar: View {
             .disabled(environmentManager.isDerivedDataClearing)
         }
         .padding()
-        .background(Color(NSColor.windowBackgroundColor))
+        .liquidGlass(style: .standard, cornerRadius: 0)
     }
 
     private func triggerDeploymentRun() {

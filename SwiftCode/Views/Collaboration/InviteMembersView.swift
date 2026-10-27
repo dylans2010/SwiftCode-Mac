@@ -85,6 +85,8 @@ struct InviteMembersView: View {
 
             permissionToggles(for: memberID)
         }
+        .padding(12)
+        .liquidGlass(style: .subtle, cornerRadius: 12)
     }
 
     private func manageMenu(for memberID: String) -> some View {

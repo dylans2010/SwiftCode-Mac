@@ -81,7 +81,7 @@ public struct XcodeShortcutsCheatsheetView: View {
                 }
             }
             .padding()
-            .background(.thinMaterial)
+            .liquidGlass(style: .subtle, cornerRadius: 12)
 
             Divider()
 

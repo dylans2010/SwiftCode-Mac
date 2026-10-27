@@ -41,6 +41,8 @@ struct AIRefactorExtensionView: View {
                 Text("AI-powered refactoring suggestions: extract method, rename, restructure conditionals, and convert callback-style code to async/await.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
+                    .padding(10)
+                    .liquidGlass(style: .subtle, cornerRadius: 8)
             } header: {
                 Text("About")
             }

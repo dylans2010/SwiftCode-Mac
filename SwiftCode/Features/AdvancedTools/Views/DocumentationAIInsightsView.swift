@@ -100,6 +100,9 @@ struct DocumentationAIInsightsView: View {
                 Text(title)
                     .font(.headline)
             }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(8)
+            .liquidGlass(style: .subtle, cornerRadius: 8)
 
             if isCode {
                 Text(content)

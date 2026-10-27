@@ -99,7 +99,7 @@ public struct FileTemplatesView: View {
                                 }
                             }
                             .padding(6)
-                            .background(Color.secondary.opacity(0.12), in: RoundedRectangle(cornerRadius: 8))
+                            .liquidGlass(style: .subtle, cornerRadius: 8)
 
                             // Segmented-style category picker (custom ScrollView)
                             ScrollView(.horizontal, showsIndicators: false) {

@@ -33,6 +33,7 @@ struct DeviceDiagnosticsSheet: View {
                 }
                 .padding(.horizontal)
                 .padding(.bottom)
+                .liquidGlass(style: .subtle, cornerRadius: 12)
             }
             .navigationTitle("Diagnostics Analyzer")
         }

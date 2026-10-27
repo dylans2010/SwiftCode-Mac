@@ -691,7 +691,7 @@ public struct DesignerDevToolView: View {
                 }
                 .padding(.horizontal, 20)
                 .padding(.top, 12)
-                .background(.ultraThinMaterial)
+                .liquidGlass(style: .subtle, cornerRadius: 12)
 
                 Divider()
 

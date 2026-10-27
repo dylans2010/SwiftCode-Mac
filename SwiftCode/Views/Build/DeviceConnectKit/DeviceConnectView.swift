@@ -96,7 +96,7 @@ public struct DeviceConnectView: View {
             }
             .padding(.horizontal, 20)
             .padding(.vertical, 12)
-            .background(.thinMaterial)
+            .liquidGlass(style: .standard, cornerRadius: 0)
 
             Divider()
 

@@ -31,6 +31,8 @@ struct SCInspectorView: View {
                     SCDetailRow(label: "Developer SDK", value: "macosx15.0")
                     SCDetailRow(label: "IDE Edition", value: "SwiftCode Premium 1.0")
                 }
+                .padding(12)
+                .liquidGlass(style: .standard, cornerRadius: 8)
 
                 Divider()
 

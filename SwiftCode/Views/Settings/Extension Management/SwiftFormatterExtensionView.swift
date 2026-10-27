@@ -21,6 +21,8 @@ struct SwiftFormatterExtensionView: View {
                 Text("Automatically formats Swift source files using SwiftFormat rules whenever a file is saved. Supports most standard SwiftFormat options.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
+                    .padding(10)
+                    .liquidGlass(style: .subtle, cornerRadius: 8)
             } header: {
                 Text("About")
             }

@@ -36,5 +36,6 @@ public struct VisualUINavigationPanel: View {
                 }
             }
         }
+        .groupBoxStyle(.liquidGlass)
     }
 }

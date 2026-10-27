@@ -83,7 +83,7 @@ public struct GitBlameViewer: View {
                 .foregroundStyle(.secondary)
                 .padding(10)
                 .frame(maxWidth: .infinity, alignment: .leading)
-                .background(Color.secondary.opacity(0.04))
+                .liquidGlass(style: .subtle, cornerRadius: 8)
 
             Divider()
 

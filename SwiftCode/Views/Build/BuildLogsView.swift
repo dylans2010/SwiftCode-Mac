@@ -214,8 +214,7 @@ struct BuildLogsView: View {
                         }
                     }
                     .padding()
-                    .background(Color.white.opacity(0.04))
-                    .cornerRadius(12)
+                    .liquidGlass(style: .standard, cornerRadius: 12)
                     .padding(.horizontal, 12)
                     .padding(.top, 8)
 

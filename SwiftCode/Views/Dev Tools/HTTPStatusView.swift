@@ -40,6 +40,7 @@ struct HTTPStatusView: View {
             TextField("Search status code or name...", text: $searchText)
                 .textFieldStyle(.roundedBorder)
                 .padding()
+                .liquidGlass(style: .subtle, cornerRadius: 12)
 
             List(filteredStatuses, id: \.0) { status in
                 VStack(alignment: .leading, spacing: 4) {

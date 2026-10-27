@@ -152,7 +152,7 @@ struct DocumentationAIScanView: View {
                     TextField("Ask anything about this document...", text: $questionText)
                         .textFieldStyle(.plain)
                         .padding(10)
-                        .background(Color.secondary.opacity(0.12), in: RoundedRectangle(cornerRadius: 8))
+                        .liquidGlass(style: .standard, cornerRadius: 8)
                         .onSubmit {
                             askQuestion()
                         }

@@ -17,7 +17,6 @@ struct CodexErrorView: View {
             Spacer()
         }
         .padding()
-        .background(Color.red.opacity(0.08))
-        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .liquidGlass(style: .standard, cornerRadius: 16, tint: .red)
     }
 }

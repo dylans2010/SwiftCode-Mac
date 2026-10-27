@@ -70,7 +70,7 @@ public struct PreviewLogsView: View {
                         }
                     }
                     .padding(6)
-                    .background(Color.secondary.opacity(0.12), in: RoundedRectangle(cornerRadius: 6))
+                    .liquidGlass(style: .standard, cornerRadius: 6)
 
                     Button(action: copyAll) {
                         Label("Copy All", systemImage: "doc.on.doc")

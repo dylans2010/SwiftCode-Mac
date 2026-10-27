@@ -13,6 +13,7 @@ struct HTMLEntityConverterView: View {
             }
             .pickerStyle(.segmented)
             .padding()
+            .liquidGlass(style: .subtle, cornerRadius: 12)
 
             TextEditor(text: $input)
                 .border(Color.secondary.opacity(0.2))

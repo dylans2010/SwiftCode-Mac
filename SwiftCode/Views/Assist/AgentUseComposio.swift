@@ -170,6 +170,7 @@ public struct AgentUseComposio: View {
             }
             .padding(10)
         }
+        .groupBoxStyle(.liquidGlass)
     }
 
     private func toolkitIcon(for toolkit: String) -> String {

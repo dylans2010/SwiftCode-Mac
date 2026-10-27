@@ -41,6 +41,8 @@ struct RegexTesterExtensionView: View {
                 Text("Test regular expressions against sample input and see all matches highlighted. Supports ICU regex syntax.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
+                    .padding(10)
+                    .liquidGlass(style: .subtle, cornerRadius: 8)
             } header: {
                 Text("About")
             }

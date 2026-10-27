@@ -9,6 +9,7 @@ struct URLDecomposerView: View {
             TextField("Enter URL", text: $urlString)
                 .textFieldStyle(.roundedBorder)
                 .padding()
+                .liquidGlass(style: .subtle, cornerRadius: 12)
                 .onChange(of: urlString) { decompose() }
 
             List {

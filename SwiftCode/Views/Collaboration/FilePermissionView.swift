@@ -9,6 +9,7 @@ struct FilePermissionView: View {
         List {
             Section("File Locking") {
                 TextField("File Path", text: $filePath)
+                    .liquidGlass(style: .subtle, cornerRadius: 10)
                 HStack {
                     Button {
                         manager.lockFile(path: filePath, actorID: actorID)

@@ -25,6 +25,7 @@ struct URLSlugGeneratorView: View {
                 }
             }
             .padding()
+            .liquidGlass(style: .subtle, cornerRadius: 12)
             .background(Color.secondary.opacity(0.1))
             .cornerRadius(8)
 

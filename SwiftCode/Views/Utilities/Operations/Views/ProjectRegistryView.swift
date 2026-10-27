@@ -100,7 +100,7 @@ struct ProjectRegistryView: View {
                     selectedEntry = nil
                 }
                 .frame(width: 320)
-                .background(Color(NSColor.windowBackgroundColor))
+                .liquidGlass(style: .standard, cornerRadius: 0)
             }
         }
         .alert("Confirm Delete", isPresented: $showDeleteAlert) {

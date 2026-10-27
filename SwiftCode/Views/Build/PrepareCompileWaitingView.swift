@@ -31,36 +31,41 @@ struct PrepareCompileWaitingView: View {
                     }
 
                     VStack(spacing: 8) {
-                        Text(statusMessage)
-                            .font(.title2.bold())
-                            .foregroundStyle(.primary)
+                        VStack(spacing: 8) {
+                            Text(statusMessage)
+                                .font(.title2.bold())
+                                .foregroundStyle(.primary)
 
-                        Text(subtext)
-                            .font(.subheadline)
-                            .foregroundStyle(.secondary)
-                            .multilineTextAlignment(.center)
-                            .padding(.horizontal, 32)
+                            Text(subtext)
+                                .font(.subheadline)
+                                .foregroundStyle(.secondary)
+                                .multilineTextAlignment(.center)
+                                .padding(.horizontal, 32)
 
-                        if let time = timeRemaining, isPreparing {
-                            Text("Time Remaining: \(time)")
-                                .font(.caption2)
-                                .foregroundStyle(.orange)
-                                .padding(.top, 4)
+                            if let time = timeRemaining, isPreparing {
+                                Text("Time Remaining: \(time)")
+                                    .font(.caption2)
+                                    .foregroundStyle(.orange)
+                                    .padding(.top, 4)
+                            }
+
+                            if isPreparing {
+                                ProgressView(value: progress, total: 1.0)
+                                    .progressViewStyle(.linear)
+                                    .padding(.horizontal, 48)
+                                    .padding(.top, 16)
+                            }
+
+                            if let error = errorMessage {
+                                Text(error)
+                                    .font(.caption)
+                                    .foregroundStyle(.red)
+                                    .padding(.top, 8)
+                            }
                         }
-
-                        if isPreparing {
-                            ProgressView(value: progress, total: 1.0)
-                                .progressViewStyle(.linear)
-                                .padding(.horizontal, 48)
-                                .padding(.top, 16)
-                        }
-
-                        if let error = errorMessage {
-                            Text(error)
-                                .font(.caption)
-                                .foregroundStyle(.red)
-                                .padding(.top, 8)
-                        }
+                        .padding(20)
+                        .liquidGlass(style: .sheet, cornerRadius: 16)
+                        .padding(.horizontal, 24)
 
                         if !logs.isEmpty {
                             ScrollView {

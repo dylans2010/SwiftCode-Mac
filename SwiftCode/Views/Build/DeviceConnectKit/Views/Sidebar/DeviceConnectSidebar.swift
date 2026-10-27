@@ -24,8 +24,7 @@ public struct DeviceConnectSidebar: View {
                     .textFieldStyle(.plain)
             }
             .padding(6)
-            .background(Color(NSColor.controlBackgroundColor))
-            .clipShape(RoundedRectangle(cornerRadius: 8))
+            .liquidGlass(style: .subtle, cornerRadius: 8)
             .padding()
 
             List {

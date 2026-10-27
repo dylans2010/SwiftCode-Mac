@@ -18,6 +18,7 @@ struct QRCodeGeneratorView: View {
                     .onChange(of: input) { generateQRCode() }
             }
             .padding([.top, .horizontal])
+            .liquidGlass(style: .subtle, cornerRadius: 12)
 
             Spacer()
 

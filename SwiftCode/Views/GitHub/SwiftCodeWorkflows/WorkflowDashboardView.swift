@@ -114,8 +114,7 @@ public struct WorkflowDashboardView: View {
                     .textFieldStyle(.plain)
             }
             .padding(6)
-            .background(Color(NSColor.controlBackgroundColor))
-            .cornerRadius(6)
+            .liquidGlass(style: .subtle, cornerRadius: 8)
             .padding(.horizontal, 12)
         }
         .padding(.bottom, 8)

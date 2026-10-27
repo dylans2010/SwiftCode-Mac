@@ -39,6 +39,8 @@ struct XcodeBuildToolExtensionView: View {
                 Text("Triggers xcodebuild commands and streams build logs to the integrated console panel. Supports build, test, archive, and clean actions.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
+                    .padding(10)
+                    .liquidGlass(style: .subtle, cornerRadius: 8)
             } header: {
                 Text("About")
             }

@@ -61,6 +61,7 @@ public struct VisualUIAssetsPanel: View {
                             }
                         }
                     }
+                    .groupBoxStyle(.liquidGlass)
 
                     // Typography section
                     GroupBox("Typography Presets") {
@@ -81,6 +82,7 @@ public struct VisualUIAssetsPanel: View {
                             }
                         }
                     }
+                    .groupBoxStyle(.liquidGlass)
                 }
                 .padding(8)
             }

@@ -43,6 +43,7 @@ struct DatabaseMigrationView: View {
                 }
                 .padding()
                 .frame(width: 320)
+                .liquidGlass(style: .subtle, cornerRadius: 0)
 
                 Divider()
 

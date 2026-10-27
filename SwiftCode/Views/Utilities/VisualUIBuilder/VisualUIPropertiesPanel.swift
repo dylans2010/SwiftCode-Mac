@@ -35,6 +35,7 @@ public struct VisualUIPropertiesPanel: View {
                                 }
                             }
                         }
+                        .groupBoxStyle(.liquidGlass)
 
                         // Shadow Editor
                         GroupBox("Shadow & Elevation") {
@@ -48,6 +49,7 @@ public struct VisualUIPropertiesPanel: View {
                                 }
                             }
                         }
+                        .groupBoxStyle(.liquidGlass)
 
                         // Gradient Editor
                         GroupBox("Gradient Designer") {
@@ -62,6 +64,7 @@ public struct VisualUIPropertiesPanel: View {
                                 node.properties["gradientStyle"] = newValue
                             }
                         }
+                        .groupBoxStyle(.liquidGlass)
 
                         // Material presets
                         GroupBox("Material & Blur Overrides") {
@@ -77,6 +80,7 @@ public struct VisualUIPropertiesPanel: View {
                                 node.properties["materialTheme"] = newValue
                             }
                         }
+                        .groupBoxStyle(.liquidGlass)
                     }
                     .padding(8)
                 }

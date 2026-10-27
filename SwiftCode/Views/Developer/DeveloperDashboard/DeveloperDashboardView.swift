@@ -43,6 +43,7 @@ struct DeveloperDashboardView: View {
                     NavigationLink("CoreML Inspector") { CoreMLInspectorView() }
                 }
             }
+            .liquidGlass(style: .subtle, cornerRadius: 12)
             .navigationTitle("Developer Dashboard")
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {

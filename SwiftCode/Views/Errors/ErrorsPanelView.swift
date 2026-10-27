@@ -26,6 +26,8 @@ struct ErrorsPanelView: View {
                 }
                 .padding(.horizontal, 12)
                 .padding(.vertical, 8)
+                .liquidGlass(style: .subtle, cornerRadius: 8)
+                .padding(.horizontal, 4)
 
                 Divider().opacity(0.3)
 

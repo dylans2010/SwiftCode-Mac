@@ -11,6 +11,7 @@ public struct VisualUIHierarchy: View {
                 .foregroundStyle(.secondary)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(8)
+                .liquidGlass(style: .subtle, cornerRadius: 0)
 
             Divider()
 

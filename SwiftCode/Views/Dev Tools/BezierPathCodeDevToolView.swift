@@ -67,6 +67,7 @@ struct BezierPathCodeDevToolView: View {
             }
             .padding()
         }
+        .liquidGlass(style: .subtle, cornerRadius: 12)
         .navigationTitle("Bezier Path Code Generator")
     }
 }

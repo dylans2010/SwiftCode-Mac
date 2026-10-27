@@ -51,7 +51,7 @@ public struct VirtualizationSidebarView: View {
                 }
                 .padding(.horizontal, 14)
                 .padding(.vertical, 12)
-                .background(Color(NSColor.controlBackgroundColor))
+                .liquidGlass(style: .sidebar, cornerRadius: 8)
 
                 Divider()
 

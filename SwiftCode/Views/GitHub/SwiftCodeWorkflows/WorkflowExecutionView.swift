@@ -45,7 +45,7 @@ public struct WorkflowExecutionView: View {
                 .disabled(manager.isRunning)
             }
             .padding()
-            .background(Color(NSColor.windowBackgroundColor))
+            .liquidGlass(style: .subtle, cornerRadius: 10)
 
             Divider()
 

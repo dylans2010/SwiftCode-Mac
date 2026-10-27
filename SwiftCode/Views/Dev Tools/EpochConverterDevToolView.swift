@@ -77,6 +77,7 @@ struct EpochConverterDevToolView: View {
                         .font(.system(.headline, design: .monospaced))
                         .foregroundColor(.green)
                         .padding(.vertical, 4)
+                        .liquidGlass(style: .subtle, cornerRadius: 12)
                 }
 
                 Divider()

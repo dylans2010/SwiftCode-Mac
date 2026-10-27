@@ -44,7 +44,7 @@ struct WorkspaceSearchView: View {
                 }
             }
             .padding(14)
-            .background(RoundedRectangle(cornerRadius: 8).fill(Color(NSColor.controlBackgroundColor)))
+            .liquidGlass(style: .standard, cornerRadius: 8)
             .padding(16)
 
             Divider()

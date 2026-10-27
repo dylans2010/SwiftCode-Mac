@@ -34,6 +34,8 @@ struct RustSupportExtensionView: View {
                 Text("Rust syntax highlighting with ownership and lifetime annotations. Integrates Clippy for idiomatic code suggestions.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
+                    .padding(10)
+                    .liquidGlass(style: .subtle, cornerRadius: 8)
             } header: {
                 Text("About")
             }

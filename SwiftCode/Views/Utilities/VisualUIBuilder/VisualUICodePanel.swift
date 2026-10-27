@@ -24,7 +24,7 @@ public struct VisualUICodePanel: View {
                 .font(.caption)
             }
             .padding(8)
-            .background(Color(NSColor.controlBackgroundColor))
+            .liquidGlass(style: .subtle, cornerRadius: 0)
 
             Divider()
 

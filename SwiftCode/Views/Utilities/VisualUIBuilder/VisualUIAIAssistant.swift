@@ -103,9 +103,7 @@ public struct VisualUIAIAssistant: View {
                                             }
                                             .padding(10)
                                             .frame(maxWidth: .infinity, alignment: .leading)
-                                            .background(Color(NSColor.controlBackgroundColor).opacity(0.5))
-                                            .cornerRadius(8)
-                                            .overlay(RoundedRectangle(cornerRadius: 8).stroke(Color.secondary.opacity(0.1), lineWidth: 1))
+                                            .liquidGlass(style: .standard, cornerRadius: 8)
                                         }
                                         .buttonStyle(.plain)
                                     }

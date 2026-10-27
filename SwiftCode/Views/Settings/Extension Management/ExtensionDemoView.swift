@@ -33,6 +33,8 @@ struct ExtensionDemoView: View {
                         .font(.body)
                 }
                 .padding(.vertical, 8)
+                .padding(10)
+                .liquidGlass(style: .subtle, cornerRadius: 8)
             } header: {
                 Text("About")
             }

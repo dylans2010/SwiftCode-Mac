@@ -61,6 +61,7 @@ public struct AgentControlsView: View {
             }
             .padding(.horizontal, 12)
             .padding(.vertical, 8)
+            .liquidGlass(style: .subtle, cornerRadius: 8)
         } else {
             EmptyView()
         }

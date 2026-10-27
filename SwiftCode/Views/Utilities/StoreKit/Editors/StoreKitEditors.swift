@@ -61,7 +61,7 @@ struct StoreKitDashboardView: View {
                             catalogRow(label: "Non-Renewing Subscriptions", count: session.activeConfig.nonRenewingSubscriptions.count, icon: "hourglass", color: .indigo)
                         }
                         .padding(14)
-                        .background(Color(NSColor.controlBackgroundColor), in: RoundedRectangle(cornerRadius: 10))
+                        .liquidGlass(style: .standard, cornerRadius: 10)
 
                         Text("Instant Workspace Actions")
                             .font(.system(size: 12, weight: .bold))
@@ -101,7 +101,7 @@ struct StoreKitDashboardView: View {
                             }
                             .frame(maxWidth: .infinity)
                             .padding(.vertical, 40)
-                            .background(Color(NSColor.controlBackgroundColor), in: RoundedRectangle(cornerRadius: 10))
+                            .liquidGlass(style: .standard, cornerRadius: 10)
                         } else {
                             VStack(alignment: .leading, spacing: 10) {
                                 ForEach(simulationService.activityEvents.prefix(4)) { event in
@@ -132,7 +132,7 @@ struct StoreKitDashboardView: View {
                                 }
                             }
                             .padding(14)
-                            .background(Color(NSColor.controlBackgroundColor), in: RoundedRectangle(cornerRadius: 10))
+                            .liquidGlass(style: .standard, cornerRadius: 10)
                         }
                     }
                     .frame(maxWidth: .infinity)
@@ -161,7 +161,7 @@ struct StoreKitDashboardView: View {
             }
         }
         .padding(14)
-        .background(Color(NSColor.controlBackgroundColor), in: RoundedRectangle(cornerRadius: 10))
+        .liquidGlass(style: .standard, cornerRadius: 10)
     }
 
     private func catalogRow(label: String, count: Int, icon: String, color: Color) -> some View {
@@ -186,7 +186,7 @@ struct StoreKitDashboardView: View {
             }
             .frame(maxWidth: .infinity)
             .padding(.vertical, 12)
-            .background(Color.secondary.opacity(0.12), in: RoundedRectangle(cornerRadius: 8))
+            .liquidGlass(style: .standard, cornerRadius: 8)
         }
         .buttonStyle(.plain)
     }
@@ -230,7 +230,7 @@ struct StoreKitExplorerView: View {
                     }
                 }
                 .padding(16)
-                .background(Color(NSColor.controlBackgroundColor), in: RoundedRectangle(cornerRadius: 10))
+                .liquidGlass(style: .standard, cornerRadius: 10)
 
                 // Simulator Sandbox Profiles Selector
                 VStack(alignment: .leading, spacing: 12) {
@@ -260,11 +260,11 @@ struct StoreKitExplorerView: View {
                             }
                         }
                         .padding(10)
-                        .background(Color.secondary.opacity(0.12), in: RoundedRectangle(cornerRadius: 6))
+                        .liquidGlass(style: .standard, cornerRadius: 6)
                     }
                 }
                 .padding(16)
-                .background(Color(NSColor.controlBackgroundColor), in: RoundedRectangle(cornerRadius: 10))
+                .liquidGlass(style: .standard, cornerRadius: 10)
             }
             .padding(24)
         }
@@ -286,7 +286,7 @@ struct StoreKitExplorerView: View {
             }
             .frame(width: 160, height: 110, alignment: .leading)
             .padding(12)
-            .background(Color.secondary.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+            .liquidGlass(style: .standard, cornerRadius: 8)
         }
         .buttonStyle(.plain)
     }
@@ -731,7 +731,7 @@ struct SubscriptionTimelineView: View {
                     }
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 40)
-                    .background(Color(NSColor.controlBackgroundColor), in: RoundedRectangle(cornerRadius: 10))
+                    .liquidGlass(style: .standard, cornerRadius: 10)
                 } else {
                     ForEach(subs) { sub in
                         VStack(alignment: .leading, spacing: 14) {
@@ -770,7 +770,7 @@ struct SubscriptionTimelineView: View {
                             }
                         }
                         .padding(16)
-                        .background(Color(NSColor.controlBackgroundColor), in: RoundedRectangle(cornerRadius: 10))
+                        .liquidGlass(style: .standard, cornerRadius: 10)
                     }
                 }
             }
@@ -834,7 +834,7 @@ struct StoreKitDiagnosticsView: View {
                     }
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 50)
-                    .background(Color(NSColor.controlBackgroundColor), in: RoundedRectangle(cornerRadius: 10))
+                    .liquidGlass(style: .standard, cornerRadius: 10)
                 } else {
                     VStack(alignment: .leading, spacing: 12) {
                         ForEach(issues) { issue in
@@ -869,7 +869,7 @@ struct StoreKitDiagnosticsView: View {
                                 }
                             }
                             .padding(12)
-                            .background(Color(NSColor.controlBackgroundColor), in: RoundedRectangle(cornerRadius: 8))
+                            .liquidGlass(style: .standard, cornerRadius: 8)
                         }
                     }
                 }
@@ -969,7 +969,7 @@ struct StoreKitStorefrontEditorView: View {
                     }
                 }
                 .frame(height: 320)
-                .background(Color(NSColor.controlBackgroundColor), in: RoundedRectangle(cornerRadius: 10))
+                .liquidGlass(style: .standard, cornerRadius: 10)
             }
             .padding(24)
         }
@@ -1006,7 +1006,7 @@ struct StoreKitLocalizationEditorView: View {
                     }
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 40)
-                    .background(Color(NSColor.controlBackgroundColor), in: RoundedRectangle(cornerRadius: 10))
+                    .liquidGlass(style: .standard, cornerRadius: 10)
                 } else {
                     ForEach(allProds) { prod in
                         VStack(alignment: .leading, spacing: 10) {
@@ -1033,7 +1033,7 @@ struct StoreKitLocalizationEditorView: View {
                             }
                         }
                         .padding(14)
-                        .background(Color(NSColor.controlBackgroundColor), in: RoundedRectangle(cornerRadius: 10))
+                        .liquidGlass(style: .standard, cornerRadius: 10)
                     }
                 }
             }
@@ -1079,7 +1079,7 @@ struct StoreKitAssetEditorView: View {
                     }
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 40)
-                    .background(Color(NSColor.controlBackgroundColor), in: RoundedRectangle(cornerRadius: 10))
+                    .liquidGlass(style: .standard, cornerRadius: 10)
                 } else {
                     Table(projectAssets) {
                         TableColumn("Type", value: \.type)
@@ -1088,7 +1088,7 @@ struct StoreKitAssetEditorView: View {
                         TableColumn("Sandbox Path", value: \.resolvedPath)
                     }
                     .frame(height: 220)
-                    .background(Color(NSColor.controlBackgroundColor), in: RoundedRectangle(cornerRadius: 10))
+                    .liquidGlass(style: .standard, cornerRadius: 10)
                 }
             }
             .padding(24)
@@ -1136,7 +1136,7 @@ struct StoreKitOfferEditorView: View {
                     }
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 40)
-                    .background(Color(NSColor.controlBackgroundColor), in: RoundedRectangle(cornerRadius: 10))
+                    .liquidGlass(style: .standard, cornerRadius: 10)
                 } else {
                     ForEach(subs) { sub in
                         VStack(alignment: .leading, spacing: 14) {
@@ -1171,7 +1171,7 @@ struct StoreKitOfferEditorView: View {
                                         .foregroundColor(.red)
                                     }
                                     .padding(8)
-                                    .background(Color.secondary.opacity(0.12), in: RoundedRectangle(cornerRadius: 4))
+                                    .liquidGlass(style: .standard, cornerRadius: 4)
                                 }
                             }
 
@@ -1203,12 +1203,12 @@ struct StoreKitOfferEditorView: View {
                                         .foregroundColor(.red)
                                     }
                                     .padding(8)
-                                    .background(Color.secondary.opacity(0.12), in: RoundedRectangle(cornerRadius: 4))
+                                    .liquidGlass(style: .standard, cornerRadius: 4)
                                 }
                             }
                         }
                         .padding(14)
-                        .background(Color(NSColor.controlBackgroundColor), in: RoundedRectangle(cornerRadius: 10))
+                        .liquidGlass(style: .standard, cornerRadius: 10)
                     }
                 }
             }
@@ -1285,7 +1285,7 @@ struct StoreKitCompareView: View {
                         }
                         .padding(12)
                         .frame(maxWidth: .infinity, alignment: .leading)
-                        .background(Color.secondary.opacity(0.12), in: RoundedRectangle(cornerRadius: 8))
+                        .liquidGlass(style: .standard, cornerRadius: 8)
                     }
 
                     VStack(alignment: .leading, spacing: 10) {
@@ -1300,7 +1300,7 @@ struct StoreKitCompareView: View {
                         }
                         .padding(12)
                         .frame(maxWidth: .infinity, alignment: .leading)
-                        .background(Color.secondary.opacity(0.12), in: RoundedRectangle(cornerRadius: 8))
+                        .liquidGlass(style: .standard, cornerRadius: 8)
                     }
                 }
 
@@ -1359,7 +1359,7 @@ struct StoreKitVersionHistoryView: View {
                     }
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 40)
-                    .background(Color(NSColor.controlBackgroundColor), in: RoundedRectangle(cornerRadius: 10))
+                    .liquidGlass(style: .standard, cornerRadius: 10)
                 } else {
                     VStack(alignment: .leading, spacing: 12) {
                         ForEach(revisions) { revision in
@@ -1378,7 +1378,7 @@ struct StoreKitVersionHistoryView: View {
                                 }
                             }
                             .padding(10)
-                            .background(Color.secondary.opacity(0.12), in: RoundedRectangle(cornerRadius: 6))
+                            .liquidGlass(style: .standard, cornerRadius: 6)
                         }
                     }
                 }
@@ -1442,7 +1442,7 @@ struct StoreKitSearchCenterView: View {
                                 }
                                 .padding(8)
                                 .frame(maxWidth: .infinity, alignment: .leading)
-                                .background(Color.secondary.opacity(0.12), in: RoundedRectangle(cornerRadius: 6))
+                                .liquidGlass(style: .standard, cornerRadius: 6)
                             }
                         }
                     }
@@ -1553,7 +1553,7 @@ struct StoreKitSettingsView: View {
                     }
                 }
                 .padding(20)
-                .background(Color(NSColor.controlBackgroundColor), in: RoundedRectangle(cornerRadius: 10))
+                .liquidGlass(style: .standard, cornerRadius: 10)
             }
             .padding(24)
         }
@@ -1742,7 +1742,7 @@ struct StoreKitTemplateGalleryView: View {
                         }
                         .padding(14)
                         .frame(height: 180)
-                        .background(Color(NSColor.controlBackgroundColor), in: RoundedRectangle(cornerRadius: 10))
+                        .liquidGlass(style: .standard, cornerRadius: 10)
                     }
                 }
             }
@@ -1779,7 +1779,7 @@ struct StoreKitTransactionExplorerView: View {
                     }
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 60)
-                    .background(Color(NSColor.controlBackgroundColor), in: RoundedRectangle(cornerRadius: 10))
+                    .liquidGlass(style: .standard, cornerRadius: 10)
                 } else {
                     Table(simulationService.transactions) {
                         TableColumn("Date") { tx in
@@ -1810,7 +1810,7 @@ struct StoreKitTransactionExplorerView: View {
                         }
                     }
                     .frame(height: 320)
-                    .background(Color(NSColor.controlBackgroundColor), in: RoundedRectangle(cornerRadius: 10))
+                    .liquidGlass(style: .standard, cornerRadius: 10)
                 }
             }
             .padding(24)
@@ -1852,7 +1852,7 @@ struct StoreKitSubscriptionGroupEditorView: View {
                     }
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 40)
-                    .background(Color(NSColor.controlBackgroundColor), in: RoundedRectangle(cornerRadius: 10))
+                    .liquidGlass(style: .standard, cornerRadius: 10)
                 } else {
                     ForEach(0..<session.activeConfig.subscriptionGroups.count, id: \.self) { gIdx in
                         let group = session.activeConfig.subscriptionGroups[gIdx]
@@ -1879,7 +1879,7 @@ struct StoreKitSubscriptionGroupEditorView: View {
                             .frame(height: 120)
                         }
                         .padding(14)
-                        .background(Color(NSColor.controlBackgroundColor), in: RoundedRectangle(cornerRadius: 10))
+                        .liquidGlass(style: .standard, cornerRadius: 10)
                     }
                 }
             }
@@ -1924,7 +1924,7 @@ struct StoreKitPurchaseSimulatorView: View {
                         Toggle("Fail JWS Cryptography", isOn: $simulationService.shouldFailVerification)
                     }
                     .padding(12)
-                    .background(Color(NSColor.controlBackgroundColor), in: RoundedRectangle(cornerRadius: 8))
+                    .liquidGlass(style: .standard, cornerRadius: 8)
 
                     Text("CLICK TO TRIGGER PURCHASE")
                         .font(.system(size: 9, weight: .bold))

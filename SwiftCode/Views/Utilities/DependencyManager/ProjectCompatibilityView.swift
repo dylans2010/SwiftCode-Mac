@@ -40,7 +40,7 @@ struct ProjectCompatibilityView: View {
                 Spacer()
             }
             .padding()
-            .background(Color.secondary.opacity(0.04), in: RoundedRectangle(cornerRadius: 12))
+            .liquidGlass(style: .standard, cornerRadius: 12)
 
             Divider()
 

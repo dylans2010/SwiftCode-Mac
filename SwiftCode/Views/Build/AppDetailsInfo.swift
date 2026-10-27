@@ -47,7 +47,7 @@ public struct AppDetailsInfo: View {
                 Spacer()
             }
             .padding()
-            .background(Color.blue.opacity(0.06))
+            .liquidGlass(style: .subtle, cornerRadius: 0)
 
             Divider()
 

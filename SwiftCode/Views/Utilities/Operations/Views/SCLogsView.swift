@@ -63,7 +63,7 @@ struct SCLogsView: View {
                         .textFieldStyle(.plain)
                 }
                 .padding(6)
-                .background(RoundedRectangle(cornerRadius: 6).fill(Color(NSColor.controlBackgroundColor)))
+                .liquidGlass(style: .standard, cornerRadius: 6)
                 .frame(width: 250)
             }
             .padding(.horizontal, 16)

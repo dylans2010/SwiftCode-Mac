@@ -171,6 +171,8 @@ public struct EnterSecuritySDKView: View {
                 .font(.caption)
                 .foregroundStyle(.secondary)
         }
+        .padding(12)
+        .liquidGlass(style: .standard, cornerRadius: 12)
     }
 
     private var secretField: some View {

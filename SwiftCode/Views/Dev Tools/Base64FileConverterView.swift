@@ -27,6 +27,7 @@ struct Base64FileConverterView: View {
             }
             .padding(.bottom)
         }
+        .liquidGlass(style: .subtle, cornerRadius: 12)
         .navigationTitle("Base64 File Converter")
     }
 

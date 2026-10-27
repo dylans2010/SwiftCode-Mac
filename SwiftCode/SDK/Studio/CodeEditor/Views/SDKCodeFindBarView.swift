@@ -90,7 +90,8 @@ public struct SDKCodeFindBarView: View {
         }
         .padding(.horizontal, 10)
         .padding(.vertical, 6)
-        .background(.bar)
+        .liquidGlass(style: .subtle, cornerRadius: 8)
+        .padding(6)
         .onAppear {
             coordinator.setQuery(state.findQuery)
             queryFieldFocused = true

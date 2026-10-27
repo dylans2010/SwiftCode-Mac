@@ -32,6 +32,7 @@ struct PaywallDebugView: View {
                 }
             }
         }
+        .liquidGlass(style: .subtle, cornerRadius: 12)
         .navigationTitle("Paywall Debug")
         .sheet(isPresented: $showPaywall) {
             PaywallView()

@@ -49,7 +49,7 @@ struct BuildHistoryView: View {
                     }
                 }
                 .padding(8)
-                .background(RoundedRectangle(cornerRadius: 6).fill(Color(NSColor.controlBackgroundColor)))
+                .liquidGlass(style: .standard, cornerRadius: 6)
                 .padding(.horizontal, 16)
                 .padding(.vertical, 10)
 

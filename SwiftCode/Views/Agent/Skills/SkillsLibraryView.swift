@@ -11,6 +11,8 @@ public struct SkillsLibraryView: View {
                 Text(skill.name).font(.headline)
                 Text(skill.description).font(.subheadline).foregroundColor(.secondary)
             }
+            .padding(8)
+            .liquidGlass(style: .subtle, cornerRadius: 8)
         }
         .onAppear {
             Task {

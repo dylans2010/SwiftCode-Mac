@@ -54,9 +54,7 @@ public struct AssistUserTakeover: View {
             }
         }
         .padding(24)
-        .background(Color(white: 0.15))
-        .cornerRadius(20)
-        .shadow(radius: 20)
+        .liquidGlass(style: .sheet, cornerRadius: 20)
         .padding(40)
     }
 }

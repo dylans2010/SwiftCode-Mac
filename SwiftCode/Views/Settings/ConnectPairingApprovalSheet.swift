@@ -39,8 +39,7 @@ struct ConnectPairingApprovalSheet: View {
                 }
                 .padding()
                 .frame(maxWidth: .infinity)
-                .background(Color(NSColor.controlBackgroundColor))
-                .cornerRadius(8)
+                .liquidGlass(style: .standard, cornerRadius: 8)
 
                 Text("Does this code match the iPhone?")
                     .font(.subheadline)

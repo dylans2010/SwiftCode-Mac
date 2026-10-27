@@ -43,6 +43,7 @@ struct BreakpointsSidebarView: View {
                 Spacer()
             }
             .padding()
+            .liquidGlass(style: .subtle, cornerRadius: 8)
         }
     }
 }

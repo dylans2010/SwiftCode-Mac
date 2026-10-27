@@ -8,13 +8,17 @@ struct GitHubLoadingView: View {
         VStack(spacing: 16) {
             Spacer()
 
-            ProgressView()
-                .controlSize(.large)
-                .scaleEffect(1.2)
+            VStack(spacing: 16) {
+                ProgressView()
+                    .controlSize(.large)
+                    .scaleEffect(1.2)
 
-            Text(message)
-                .font(.subheadline)
-                .foregroundStyle(.secondary)
+                Text(message)
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+            }
+            .padding(24)
+            .liquidGlass(style: .subtle, cornerRadius: 16)
 
             Spacer()
         }

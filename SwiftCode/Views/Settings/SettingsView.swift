@@ -842,6 +842,8 @@ struct SettingsMainWrapper: View {
                         .buttonStyle(.plain)
                         .help("Toggle Favorite")
                     }
+                    .padding(16)
+                    .liquidGlass(style: .standard, cornerRadius: 12)
                     .padding(.horizontal, 24)
                     .padding(.top, 24)
 

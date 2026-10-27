@@ -30,6 +30,7 @@ struct GitHubAPIDebugView: View {
                     .foregroundStyle(.secondary)
             }
         }
+        .liquidGlass(style: .subtle, cornerRadius: 12)
         .navigationTitle("GitHub API Debug")
     }
 

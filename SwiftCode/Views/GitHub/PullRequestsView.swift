@@ -114,7 +114,7 @@ struct PullRequestsView: View {
                 .disabled(context.connectedRepository == nil)
             }
             .padding()
-            .background(Color.secondary.opacity(0.03))
+            .liquidGlass(style: .subtle, cornerRadius: 10)
 
             Divider()
 

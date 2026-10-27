@@ -33,6 +33,7 @@ struct HMACGeneratorView: View {
                 Text(result)
                     .font(.system(.body, design: .monospaced))
                     .padding()
+                    .liquidGlass(style: .subtle, cornerRadius: 12)
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .background(Color.secondary.opacity(0.1))
                     .cornerRadius(8)

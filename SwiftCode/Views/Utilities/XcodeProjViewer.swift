@@ -45,7 +45,7 @@ public struct XcodeProjViewer: View {
                         .frame(width: 160)
                 }
                 .padding(8)
-                .background(Color.secondary.opacity(0.12), in: RoundedRectangle(cornerRadius: 10))
+                .liquidGlass(style: .standard, cornerRadius: 10)
 
                 Button("Done") {
                     dismiss()

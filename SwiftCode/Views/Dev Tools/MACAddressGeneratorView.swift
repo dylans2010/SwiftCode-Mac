@@ -8,6 +8,7 @@ struct MACAddressGeneratorView: View {
         VStack(spacing: 20) {
             Stepper("Count: \(count)", value: $count, in: 1...100)
                 .padding()
+                .liquidGlass(style: .subtle, cornerRadius: 12)
 
             Button("Generate MAC Addresses") { generate() }
                 .buttonStyle(.borderedProminent)

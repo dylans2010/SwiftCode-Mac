@@ -65,7 +65,7 @@ public struct AssistPlanView: View {
             .padding(.top, 4)
         }
         .padding()
-        .background(Color.orange.opacity(0.1))
+        .liquidGlass(style: .standard, cornerRadius: 12, tint: .orange)
         .overlay(
             Rectangle()
                 .frame(height: 1)

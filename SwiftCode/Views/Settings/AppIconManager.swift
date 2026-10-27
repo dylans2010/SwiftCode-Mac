@@ -646,16 +646,9 @@ public struct AppIconPickerView: View {
             }
         }
         .padding(14)
-        .background(
-            RoundedRectangle(cornerRadius: 14, style: .continuous)
-                .fill(Color.primary.opacity(0.04))
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: 14, style: .continuous)
-                .stroke(Color.primary.opacity(0.08), lineWidth: 1)
-        )
+        .liquidGlass(style: .standard, cornerRadius: 14)
     }
-    
+
     // MARK: - Filter and Search Bar
     
     private var filterAndSearchBar: some View {

@@ -711,7 +711,7 @@ struct GitCommandRow: View {
                 }
             }
             .padding(10)
-            .background(Color.secondary.opacity(0.04))
+            .liquidGlass(style: .subtle, cornerRadius: 8)
             .cornerRadius(8)
         }
         .buttonStyle(.plain)

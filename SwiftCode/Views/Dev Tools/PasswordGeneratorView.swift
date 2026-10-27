@@ -28,6 +28,7 @@ struct PasswordGeneratorView: View {
                 .buttonStyle(.plain)
             }
             .padding([.top, .horizontal])
+            .liquidGlass(style: .subtle, cornerRadius: 12)
 
             VStack(spacing: 12) {
                 Stepper("Length: \(length)", value: $length, in: 8...64)

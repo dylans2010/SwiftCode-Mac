@@ -33,6 +33,7 @@ struct CertificateDecoderView: View {
                         .font(.system(.body, design: .monospaced))
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .padding()
+                        .liquidGlass(style: .subtle, cornerRadius: 12)
                         .background(Color.secondary.opacity(0.1))
                         .cornerRadius(8)
                 }

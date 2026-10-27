@@ -47,6 +47,7 @@ struct GitHubWorkflowsSidebarView: View {
                 .buttonStyle(.bordered)
             }
             .padding()
+            .liquidGlass(style: .subtle, cornerRadius: 8)
         }
         .sheet(item: $selectedWorkflow) { workflow in
             WorkflowEditorView(content: $editingContent, fileName: workflow.name) { newContent in

@@ -70,6 +70,7 @@ struct DiskUsageAnalyzerDevToolView: View {
                     .disabled(item.size == "0 KB")
                 }
                 .padding(.vertical, 4)
+                .liquidGlass(style: .subtle, cornerRadius: 12)
             }
         }
         .navigationTitle("Disk Usage Analyzer")

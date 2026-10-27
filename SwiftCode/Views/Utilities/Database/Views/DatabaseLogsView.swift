@@ -15,7 +15,7 @@ struct DatabaseLogsView: View {
                 }
             }
             .padding()
-            .background(Color.secondary.opacity(0.06))
+            .liquidGlass(style: .subtle, cornerRadius: 0)
 
             Divider()
 

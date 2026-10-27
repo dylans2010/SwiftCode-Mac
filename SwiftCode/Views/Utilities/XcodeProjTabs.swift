@@ -1047,7 +1047,7 @@ public struct ProjectOverviewTabView: View {
                 }
             }
             .padding(18)
-            .background(Color(NSColor.controlBackgroundColor).opacity(0.6), in: RoundedRectangle(cornerRadius: 14))
+            .liquidGlass(style: .standard, cornerRadius: 14)
             .overlay(
                 RoundedRectangle(cornerRadius: 14)
                     .stroke(Color.secondary.opacity(0.15), lineWidth: 1)
@@ -1118,12 +1118,12 @@ public struct ProjectOverviewTabView: View {
                         }
                         .padding(.horizontal, 14)
                         .padding(.vertical, 10)
-                        .background(Color(NSColor.controlBackgroundColor).opacity(0.4), in: RoundedRectangle(cornerRadius: 10))
+                        .liquidGlass(style: .standard, cornerRadius: 10)
                     }
                 }
             }
             .padding(16)
-            .background(Color(NSColor.controlBackgroundColor).opacity(0.5), in: RoundedRectangle(cornerRadius: 14))
+            .liquidGlass(style: .standard, cornerRadius: 14)
             .overlay(
                 RoundedRectangle(cornerRadius: 14)
                     .stroke(Color.secondary.opacity(0.12), lineWidth: 1)
@@ -1160,7 +1160,7 @@ public struct ProjectOverviewTabView: View {
             Spacer()
         }
         .padding(14)
-        .background(Color(NSColor.controlBackgroundColor).opacity(0.6), in: RoundedRectangle(cornerRadius: 12))
+        .liquidGlass(style: .standard, cornerRadius: 12)
         .overlay(
             RoundedRectangle(cornerRadius: 12)
                 .stroke(Color.secondary.opacity(0.12), lineWidth: 1)

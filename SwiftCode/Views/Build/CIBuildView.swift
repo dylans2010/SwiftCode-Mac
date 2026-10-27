@@ -85,6 +85,8 @@ struct CIBuildView: View {
                             .font(.subheadline)
                             .foregroundStyle(.secondary)
                     }
+                    .padding(10)
+                    .liquidGlass(style: .subtle, cornerRadius: 10)
                 }
 
                 Section("Project Identification") {

@@ -29,6 +29,7 @@ struct AgentMessageBubbleView: View {
                     .foregroundColor(.secondary)
             }
             .padding(.horizontal, 4)
+            .liquidGlass(style: .subtle, cornerRadius: 8)
 
             // Content Bubble
             VStack(alignment: .leading, spacing: 10) {

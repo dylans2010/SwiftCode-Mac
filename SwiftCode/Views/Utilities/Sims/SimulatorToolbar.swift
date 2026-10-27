@@ -88,7 +88,7 @@ struct SimulatorToolbar: View {
             }
         }
         .padding()
-        .background(Color.secondary.opacity(0.05))
+        .liquidGlass(style: .subtle, cornerRadius: 0)
         .simulatorWorkspaceEmbedded()
     }
 

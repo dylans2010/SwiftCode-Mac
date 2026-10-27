@@ -33,6 +33,7 @@ struct BackgroundTaskMonitorView: View {
             }
             .listRowBackground(Color.white.opacity(0.05))
         }
+        .liquidGlass(style: .subtle, cornerRadius: 12)
         .navigationTitle("Background Tasks")
         .background(Color(red: 0.05, green: 0.05, blue: 0.07).ignoresSafeArea())
     }

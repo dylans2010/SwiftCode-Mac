@@ -26,6 +26,7 @@ struct DebugInspectorSidebarView: View {
                     }
                 } else {
                     ContentUnavailableView("No Active Session", systemImage: "ant", description: Text("Start debugging to see variables and call stack."))
+                        .liquidGlass(style: .subtle, cornerRadius: 12)
                 }
             }
         }

@@ -18,6 +18,7 @@ struct CronGeneratorView: View {
                 TextField("Day of Week (0-6)", text: $dayOfWeek)
             }
             .padding()
+            .liquidGlass(style: .subtle, cornerRadius: 12)
             .onChange(of: minute) { update() }
             .onChange(of: hour) { update() }
             .onChange(of: dayOfMonth) { update() }

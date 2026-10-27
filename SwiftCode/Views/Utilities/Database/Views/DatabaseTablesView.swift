@@ -54,7 +54,7 @@ struct DatabaseTablesView: View {
                 }
             }
             .padding(12)
-            .background(Color.secondary.opacity(0.05))
+            .liquidGlass(style: .subtle, cornerRadius: 0)
 
             Divider()
 

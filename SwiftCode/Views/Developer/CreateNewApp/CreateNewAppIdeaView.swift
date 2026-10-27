@@ -47,6 +47,8 @@ public struct CreateNewAppIdeaView: View {
                     }
                 }
             }
+            .padding()
+            .liquidGlass(style: .subtle, cornerRadius: 12)
 
             Spacer()
         }

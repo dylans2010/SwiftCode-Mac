@@ -38,5 +38,6 @@ public struct NSGitErrorView: View {
                 .stroke(Color.red.opacity(0.3), lineWidth: 1)
         )
         .padding(.vertical, 4)
+        .liquidGlass(style: .subtle, cornerRadius: 8, tint: .red)
     }
 }

@@ -24,6 +24,7 @@ struct HTTPHeaderParserView: View {
                 }
             }
         }
+        .liquidGlass(style: .subtle, cornerRadius: 12)
         .navigationTitle("HTTP Header Parser")
     }
 

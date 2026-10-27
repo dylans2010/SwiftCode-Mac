@@ -25,6 +25,7 @@ struct UserAgentParserView: View {
             }
             Spacer()
         }
+        .liquidGlass(style: .subtle, cornerRadius: 12)
         .navigationTitle("User Agent Parser")
     }
 

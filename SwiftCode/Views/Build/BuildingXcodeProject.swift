@@ -413,7 +413,7 @@ public struct XcodeProjectDetailsSheet: View {
                         .padding(.top, 4)
                     }
                     .padding()
-                    .background(Color(NSColor.controlBackgroundColor).opacity(0.4), in: RoundedRectangle(cornerRadius: 12))
+                    .liquidGlass(style: .standard, cornerRadius: 12)
                     .overlay(RoundedRectangle(cornerRadius: 12).stroke(Color.secondary.opacity(0.12), lineWidth: 1))
 
                     // App Name & Bundle ID configuration
@@ -740,7 +740,7 @@ struct MetricCard: View {
             Spacer()
         }
         .padding(10)
-        .background(Color(NSColor.windowBackgroundColor).opacity(0.6), in: RoundedRectangle(cornerRadius: 8))
+        .liquidGlass(style: .subtle, cornerRadius: 8)
     }
 }
 

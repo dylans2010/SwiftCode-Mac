@@ -18,6 +18,8 @@ struct TransferProgressView: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
+            .padding(12)
+            .liquidGlass(style: .subtle, cornerRadius: 12)
         }
     }
 }

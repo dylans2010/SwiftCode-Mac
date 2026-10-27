@@ -28,6 +28,7 @@ struct PerformanceMonitorView: View {
             }
             .padding()
         }
+        .liquidGlass(style: .subtle, cornerRadius: 12)
         .navigationTitle("Performance Monitor")
         .background(Color(red: 0.05, green: 0.05, blue: 0.07).ignoresSafeArea())
         .onReceive(timer) { _ in

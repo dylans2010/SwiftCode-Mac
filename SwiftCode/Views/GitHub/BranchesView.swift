@@ -144,7 +144,7 @@ struct BranchesView: View {
                 .tint(.orange)
             }
             .padding()
-            .background(Color.secondary.opacity(0.03))
+            .liquidGlass(style: .subtle, cornerRadius: 10)
 
             Divider()
 

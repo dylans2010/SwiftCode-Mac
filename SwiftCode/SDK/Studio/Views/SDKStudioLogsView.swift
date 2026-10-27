@@ -65,6 +65,8 @@ private struct UserLogsPane: View {
                 Button("Refresh") { reload() }
             }
             .padding()
+            .liquidGlass(style: .subtle, cornerRadius: 8)
+            .padding(6)
 
             if let errorMessage {
                 Text(errorMessage)

@@ -31,6 +31,8 @@ struct OnboardingSplashView: View {
                     .font(.title3)
                     .foregroundStyle(.secondary)
             }
+            .padding(16)
+            .liquidGlass(style: .subtle, cornerRadius: 16)
             .offset(y: isAnimating ? 0 : 20)
             .opacity(isAnimating ? 1 : 0)
             .animation(.easeOut(duration: 0.8).delay(0.2), value: isAnimating)

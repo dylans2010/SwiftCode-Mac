@@ -99,6 +99,7 @@ struct ASCIIHexConverterDevToolView: View {
             }
             .padding()
         }
+        .liquidGlass(style: .subtle, cornerRadius: 12)
         .navigationTitle("ASCII Hex Converter")
     }
 }

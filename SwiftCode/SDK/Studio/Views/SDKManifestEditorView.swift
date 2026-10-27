@@ -266,10 +266,7 @@ public struct SDKManifestEditorView: View {
             .buttonStyle(.plain)
         }
         .padding(10)
-        .background(
-            RoundedRectangle(cornerRadius: 7)
-                .fill(Color.green.opacity(0.12))
-        )
+        .liquidGlass(style: .standard, cornerRadius: 7, tint: .green)
     }
 
     // MARK: - Sections

@@ -40,6 +40,8 @@ public struct SkillsManagerView: View {
                 }
             }
             .padding()
+            .liquidGlass(style: .subtle, cornerRadius: 8)
+            .padding(.horizontal)
 
             Divider()
 

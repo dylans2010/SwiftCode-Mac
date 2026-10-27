@@ -132,7 +132,7 @@ struct ProjectDependencyGraphView: View {
             }
         }
         .padding(8)
-        .background(Color.secondary.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+        .liquidGlass(style: .standard, cornerRadius: 8)
     }
 
     private func ensureGraphviz() async {

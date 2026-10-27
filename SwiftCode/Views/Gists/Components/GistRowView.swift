@@ -50,6 +50,7 @@ struct GistRowView: View {
             }
         }
         .padding(.vertical, 4)
+        .liquidGlass(style: .subtle, cornerRadius: 10)
     }
 
     private var primaryLanguage: String? {

@@ -30,6 +30,7 @@ struct PasswordStrengthMeterView: View {
 
             Spacer()
         }
+        .liquidGlass(style: .subtle, cornerRadius: 12)
         .navigationTitle("Password Strength Meter")
     }
 

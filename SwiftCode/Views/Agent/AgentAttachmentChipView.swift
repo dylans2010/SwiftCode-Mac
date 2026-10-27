@@ -16,7 +16,6 @@ struct AgentAttachmentChipView: View {
         }
         .padding(.horizontal, 8)
         .padding(.vertical, 4)
-        .background(Color.secondary.opacity(0.2))
-        .cornerRadius(12)
+        .liquidGlass(style: .subtle, cornerRadius: 12)
     }
 }

@@ -13,6 +13,7 @@ struct URLEncoderView: View {
             }
             .pickerStyle(.segmented)
             .padding([.top, .horizontal])
+            .liquidGlass(style: .subtle, cornerRadius: 12)
 
             VStack(alignment: .leading) {
                 Text("Input")

@@ -77,6 +77,7 @@ public struct NSCommitView: View {
             }
         }
         .padding()
+        .liquidGlass(style: .sheet, cornerRadius: 12)
         .frame(width: 280)
     }
 }

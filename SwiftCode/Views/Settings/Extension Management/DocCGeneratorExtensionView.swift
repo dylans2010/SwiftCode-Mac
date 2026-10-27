@@ -40,6 +40,8 @@ struct DocCGeneratorExtensionView: View {
                 Text("Build and preview Apple documentation directly in the IDE. Generates a static documentation catalog that can be hosted or submitted with your package.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
+                    .padding(10)
+                    .liquidGlass(style: .subtle, cornerRadius: 8)
             } header: {
                 Text("About")
             }

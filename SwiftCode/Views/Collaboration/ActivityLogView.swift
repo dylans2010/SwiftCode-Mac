@@ -35,6 +35,7 @@ struct ActivityLogView: View {
                         }
                     }
                 }
+                .liquidGlass(style: .subtle, cornerRadius: 12)
             }
 
             Section("Timeline") {

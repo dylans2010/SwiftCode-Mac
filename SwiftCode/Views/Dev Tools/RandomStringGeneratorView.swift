@@ -38,6 +38,7 @@ struct RandomStringGeneratorView: View {
             Spacer()
         }
         .padding()
+        .liquidGlass(style: .subtle, cornerRadius: 12)
         .navigationTitle("Random String Generator")
     }
 

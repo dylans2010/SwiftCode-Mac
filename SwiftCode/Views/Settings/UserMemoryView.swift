@@ -101,7 +101,7 @@ public struct UserMemoryView: View {
                 }
                 .padding(.horizontal, 8)
                 .padding(.vertical, 6)
-                .background(Color.secondary.opacity(0.1), in: RoundedRectangle(cornerRadius: 8))
+                .liquidGlass(style: .subtle, cornerRadius: 8)
 
                 Spacer()
 

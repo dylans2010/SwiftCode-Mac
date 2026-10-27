@@ -24,6 +24,7 @@ struct TextCaseSwapperView: View {
             Spacer()
         }
         .padding(.vertical)
+        .liquidGlass(style: .subtle, cornerRadius: 12)
         .navigationTitle("Text Case Swapper")
     }
 

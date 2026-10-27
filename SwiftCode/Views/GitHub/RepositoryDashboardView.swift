@@ -136,6 +136,7 @@ struct RepositoryDashboardView: View {
                         .foregroundStyle(.secondary)
                 }
                 .padding(.vertical, 8)
+                .liquidGlass(style: .standard, cornerRadius: 14)
             }
             .listRowSeparator(.hidden)
 

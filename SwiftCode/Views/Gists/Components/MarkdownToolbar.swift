@@ -25,7 +25,7 @@ struct MarkdownToolbar: View {
             .padding(.horizontal, 12)
             .padding(.vertical, 8)
         }
-        .background(Color.white.opacity(0.05))
+        .liquidGlass(style: .floatingBar, cornerRadius: 12)
     }
 
     private func toolbarButton(icon: String, action: @escaping () -> Void) -> some View {

@@ -31,6 +31,7 @@ struct DeploymentDebugView: View {
                 }
             }
         }
+        .liquidGlass(style: .subtle, cornerRadius: 12)
         .navigationTitle("Deployment Debug")
     }
 }

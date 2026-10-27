@@ -12,6 +12,7 @@ struct CSSMinifierView: View {
                     .buttonStyle(.borderedProminent)
             }
             .padding()
+            .liquidGlass(style: .subtle, cornerRadius: 12)
 
             HSplitView {
                 TextEditor(text: $input)

@@ -27,7 +27,6 @@ struct AgentToolbar: View {
         }
         .padding(.vertical, 8)
         .padding(.horizontal, 16)
-        .background(Color.secondary.opacity(0.1))
-        .cornerRadius(10)
+        .liquidGlass(style: .subtle, cornerRadius: 10)
     }
 }

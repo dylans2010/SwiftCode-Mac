@@ -29,6 +29,8 @@ struct SwiftPackageManagerExtensionView: View {
                 Text("Manage SPM dependencies graphically: add packages by URL, update to latest versions, and remove unused packages without editing Package.swift manually.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
+                    .padding(10)
+                    .liquidGlass(style: .subtle, cornerRadius: 8)
             } header: {
                 Text("About")
             }

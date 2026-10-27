@@ -74,7 +74,7 @@ public struct VisualUICanvasView: View {
                                     .font(.headline)
                             }
                             .frame(width: 250, height: 400)
-                            .background(Color.secondary.opacity(0.05), in: RoundedRectangle(cornerRadius: 12))
+                            .liquidGlass(style: .standard, cornerRadius: 12)
                             .contentShape(Rectangle())
                         }
                         .buttonStyle(.plain)

@@ -176,7 +176,7 @@ struct ConflictResolverWorkspaceView: View {
                                 .foregroundStyle(.secondary)
                         }
                         .padding()
-                        .background(Color.secondary.opacity(0.05))
+                        .liquidGlass(style: .standard, cornerRadius: 10)
                         .cornerRadius(10)
                         .padding(.top, 20)
                     } else {

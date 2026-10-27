@@ -47,7 +47,7 @@ struct DatabaseQueryEditor: View {
                 }
             }
             .padding(10)
-            .background(Color(NSColor.windowBackgroundColor))
+            .liquidGlass(style: .subtle, cornerRadius: 0)
 
             Divider()
 

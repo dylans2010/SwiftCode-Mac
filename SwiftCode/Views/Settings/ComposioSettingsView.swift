@@ -446,6 +446,7 @@ public struct ComposioSettingsView: View {
                 .padding(12)
             }
         }
+        .groupBoxStyle(ModernGroupBoxStyle())
         .onAppear {
             inputApiKey = ""
         }

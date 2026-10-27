@@ -60,6 +60,7 @@ public struct VisualUIAnimationsPanel: View {
                                 }
                             }
                         }
+                        .groupBoxStyle(.liquidGlass)
 
                         // Transitions preset
                         GroupBox("Transition Preset") {
@@ -74,6 +75,7 @@ public struct VisualUIAnimationsPanel: View {
                                 }
                             }
                         }
+                        .groupBoxStyle(.liquidGlass)
 
                         // Playback Control Simulation
                         Button {

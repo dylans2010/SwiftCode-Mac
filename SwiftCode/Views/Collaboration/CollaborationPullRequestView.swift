@@ -176,8 +176,7 @@ struct CollaborationPullRequestView: View {
                 }
             }
             .padding(20)
-            .background(Color.white.opacity(0.03))
-            .clipShape(RoundedRectangle(cornerRadius: 24))
+            .liquidGlass(style: .standard, cornerRadius: 24)
 
             VStack(alignment: .leading, spacing: 16) {
                 Text("Reviews & Actions")

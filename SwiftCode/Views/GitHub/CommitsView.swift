@@ -168,7 +168,7 @@ struct CommitsView: View {
             }
         }
         .padding()
-        .background(Color.secondary.opacity(0.02))
+        .liquidGlass(style: .subtle, cornerRadius: 10)
     }
 
     // MARK: - Compare Range Header

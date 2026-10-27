@@ -144,8 +144,7 @@ public struct SoundPreviewView: View {
                     }
                 }
                 .padding(6)
-                .background(Color(NSColor.controlBackgroundColor))
-                .clipShape(RoundedRectangle(cornerRadius: 6))
+                .liquidGlass(style: .subtle, cornerRadius: 6)
                 .frame(maxWidth: 200)
             }
 

@@ -62,6 +62,7 @@ struct TestsSidebarView: View {
                 .disabled(isRunningTests)
             }
             .padding()
+            .liquidGlass(style: .subtle, cornerRadius: 8)
         }
         .onAppear {
             discoverTests()

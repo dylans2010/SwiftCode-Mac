@@ -35,6 +35,7 @@ struct CacheInspectorView: View {
                 }
             }
         }
+        .liquidGlass(style: .subtle, cornerRadius: 12)
         .navigationTitle("Cache Inspector")
     }
 }

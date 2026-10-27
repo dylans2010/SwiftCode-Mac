@@ -157,8 +157,7 @@ public struct SDKShipExportView: View {
             }
         }
         .padding(12)
-        .background(.quaternary.opacity(0.4))
-        .clipShape(RoundedRectangle(cornerRadius: 10))
+        .liquidGlass(style: .standard, cornerRadius: 10)
     }
 
     private func exportButton(for project: ProjectSummary) -> some View {
@@ -186,8 +185,7 @@ public struct SDKShipExportView: View {
             .buttonStyle(.link)
         }
         .padding(12)
-        .background(.quaternary.opacity(0.4))
-        .clipShape(RoundedRectangle(cornerRadius: 10))
+        .liquidGlass(style: .standard, cornerRadius: 10)
     }
 
     private func failureCard(_ message: String) -> some View {
@@ -200,8 +198,7 @@ public struct SDKShipExportView: View {
                 .textSelection(.enabled)
         }
         .padding(12)
-        .background(.quaternary.opacity(0.4))
-        .clipShape(RoundedRectangle(cornerRadius: 10))
+        .liquidGlass(style: .standard, cornerRadius: 10)
     }
 
     private func manualCommandSheet(_ request: ManualCommandRequest) -> some View {

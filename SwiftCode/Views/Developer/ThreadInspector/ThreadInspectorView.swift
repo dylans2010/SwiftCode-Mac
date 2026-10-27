@@ -8,6 +8,7 @@ struct ThreadInspectorView: View {
                 Text("Background Task 1 (Sleeping)")
             }
         }
+        .liquidGlass(style: .subtle, cornerRadius: 12)
         .navigationTitle("Thread Inspector")
     }
 }

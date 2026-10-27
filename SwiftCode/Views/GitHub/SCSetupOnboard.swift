@@ -111,6 +111,7 @@ struct SCSetupOnboard: View {
                     .foregroundStyle(.secondary)
             }
             .padding()
+            .liquidGlass(style: .standard, cornerRadius: 16)
         }
     }
 

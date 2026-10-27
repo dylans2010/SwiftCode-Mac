@@ -20,6 +20,7 @@ struct StateInspectorView: View {
                 ])
             ])
         }
+        .liquidGlass(style: .subtle, cornerRadius: 12)
         .navigationTitle("State Inspector")
         .background(Color(red: 0.05, green: 0.05, blue: 0.07).ignoresSafeArea())
     }

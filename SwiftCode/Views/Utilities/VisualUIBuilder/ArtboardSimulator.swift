@@ -292,7 +292,7 @@ struct LivePreviewSubView: View {
                 }
                 .padding(.horizontal, 8)
                 .padding(.vertical, 4)
-                .background(Color.secondary.opacity(0.1), in: RoundedRectangle(cornerRadius: 6))
+                .liquidGlass(style: .standard, cornerRadius: 6)
                 .padding(6)
             }
             .background(Color(NSColor.windowBackgroundColor))

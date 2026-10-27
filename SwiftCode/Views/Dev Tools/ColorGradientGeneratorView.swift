@@ -17,6 +17,7 @@ struct ColorGradientGeneratorView: View {
                 ColorPicker("End Color", selection: $color2)
             }
             .padding()
+            .liquidGlass(style: .subtle, cornerRadius: 12)
 
             VStack(alignment: .leading) {
                 Text("SwiftUI Code:")

@@ -24,6 +24,7 @@ struct PortScannerView: View {
                 }
             }
             .padding()
+            .liquidGlass(style: .subtle, cornerRadius: 12)
 
             Button(isScanning ? "Scanning..." : "Start Scan") { scan() }
                 .buttonStyle(.borderedProminent)

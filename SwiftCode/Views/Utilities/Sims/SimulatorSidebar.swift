@@ -24,6 +24,7 @@ struct SimulatorSidebar: View {
             .padding(.horizontal)
             .padding(.top, 12)
             .padding(.bottom, 8)
+            .liquidGlass(style: .subtle, cornerRadius: 0)
 
             Divider()
 

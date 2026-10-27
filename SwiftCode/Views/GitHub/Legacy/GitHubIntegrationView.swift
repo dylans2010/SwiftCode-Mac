@@ -406,7 +406,7 @@ struct GitHubIntegrationView: View {
                         }
                     }
                     .padding(10)
-                    .background(Color.secondary.opacity(0.06), in: RoundedRectangle(cornerRadius: 10))
+                    .liquidGlass(style: .subtle, cornerRadius: 10)
                 }
 
                 if let repositoryURL = URL(string: repoURL), !ownerFromRepo.isEmpty, !repoNameFromURL.isEmpty {
@@ -585,7 +585,7 @@ struct GitHubIntegrationView: View {
         }
         .frame(maxWidth: .infinity)
         .padding(14)
-        .background(Color.secondary.opacity(0.06), in: RoundedRectangle(cornerRadius: 12))
+        .liquidGlass(style: .subtle, cornerRadius: 12)
     }
 
     // MARK: - Workflow Section

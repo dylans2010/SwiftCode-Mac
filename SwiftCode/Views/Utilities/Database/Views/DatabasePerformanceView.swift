@@ -83,6 +83,7 @@ struct DatabasePerformanceView: View {
                     }
                     .frame(maxWidth: .infinity, minHeight: 60)
                 }
+                .groupBoxStyle(.liquidGlass)
 
                 GroupBox("Database Integrity") {
                     VStack(spacing: 6) {
@@ -95,6 +96,7 @@ struct DatabasePerformanceView: View {
                     }
                     .frame(maxWidth: .infinity, minHeight: 60)
                 }
+                .groupBoxStyle(.liquidGlass)
 
                 GroupBox("Simulated CPU Usage") {
                     VStack(spacing: 6) {
@@ -106,6 +108,7 @@ struct DatabasePerformanceView: View {
                     }
                     .frame(maxWidth: .infinity, minHeight: 60)
                 }
+                .groupBoxStyle(.liquidGlass)
 
                 GroupBox("Memory Footprint") {
                     VStack(spacing: 6) {
@@ -118,6 +121,7 @@ struct DatabasePerformanceView: View {
                     }
                     .frame(maxWidth: .infinity, minHeight: 60)
                 }
+                .groupBoxStyle(.liquidGlass)
             }
 
             VStack(alignment: .leading, spacing: 8) {
@@ -235,6 +239,7 @@ struct DatabasePerformanceView: View {
                     }
                     .padding(8)
                 }
+                .groupBoxStyle(.liquidGlass)
 
                 if !suggestions.isEmpty {
                     VStack(alignment: .leading, spacing: 8) {

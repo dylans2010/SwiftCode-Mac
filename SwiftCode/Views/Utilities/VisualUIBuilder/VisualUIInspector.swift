@@ -41,6 +41,7 @@ public struct VisualUIInspector: View {
                             }
                             .padding(.vertical, 4)
                         }
+                        .groupBoxStyle(.liquidGlass)
 
                         // Section 2: Component-Specific Content
                         GroupBox("Content") {
@@ -83,6 +84,7 @@ public struct VisualUIInspector: View {
                             }
                             .padding(.vertical, 4)
                         }
+                        .groupBoxStyle(.liquidGlass)
 
                         // Section 3: Visual Styling Controls
                         GroupBox("Styling") {
@@ -135,6 +137,7 @@ public struct VisualUIInspector: View {
                             }
                             .padding(.vertical, 4)
                         }
+                        .groupBoxStyle(.liquidGlass)
 
                         // Section 4: Frame & Bounds Settings
                         GroupBox("Layout Constraints") {
@@ -163,6 +166,7 @@ public struct VisualUIInspector: View {
                             }
                             .padding(.vertical, 4)
                         }
+                        .groupBoxStyle(.liquidGlass)
 
 
                     }

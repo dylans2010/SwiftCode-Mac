@@ -168,6 +168,8 @@ public struct WorkersInfoView: View {
             Label("Status", systemImage: "info.circle")
                 .font(.subheadline.bold())
         }
+        .padding(12)
+        .liquidGlass(style: .standard, cornerRadius: 12)
     }
 
     @ViewBuilder

@@ -19,6 +19,8 @@ struct CodeStatsExtensionView: View {
                 Text("Displays line counts, cyclomatic complexity metrics, and language breakdown for your project. Stats update automatically when you open or edit files.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
+                    .padding(10)
+                    .liquidGlass(style: .subtle, cornerRadius: 8)
             } header: {
                 Text("About")
             }

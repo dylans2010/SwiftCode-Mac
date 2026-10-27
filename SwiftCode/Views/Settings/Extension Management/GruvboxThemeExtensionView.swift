@@ -51,6 +51,8 @@ struct GruvboxThemeExtensionView: View {
                 Text("Retro groove color scheme with warm earthy tones. Available in soft, medium, and hard contrast variants.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
+                    .padding(10)
+                    .liquidGlass(style: .subtle, cornerRadius: 8)
             } header: {
                 Text("About")
             }

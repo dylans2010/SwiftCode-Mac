@@ -12,12 +12,7 @@ public struct AssistPlannerView: View {
                 planningHeader
             }
             .padding()
-            .background(Color(white: 0.12))
-            .cornerRadius(12)
-            .overlay(
-                RoundedRectangle(cornerRadius: 12)
-                    .stroke(Color.white.opacity(0.1), lineWidth: 1)
-            )
+            .liquidGlass(style: .standard, cornerRadius: 12)
             .padding(.horizontal)
         } else if let plan = planner.currentPlan {
             VStack(alignment: .leading, spacing: 16) {
@@ -25,12 +20,7 @@ public struct AssistPlannerView: View {
                 stepsList(plan)
             }
             .padding()
-            .background(Color(white: 0.12))
-            .cornerRadius(12)
-            .overlay(
-                RoundedRectangle(cornerRadius: 12)
-                    .stroke(Color.white.opacity(0.1), lineWidth: 1)
-            )
+            .liquidGlass(style: .standard, cornerRadius: 12)
             .padding(.horizontal)
         }
     }

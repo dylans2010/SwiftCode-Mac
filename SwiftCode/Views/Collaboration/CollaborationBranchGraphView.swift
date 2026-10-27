@@ -40,7 +40,7 @@ struct BranchLine: View {
                     .foregroundStyle(.white)
             }
             .padding(10)
-            .background(Color.blue.opacity(0.15), in: RoundedRectangle(cornerRadius: 12))
+            .liquidGlass(style: .standard, cornerRadius: 12, tint: .blue)
 
             // Commit Path
             VStack(spacing: 12) {

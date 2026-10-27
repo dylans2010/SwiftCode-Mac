@@ -343,10 +343,10 @@ private struct DictionarySidebarView: View {
                             .font(.system(.caption, design: .monospaced))
                             .foregroundColor(.secondary)
                             .padding(.horizontal, 4)
-                            .background(Color.secondary.opacity(0.12), in: RoundedRectangle(cornerRadius: 4))
+                            .liquidGlass(style: .standard, cornerRadius: 4)
                     }
                     .padding(8)
-                    .background(RoundedRectangle(cornerRadius: 8).fill(Color.primary.opacity(0.06)))
+                    .liquidGlass(style: .standard, cornerRadius: 8)
                 }
                 .buttonStyle(.plain)
                 // Register standard Command-K shortcut to activate Spotlight
@@ -751,7 +751,7 @@ private struct DictionaryDetailView: View {
                                                 .font(.caption.weight(.semibold))
                                                 .padding(.horizontal, 8)
                                                 .padding(.vertical, 4)
-                                                .background(RoundedRectangle(cornerRadius: 6).fill(Color.primary.opacity(0.06)))
+                                                .liquidGlass(style: .standard, cornerRadius: 6)
                                                 .foregroundStyle(.secondary)
                                         }
                                     }
@@ -1162,7 +1162,7 @@ private struct DictionaryErrorView: View {
                         .frame(maxWidth: .infinity, alignment: .leading)
                 }
                 .frame(maxHeight: 180)
-                .background(RoundedRectangle(cornerRadius: 8).fill(Color.primary.opacity(0.06)))
+                .liquidGlass(style: .standard, cornerRadius: 8)
                 .padding(.horizontal, 24)
             }
 

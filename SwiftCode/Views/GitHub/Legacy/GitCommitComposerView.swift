@@ -155,7 +155,7 @@ struct GitCommitComposerView: View {
             }
         }
         .padding(12)
-        .background(Color(NSColor.windowBackgroundColor).opacity(0.4))
+        .liquidGlass(style: .standard, cornerRadius: 10)
         .cornerRadius(10)
         .overlay(
             RoundedRectangle(cornerRadius: 10)

@@ -45,6 +45,7 @@ public struct CreateNewAppUIOptionsView: View {
                 }
             }
             .formStyle(.grouped)
+            .liquidGlass(style: .subtle, cornerRadius: 12)
 
             Spacer()
         }

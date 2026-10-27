@@ -31,6 +31,8 @@ struct GoSupportExtensionView: View {
                 Text("Go syntax highlighting and gofmt integration. Automatically formats Go files on save and provides go.mod-aware import resolution.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
+                    .padding(10)
+                    .liquidGlass(style: .subtle, cornerRadius: 8)
             } header: {
                 Text("About")
             }

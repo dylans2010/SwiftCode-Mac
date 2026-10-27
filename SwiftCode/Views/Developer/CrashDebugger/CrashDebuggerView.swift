@@ -7,6 +7,7 @@ struct CrashDebuggerView: View {
                 fatalError("Simulated crash")
             }
         }
+        .liquidGlass(style: .subtle, cornerRadius: 12)
         .navigationTitle("Crash Debugger")
     }
 }

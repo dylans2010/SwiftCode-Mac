@@ -16,6 +16,7 @@ struct CSSUnitConverterView: View {
                     .onChange(of: baseSize) { convert() }
             }
             .padding([.top, .horizontal])
+            .liquidGlass(style: .subtle, cornerRadius: 12)
 
             Divider()
 

@@ -173,6 +173,7 @@ struct DatabaseDashboard: View {
                     }
                     .padding(8)
                 }
+                .groupBoxStyle(.liquidGlass)
             }
             .padding(24)
         }

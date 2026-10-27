@@ -10,6 +10,7 @@ struct TimezoneConverterView: View {
         VStack(spacing: 20) {
             DatePicker("Select Time", selection: $selectedDate)
                 .padding()
+                .liquidGlass(style: .subtle, cornerRadius: 12)
 
             Form {
                 TextField("Source Timezone", text: $sourceTimezone)

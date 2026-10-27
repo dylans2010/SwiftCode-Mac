@@ -10,6 +10,7 @@ struct CronParserView: View {
                 .font(.system(.title2, design: .monospaced))
                 .textFieldStyle(.roundedBorder)
                 .padding()
+                .liquidGlass(style: .subtle, cornerRadius: 12)
                 .onChange(of: cronExpression) { parse() }
 
             VStack(alignment: .leading, spacing: 10) {

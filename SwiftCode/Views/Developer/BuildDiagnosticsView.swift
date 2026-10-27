@@ -29,6 +29,7 @@ struct BuildDiagnosticsView: View {
             }
             .listRowBackground(Color.white.opacity(0.05))
         }
+        .liquidGlass(style: .subtle, cornerRadius: 12)
         .navigationTitle("Build Diagnostics")
     }
 

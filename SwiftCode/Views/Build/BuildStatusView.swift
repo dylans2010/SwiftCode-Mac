@@ -14,6 +14,7 @@ struct BuildStatusView: View {
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
         .frame(width: 750, height: 650)
+        .liquidGlass(style: .subtle, cornerRadius: 12)
         .toolbar {
             ToolbarItem(placement: .confirmationAction) {
                 Button("Done") {

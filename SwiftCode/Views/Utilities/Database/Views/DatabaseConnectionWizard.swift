@@ -25,7 +25,7 @@ struct DatabaseConnectionWizard: View {
                 Button("Cancel") { dismiss() }
             }
             .padding()
-            .background(Color.secondary.opacity(0.08))
+            .liquidGlass(style: .subtle, cornerRadius: 0)
 
             Form {
                 Picker("Database Engine", selection: $provider) {

@@ -33,7 +33,7 @@ public struct MarkdownSyntaxCheatsheetView: View {
             }
             .padding()
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background(.thinMaterial)
+            .liquidGlass(style: .subtle, cornerRadius: 12)
 
             Divider()
 

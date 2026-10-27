@@ -32,6 +32,7 @@ struct StoreKitDebugView: View {
                 }
             }
         }
+        .liquidGlass(style: .subtle, cornerRadius: 12)
         .navigationTitle("StoreKit Debug")
     }
 }

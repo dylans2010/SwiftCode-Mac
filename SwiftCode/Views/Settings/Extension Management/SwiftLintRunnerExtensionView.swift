@@ -32,6 +32,8 @@ struct SwiftLintRunnerExtensionView: View {
                 Text("Runs SwiftLint inline and surfaces warnings and errors in the editor gutter. Respects your project's .swiftlint.yml configuration file.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
+                    .padding(10)
+                    .liquidGlass(style: .subtle, cornerRadius: 8)
             } header: {
                 Text("About")
             }

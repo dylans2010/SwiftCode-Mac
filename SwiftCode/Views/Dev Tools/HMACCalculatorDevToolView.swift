@@ -79,6 +79,7 @@ struct HMACCalculatorDevToolView: View {
             }
             .padding()
         }
+        .liquidGlass(style: .subtle, cornerRadius: 12)
         .navigationTitle("HMAC Calculator")
         .onAppear {
             viewModel.computeHMAC()

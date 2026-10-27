@@ -118,6 +118,7 @@ public struct SDKCodeBuildRunView: View {
             statusLine
         }
         .padding(8)
+        .liquidGlass(style: .subtle, cornerRadius: 10)
     }
 
     private var statusLine: some View {

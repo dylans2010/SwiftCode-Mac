@@ -308,7 +308,7 @@ struct RepositoryAutomationBuilderView: View {
                         .buttonStyle(.borderedProminent)
                     }
                     .padding()
-                    .background(Color(NSColor.windowBackgroundColor))
+                    .liquidGlass(style: .subtle, cornerRadius: 10)
 
                     Divider()
 

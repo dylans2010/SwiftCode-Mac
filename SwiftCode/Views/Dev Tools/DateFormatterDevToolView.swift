@@ -95,6 +95,7 @@ struct DateFormatterDevToolView: View {
             }
             .padding()
         }
+        .liquidGlass(style: .subtle, cornerRadius: 12)
         .navigationTitle("Date Formatter")
         .onAppear {
             viewModel.parseAndFormat()

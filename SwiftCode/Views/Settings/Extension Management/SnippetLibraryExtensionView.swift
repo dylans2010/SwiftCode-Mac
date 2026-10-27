@@ -43,6 +43,8 @@ struct SnippetLibraryExtensionView: View {
                 Text("Manage and insert reusable code snippets with tab-expansion. Add your own snippets from the editor context menu.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
+                    .padding(10)
+                    .liquidGlass(style: .subtle, cornerRadius: 8)
             } header: {
                 Text("About")
             }

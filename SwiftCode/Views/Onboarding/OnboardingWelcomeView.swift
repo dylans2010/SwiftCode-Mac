@@ -28,6 +28,8 @@ struct OnboardingWelcomeView: View {
                     .foregroundStyle(.secondary)
                     .padding(.horizontal, 32)
             }
+            .padding(16)
+            .liquidGlass(style: .standard, cornerRadius: 16)
 
             Spacer()
 

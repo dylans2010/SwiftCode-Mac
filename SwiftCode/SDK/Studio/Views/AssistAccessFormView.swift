@@ -147,7 +147,7 @@ public struct AssistAccessFormView: View {
             }
         }
         .padding(16)
-        .background(.quaternary.opacity(0.35), in: RoundedRectangle(cornerRadius: 12))
+        .liquidGlass(style: .standard, cornerRadius: 12)
     }
 
     // MARK: Form field groups

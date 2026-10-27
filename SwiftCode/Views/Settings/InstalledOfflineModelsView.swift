@@ -103,13 +103,7 @@ struct InstalledOfflineModelsView: View {
                         .padding(.top, 4)
                     }
                     .padding(16)
-                    .background(Color(NSColor.controlBackgroundColor).opacity(0.5))
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 12)
-                            .stroke(Color.secondary.opacity(0.12), lineWidth: 1)
-                    )
-                    .cornerRadius(12)
-                    .shadow(color: Color.black.opacity(0.02), radius: 4, x: 0, y: 2)
+                    .liquidGlass(style: .standard, cornerRadius: 12)
                 }
             }
         }

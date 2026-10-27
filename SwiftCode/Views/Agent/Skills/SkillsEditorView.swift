@@ -33,6 +33,8 @@ public struct SkillsEditorView: View {
                 }
             }
             .padding()
+            .liquidGlass(style: .subtle, cornerRadius: 8)
+            .padding(8)
 
             Divider()
 

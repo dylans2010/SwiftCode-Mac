@@ -9,6 +9,7 @@ struct MIMETypeLookupView: View {
             TextField("Search extension (e.g. .json) or MIME type (e.g. application/pdf)", text: $query)
                 .textFieldStyle(.roundedBorder)
                 .padding()
+                .liquidGlass(style: .subtle, cornerRadius: 12)
                 .onChange(of: query) { lookup() }
 
             VStack(alignment: .leading, spacing: 10) {

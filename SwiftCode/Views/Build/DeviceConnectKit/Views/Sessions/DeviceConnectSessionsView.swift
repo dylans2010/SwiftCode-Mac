@@ -71,8 +71,7 @@ public struct DeviceConnectSessionsView: View {
                                     }
                                 }
                                 .padding()
-                                .background(Color(NSColor.controlBackgroundColor).opacity(0.5))
-                                .clipShape(RoundedRectangle(cornerRadius: 8))
+                                .liquidGlass(style: .subtle, cornerRadius: 8)
                             }
                         }
                     }

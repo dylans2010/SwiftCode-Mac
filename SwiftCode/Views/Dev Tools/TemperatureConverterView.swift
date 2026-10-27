@@ -17,6 +17,7 @@ struct TemperatureConverterView: View {
                 }
             }
             .padding()
+            .liquidGlass(style: .subtle, cornerRadius: 12)
 
             Button("Convert") { convert() }
                 .buttonStyle(.borderedProminent)

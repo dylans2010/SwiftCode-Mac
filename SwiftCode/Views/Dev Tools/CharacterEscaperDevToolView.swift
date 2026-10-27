@@ -80,6 +80,7 @@ struct CharacterEscaperDevToolView: View {
             }
             .padding()
         }
+        .liquidGlass(style: .subtle, cornerRadius: 12)
         .navigationTitle("Character Escaper")
         .onAppear {
             viewModel.escape()

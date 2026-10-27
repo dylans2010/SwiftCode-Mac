@@ -29,6 +29,8 @@ struct GitBlameExtensionView: View {
                 Text("Shows inline git blame annotations for each line of code, including the author name, commit hash, and commit date.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
+                    .padding(10)
+                    .liquidGlass(style: .subtle, cornerRadius: 8)
             } header: {
                 Text("About")
             }

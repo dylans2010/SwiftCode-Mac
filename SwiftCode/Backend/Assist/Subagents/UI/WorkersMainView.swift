@@ -47,6 +47,8 @@ public struct WorkersMainView: View {
                     LazyVStack(spacing: 8) {
                         ForEach(filteredWorkers) { worker in
                             workerRow(worker)
+                                .padding(12)
+                                .liquidGlass(style: .standard, cornerRadius: 12)
                         }
                     }
                     .padding(12)

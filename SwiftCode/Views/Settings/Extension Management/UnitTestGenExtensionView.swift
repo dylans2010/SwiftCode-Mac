@@ -36,6 +36,8 @@ struct UnitTestGenExtensionView: View {
                 Text("Generates XCTest or Swift Testing unit tests for selected functions using AI. Includes edge cases, boundary conditions, and optional mock objects.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
+                    .padding(10)
+                    .liquidGlass(style: .subtle, cornerRadius: 8)
             } header: {
                 Text("About")
             }

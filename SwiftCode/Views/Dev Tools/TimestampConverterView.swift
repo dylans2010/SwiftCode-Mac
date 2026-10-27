@@ -47,6 +47,7 @@ struct TimestampConverterView: View {
             Spacer()
         }
         .padding()
+        .liquidGlass(style: .subtle, cornerRadius: 12)
         .navigationTitle("Timestamp Converter")
         .onAppear { updateFormattedDate() }
     }

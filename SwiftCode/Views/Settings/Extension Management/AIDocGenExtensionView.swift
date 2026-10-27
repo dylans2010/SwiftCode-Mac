@@ -36,6 +36,8 @@ struct AIDocGenExtensionView: View {
                 Text("Auto-generates Swift documentation comments for functions, types, and properties using AI. Works best with clear function signatures.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
+                    .padding(10)
+                    .liquidGlass(style: .subtle, cornerRadius: 8)
             } header: {
                 Text("About")
             }

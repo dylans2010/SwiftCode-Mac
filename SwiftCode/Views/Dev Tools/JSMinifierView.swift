@@ -12,6 +12,7 @@ struct JSMinifierView: View {
                 Spacer()
             }
             .padding()
+            .liquidGlass(style: .subtle, cornerRadius: 12)
 
             HSplitView {
                 TextEditor(text: $input)

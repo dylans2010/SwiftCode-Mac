@@ -100,7 +100,7 @@ struct WorkflowEditorView: View {
                         Spacer()
                     }
                     .padding()
-                    .background(Color.secondary.opacity(0.05))
+                    .liquidGlass(style: .subtle, cornerRadius: 8)
 
                     Divider()
 

@@ -156,6 +156,7 @@ public struct VisualUIRenderer: View {
                         }
                     }
                 }
+                .groupBoxStyle(.liquidGlass)
 
             // ScrollViews & Lists
             case .scrollView:

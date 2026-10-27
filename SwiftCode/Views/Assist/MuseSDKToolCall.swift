@@ -223,14 +223,7 @@ public struct MuseSDKToolCall: View {
                 .padding(.bottom, 8)
             }
         }
-        .background(
-            RoundedRectangle(cornerRadius: 8)
-                .fill(Color.blue.opacity(0.04))
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: 8)
-                .stroke(Color.blue.opacity(0.25), lineWidth: 0.75)
-        )
+        .liquidGlass(style: .standard, cornerRadius: 8, tint: .blue)
     }
 
     @ViewBuilder

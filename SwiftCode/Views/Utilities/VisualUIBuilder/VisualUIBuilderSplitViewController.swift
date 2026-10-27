@@ -271,7 +271,7 @@ struct VisualUIBuilderInspectorWrapper: View {
                             .padding(.top)
                         NativePreviewHost(hostedView: hostedView)
                             .padding()
-                            .background(Color.secondary.opacity(0.1), in: RoundedRectangle(cornerRadius: 12))
+                            .liquidGlass(style: .standard, cornerRadius: 12)
                             .padding()
                     } else {
                         ContentUnavailableView {

@@ -21,6 +21,7 @@ struct JSONFormatterView: View {
                 Button("Minify") { minify() }
             }
             .padding([.top, .horizontal])
+            .liquidGlass(style: .subtle, cornerRadius: 12)
 
             HStack(spacing: 20) {
                 VStack(alignment: .leading) {

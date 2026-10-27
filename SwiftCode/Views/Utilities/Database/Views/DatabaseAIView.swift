@@ -53,8 +53,7 @@ struct DatabaseAIView: View {
                         .textFieldStyle(.plain)
                 }
                 .padding(8)
-                .background(Color.secondary.opacity(0.08))
-                .cornerRadius(8)
+                .liquidGlass(style: .subtle, cornerRadius: 8)
                 .padding(.horizontal, 16)
 
                 Divider()

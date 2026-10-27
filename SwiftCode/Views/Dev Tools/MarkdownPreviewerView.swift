@@ -30,6 +30,7 @@ struct MarkdownPreviewerView: View {
                 }
             }
         }
+        .liquidGlass(style: .subtle, cornerRadius: 12)
         .navigationTitle("Markdown Preview")
     }
 }

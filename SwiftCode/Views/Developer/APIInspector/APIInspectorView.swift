@@ -45,6 +45,7 @@ struct APIInspectorView: View {
             }
             .padding(.vertical, 4)
         }
+        .liquidGlass(style: .subtle, cornerRadius: 12)
         .navigationTitle("API Inspector")
         .toolbar {
             Button("Clear") {

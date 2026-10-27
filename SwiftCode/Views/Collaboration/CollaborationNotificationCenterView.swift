@@ -76,7 +76,7 @@ struct NotificationRow: View {
                 Spacer()
             }
             .padding()
-            .background(notification.isRead ? Color.white.opacity(0.03) : Color.white.opacity(0.1), in: RoundedRectangle(cornerRadius: 12))
+            .liquidGlass(style: .subtle, cornerRadius: 12, tint: notification.isRead ? nil : .blue)
         }
         .buttonStyle(.plain)
     }

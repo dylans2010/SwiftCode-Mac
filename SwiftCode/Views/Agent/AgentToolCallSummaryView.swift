@@ -12,7 +12,6 @@ struct AgentToolCallSummaryView: View {
             Spacer()
         }
         .padding(8)
-        .background(Color.secondary.opacity(0.1))
-        .cornerRadius(6)
+        .liquidGlass(style: .subtle, cornerRadius: 6)
     }
 }

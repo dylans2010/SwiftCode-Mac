@@ -23,6 +23,7 @@ struct ImageBase64View: View {
                 .disabled(base64String.isEmpty)
             }
             .padding(.horizontal)
+            .liquidGlass(style: .subtle, cornerRadius: 12)
 
             VStack(alignment: .leading) {
                 Text("Base64 Data")

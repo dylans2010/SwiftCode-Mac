@@ -14,6 +14,7 @@ struct CaseConverterView: View {
                     .onChange(of: input) { convert() }
             }
             .padding([.top, .horizontal])
+            .liquidGlass(style: .subtle, cornerRadius: 12)
 
             List(results, id: \.0) { name, value in
                 HStack {

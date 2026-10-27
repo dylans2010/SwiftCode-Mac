@@ -7,5 +7,7 @@ struct AgentModeView: View {
             CodeChangesView()
             Spacer()
         }
+        .padding()
+        .liquidGlass(style: .standard, cornerRadius: 16)
     }
 }

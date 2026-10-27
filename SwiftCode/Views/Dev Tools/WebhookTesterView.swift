@@ -52,6 +52,7 @@ struct WebhookTesterView: View {
             Spacer()
         }
         .padding()
+        .liquidGlass(style: .subtle, cornerRadius: 12)
         .navigationTitle("Webhook Tester")
     }
 

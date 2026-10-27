@@ -297,6 +297,7 @@ public struct SDKStudioAPIKeysView: View {
             }
             .frame(minWidth: 480)
             .padding(20)
+            .liquidGlass(style: .sheet, cornerRadius: 12)
             .interactiveDismissDisabled(secret != nil)
             .onDisappear {
                 // Belt-and-braces: the one-time secret must not survive the sheet.

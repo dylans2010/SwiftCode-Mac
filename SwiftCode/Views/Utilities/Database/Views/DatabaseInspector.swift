@@ -26,6 +26,7 @@ struct DatabaseInspector: View {
                         .padding(4)
                         .frame(maxWidth: .infinity, alignment: .leading)
                     }
+                    .groupBoxStyle(.liquidGlass)
 
                     if let col = selectedColumn {
                         Text("Column Details")

@@ -172,7 +172,7 @@ struct SFSymbolBrowserView: View {
                     }
                 }
                 .padding(10)
-                .background(Color.secondary.opacity(0.12), in: RoundedRectangle(cornerRadius: 10))
+                .liquidGlass(style: .subtle, cornerRadius: 10)
                 .padding(.horizontal, 12)
                 .padding(.vertical, 8)
 
@@ -230,7 +230,7 @@ struct SFSymbolBrowserView: View {
             }
             .frame(maxWidth: .infinity)
             .padding(.vertical, 8)
-            .background(Color.secondary.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+            .liquidGlass(style: .subtle, cornerRadius: 8)
         }
         .buttonStyle(.plain)
     }
@@ -411,7 +411,7 @@ struct SymbolCustomizationView: View {
             .font(.system(size: 64, weight: weight.fontWeight))
             .imageScale(scale.imageScale)
             .frame(width: 120, height: 120)
-            .background(Color.secondary.opacity(0.08), in: RoundedRectangle(cornerRadius: 16))
+            .liquidGlass(style: .subtle, cornerRadius: 16)
         }
     }
 

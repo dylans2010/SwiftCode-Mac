@@ -56,7 +56,7 @@ struct BookmarksSidebarView: View {
                 }
                 .padding(.horizontal, 8)
                 .padding(.vertical, 4)
-                .background(Color.secondary.opacity(0.12), in: RoundedRectangle(cornerRadius: 6))
+                .liquidGlass(style: .subtle, cornerRadius: 6)
 
                 Button {
                     showCreateSheet = true

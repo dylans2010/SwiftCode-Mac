@@ -57,6 +57,7 @@ public struct SFSymbolsReferenceView: View {
                             .textFieldStyle(.plain)
                     }
                     .padding(6)
+                    .liquidGlass(style: .subtle, cornerRadius: 12)
                     .background(Color.secondary.opacity(0.12), in: RoundedRectangle(cornerRadius: 6))
 
                     Picker("Category Filter", selection: $selectedCategory) {

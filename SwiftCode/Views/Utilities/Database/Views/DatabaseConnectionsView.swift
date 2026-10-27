@@ -58,6 +58,7 @@ struct DatabaseConnectionsView: View {
                         }
                         .padding(8)
                     }
+                    .groupBoxStyle(.liquidGlass)
                 }
             }
             .padding()

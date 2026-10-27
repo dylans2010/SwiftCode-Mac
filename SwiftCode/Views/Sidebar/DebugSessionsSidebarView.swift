@@ -47,6 +47,7 @@ struct DebugSessionsSidebarView: View {
                 Spacer()
             }
             .padding()
+            .liquidGlass(style: .subtle, cornerRadius: 8)
         }
         .macDesktopOptimized()
     }

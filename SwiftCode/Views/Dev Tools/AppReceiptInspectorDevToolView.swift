@@ -91,6 +91,7 @@ struct AppReceiptInspectorDevToolView: View {
             }
             .padding()
         }
+        .liquidGlass(style: .subtle, cornerRadius: 12)
         .navigationTitle("App Receipt Inspector")
     }
 }

@@ -125,7 +125,7 @@ public struct ProjectArchitectureGraph: View {
                 }
                 .padding(.horizontal, 10)
                 .padding(.vertical, 4)
-                .background(Color.secondary.opacity(0.12), in: RoundedRectangle(cornerRadius: 6))
+                .liquidGlass(style: .standard, cornerRadius: 6)
             }
             .padding()
             .background(Color(NSColor.windowBackgroundColor))

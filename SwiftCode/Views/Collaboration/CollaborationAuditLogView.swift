@@ -52,7 +52,7 @@ struct ActivityEntryRow: View {
             }
         }
         .padding()
-        .background(Color.white.opacity(0.05), in: RoundedRectangle(cornerRadius: 14))
+        .liquidGlass(style: .standard, cornerRadius: 14)
     }
 
     private func iconForKind(_ kind: CollaborationActivity.Kind) -> String {

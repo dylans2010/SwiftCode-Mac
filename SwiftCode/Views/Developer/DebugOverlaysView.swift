@@ -17,6 +17,7 @@ struct DebugOverlaysView: View {
                 Text("Enabling these will inject debugging layers into the root window.")
             }
         }
+        .liquidGlass(style: .subtle, cornerRadius: 12)
         .navigationTitle("Debug Overlays")
     }
 }

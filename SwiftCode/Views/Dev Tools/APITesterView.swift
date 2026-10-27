@@ -437,7 +437,7 @@ struct APITesterView: View {
             // Sidebar: History & Collections with visual headers
             sidebarPanel
                 .frame(minWidth: 240, idealWidth: 270, maxWidth: 320)
-                .background(.ultraThinMaterial)
+                .liquidGlass(style: .sidebar, cornerRadius: 12)
 
             // Main Request Workspace & Response Panel (Stretches smoothly)
             VSplitView {

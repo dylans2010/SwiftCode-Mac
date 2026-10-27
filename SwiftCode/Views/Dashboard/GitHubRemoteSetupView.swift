@@ -38,6 +38,8 @@ struct GitHubRemoteSetupView: View {
                             .foregroundStyle(.secondary)
                     }
                     .padding(.vertical, 4)
+                    .padding(.horizontal, 12)
+                    .liquidGlass(style: .standard, cornerRadius: 12)
                 }
 
                 // Tab picker

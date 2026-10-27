@@ -84,9 +84,10 @@ public struct SDKCodeEditorTabBarView: View {
         }
         .padding(.horizontal, 10)
         .padding(.vertical, 5)
-        .background(
+        .liquidGlass(style: .subtle, cornerRadius: 6)
+        .overlay(
             RoundedRectangle(cornerRadius: 6)
-                .fill(isActive ? Color(nsColor: .controlBackgroundColor) : Color.clear)
+                .stroke(isActive ? Color.accentColor.opacity(0.4) : Color.clear, lineWidth: 1)
         )
         .contentShape(Rectangle())
         .onTapGesture {

@@ -28,7 +28,7 @@ public struct VisualUITemplatesView: View {
                         .autocorrectionDisabled()
                 }
                 .padding(10)
-                .background(Color.secondary.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+                .liquidGlass(style: .standard, cornerRadius: 8)
                 .padding(16)
 
                 Divider()
@@ -78,7 +78,7 @@ public struct VisualUITemplatesView: View {
                                     Text("Save elements, workspace configurations, or complete designs to build your custom library.")
                                 }
                                 .frame(height: 150)
-                                .background(Color.secondary.opacity(0.02), in: RoundedRectangle(cornerRadius: 12))
+                                .liquidGlass(style: .standard, cornerRadius: 12)
                             } else {
                                 LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 16) {
                                     ForEach(userSavedTemplates, id: \.self) { name in
@@ -102,7 +102,7 @@ public struct VisualUITemplatesView: View {
                                             .buttonStyle(.plain)
                                         }
                                         .padding()
-                                        .background(Color.secondary.opacity(0.05), in: RoundedRectangle(cornerRadius: 8))
+                                        .liquidGlass(style: .standard, cornerRadius: 8)
                                     }
                                 }
                             }
@@ -197,7 +197,7 @@ public struct SavedArtboardsListView: View {
                     .textFieldStyle(.plain)
             }
             .padding(6)
-            .background(Color.secondary.opacity(0.1), in: RoundedRectangle(cornerRadius: 6))
+            .liquidGlass(style: .standard, cornerRadius: 6)
             .padding(8)
 
             // Sorting & Categorizing Picker
@@ -366,7 +366,7 @@ struct TemplateItemCard: View {
                 .multilineTextAlignment(.leading)
         }
         .padding()
-        .background(Color.secondary.opacity(0.05), in: RoundedRectangle(cornerRadius: 12))
+        .liquidGlass(style: .standard, cornerRadius: 12)
     }
 }
 

@@ -40,6 +40,8 @@ struct MultiCursorExtensionView: View {
                 Text("Edit multiple locations simultaneously with multi-cursor support. Add cursors above/below, select all occurrences of a word, or use column selection mode.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
+                    .padding(10)
+                    .liquidGlass(style: .subtle, cornerRadius: 8)
             } header: {
                 Text("About")
             }

@@ -168,7 +168,7 @@ struct FileNavigatorSidebarView: View {
             }
             .padding(.horizontal, 10)
             .padding(.vertical, 6)
-            .background(Color.secondary.opacity(0.12), in: RoundedRectangle(cornerRadius: 12))
+            .liquidGlass(style: .subtle, cornerRadius: 12)
             .padding(.horizontal, 12)
             .padding(.vertical, 8)
             .background(.ultraThinMaterial)

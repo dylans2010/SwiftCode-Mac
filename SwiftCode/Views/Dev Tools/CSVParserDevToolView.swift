@@ -110,6 +110,7 @@ struct CSVParserDevToolView: View {
             }
             .padding()
         }
+        .liquidGlass(style: .subtle, cornerRadius: 12)
         .navigationTitle("CSV Parser")
         .onAppear {
             viewModel.parse()

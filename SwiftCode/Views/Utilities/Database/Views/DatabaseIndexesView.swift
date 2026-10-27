@@ -39,6 +39,7 @@ struct DatabaseIndexesView: View {
                 }
                 .padding(8)
             }
+            .groupBoxStyle(.liquidGlass)
             .padding()
 
             Divider()

@@ -19,6 +19,7 @@ struct StringLengthCounterView: View {
 
             Spacer()
         }
+        .liquidGlass(style: .subtle, cornerRadius: 12)
         .navigationTitle("String Length Counter")
     }
 }

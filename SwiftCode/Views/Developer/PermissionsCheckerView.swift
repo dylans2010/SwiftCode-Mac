@@ -19,6 +19,7 @@ struct PermissionsCheckerView: View {
                     .foregroundStyle(colorForStatus(perm.status))
             }
         }
+        .liquidGlass(style: .subtle, cornerRadius: 12)
         .navigationTitle("Permissions")
     }
 

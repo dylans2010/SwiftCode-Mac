@@ -18,7 +18,7 @@ struct GistFileEditorView: View {
                     .font(.system(size: 13, weight: .medium, design: .monospaced))
                     .padding(.horizontal, 16)
                     .padding(.vertical, 10)
-                    .background(Color.white.opacity(0.03))
+                    .liquidGlass(style: .subtle, cornerRadius: 8)
                     .autocorrectionDisabled()
             }
 

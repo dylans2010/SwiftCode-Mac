@@ -26,6 +26,7 @@ struct HexDecimalConverterView: View {
             Spacer()
         }
         .padding()
+        .liquidGlass(style: .subtle, cornerRadius: 12)
         .navigationTitle("Hex to Decimal Converter")
     }
 

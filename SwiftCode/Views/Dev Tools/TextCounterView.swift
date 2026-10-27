@@ -24,6 +24,7 @@ struct TextCounterView: View {
             .cornerRadius(12)
         }
         .padding()
+        .liquidGlass(style: .subtle, cornerRadius: 12)
         .navigationTitle("Text Counter")
     }
 }

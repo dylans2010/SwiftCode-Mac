@@ -24,6 +24,8 @@ struct DevicePickerView: View {
                             .foregroundStyle(.green)
                     }
                 }
+                .padding(8)
+                .liquidGlass(style: .subtle, cornerRadius: 10)
             }
         }
         .navigationTitle("Nearby Devices")

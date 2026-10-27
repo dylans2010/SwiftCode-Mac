@@ -32,6 +32,8 @@ struct OnboardingFeaturesView: View {
                     }
                 }
             }
+            .padding(16)
+            .liquidGlass(style: .standard, cornerRadius: 16)
             .padding(.horizontal)
 
             Spacer()

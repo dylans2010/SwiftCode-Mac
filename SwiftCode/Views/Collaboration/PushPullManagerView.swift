@@ -67,9 +67,7 @@ struct PushPullManagerView: View {
                         .foregroundStyle(.secondary)
                 }
                 .padding(20)
-                .background(Color.white.opacity(0.05))
-                .clipShape(RoundedRectangle(cornerRadius: 24))
-                .overlay(RoundedRectangle(cornerRadius: 24).stroke(Color.white.opacity(0.1), lineWidth: 1))
+                .liquidGlass(style: .standard, cornerRadius: 24)
 
                 VStack(alignment: .leading, spacing: 16) {
                     Text("Active Transfers")

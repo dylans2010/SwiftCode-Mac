@@ -69,21 +69,7 @@ public struct MuseCallsNativeToolsUI: View {
                         }
                     }
                     .padding(8)
-                    .background(
-                        RoundedRectangle(cornerRadius: 10)
-                            .fill(Color.blue.opacity(0.04))
-                    )
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 10)
-                            .stroke(
-                                LinearGradient(
-                                    colors: [Color.blue.opacity(0.35), Color.cyan.opacity(0.18)],
-                                    startPoint: .topLeading,
-                                    endPoint: .bottomTrailing
-                                ),
-                                lineWidth: 1
-                            )
-                    )
+                    .liquidGlass(style: .standard, cornerRadius: 10, tint: .blue)
                 }
             }
             .frame(maxWidth: .infinity, alignment: .leading)

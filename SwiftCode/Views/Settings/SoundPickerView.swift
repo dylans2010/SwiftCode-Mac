@@ -116,14 +116,7 @@ public struct SoundPickerView: View {
             .padding(.horizontal, 10)
             .padding(.vertical, 6)
             .frame(minWidth: 210, maxWidth: 260)
-            .background(
-                RoundedRectangle(cornerRadius: 8, style: .continuous)
-                    .fill(Color(NSColor.controlBackgroundColor))
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: 8, style: .continuous)
-                    .stroke(Color(NSColor.separatorColor).opacity(0.6), lineWidth: 0.8)
-            )
+            .liquidGlass(style: .subtle, cornerRadius: 8)
         }
         .buttonStyle(.plain)
         .popover(isPresented: $isPopoverPresented, arrowEdge: .bottom) {

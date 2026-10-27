@@ -61,6 +61,8 @@ public struct AssistSpeechUI: View {
                 }
                 .buttonStyle(.plain)
             }
+            .padding(8)
+            .liquidGlass(style: .subtle, cornerRadius: 8)
 
             Divider()
 

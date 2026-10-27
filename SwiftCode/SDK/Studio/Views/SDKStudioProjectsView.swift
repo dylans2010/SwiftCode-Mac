@@ -173,8 +173,7 @@ public struct SDKStudioProjectsView: View {
                 }
                 .padding(14)
                 .frame(maxWidth: .infinity, alignment: .leading)
-                .background(Color(nsColor: .controlBackgroundColor))
-                .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+                .liquidGlass(style: .standard, cornerRadius: 10)
             } else {
                 VStack(spacing: 8) {
                     ForEach(recentProjectPaths, id: \.self) { path in
@@ -220,8 +219,7 @@ public struct SDKStudioProjectsView: View {
                             .help("Reveal in Finder")
                         }
                         .padding(12)
-                        .background(Color(nsColor: .controlBackgroundColor))
-                        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                        .liquidGlass(style: .standard, cornerRadius: 8)
                     }
                 }
             }
@@ -455,8 +453,7 @@ private struct ScaffoldWizardView: View {
         }
         .padding(12)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color(nsColor: .controlBackgroundColor))
-        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+        .liquidGlass(style: .standard, cornerRadius: 8)
     }
 
     private func fieldRow(_ field: WizardField) -> some View {

@@ -23,6 +23,7 @@ struct FeatureFlagsView: View {
                 Toggle("Enable Debug Overlays", isOn: $flags.enable_debug_overlays)
             }
         }
+        .liquidGlass(style: .subtle, cornerRadius: 12)
         .navigationTitle("Feature Flags")
     }
 }

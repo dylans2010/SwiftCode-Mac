@@ -55,6 +55,7 @@ struct Base64EncoderDevToolView: View {
             }
             .padding()
         }
+        .liquidGlass(style: .subtle, cornerRadius: 12)
         .navigationTitle("Base64 Encoder")
     }
 }

@@ -355,7 +355,7 @@ struct SetRepoInProject: View {
             }
         }
         .padding()
-        .background(Color.secondary.opacity(0.04), in: RoundedRectangle(cornerRadius: 10))
+        .liquidGlass(style: .subtle, cornerRadius: 10)
     }
 
     private var noConnectionPanel: some View {

@@ -40,6 +40,8 @@ struct PythonSupportExtensionView: View {
                 Text("Python 3 syntax highlighting, docstring templates (Google, NumPy, reStructuredText styles), and a built-in snippet library for common patterns.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
+                    .padding(10)
+                    .liquidGlass(style: .subtle, cornerRadius: 8)
             } header: {
                 Text("About")
             }

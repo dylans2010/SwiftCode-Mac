@@ -40,6 +40,7 @@ struct GitHubErrorView: View {
             }
             .padding(24)
             .frame(maxWidth: 400)
+            .liquidGlass(style: .standard, cornerRadius: 16)
 
             Spacer()
         }

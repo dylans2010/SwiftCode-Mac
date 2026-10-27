@@ -16,7 +16,7 @@ struct DatabaseRecordEditor: View {
                     .keyboardShortcut(.cancelAction)
             }
             .padding()
-            .background(Color(NSColor.controlBackgroundColor))
+            .liquidGlass(style: .subtle, cornerRadius: 0)
 
             Form {
                 ForEach(table.columns) { col in

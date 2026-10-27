@@ -34,6 +34,7 @@ struct DatabaseSidebar: View {
                 }
             }
             .padding()
+            .liquidGlass(style: .subtle, cornerRadius: 0)
 
             Divider()
 

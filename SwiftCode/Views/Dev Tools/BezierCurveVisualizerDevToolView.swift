@@ -69,6 +69,7 @@ struct BezierCurveVisualizerDevToolView: View {
             }
             .padding()
         }
+        .liquidGlass(style: .subtle, cornerRadius: 12)
         .navigationTitle("Bezier Curve Visualizer")
     }
 

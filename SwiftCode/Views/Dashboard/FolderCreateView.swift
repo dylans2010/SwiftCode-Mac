@@ -60,6 +60,8 @@ struct FolderCreateView: View {
                                     .foregroundStyle(.secondary)
                             }
                         }
+                        .padding(12)
+                        .liquidGlass(style: .standard, cornerRadius: 12)
                     }
                 }
                 .scrollContentBackground(.hidden)

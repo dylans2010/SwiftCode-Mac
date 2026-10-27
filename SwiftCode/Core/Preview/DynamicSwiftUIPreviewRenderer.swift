@@ -68,7 +68,8 @@ public struct DynamicSwiftUIPreviewRenderer: View {
                 }
                 .pickerStyle(.segmented)
                 .padding(12)
-                .background(Color.secondary.opacity(0.04))
+                .liquidGlass(style: .subtle, cornerRadius: 8)
+                .padding(6)
 
                 Divider()
 
