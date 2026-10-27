@@ -279,14 +279,11 @@ final class AppUpdateService: NSObject, ObservableObject, SPUUpdaterDelegate, SP
 
     // MARK: - SPUUserDriver
 
-    func showUpdatePermissionRequest(_ request: SPUUpdatePermissionRequest, reply: @escaping (SPUUpdatePermissionResponse) -> Void) {
+    func show(_ request: SPUUpdatePermissionRequest, reply: @escaping (SUUpdatePermissionResponse) -> Void) {
         // SUEnableAutomaticChecks is set in Info.plist, so Sparkle does
         // not normally prompt. If it ever does, default to automatic
         // checks on, without sending system-profile data.
-        // NOTE (Mac-build verification item): if a future Sparkle
-        // release changes SPUUpdatePermissionResponse's initializer,
-        // this one call is the place to adjust.
-        reply(SPUUpdatePermissionResponse(automaticUpdateChecks: true, sendSystemProfile: false))
+        reply(SUUpdatePermissionResponse(automaticUpdateChecks: true, sendSystemProfile: false))
     }
 
     func showUserInitiatedUpdateCheck(cancellation: @escaping () -> Void) {
@@ -440,7 +437,7 @@ final class AppUpdateService: NSObject, ObservableObject, SPUUpdaterDelegate, SP
         downloadProgress = progress
     }
 
-    func showReadyToInstallAndRelaunch(reply: @escaping (SPUUserUpdateChoice) -> Void) {
+    func showReady(toInstallAndRelaunch reply: @escaping (SPUUserUpdateChoice) -> Void) {
         readyReply = reply
         phase = .readyToInstall
         downloadStatusText = "Update downloaded and ready to install."

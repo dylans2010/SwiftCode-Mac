@@ -43,12 +43,11 @@
 	<string>AppIcon</string>
 	<!-- Sparkle 2 update configuration. The feed URL is also returned by
 	     AppUpdateService.feedURLString(for:), which is authoritative if
-	     the two ever diverge. SUPublicEDKey is deliberately NOT set here
-	     until a real EdDSA key is generated (see Docs/Updates.md): no
-	     placeholder key is shipped, and Sparkle fails closed at install
-	     time while the key is absent. -->
+	     the two ever diverge. -->
 	<key>SUFeedURL</key>
 	<string>https://github.com/dylans2010/SwiftCode-Mac/releases/latest/download/appcast.xml</string>
+	<key>SUPublicEDKey</key>
+	<string>62qUZl+iGZLDjiIrduV1J2SYhnunmUZ0c79LCWQPTHg=</string>
 	<key>SUEnableAutomaticChecks</key>
 	<true/>
 	<key>SUScheduledCheckInterval</key>
