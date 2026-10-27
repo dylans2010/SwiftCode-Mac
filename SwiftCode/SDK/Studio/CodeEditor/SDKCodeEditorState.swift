@@ -115,6 +115,10 @@ public final class SDKCodeEditorState: ObservableObject {
         didSet {
             if let root = projectRootURL {
                 UserDefaults.standard.set(root.standardizedFileURL.path, forKey: Self.persistedProjectRootKey)
+                UserDefaults.standard.synchronize()
+            } else {
+                UserDefaults.standard.removeObject(forKey: Self.persistedProjectRootKey)
+                UserDefaults.standard.synchronize()
             }
         }
     }

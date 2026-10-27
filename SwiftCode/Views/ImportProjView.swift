@@ -9,17 +9,12 @@ struct ImportProjView: View {
     var body: some View {
         VStack(spacing: 24) {
             ZStack {
-                RoundedRectangle(cornerRadius: 18, style: .continuous)
-                    .fill(Color(red: 0.106, green: 0.404, blue: 0.863).opacity(0.18))
                 Image(systemName: "square.and.arrow.down.fill")
                     .font(.system(size: 36))
-                    .foregroundStyle(Color(red: 0.35, green: 0.65, blue: 0.98))
+                    .foregroundStyle(Color.accentColor)
             }
             .frame(width: 72, height: 72)
-            .overlay(
-                RoundedRectangle(cornerRadius: 18, style: .continuous)
-                    .stroke(Color(red: 0.106, green: 0.404, blue: 0.863).opacity(0.3), lineWidth: 1)
-            )
+            .liquidGlass(style: .prominent, cornerRadius: 18, tint: .accentColor)
 
             VStack(spacing: 8) {
                 Text("Import SwiftCode Project Archive")
@@ -35,7 +30,7 @@ struct ImportProjView: View {
                 VStack(spacing: 12) {
                     ProgressView(value: importManager.importProgress)
                         .progressViewStyle(.linear)
-                        .tint(Color(red: 0.106, green: 0.404, blue: 0.863))
+                        .tint(Color.accentColor)
                     Text("Importing project... \(Int(importManager.importProgress * 100))%")
                         .font(.caption)
                         .foregroundStyle(Color.white.opacity(0.6))
@@ -51,7 +46,7 @@ struct ImportProjView: View {
                 }
                 .buttonStyle(.borderedProminent)
                 .controlSize(.large)
-                .tint(Color(red: 0.106, green: 0.404, blue: 0.863))
+                .tint(Color.accentColor)
             }
 
             if let error = importManager.importError {
@@ -81,7 +76,7 @@ struct ImportProjView: View {
         }
         .padding(32)
         .frame(width: 480, height: 400)
-        .background(Color(red: 0.082, green: 0.102, blue: 0.180))
+        .liquidGlass(style: .sheet, cornerRadius: 18)
         .preferredColorScheme(.dark)
     }
 

@@ -12,7 +12,7 @@ struct ConsoleCommandRunnerView: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding()
             }
-            .background(Color.black)
+            .liquidGlass(style: .hud, cornerRadius: 0)
             .foregroundStyle(.green)
 
             HStack {
@@ -24,7 +24,7 @@ struct ConsoleCommandRunnerView: View {
 #endif
             }
             .padding()
-            .background(.ultraThinMaterial)
+            .background(VisualEffectView(material: .headerView, blendingMode: .withinWindow))
         }
         .navigationTitle("Console Runner")
     }

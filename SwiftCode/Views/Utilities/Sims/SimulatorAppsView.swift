@@ -93,8 +93,7 @@ struct SimulatorAppsView: View {
                                             }
                                         }
                                         .padding(8)
-                                        .background(Color.secondary.opacity(0.04))
-                                        .cornerRadius(8)
+                                        .liquidGlass(style: .subtle, cornerRadius: 8)
                                     }
                                 }
                             }

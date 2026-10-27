@@ -61,9 +61,9 @@ struct ExportProjView: View {
                     .font(.caption)
             }
         }
-        .padding()
+        .padding(24)
         .frame(width: 500, height: 400)
-        .background(Color(NSColor.windowBackgroundColor))
+        .liquidGlass(style: .sheet, cornerRadius: 16)
     }
 
     private func selectDestinationAndExport() {

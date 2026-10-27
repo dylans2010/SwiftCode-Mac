@@ -24,6 +24,9 @@ struct PreviewDeviceFrameView<Content: View>: View {
                 .padding(8) // bezel thickness
                 .background(Color(white: 0.12)) // Sleek space-gray anodized hardware finish
                 .cornerRadius(bezelCornerRadius)
+                .overlay(
+                    SpecularBorder(cornerRadius: bezelCornerRadius, lineWidth: 1)
+                )
                 .shadow(color: Color.black.opacity(0.3), radius: 12, x: 0, y: 8)
                 .scaleEffect(scale)
                 .animation(.spring(), value: deviceName)

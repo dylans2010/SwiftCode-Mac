@@ -147,7 +147,7 @@ public struct RunFullAppView: View {
                     .padding(.bottom, 24)
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .background(Color(NSColor.windowBackgroundColor))
+                .background(VisualEffectView(material: .contentBackground, blendingMode: .withinWindow))
                 .transition(.asymmetric(insertion: .move(edge: .trailing), removal: .move(edge: .leading)))
             } else {
                 ScrollViewReader { proxy in

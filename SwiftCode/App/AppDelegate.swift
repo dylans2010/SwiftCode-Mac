@@ -8,6 +8,11 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         LoggingTool.info("SwiftCode launched.")
         setupDefaultPreferences()
 
+        // Restore Studio window if it was left open in previous session
+        if UserDefaults.standard.bool(forKey: "com.swiftcode.sdk.studio.isOpen") {
+            SDKStudioWindowManager.shared.openStudio()
+        }
+
         // Install bundled custom alert sounds into ~/Library/Sounds/
         _ = SoundInstaller.shared.installSoundsIfNeeded()
 
@@ -75,6 +80,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationWillTerminate(_ notification: Notification) {
         LoggingTool.info("SwiftCode terminating cleanly.")
+        UserDefaults.standard.synchronize()
         Task { @MainActor in
             await GoogleCloudSDKLifecycleManager.shared.stopEngine()
             await MetaAssistLifecycleManager.shared.stopEngine()
@@ -85,5 +91,6 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         if UserDefaults.standard.object(forKey: "EditorFontSize") == nil {
             UserDefaults.standard.set(13.0, forKey: "EditorFontSize")
         }
+        UserDefaults.standard.synchronize()
     }
 }

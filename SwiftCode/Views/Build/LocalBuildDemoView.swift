@@ -47,8 +47,7 @@ struct LocalBuildDemoView: View {
                             }
                             .frame(height: 200)
                             .padding()
-                            .background(Color.black)
-                            .cornerRadius(12)
+                            .liquidGlass(style: .hud, cornerRadius: 12)
                             .onChange(of: logs.count, initial: false) { oldValue, newValue in
                                 if !logs.isEmpty {
                                     proxy.scrollTo(logs.count - 1, anchor: .bottom)
@@ -57,7 +56,7 @@ struct LocalBuildDemoView: View {
                         }
                     }
                     .padding()
-                    .background(Color.white.opacity(0.05))
+                    .liquidGlass(style: .standard, cornerRadius: 12)
                     .cornerRadius(16)
 
                     if showResult {

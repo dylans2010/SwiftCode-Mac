@@ -427,8 +427,7 @@ struct ToolbarToolView: View {
                     Image(systemName: tool.icon)
                         .font(.system(size: 13))
                         .padding(6)
-                        .background(Color.secondary.opacity(0.1))
-                        .cornerRadius(6)
+                        .liquidGlass(style: .subtle, cornerRadius: 6)
                 }
                 .buttonStyle(.plain)
                 .help(tool.name)

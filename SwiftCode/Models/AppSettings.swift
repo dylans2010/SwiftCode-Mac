@@ -500,20 +500,15 @@ class AppSettings: ObservableObject {
         }
     }
 
-    // MARK: - Debounced Save
-
-    private var saveTask: Task<Void, Never>?
+    // MARK: - Immediate Persistent Save
 
     private func debouncedSave(_ key: String, _ value: Any) {
-        // Cancel previous save task
-        saveTask?.cancel()
+        UserDefaults.standard.set(value, forKey: key)
+        UserDefaults.standard.synchronize()
+    }
 
-        // Schedule new save after a short delay to batch multiple changes
-        saveTask = Task { @MainActor in
-            try? await Task.sleep(nanoseconds: 100_000_000) // 0.1 second
-            guard !Task.isCancelled else { return }
-            UserDefaults.standard.set(value, forKey: key)
-        }
+    public func persistAllSettings() {
+        UserDefaults.standard.synchronize()
     }
 
     /// `true` when the user has chosen a custom OpenRouter model ID
@@ -632,7 +627,7 @@ class AppSettings: ObservableObject {
         saveProjectsOnCustomFolder = UserDefaults.standard.object(forKey: "saveProjectsOnCustomFolder") as? Bool ?? false
         customProjectsFolder = UserDefaults.standard.string(forKey: "customProjectsFolder") ?? ""
         defaultOrganization = UserDefaults.standard.string(forKey: "defaultOrganization") ?? "com.SwiftCode"
-        useNewSettingsWindow = UserDefaults.standard.object(forKey: "useNewSettingsWindow") as? Bool ?? false
+        useNewSettingsWindow = UserDefaults.standard.object(forKey: "useNewSettingsWindow") as? Bool ?? true
 
         // Initialize sound preferences with graceful migration
         let rawNotif = UserDefaults.standard.string(forKey: "notificationSoundID") ?? SoundCatalog.notificationA.id
@@ -682,6 +677,7 @@ class AppSettings: ObservableObject {
     private func persistSavedRepositories() {
         if let data = try? JSONEncoder().encode(savedRepositories) {
             UserDefaults.standard.set(data, forKey: Self.savedReposKey)
+            UserDefaults.standard.synchronize()
         }
     }
 

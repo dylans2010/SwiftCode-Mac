@@ -55,7 +55,7 @@ struct GitCloneSheetView: View {
             HStack(spacing: 8) {
                 Image(systemName: "link")
                     .font(.system(size: 13, weight: .semibold))
-                    .foregroundStyle(Color(red: 0.35, green: 0.65, blue: 0.98))
+                    .foregroundStyle(Color.accentColor)
 
                 Text("Remote Repository URL")
                     .font(.system(size: 13, weight: .semibold))
@@ -92,15 +92,12 @@ struct GitCloneSheetView: View {
             }
             .padding(.horizontal, 12)
             .padding(.vertical, 10)
-            .background(
-                RoundedRectangle(cornerRadius: 10, style: .continuous)
-                    .fill(Color.white.opacity(0.05))
-            )
+            .liquidGlass(style: .subtle, cornerRadius: 10, tint: isURLFocused ? Color.accentColor.opacity(0.15) : nil)
             .overlay(
                 RoundedRectangle(cornerRadius: 10, style: .continuous)
                     .stroke(
                         isURLFocused
-                            ? Color(red: 0.106, green: 0.404, blue: 0.863)
+                            ? Color.accentColor
                             : Color.white.opacity(0.12),
                         lineWidth: isURLFocused ? 1.5 : 1
                     )
@@ -108,21 +105,7 @@ struct GitCloneSheetView: View {
         }
         .padding(18)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(
-            RoundedRectangle(cornerRadius: 16, style: .continuous)
-                .fill(Color.white.opacity(0.04))
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: 16, style: .continuous)
-                .stroke(
-                    LinearGradient(
-                        colors: [Color.white.opacity(0.14), Color.white.opacity(0.04)],
-                        startPoint: .topLeading,
-                        endPoint: .bottomTrailing
-                    ),
-                    lineWidth: 1
-                )
-        )
+        .liquidGlass(style: .subtle, cornerRadius: 16)
     }
 
     // MARK: - Card 2: GitHub Repositories
@@ -133,7 +116,7 @@ struct GitCloneSheetView: View {
                 HStack(spacing: 8) {
                     Image(systemName: "arrow.triangle.branch")
                         .font(.system(size: 13, weight: .semibold))
-                        .foregroundStyle(Color(red: 0.35, green: 0.65, blue: 0.98))
+                        .foregroundStyle(Color.accentColor)
 
                     Text("Your GitHub Repositories")
                         .font(.system(size: 13, weight: .semibold))
@@ -226,11 +209,11 @@ struct GitCloneSheetView: View {
                                 HStack(spacing: 12) {
                                     Image(systemName: repo.isPrivate ? "lock.fill" : "globe")
                                         .font(.system(size: 12))
-                                        .foregroundStyle(repo.isPrivate ? Color.orange : Color(red: 0.35, green: 0.65, blue: 0.98))
+                                        .foregroundStyle(repo.isPrivate ? Color.orange : Color.accentColor)
                                         .frame(width: 24, height: 24)
                                         .background(
                                             RoundedRectangle(cornerRadius: 6, style: .continuous)
-                                                .fill(repo.isPrivate ? Color.orange.opacity(0.12) : Color(red: 0.35, green: 0.65, blue: 0.98).opacity(0.12))
+                                                .fill(repo.isPrivate ? Color.orange.opacity(0.12) : Color.accentColor.opacity(0.12))
                                         )
 
                                     VStack(alignment: .leading, spacing: 2) {
@@ -242,12 +225,12 @@ struct GitCloneSheetView: View {
                                             // Visibility badge
                                             Text(repo.isPrivate ? "Private" : "Public")
                                                 .font(.system(size: 9.5, weight: .medium))
-                                                .foregroundStyle(repo.isPrivate ? Color.orange : Color(red: 0.35, green: 0.65, blue: 0.98))
+                                                .foregroundStyle(repo.isPrivate ? Color.orange : Color.accentColor)
                                                 .padding(.horizontal, 6)
                                                 .padding(.vertical, 1.5)
                                                 .background(
                                                     Capsule()
-                                                        .fill(repo.isPrivate ? Color.orange.opacity(0.15) : Color(red: 0.35, green: 0.65, blue: 0.98).opacity(0.15))
+                                                        .fill(repo.isPrivate ? Color.orange.opacity(0.15) : Color.accentColor.opacity(0.15))
                                                 )
 
                                             // Branch badge
@@ -273,7 +256,7 @@ struct GitCloneSheetView: View {
                                     if isSelected {
                                         Image(systemName: "checkmark.circle.fill")
                                             .font(.system(size: 16))
-                                            .foregroundStyle(Color(red: 0.106, green: 0.404, blue: 0.863))
+                                            .foregroundStyle(Color.accentColor)
                                     }
                                 }
                                 .padding(.horizontal, 10)
@@ -282,7 +265,7 @@ struct GitCloneSheetView: View {
                                     RoundedRectangle(cornerRadius: 8, style: .continuous)
                                         .fill(
                                             isSelected
-                                                ? Color(red: 0.106, green: 0.404, blue: 0.863).opacity(0.18)
+                                                ? Color.accentColor.opacity(0.18)
                                                 : Color.white.opacity(0.02)
                                         )
                                 )
@@ -290,7 +273,7 @@ struct GitCloneSheetView: View {
                                     RoundedRectangle(cornerRadius: 8, style: .continuous)
                                         .stroke(
                                             isSelected
-                                                ? Color(red: 0.106, green: 0.404, blue: 0.863).opacity(0.8)
+                                                ? Color.accentColor.opacity(0.8)
                                                 : Color.white.opacity(0.05),
                                             lineWidth: 1
                                         )
@@ -306,21 +289,7 @@ struct GitCloneSheetView: View {
         }
         .padding(18)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(
-            RoundedRectangle(cornerRadius: 16, style: .continuous)
-                .fill(Color.white.opacity(0.04))
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: 16, style: .continuous)
-                .stroke(
-                    LinearGradient(
-                        colors: [Color.white.opacity(0.14), Color.white.opacity(0.04)],
-                        startPoint: .topLeading,
-                        endPoint: .bottomTrailing
-                    ),
-                    lineWidth: 1
-                )
-        )
+        .liquidGlass(style: .subtle, cornerRadius: 16)
     }
 
     // MARK: - Action Section
@@ -368,26 +337,18 @@ struct GitCloneSheetView: View {
                 .background(
                     LinearGradient(
                         colors: isHoveringClone && !isCloneDisabled
-                            ? [Color(red: 0.14, green: 0.46, blue: 0.95), Color(red: 0.08, green: 0.35, blue: 0.80)]
-                            : [Color(red: 0.106, green: 0.404, blue: 0.863), Color(red: 0.07, green: 0.30, blue: 0.72)],
+                            ? [Color.accentColor.opacity(0.95), Color.accentColor.opacity(0.8)]
+                            : [Color.accentColor, Color.accentColor.opacity(0.85)],
                         startPoint: .top,
                         endPoint: .bottom
                     )
                 )
                 .clipShape(RoundedRectangle(cornerRadius: 11, style: .continuous))
                 .overlay(
-                    RoundedRectangle(cornerRadius: 11, style: .continuous)
-                        .stroke(
-                            LinearGradient(
-                                colors: [Color.white.opacity(0.35), Color.white.opacity(0.10)],
-                                startPoint: .top,
-                                endPoint: .bottom
-                            ),
-                            lineWidth: 1
-                        )
+                    SpecularBorder(cornerRadius: 11, lineWidth: 1)
                 )
                 .shadow(
-                    color: isCloneDisabled ? Color.clear : Color(red: 0.106, green: 0.404, blue: 0.863).opacity(isHoveringClone ? 0.45 : 0.2),
+                    color: isCloneDisabled ? Color.clear : Color.accentColor.opacity(isHoveringClone ? 0.45 : 0.2),
                     radius: isHoveringClone ? 8 : 4,
                     y: 2
                 )

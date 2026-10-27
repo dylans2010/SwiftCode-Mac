@@ -18,6 +18,7 @@ struct StatusBarView: View {
         .padding(.horizontal, 12)
         .padding(.vertical, 4)
         .font(.caption)
-        .background(Color.secondary.opacity(0.1))
+        .background(VisualEffectView(material: .headerView, blendingMode: .withinWindow))
+        .overlay(Divider(), alignment: .top)
     }
 }

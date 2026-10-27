@@ -18,13 +18,33 @@ import SwiftUI
 public final class SDKStudioWindowManager: NSObject, ObservableObject, NSWindowDelegate {
     public static let shared = SDKStudioWindowManager()
 
+    private static let lastSectionKey = "com.swiftcode.sdk.studio.lastSection"
+    private static let studioIsOpenKey = "com.swiftcode.sdk.studio.isOpen"
+
     /// The section the Studio last opened on; restored on a bare `openStudio()`.
     @Published public private(set) var currentSection: SDKStudioSection = .projects
 
     private var studioWindow: NSWindow?
 
+    public var isStudioOpen: Bool {
+        studioWindow != nil
+    }
+
     private override init() {
+        if let raw = UserDefaults.standard.string(forKey: Self.lastSectionKey),
+           let section = SDKStudioSection(rawValue: raw) {
+            self.currentSection = section
+        } else {
+            self.currentSection = .projects
+        }
         super.init()
+    }
+
+    /// Updates the remembered section and immediately flushes changes to UserDefaults.
+    public func updateSection(_ section: SDKStudioSection) {
+        currentSection = section
+        UserDefaults.standard.set(section.rawValue, forKey: Self.lastSectionKey)
+        UserDefaults.standard.synchronize()
     }
 
     /// Opens Studio on the last-visited section (or Projects on first launch).
@@ -35,7 +55,9 @@ public final class SDKStudioWindowManager: NSObject, ObservableObject, NSWindowD
     /// Opens Studio, focusing the given section. If Studio is already open,
     /// its content is re-hosted on the new section and the window is raised.
     public func openStudio(section: SDKStudioSection) {
-        currentSection = section
+        updateSection(section)
+        UserDefaults.standard.set(true, forKey: Self.studioIsOpenKey)
+        UserDefaults.standard.synchronize()
 
         if let studioWindow {
             studioWindow.contentViewController = NSHostingController(
@@ -79,6 +101,8 @@ public final class SDKStudioWindowManager: NSObject, ObservableObject, NSWindowD
     public func closeStudio() {
         studioWindow?.close()
         studioWindow = nil
+        UserDefaults.standard.set(false, forKey: Self.studioIsOpenKey)
+        UserDefaults.standard.synchronize()
     }
 
     // MARK: - NSWindowDelegate
@@ -86,6 +110,8 @@ public final class SDKStudioWindowManager: NSObject, ObservableObject, NSWindowD
     public func windowWillClose(_ notification: Notification) {
         if (notification.object as? NSWindow) === studioWindow {
             studioWindow = nil
+            UserDefaults.standard.set(false, forKey: Self.studioIsOpenKey)
+            UserDefaults.standard.synchronize()
         }
     }
 }

@@ -8,9 +8,12 @@ struct AIChatInputView: View {
     let onSend: () -> Void
 
     var body: some View {
-        HStack {
+        HStack(spacing: 8) {
             TextField("Ask AI...", text: $text)
-                .textFieldStyle(.roundedBorder)
+                .textFieldStyle(.plain)
+                .padding(.horizontal, 10)
+                .padding(.vertical, 6)
+                .liquidGlass(style: .subtle, cornerRadius: 8)
                 .onSubmit {
                     logger.log("[onSubmit] Return key pressed. Triggering send.")
                     onSend()
@@ -20,9 +23,15 @@ struct AIChatInputView: View {
                 onSend()
             }) {
                 Image(systemName: "paperplane.fill")
+                    .padding(6)
+                    .foregroundStyle(.white)
+                    .background(Color.accentColor)
+                    .clipShape(Circle())
             }
+            .buttonStyle(.plain)
             .disabled(text.isEmpty)
         }
-        .padding()
+        .padding(10)
+        .background(VisualEffectView(material: .headerView, blendingMode: .withinWindow))
     }
 }

@@ -158,6 +158,7 @@ public struct SDKStudioProjectsView: View {
                     Button("Clear Recent") {
                         recentProjectPaths.removeAll()
                         UserDefaults.standard.removeObject(forKey: Self.recentProjectsKey)
+                        UserDefaults.standard.synchronize()
                     }
                     .controlSize(.small)
                 }
@@ -257,6 +258,7 @@ public struct SDKStudioProjectsView: View {
             list = Array(list.prefix(12))
         }
         UserDefaults.standard.set(list, forKey: Self.recentProjectsKey)
+        UserDefaults.standard.synchronize()
         recentProjectPaths = list.filter { FileManager.default.fileExists(atPath: $0) }
     }
 }

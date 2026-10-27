@@ -321,7 +321,7 @@ struct DevToolsMainView: View {
                 }
                 .listStyle(.sidebar)
             }
-            .background(Color(NSColor.windowBackgroundColor))
+            .liquidGlass(style: .sheet, cornerRadius: 0)
             .navigationTitle("Developer Tools Hub")
         }
         .frame(minWidth: 450, idealWidth: 550, minHeight: 480, idealHeight: 650)

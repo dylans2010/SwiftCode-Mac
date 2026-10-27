@@ -68,6 +68,8 @@ struct InfoProjView: View {
                     }
                 }
                 .formStyle(.grouped)
+                .scrollContentBackground(.hidden)
+                .background(VisualEffectView(material: .sidebar, blendingMode: .withinWindow))
             } else {
                 VStack {
                     Image(systemName: "exclamationmark.triangle")

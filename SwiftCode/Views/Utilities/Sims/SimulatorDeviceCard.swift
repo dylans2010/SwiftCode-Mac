@@ -46,11 +46,10 @@ struct SimulatorDeviceCard: View {
             }
         }
         .padding(12)
-        .background(isSelected ? Color.accentColor.opacity(0.1) : Color.secondary.opacity(0.05))
-        .cornerRadius(10)
-        .overlay(
-            RoundedRectangle(cornerRadius: 10)
-                .stroke(isSelected ? Color.accentColor : Color.clear, lineWidth: 1.5)
+        .liquidGlass(
+            style: isSelected ? .prominent : .subtle,
+            cornerRadius: 10,
+            tint: isSelected ? .accentColor : nil
         )
         .simulatorWorkspaceEmbedded()
     }

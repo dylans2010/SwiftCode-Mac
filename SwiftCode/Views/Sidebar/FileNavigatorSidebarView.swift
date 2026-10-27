@@ -207,7 +207,7 @@ struct FileNavigatorSidebarView: View {
             }
             .padding(.horizontal, 16)
             .padding(.vertical, 6)
-            .background(.ultraThinMaterial)
+            .background(VisualEffectView(material: .headerView, blendingMode: .withinWindow))
             .overlay(
                 Divider(), alignment: .bottom
             )
@@ -290,7 +290,7 @@ struct FileNavigatorSidebarView: View {
             }
             .padding(.horizontal, 8)
             .padding(.vertical, 4)
-            .background(.ultraThinMaterial)
+            .background(VisualEffectView(material: .headerView, blendingMode: .withinWindow))
         }
         .sheet(isPresented: $showingFileTemplates) {
             FileTemplatesView(viewModel: viewModel)

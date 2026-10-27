@@ -42,7 +42,19 @@ struct SidebarMainView: View {
                             .contentShape(Rectangle())
                     }
                     .buttonStyle(.plain)
-                    .background(selectedItem == item ? Color.accentColor.opacity(0.15) : (isHovered == item ? Color.white.opacity(0.05) : Color.clear))
+                    .background(
+                        Group {
+                            if selectedItem == item {
+                                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                                    .fill(Color.accentColor.opacity(0.2))
+                                    .overlay(SpecularBorder(cornerRadius: 8, lineWidth: 1))
+                            } else if isHovered == item {
+                                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                                    .fill(Color.white.opacity(0.06))
+                                    .overlay(SpecularBorder(cornerRadius: 8, lineWidth: 0.5, intensity: 0.5))
+                            }
+                        }
+                    )
                     .clipShape(RoundedRectangle(cornerRadius: 8))
                     .help(item.title)
                     .onHover { hovering in
@@ -53,7 +65,7 @@ struct SidebarMainView: View {
             }
             .padding(.vertical, 12)
             .frame(width: 50)
-            .background(Color(NSColor.windowBackgroundColor))
+            .background(VisualEffectView(material: .sidebar, blendingMode: .withinWindow))
 
             Divider()
 
@@ -65,7 +77,7 @@ struct SidebarMainView: View {
                     Spacer()
                 }
                 .padding()
-                .background(.ultraThinMaterial)
+                .background(VisualEffectView(material: .headerView, blendingMode: .withinWindow))
 
                 Divider()
 

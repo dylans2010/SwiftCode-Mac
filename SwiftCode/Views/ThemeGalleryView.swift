@@ -32,17 +32,17 @@ struct ThemeGalleryView: View {
                     .onTapGesture {
                         viewModel.currentTheme = theme
                     }
-                    .padding(8)
-                    .background(viewModel.currentTheme.id == theme.id ? Color.accentColor.opacity(0.1) : Color.clear)
-                    .cornerRadius(12)
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 12)
-                            .stroke(viewModel.currentTheme.id == theme.id ? Color.accentColor : Color.clear, lineWidth: 2)
+                    .padding(10)
+                    .liquidGlass(
+                        style: viewModel.currentTheme.id == theme.id ? .prominent : .standard,
+                        cornerRadius: 14,
+                        tint: viewModel.currentTheme.id == theme.id ? .accentColor : nil
                     )
                 }
             }
             .padding()
         }
+        .liquidGlass(style: .sheet, cornerRadius: 0)
         .navigationTitle("Theme Gallery")
     }
 }

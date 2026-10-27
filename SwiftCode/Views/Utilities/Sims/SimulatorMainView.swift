@@ -144,7 +144,7 @@ public struct SimulatorMainView: View {
             .buttonStyle(.bordered)
         }
         .padding()
-        .background(Color.secondary.opacity(0.04))
+        .background(VisualEffectView(material: .headerView, blendingMode: .withinWindow))
     }
 
     @ViewBuilder

@@ -146,7 +146,7 @@ struct AnalysisResultView: View {
                     .padding(20)
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
-            .background(Color(red: 0.05, green: 0.05, blue: 0.07))
+            .liquidGlass(style: .sheet, cornerRadius: 0)
             .navigationTitle("AI Log Analysis")
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {

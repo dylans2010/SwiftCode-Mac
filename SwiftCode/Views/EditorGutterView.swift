@@ -13,6 +13,6 @@ struct EditorGutterView: View {
             }
         }
         .padding(.horizontal, 8)
-        .background(Color.secondary.opacity(0.05))
+        .background(VisualEffectView(material: .sidebar, blendingMode: .withinWindow))
     }
 }

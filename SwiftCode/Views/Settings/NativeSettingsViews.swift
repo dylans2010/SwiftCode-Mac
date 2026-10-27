@@ -86,8 +86,27 @@ public struct NativeSettingsContainerView: View {
 
     public var body: some View {
         VStack(spacing: 0) {
-            Divider()
-                .background(Color(nsColor: .separatorColor))
+            // Crisp, non-see-through header bar directly under toolbar with native border divider
+            HStack(spacing: 10) {
+                Image(systemName: state.selectedCategory.icon)
+                    .font(.system(size: 15, weight: .semibold))
+                    .foregroundStyle(Color.accentColor)
+
+                Text(state.selectedCategory.title)
+                    .font(.system(size: 14, weight: .bold))
+                    .foregroundStyle(.primary)
+
+                Spacer()
+            }
+            .padding(.horizontal, 20)
+            .padding(.vertical, 10)
+            .background(Color(nsColor: .windowBackgroundColor))
+            .overlay(
+                Rectangle()
+                    .frame(height: 1)
+                    .foregroundStyle(Color(nsColor: .separatorColor)),
+                alignment: .bottom
+            )
 
             Group {
                 switch state.selectedCategory {
@@ -118,7 +137,7 @@ public struct NativeSettingsContainerView: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .clipped()
         }
-        .frame(width: NativeSettingsLayout.width, height: NativeSettingsLayout.height)
+        .frame(minWidth: 740, maxWidth: .infinity, minHeight: 480, maxHeight: .infinity)
         .background(Color(nsColor: .windowBackgroundColor))
         .clipped()
         .environmentObject(settings)
@@ -264,40 +283,43 @@ public struct NativeThemesSettingsView: View {
 
             Section("Active Theme Palette") {
                 if let activeTheme = themeManager.theme(for: settings.selectedThemeID) {
-                    VStack(alignment: .leading, spacing: 12) {
-                        HStack(spacing: 8) {
-                            Text("Color Tokens:")
-                                .font(.caption.bold())
-                                .foregroundStyle(.secondary)
+                    LiquidGlassCard(cornerRadius: 10, style: .standard) {
+                        VStack(alignment: .leading, spacing: 12) {
+                            HStack(spacing: 8) {
+                                Text("Color Tokens:")
+                                    .font(.caption.bold())
+                                    .foregroundStyle(.secondary)
 
-                            ForEach([
-                                activeTheme.colors.background,
-                                activeTheme.colors.syntaxKeyword,
-                                activeTheme.colors.accent,
-                                activeTheme.colors.syntaxString
-                            ], id: \.self) { hex in
-                                RoundedRectangle(cornerRadius: 4)
-                                    .fill(Color(hex: hex))
-                                    .frame(width: 22, height: 22)
-                                    .overlay(
-                                        RoundedRectangle(cornerRadius: 4)
-                                            .stroke(Color.primary.opacity(0.15), lineWidth: 1)
-                                    )
+                                ForEach([
+                                    activeTheme.colors.background,
+                                    activeTheme.colors.syntaxKeyword,
+                                    activeTheme.colors.accent,
+                                    activeTheme.colors.syntaxString
+                                ], id: \.self) { hex in
+                                    RoundedRectangle(cornerRadius: 4)
+                                        .fill(Color(hex: hex))
+                                        .frame(width: 22, height: 22)
+                                        .overlay(
+                                            RoundedRectangle(cornerRadius: 4)
+                                                .stroke(Color.primary.opacity(0.15), lineWidth: 1)
+                                        )
+                                }
                             }
-                        }
 
-                        Text("struct ContentView: View {\n    var body: some View {\n        Text(\"Hello, SwiftCode!\")\n            .padding()\n    }\n}")
-                            .font(.system(size: settings.editorFontSize, weight: .regular, design: .monospaced))
-                            .lineSpacing(lineSpacing)
-                            .padding(12)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .background(Color(hex: activeTheme.colors.background))
-                            .foregroundColor(Color(hex: activeTheme.colors.syntaxKeyword))
-                            .clipShape(RoundedRectangle(cornerRadius: 8))
-                            .overlay(
-                                RoundedRectangle(cornerRadius: 8)
-                                    .stroke(Color.primary.opacity(0.1), lineWidth: 1)
-                            )
+                            Text("struct ContentView: View {\n    var body: some View {\n        Text(\"Hello, SwiftCode!\")\n            .padding()\n    }\n}")
+                                .font(.system(size: settings.editorFontSize, weight: .regular, design: .monospaced))
+                                .lineSpacing(lineSpacing)
+                                .padding(12)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .background(Color(hex: activeTheme.colors.background))
+                                .foregroundColor(Color(hex: activeTheme.colors.syntaxKeyword))
+                                .clipShape(RoundedRectangle(cornerRadius: 8))
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 8)
+                                        .stroke(Color.primary.opacity(0.1), lineWidth: 1)
+                                )
+                        }
+                        .padding(12)
                     }
                     .padding(.vertical, 4)
                 }
@@ -324,30 +346,39 @@ public struct NativeCloudSettingsView: View {
     public var body: some View {
         Form {
             Section("Supabase Cloud Integration") {
-                LabeledContent("Endpoint URL") {
-                    Text("https://secctbuzkfbketdihzui.supabase.co")
-                        .font(.system(.caption, design: .monospaced))
-                        .foregroundStyle(.secondary)
-                }
-
-                LabeledContent("SSL Security") {
-                    HStack(spacing: 6) {
-                        Image(systemName: "lock.shield.fill")
-                            .foregroundStyle(.green)
-                        Text("TLS 1.3 Active")
-                    }
-                }
-
-                LabeledContent("Authentication Session") {
-                    if AuthManager.shared.isAuthenticated, let user = AuthManager.shared.currentUser {
-                        HStack(spacing: 6) {
-                            Circle().fill(Color.green).frame(width: 8, height: 8)
-                            Text(user.email)
+                LiquidGlassCard(cornerRadius: 10, style: .standard) {
+                    VStack(alignment: .leading, spacing: 10) {
+                        LabeledContent("Endpoint URL") {
+                            Text("https://secctbuzkfbketdihzui.supabase.co")
+                                .font(.system(.caption, design: .monospaced))
+                                .foregroundStyle(.secondary)
                         }
-                    } else {
-                        Text("Not Signed In (Local Workspace)")
-                            .foregroundStyle(.secondary)
+
+                        Divider()
+
+                        LabeledContent("SSL Security") {
+                            HStack(spacing: 6) {
+                                Image(systemName: "lock.shield.fill")
+                                    .foregroundStyle(.green)
+                                Text("TLS 1.3 Active")
+                            }
+                        }
+
+                        Divider()
+
+                        LabeledContent("Authentication Session") {
+                            if AuthManager.shared.isAuthenticated, let user = AuthManager.shared.currentUser {
+                                HStack(spacing: 6) {
+                                    Circle().fill(Color.green).frame(width: 8, height: 8)
+                                    Text(user.email)
+                                }
+                            } else {
+                                Text("Not Signed In (Local Workspace)")
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
                     }
+                    .padding(12)
                 }
             }
 
@@ -493,38 +524,41 @@ public struct NativeBackupsSettingsView: View {
                         .foregroundStyle(.secondary)
                 } else {
                     ForEach(backups) { manifest in
-                        HStack(alignment: .center, spacing: 12) {
-                            VStack(alignment: .leading, spacing: 3) {
-                                Text(manifest.filename.isEmpty ? "Snapshot \(manifest.backupID.prefix(8))" : manifest.filename)
-                                    .font(.headline)
+                        LiquidGlassCard(cornerRadius: 8, style: .subtle) {
+                            HStack(alignment: .center, spacing: 12) {
+                                VStack(alignment: .leading, spacing: 3) {
+                                    Text(manifest.filename.isEmpty ? "Snapshot \(manifest.backupID.prefix(8))" : manifest.filename)
+                                        .font(.headline)
 
-                                HStack(spacing: 8) {
-                                    Text(manifest.createdAt.formatted(date: .abbreviated, time: .shortened))
-                                    Text("•")
-                                    Text(ByteCountFormatter.string(fromByteCount: manifest.sizeInBytes, countStyle: .file))
-                                    if manifest.isCloudStored {
+                                    HStack(spacing: 8) {
+                                        Text(manifest.createdAt.formatted(date: .abbreviated, time: .shortened))
                                         Text("•")
-                                        Text("Cloud").foregroundStyle(.blue)
+                                        Text(ByteCountFormatter.string(fromByteCount: manifest.sizeInBytes, countStyle: .file))
+                                        if manifest.isCloudStored {
+                                            Text("•")
+                                            Text("Cloud").foregroundStyle(.blue)
+                                        }
                                     }
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
                                 }
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                            }
 
-                            Spacer()
+                                Spacer()
 
-                            Button("Details") {
-                                selectedManifest = manifest
-                            }
-                            .buttonStyle(.bordered)
-                            .controlSize(.small)
+                                Button("Details") {
+                                    selectedManifest = manifest
+                                }
+                                .buttonStyle(.bordered)
+                                .controlSize(.small)
 
-                            Button("Restore") {
-                                manifestToRestore = manifest
-                                showRestoreConfirmation = true
+                                Button("Restore") {
+                                    manifestToRestore = manifest
+                                    showRestoreConfirmation = true
+                                }
+                                .buttonStyle(.borderedProminent)
+                                .controlSize(.small)
                             }
-                            .buttonStyle(.borderedProminent)
-                            .controlSize(.small)
+                            .padding(10)
                         }
                         .padding(.vertical, 2)
                     }
@@ -669,37 +703,50 @@ public struct NativeConnectSettingsView: View {
             }
 
             Section("Network & Bonjour Discovery") {
-                LabeledContent("Device Name") {
-                    Text(bonjour.macName)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
+                LiquidGlassCard(cornerRadius: 10, style: .standard) {
+                    VStack(alignment: .leading, spacing: 10) {
+                        LabeledContent("Device Name") {
+                            Text(bonjour.macName)
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
 
-                LabeledContent("Device ID") {
-                    Text(bonjour.deviceID)
-                        .font(.system(.caption, design: .monospaced))
-                        .foregroundStyle(.secondary)
-                }
+                        Divider()
 
-                LabeledContent("Local IP Address") {
-                    Text(diagnostics.localIPAddress ?? "Not Available")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
+                        LabeledContent("Device ID") {
+                            Text(bonjour.deviceID)
+                                .font(.system(.caption, design: .monospaced))
+                                .foregroundStyle(.secondary)
+                        }
 
-                LabeledContent("Bonjour Advertising") {
-                    HStack(spacing: 6) {
-                        Circle()
-                            .fill(bonjour.isAdvertising ? Color.green : Color.orange)
-                            .frame(width: 8, height: 8)
-                        Text(bonjour.isAdvertising ? "Broadcasting to Local Network" : "Idle")
-                            .font(.caption)
+                        Divider()
+
+                        LabeledContent("Local IP Address") {
+                            Text(diagnostics.localIPAddress ?? "Not Available")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+
+                        Divider()
+
+                        LabeledContent("Bonjour Advertising") {
+                            HStack(spacing: 6) {
+                                Circle()
+                                    .fill(bonjour.isAdvertising ? Color.green : Color.orange)
+                                    .frame(width: 8, height: 8)
+                                Text(bonjour.isAdvertising ? "Broadcasting to Local Network" : "Idle")
+                                    .font(.caption)
+                            }
+                        }
+
+                        Divider()
+
+                        LabeledContent("Active Sessions") {
+                            Text("\(connectServer.activeSessions.count) connected")
+                                .font(.caption)
+                        }
                     }
-                }
-
-                LabeledContent("Active Sessions") {
-                    Text("\(connectServer.activeSessions.count) connected")
-                        .font(.caption)
+                    .padding(12)
                 }
             }
         }

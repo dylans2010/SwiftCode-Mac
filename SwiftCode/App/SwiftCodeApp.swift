@@ -46,19 +46,60 @@ struct SwiftCodeApp: App {
                             .id(activeProject.id)
                     } else {
                         SwiftCodeWelcomeView()
-                            .navigationTitle("SwiftCode")
+                            .navigationTitle("")
                     }
                 }
             )
             .onAppear {
                 DispatchQueue.main.async {
-                    if let window = NSApplication.shared.windows.first(where: { $0.isVisible }) {
+                    if let window = NSApplication.shared.windows.first(where: { $0.isVisible && !($0 is NSPanel) }) {
                         if sessionStore.activeProject != nil {
+                            window.isOpaque = true
+                            window.backgroundColor = nil
+                            window.showsResizeIndicator = true
+                            window.isMovableByWindowBackground = false
                             window.titleVisibility = .visible
                             window.titlebarAppearsTransparent = false
+                            window.titlebarSeparatorStyle = .automatic
+                            window.styleMask.insert([.titled, .closable, .miniaturizable, .resizable])
+                            window.collectionBehavior.insert(.fullScreenPrimary)
+                            window.minSize = NSSize(width: 900, height: 600)
+                            window.maxSize = NSSize(width: 10000, height: 10000)
                             window.standardWindowButton(.closeButton)?.isHidden = false
                             window.standardWindowButton(.miniaturizeButton)?.isHidden = false
                             window.standardWindowButton(.zoomButton)?.isHidden = false
+                            if !window.styleMask.contains(.fullScreen) {
+                                window.toggleFullScreen(nil)
+                            }
+                        }
+                    }
+                }
+            }
+            .onChange(of: sessionStore.activeProject) { _, activeProject in
+                DispatchQueue.main.async {
+                    if let window = NSApplication.shared.windows.first(where: { $0.isVisible && !($0 is NSPanel) }) {
+                        if activeProject != nil {
+                            window.isOpaque = true
+                            window.backgroundColor = nil
+                            window.showsResizeIndicator = true
+                            window.isMovableByWindowBackground = false
+                            window.titleVisibility = .visible
+                            window.titlebarAppearsTransparent = false
+                            window.titlebarSeparatorStyle = .automatic
+                            window.styleMask.insert([.titled, .closable, .miniaturizable, .resizable])
+                            window.collectionBehavior.insert(.fullScreenPrimary)
+                            window.minSize = NSSize(width: 900, height: 600)
+                            window.maxSize = NSSize(width: 10000, height: 10000)
+                            window.standardWindowButton(.closeButton)?.isHidden = false
+                            window.standardWindowButton(.miniaturizeButton)?.isHidden = false
+                            window.standardWindowButton(.zoomButton)?.isHidden = false
+                            if !window.styleMask.contains(.fullScreen) {
+                                window.toggleFullScreen(nil)
+                            }
+                        } else {
+                            if window.styleMask.contains(.fullScreen) {
+                                window.toggleFullScreen(nil)
+                            }
                         }
                     }
                 }
@@ -99,6 +140,7 @@ struct SwiftCodeApp: App {
                 }
             }
         }
+        .windowResizability(.contentSize)
         .commands {
             AppCommands()
         }
@@ -117,5 +159,39 @@ private struct WorkspaceHostView: View {
     var body: some View {
         WorkspaceView(viewModel: viewModel)
             .navigationTitle(project.name)
+            .frame(minWidth: 900, idealWidth: 1400, maxWidth: .infinity, minHeight: 600, idealHeight: 900, maxHeight: .infinity)
+            .onAppear {
+                DispatchQueue.main.async {
+                    configureEditorWindow()
+                }
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
+                    configureEditorWindow()
+                }
+            }
+    }
+
+    private func configureEditorWindow() {
+        guard let window = NSApplication.shared.windows.first(where: { $0.isVisible && !($0 is NSPanel) }) else { return }
+        window.isOpaque = true
+        window.backgroundColor = nil
+        window.showsResizeIndicator = true
+        window.isMovableByWindowBackground = false
+        window.title = project.name
+        window.titleVisibility = .visible
+        window.titlebarAppearsTransparent = false
+        window.titlebarSeparatorStyle = .automatic
+
+        window.styleMask.insert([.titled, .closable, .miniaturizable, .resizable])
+        window.collectionBehavior.insert(.fullScreenPrimary)
+        window.minSize = NSSize(width: 900, height: 600)
+        window.maxSize = NSSize(width: 10000, height: 10000)
+
+        window.standardWindowButton(.closeButton)?.isHidden = false
+        window.standardWindowButton(.miniaturizeButton)?.isHidden = false
+        window.standardWindowButton(.zoomButton)?.isHidden = false
+
+        if !window.styleMask.contains(.fullScreen) {
+            window.toggleFullScreen(nil)
+        }
     }
 }

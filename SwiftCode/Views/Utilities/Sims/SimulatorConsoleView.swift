@@ -71,8 +71,7 @@ struct SimulatorConsoleView: View {
                                     }
                                     .padding(8)
                                 }
-                                .background(Color.black.opacity(0.85))
-                                .cornerRadius(8)
+                                .liquidGlass(style: .hud, cornerRadius: 8)
                                 .frame(height: 180)
                                 .onChange(of: filteredLogs.count) { _, count in
                                     if autoScroll && count > 0 {

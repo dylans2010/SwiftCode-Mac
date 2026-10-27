@@ -18,6 +18,8 @@ public struct SwiftCodeWelcomeView: View {
     @State private var errorMessage: String?
     @State private var showError = false
 
+    @State private var windowHolder = WelcomeWindowHolder()
+
     enum ActiveConfirmation: Identifiable {
         case remove(Project)
         case delete(Project)
@@ -50,6 +52,7 @@ public struct SwiftCodeWelcomeView: View {
         ZStack {
             // Background Window Accessor for strict styling enforcement
             WelcomeWindowAccessor { window in
+                windowHolder.window = window
                 applyWelcomeWindowStyle(to: window)
             }
 
@@ -59,12 +62,7 @@ public struct SwiftCodeWelcomeView: View {
                 leftPane
                     .frame(width: 470)
 
-                // Subtle vertical divider line
-                Rectangle()
-                    .fill(Color.white.opacity(0.08))
-                    .frame(width: 1)
-
-                // Right Column: Recent Projects List
+                // Right Column: Recent Projects List (no divider line so it never shows)
                 rightPane
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
@@ -73,13 +71,12 @@ public struct SwiftCodeWelcomeView: View {
             loadingOverlay
         }
         .frame(width: 800, height: 480)
-        .background(
-            VisualEffectView(material: .underWindowBackground, blendingMode: .behindWindow)
-                .overlay(Color.black.opacity(0.35))
-        )
+        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .background(Color.clear)
         .preferredColorScheme(.dark)
         .sheet(isPresented: $showingNewProjectSheet) {
             NewProjectSheetView(viewModel: welcomeVM, initialMode: sheetInitialMode)
+                .id(sheetInitialMode)
         }
         .alert(
             confirmationAlertTitle,
@@ -120,7 +117,8 @@ public struct SwiftCodeWelcomeView: View {
             Button("OK") {}
         } message: { msg in Text(msg) }
         .onAppear {
-            if let window = NSApplication.shared.windows.first(where: { $0.isVisible }) {
+            if let window = windowHolder.window ?? NSApplication.shared.windows.first(where: { $0.isVisible && !($0 is NSPanel) }) {
+                windowHolder.window = window
                 applyWelcomeWindowStyle(to: window)
             }
             if selectedProjectID == nil {
@@ -128,13 +126,31 @@ public struct SwiftCodeWelcomeView: View {
             }
         }
         .onDisappear {
-            if let window = NSApplication.shared.windows.first(where: { $0.isVisible }) {
+            if let window = windowHolder.window ?? NSApplication.shared.windows.first(where: { $0.isVisible && !($0 is NSPanel) }) {
                 restoreStandardWindowStyle(for: window)
             }
         }
         .onReceive(NotificationCenter.default.publisher(for: NSWindow.didBecomeKeyNotification)) { notification in
-            if let window = notification.object as? NSWindow, window.isVisible {
-                applyWelcomeWindowStyle(to: window)
+            guard let window = notification.object as? NSWindow,
+                  let welcomeWindow = windowHolder.window,
+                  window === welcomeWindow else {
+                return
+            }
+            applyWelcomeWindowStyle(to: window)
+        }
+        .onReceive(NotificationCenter.default.publisher(for: NSWindow.didResizeNotification)) { notification in
+            guard let window = notification.object as? NSWindow,
+                  let welcomeWindow = windowHolder.window,
+                  window === welcomeWindow else {
+                return
+            }
+            if window.styleMask.contains(.resizable) {
+                window.styleMask.remove([.resizable, .miniaturizable])
+                window.showsResizeIndicator = false
+            }
+            let fixedSize = NSSize(width: 800, height: 480)
+            if window.frame.size != fixedSize {
+                window.setContentSize(fixedSize)
             }
         }
     }
@@ -144,7 +160,7 @@ public struct SwiftCodeWelcomeView: View {
     private var leftPane: some View {
         ZStack {
             VisualEffectView(material: .sidebar, blendingMode: .behindWindow)
-                .overlay(Color.black.opacity(0.35))
+                .overlay(Color.black.opacity(0.12))
                 .ignoresSafeArea()
 
             VStack(spacing: 0) {
@@ -162,7 +178,7 @@ public struct SwiftCodeWelcomeView: View {
                 // Subtitle: Version dynamically pulled from Bundle info
                 Text(versionString)
                     .font(.system(size: 13, weight: .regular))
-                    .foregroundStyle(Color(red: 0.62, green: 0.67, blue: 0.77))
+                    .foregroundStyle(Color.white.opacity(0.65))
                     .padding(.top, 4)
 
                 Spacer().frame(height: 32)
@@ -213,7 +229,7 @@ public struct SwiftCodeWelcomeView: View {
             } else {
                 ZStack {
                     RoundedRectangle(cornerRadius: 22, style: .continuous)
-                        .fill(Color(red: 0.12, green: 0.15, blue: 0.25))
+                        .fill(Color.white.opacity(0.08))
                     Image(systemName: "swift")
                         .font(.system(size: 48, weight: .semibold))
                         .foregroundStyle(Color.orange)
@@ -222,30 +238,33 @@ public struct SwiftCodeWelcomeView: View {
         }
         .frame(width: 96, height: 96)
         .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: 22, style: .continuous)
-                .stroke(Color.white.opacity(0.12), lineWidth: 1)
-        )
-        .shadow(color: Color.black.opacity(0.45), radius: 14, x: 0, y: 7)
+        .shadow(color: Color.black.opacity(0.35), radius: 14, x: 0, y: 7)
     }
 
     // MARK: - Right Column (Recent Projects)
 
     private var rightPane: some View {
         ZStack {
-            VisualEffectView(material: .underWindowBackground, blendingMode: .behindWindow)
-                .overlay(
-                    LinearGradient(
-                        colors: [
-                            Color(red: 0.082, green: 0.137, blue: 0.337).opacity(0.35),
-                            Color(red: 0.063, green: 0.106, blue: 0.267).opacity(0.45)
-                        ],
-                        startPoint: .top,
-                        endPoint: .bottom
-                    )
-                )
-                .overlay(Color.black.opacity(0.2))
+            // Frosted liquid glass background with desktop transparency (.hudWindow has deeper frosted diffusion than .sidebar)
+            VisualEffectView(material: .hudWindow, blendingMode: .behindWindow)
                 .ignoresSafeArea()
+
+            // Translucent frosted glass diffusion layer
+            Rectangle()
+                .fill(.ultraThinMaterial)
+                .opacity(0.28)
+                .ignoresSafeArea()
+
+            // Subtle luminous highlight gradient overlay for Apple glass depth
+            LinearGradient(
+                colors: [
+                    Color.white.opacity(0.04),
+                    Color.clear
+                ],
+                startPoint: .top,
+                endPoint: .bottom
+            )
+            .ignoresSafeArea()
 
             if sessionStore.projects.isEmpty {
                 emptyProjectsView
@@ -260,9 +279,7 @@ public struct SwiftCodeWelcomeView: View {
                                     selectedProjectID = project.id
                                 },
                                 onOpen: {
-                                    Task {
-                                        await sessionStore.openProject(project)
-                                    }
+                                    openProjectWithFullScreen(project)
                                 }
                             )
                             .contextMenu {
@@ -301,9 +318,7 @@ public struct SwiftCodeWelcomeView: View {
     @ViewBuilder
     private func projectContextMenu(for project: Project) -> some View {
         Button {
-            Task {
-                await sessionStore.openProject(project)
-            }
+            openProjectWithFullScreen(project)
         } label: {
             Label("Open Project", systemImage: "arrow.right.circle")
         }
@@ -356,7 +371,7 @@ public struct SwiftCodeWelcomeView: View {
                         }
                     }
                     let project = try await sessionStore.importProject(from: targetURL)
-                    await sessionStore.openProject(project)
+                    openProjectWithFullScreen(project)
                 } catch {
                     showErrorMessage(error.localizedDescription)
                 }
@@ -382,12 +397,26 @@ public struct SwiftCodeWelcomeView: View {
     // MARK: - Window Configuration (Strict Screenshot Parity)
 
     private func applyWelcomeWindowStyle(to window: NSWindow) {
+        // Never apply welcome window style to Settings or auxiliary windows
+        guard window != NativeSettingsWindowController.shared.window,
+              window.frameAutosaveName != "NativeSafariSettingsWindow",
+              window.frameAutosaveName != "SettingsMainWindow" else {
+            return
+        }
+
+        if window.styleMask.contains(.fullScreen) {
+            window.toggleFullScreen(nil)
+        }
+
         window.isOpaque = false
         window.backgroundColor = .clear
         window.hasShadow = true
+        window.title = ""
         window.titleVisibility = .hidden
         window.titlebarAppearsTransparent = true
+        window.titlebarSeparatorStyle = .none
         window.isMovableByWindowBackground = true
+        window.toolbar = nil
 
         // The WelcomeView is NOT allowed to be minimized, resized or full screen
         window.styleMask.remove([.resizable, .miniaturizable])
@@ -398,6 +427,15 @@ public struct SwiftCodeWelcomeView: View {
         window.maxSize = fixedSize
         window.showsResizeIndicator = false
         window.collectionBehavior = []
+
+        // Set intercepting delegate
+        if window.delegate !== WelcomeWindowDelegate.shared {
+            WelcomeWindowDelegate.shared.previousDelegate = window.delegate
+            WelcomeWindowDelegate.shared.isWelcomeActive = true
+            window.delegate = WelcomeWindowDelegate.shared
+        } else {
+            WelcomeWindowDelegate.shared.isWelcomeActive = true
+        }
 
         // Remove/hide the minimize button and zoom button so ONLY the close button shows
         window.standardWindowButton(.miniaturizeButton)?.isHidden = true
@@ -411,19 +449,38 @@ public struct SwiftCodeWelcomeView: View {
     }
 
     private func restoreStandardWindowStyle(for window: NSWindow) {
+        WelcomeWindowDelegate.shared.isWelcomeActive = false
+        if window.delegate === WelcomeWindowDelegate.shared {
+            window.delegate = WelcomeWindowDelegate.shared.previousDelegate
+        }
+
         window.isOpaque = true
         window.backgroundColor = nil
         window.showsResizeIndicator = true
         window.isMovableByWindowBackground = false
         window.titleVisibility = .visible
         window.titlebarAppearsTransparent = false
-        window.styleMask.insert([.resizable, .miniaturizable, .closable])
-        window.collectionBehavior = [.fullScreenPrimary]
+        window.titlebarSeparatorStyle = .automatic
+        window.styleMask.insert([.titled, .closable, .miniaturizable, .resizable])
+        window.collectionBehavior.insert(.fullScreenPrimary)
         window.standardWindowButton(.miniaturizeButton)?.isHidden = false
         window.standardWindowButton(.zoomButton)?.isHidden = false
         window.standardWindowButton(.closeButton)?.isHidden = false
         window.minSize = NSSize(width: 900, height: 600)
         window.maxSize = NSSize(width: 10000, height: 10000)
+
+        if !window.styleMask.contains(.fullScreen) {
+            window.toggleFullScreen(nil)
+        }
+    }
+
+    private func openProjectWithFullScreen(_ project: Project) {
+        if let window = windowHolder.window ?? NSApplication.shared.windows.first(where: { $0.isVisible && !($0 is NSPanel) }) {
+            restoreStandardWindowStyle(for: window)
+        }
+        Task {
+            await sessionStore.openProject(project)
+        }
     }
 
     // MARK: - Loading Overlay
@@ -432,7 +489,9 @@ public struct SwiftCodeWelcomeView: View {
     private var loadingOverlay: some View {
         if sessionStore.state != .idle && sessionStore.state != .cancelled {
             ZStack {
-                Color.black.opacity(0.4)
+                Rectangle()
+                    .fill(.ultraThinMaterial)
+                    .opacity(0.6)
                     .ignoresSafeArea()
 
                 VStack(spacing: 16) {
@@ -475,10 +534,12 @@ public struct SwiftCodeWelcomeView: View {
                     }
                 }
                 .padding(32)
-                .background(RoundedRectangle(cornerRadius: 16, style: .continuous).fill(.ultraThinMaterial))
-                .overlay(
-                    RoundedRectangle(cornerRadius: 16, style: .continuous)
-                        .stroke(Color.white.opacity(0.1), lineWidth: 1)
+                .background(
+                    LiquidGlassBackground(
+                        style: .sheet,
+                        cornerRadius: 16,
+                        showSpecularBorder: true
+                    )
                 )
             }
         }
@@ -514,12 +575,17 @@ struct WelcomePillButton: View {
             .padding(.horizontal, 16)
             .frame(width: 340, height: 44)
             .background(
-                RoundedRectangle(cornerRadius: 12, style: .continuous)
-                    .fill(Color.white.opacity(isHovering ? 0.12 : 0.055))
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: 12, style: .continuous)
-                    .stroke(Color.white.opacity(isHovering ? 0.14 : 0.07), lineWidth: 1)
+                LiquidGlassBackground(
+                    cornerRadius: 12,
+                    opacity: isHovering ? 0.75 : 0.55,
+                    material: .popover,
+                    blendingMode: .withinWindow,
+                    tint: isHovering ? Color.white.opacity(0.12) : Color.white.opacity(0.04),
+                    showSpecularBorder: true,
+                    borderWidth: 1.0,
+                    shadowRadius: isHovering ? 6 : 2,
+                    shadowY: isHovering ? 3 : 1
+                )
             )
             .contentShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
         }
@@ -579,12 +645,24 @@ struct RecentProjectRow: View {
             .padding(.vertical, 8)
             .frame(maxWidth: .infinity, alignment: .leading)
             .background(
-                RoundedRectangle(cornerRadius: 10, style: .continuous)
-                    .fill(
-                        isSelected
-                            ? Color(red: 0.106, green: 0.404, blue: 0.863) // Vibrant Royal Blue Accent
-                            : (isHovering ? Color.white.opacity(0.08) : Color.clear)
-                    )
+                Group {
+                    if isSelected {
+                        RoundedRectangle(cornerRadius: 10, style: .continuous)
+                            .fill(Color.accentColor)
+                            .overlay(
+                                SpecularBorder(cornerRadius: 10, lineWidth: 1)
+                            )
+                            .shadow(color: Color.accentColor.opacity(0.4), radius: 6, x: 0, y: 2)
+                    } else if isHovering {
+                        RoundedRectangle(cornerRadius: 10, style: .continuous)
+                            .fill(Color.white.opacity(0.08))
+                            .overlay(
+                                SpecularBorder(cornerRadius: 10, lineWidth: 1)
+                            )
+                    } else {
+                        Color.clear
+                    }
+                }
             )
             .contentShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
         }
@@ -607,8 +685,8 @@ struct RecentProjectRow: View {
                 .foregroundStyle(
                     LinearGradient(
                         colors: [
-                            Color(red: 0.35, green: 0.72, blue: 0.98),
-                            Color(red: 0.18, green: 0.52, blue: 0.92)
+                            Color.accentColor.opacity(0.9),
+                            Color.accentColor
                         ],
                         startPoint: .top,
                         endPoint: .bottom
@@ -623,8 +701,9 @@ struct RecentProjectRow: View {
 struct WelcomeWindowAccessor: NSViewRepresentable {
     let onWindow: (NSWindow) -> Void
 
-    func makeNSView(context: Context) -> NSView {
-        let view = NSView()
+    func makeNSView(context: Context) -> WindowTrackingView {
+        let view = WindowTrackingView()
+        view.onWindow = onWindow
         DispatchQueue.main.async {
             if let window = view.window {
                 onWindow(window)
@@ -633,11 +712,75 @@ struct WelcomeWindowAccessor: NSViewRepresentable {
         return view
     }
 
-    func updateNSView(_ nsView: NSView, context: Context) {
+    func updateNSView(_ nsView: WindowTrackingView, context: Context) {
+        nsView.onWindow = onWindow
         DispatchQueue.main.async {
             if let window = nsView.window {
                 onWindow(window)
             }
         }
+    }
+}
+
+final class WindowTrackingView: NSView {
+    var onWindow: ((NSWindow) -> Void)?
+
+    override func viewDidMoveToWindow() {
+        super.viewDidMoveToWindow()
+        if let window = self.window {
+            onWindow?(window)
+        }
+    }
+}
+
+final class WelcomeWindowHolder {
+    weak var window: NSWindow?
+}
+
+// MARK: - Welcome Window Delegate Interceptor
+
+final class WelcomeWindowDelegate: NSObject, NSWindowDelegate, @unchecked Sendable {
+    static let shared = WelcomeWindowDelegate()
+    let fixedSize = NSSize(width: 800, height: 480)
+    weak var previousDelegate: NSWindowDelegate?
+    var isWelcomeActive = true
+
+    func windowWillResize(_ sender: NSWindow, to frameSize: NSSize) -> NSSize {
+        if isWelcomeActive {
+            return fixedSize
+        }
+        return previousDelegate?.windowWillResize?(sender, to: frameSize) ?? frameSize
+    }
+
+    func windowShouldZoom(_ window: NSWindow, toFrame newFrame: NSRect) -> Bool {
+        if isWelcomeActive {
+            return false
+        }
+        return previousDelegate?.windowShouldZoom?(window, toFrame: newFrame) ?? true
+    }
+
+    func windowWillUseStandardFrame(_ window: NSWindow, defaultFrame newFrame: NSRect) -> NSRect {
+        if isWelcomeActive {
+            var frame = window.frame
+            frame.size = fixedSize
+            return frame
+        }
+        return previousDelegate?.windowWillUseStandardFrame?(window, defaultFrame: newFrame) ?? newFrame
+    }
+
+    override func responds(to aSelector: Selector!) -> Bool {
+        if aSelector == #selector(NSWindowDelegate.windowWillResize(_:to:)) ||
+           aSelector == #selector(NSWindowDelegate.windowShouldZoom(_:toFrame:)) ||
+           aSelector == #selector(NSWindowDelegate.windowWillUseStandardFrame(_:defaultFrame:)) {
+            return true
+        }
+        return super.responds(to: aSelector) || (previousDelegate?.responds(to: aSelector) ?? false)
+    }
+
+    override func forwardingTarget(for aSelector: Selector!) -> Any? {
+        if let previous = previousDelegate, previous.responds(to: aSelector) {
+            return previous
+        }
+        return super.forwardingTarget(for: aSelector)
     }
 }

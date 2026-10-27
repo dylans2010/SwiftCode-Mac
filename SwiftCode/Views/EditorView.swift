@@ -70,7 +70,7 @@ struct EditorView: View {
                 }
                 .padding(.horizontal, 16)
                 .padding(.vertical, 6)
-                .background(.ultraThinMaterial)
+                .background(VisualEffectView(material: .headerView, blendingMode: .withinWindow))
                 Divider()
             }
 

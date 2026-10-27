@@ -38,17 +38,15 @@ public final class SettingsRoutingManager: NSObject, NSWindowDelegate {
         let isLegacyOpen = SettingsWindowManager.shared.isSettingsOpen
         let isNativeOpen = NativeSettingsWindowController.shared.isWindowOpen
 
-        // If settings window is currently open and active, close the current one and open the new one cleanly so the user experiences an instant transition without stale windows.
-        if isLegacyOpen || isNativeOpen {
-            if useNew {
-                if isLegacyOpen {
-                    SettingsWindowManager.shared.closeSettings()
-                }
+        // Only transition if the user toggled the preference and the active window does not match the chosen experience
+        if useNew {
+            if isLegacyOpen && !isNativeOpen {
+                SettingsWindowManager.shared.closeSettings()
                 NativeSettingsWindowController.shared.showWindow()
-            } else {
-                if isNativeOpen {
-                    NativeSettingsWindowController.shared.closeWindow()
-                }
+            }
+        } else {
+            if isNativeOpen && !isLegacyOpen {
+                NativeSettingsWindowController.shared.closeWindow()
                 SettingsWindowManager.shared.showSettings()
             }
         }

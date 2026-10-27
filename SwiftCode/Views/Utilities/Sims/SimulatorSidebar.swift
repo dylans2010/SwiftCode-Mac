@@ -59,6 +59,8 @@ struct SimulatorSidebar: View {
                 }
             }
             .listStyle(.sidebar)
+            .scrollContentBackground(.hidden)
+            .background(VisualEffectView(material: .sidebar, blendingMode: .withinWindow))
         }
         .simulatorWorkspaceEmbedded()
         .sheet(isPresented: $showingCreationSheet) {

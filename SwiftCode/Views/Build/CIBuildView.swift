@@ -243,7 +243,7 @@ struct CIBuildView: View {
                     .padding()
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
-            .background(Color.black)
+            .liquidGlass(style: .hud, cornerRadius: 0)
             .navigationTitle("build.yml")
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {

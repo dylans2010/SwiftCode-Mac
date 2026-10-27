@@ -18,7 +18,7 @@ struct ASCIIArtGeneratorView: View {
                     .font(.system(.body, design: .monospaced))
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding()
-                    .background(Color.black)
+                    .liquidGlass(style: .hud, cornerRadius: 8)
                     .foregroundColor(.green)
             }
             .padding()

@@ -77,8 +77,7 @@ struct DeviceManagementView: View {
                                                 .foregroundColor(device.state == .booted ? .green : .secondary)
                                                 .padding(.horizontal, 8)
                                                 .padding(.vertical, 2)
-                                                .background(device.state == .booted ? Color.green.opacity(0.1) : Color.secondary.opacity(0.1))
-                                                .cornerRadius(6)
+                                                .liquidGlass(style: .subtle, cornerRadius: 6, tint: device.state == .booted ? .green : nil)
 
                                             Menu {
                                                 if device.state != .booted {

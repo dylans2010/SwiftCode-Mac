@@ -39,8 +39,7 @@ struct ApplicationDeploymentView: View {
                                     .foregroundColor(.accentColor)
                                     .padding(.horizontal, 10)
                                     .padding(.vertical, 4)
-                                    .background(Color.accentColor.opacity(0.1))
-                                    .cornerRadius(6)
+                                    .liquidGlass(style: .subtle, cornerRadius: 6, tint: .accentColor)
                             } else {
                                 Text("Please select a device in the sidebar first.")
                                     .font(.caption.bold())

@@ -8,15 +8,18 @@ struct HomeProjectGridView: View {
         ScrollView {
             LazyVGrid(columns: [GridItem(.adaptive(minimum: 150))], spacing: 20) {
                 ForEach(projects) { project in
-                    VStack {
-                        Image(systemName: "folder")
-                            .font(.system(size: 40))
-                        Text(project.name)
-                            .lineLimit(1)
+                    LiquidGlassCard(cornerRadius: 12, style: .standard) {
+                        VStack(spacing: 8) {
+                            Image(systemName: "folder.fill")
+                                .font(.system(size: 38))
+                                .foregroundStyle(Color.accentColor)
+                            Text(project.name)
+                                .font(.headline)
+                                .lineLimit(1)
+                        }
+                        .frame(maxWidth: .infinity)
                     }
-                    .padding()
-                    .background(Color.secondary.opacity(0.1))
-                    .cornerRadius(8)
+                    .contentShape(Rectangle())
                     .onTapGesture {
                         onSelect(project)
                     }

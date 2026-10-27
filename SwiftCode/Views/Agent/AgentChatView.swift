@@ -68,7 +68,7 @@ public struct AgentChatView: View {
                     .help("Toggle Plan & Tasks")
                 }
                 .padding(10)
-                .background(Color(NSColor.windowBackgroundColor))
+                .background(VisualEffectView(material: .headerView, blendingMode: .withinWindow))
 
                 Divider()
 
@@ -189,7 +189,7 @@ public struct AgentChatView: View {
                         .buttonStyle(.plain)
                     }
                     .padding(12)
-                    .background(Color(NSColor.windowBackgroundColor))
+                    .background(VisualEffectView(material: .headerView, blendingMode: .withinWindow))
 
                     Divider()
 
@@ -197,7 +197,7 @@ public struct AgentChatView: View {
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
                 }
                 .frame(minWidth: 200, idealWidth: 250, maxWidth: 350)
-                .background(Color(NSColor.controlBackgroundColor))
+                .background(VisualEffectView(material: .sidebar, blendingMode: .withinWindow))
             }
         }
         .sheet(isPresented: $showHistorySheet) {
@@ -290,8 +290,7 @@ struct ChatHistoryBrowserSheet: View {
                         .textFieldStyle(.plain)
                 }
                 .padding(8)
-                .background(Color(NSColor.controlBackgroundColor))
-                .cornerRadius(8)
+                .liquidGlass(style: .subtle, cornerRadius: 8)
 
                 Picker("Sort", selection: $sortOption) {
                     ForEach(SortOption.allCases) { option in
@@ -311,7 +310,7 @@ struct ChatHistoryBrowserSheet: View {
                 .buttonStyle(.borderedProminent)
             }
             .padding(15)
-            .background(Color(NSColor.windowBackgroundColor).opacity(0.4))
+            .background(VisualEffectView(material: .headerView, blendingMode: .withinWindow))
 
             Divider()
 

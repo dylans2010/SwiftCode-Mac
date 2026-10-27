@@ -25,8 +25,7 @@ struct SearchSidebarView: View {
                 }
             }
             .padding(8)
-            .background(Color(NSColor.controlBackgroundColor))
-            .cornerRadius(6)
+            .liquidGlass(style: .subtle, cornerRadius: 8)
             .padding()
 
             if isSearching {
@@ -60,9 +59,8 @@ struct SearchSidebarView: View {
                             .font(.system(.caption, design: .monospaced))
                             .lineLimit(2)
                             .foregroundStyle(.primary)
-                            .padding(4)
-                            .background(Color.accentColor.opacity(0.05))
-                            .cornerRadius(4)
+                            .padding(6)
+                            .liquidGlass(style: .subtle, cornerRadius: 6, tint: .accentColor)
                     }
                     .padding(.vertical, 4)
                 }

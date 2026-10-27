@@ -37,8 +37,7 @@ struct PreviewConsoleView: View {
                         }
                         .padding(8)
                     }
-                    .background(Color.black.opacity(0.12))
-                    .cornerRadius(6)
+                    .liquidGlass(style: .hud, cornerRadius: 6)
                     .frame(height: 120)
                 }
                 .padding()

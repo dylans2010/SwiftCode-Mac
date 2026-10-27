@@ -75,8 +75,7 @@ struct PreviewConfigurationView: View {
             }
         }
         .padding(8)
-        .background(Color.secondary.opacity(0.08))
-        .cornerRadius(8)
+        .liquidGlass(style: .floatingBar, cornerRadius: 8)
         .simulatorWorkspaceEmbedded()
     }
 }

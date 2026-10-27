@@ -18,14 +18,20 @@ struct AIChatMessageListView: View {
                                 .font(.body)
                                 .textSelection(.enabled)
                                 .padding(10)
-                                .background(message.role == .user ? Color.blue.opacity(0.12) : Color.secondary.opacity(0.12))
-                                .cornerRadius(8)
+                                .liquidGlass(
+                                    style: message.role == .user ? .prominent : .standard,
+                                    cornerRadius: 10,
+                                    tint: message.role == .user ? .accentColor : nil
+                                )
                         } else {
                             MarkdownBlockListView(blocks: blocks)
                                 .textSelection(.enabled)
                                 .padding(10)
-                                .background(message.role == .user ? Color.blue.opacity(0.12) : Color.secondary.opacity(0.12))
-                                .cornerRadius(8)
+                                .liquidGlass(
+                                    style: message.role == .user ? .prominent : .standard,
+                                    cornerRadius: 10,
+                                    tint: message.role == .user ? .accentColor : nil
+                                )
                         }
                     }
                 }

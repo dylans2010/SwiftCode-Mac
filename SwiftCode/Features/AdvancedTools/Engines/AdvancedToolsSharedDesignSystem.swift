@@ -19,7 +19,7 @@ struct AdvancedToolScreen<Content: View>: View {
             }
             .background {
                 #if canImport(AppKit)
-                Color(NSColor.windowBackgroundColor)
+                VisualEffectView(material: .contentBackground, blendingMode: .withinWindow)
                 #else
                 Color(uiColor: .systemBackground)
                 #endif
@@ -49,11 +49,7 @@ struct AdvancedToolCard<Content: View>: View {
         }
         .padding(14)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: 14, style: .continuous)
-                .strokeBorder(Color.primary.opacity(0.08), lineWidth: 1)
-        )
+        .liquidGlass(style: .standard, cornerRadius: 14)
     }
 }
 
@@ -72,6 +68,6 @@ struct MetricPill: View {
         }
         .padding(12)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color.accentColor.opacity(0.08), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .liquidGlass(style: .subtle, cornerRadius: 12, tint: .accentColor)
     }
 }

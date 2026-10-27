@@ -99,7 +99,7 @@ struct ToolbarCustomizationView: View {
                 }
             }
             .scrollContentBackground(.hidden)
-            .background(Color(red: 0.10, green: 0.10, blue: 0.14))
+            .liquidGlass(style: .sheet, cornerRadius: 0)
             .navigationTitle("Customize Toolbar")
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {

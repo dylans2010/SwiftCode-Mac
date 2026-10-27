@@ -10,7 +10,7 @@ struct BuildConsoleView: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding()
         }
-        .background(Color.black)
+        .liquidGlass(style: .hud, cornerRadius: 0)
         .foregroundStyle(.white)
     }
 }

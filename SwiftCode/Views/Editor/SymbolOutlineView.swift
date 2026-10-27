@@ -69,7 +69,7 @@ struct SymbolOutlineView: View {
             }
             .frame(maxHeight: .infinity)
         }
-        .background(Color(red: 0.08, green: 0.08, blue: 0.12))
+        .liquidGlass(style: .sidebar, cornerRadius: 0)
         .preferredColorScheme(.dark)
         .onAppear { analyzeCurrentFile() }
         .onChange(of: sessionStore.activeFileContent) { _, _ in analyzeCurrentFile() }

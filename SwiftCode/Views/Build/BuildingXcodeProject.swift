@@ -198,15 +198,14 @@ public struct BuildingXcodeProject: View {
                         }
                         .padding(8)
                         .frame(height: 120)
-                        .background(Color.black)
-                        .cornerRadius(8)
+                        .liquidGlass(style: .hud, cornerRadius: 8)
                     }
                 }
             }
         }
         .padding(24)
         .frame(width: 500, height: 550)
-        .background(Color(NSColor.windowBackgroundColor))
+        .liquidGlass(style: .sheet, cornerRadius: 16)
         .onAppear {
             initializeDefaults()
         }

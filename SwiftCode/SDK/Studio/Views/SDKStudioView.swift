@@ -13,7 +13,7 @@ public struct SDKStudioView: View {
     @State private var showSDKFirstLaunchInstaller = false
     @State private var resourceError: String?
 
-    public init(initialSection: SDKStudioSection = .projects) {
+    public init(initialSection: SDKStudioSection = SDKStudioWindowManager.shared.currentSection) {
         _selection = State(initialValue: initialSection)
     }
 
@@ -30,6 +30,9 @@ public struct SDKStudioView: View {
                 studioDetailView(for: selection)
             }
             .id(selection)
+        }
+        .onChange(of: selection) { _, newSection in
+            SDKStudioWindowManager.shared.updateSection(newSection)
         }
         .navigationTitle("SwiftCode Studio")
         .toolbar {

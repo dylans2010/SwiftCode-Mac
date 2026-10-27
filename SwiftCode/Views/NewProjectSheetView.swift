@@ -6,11 +6,13 @@ public struct NewProjectSheetView: View {
     var viewModel: WelcomeViewModel
     @Environment(\.dismiss) var dismiss
 
+    let initialMode: SelectionMode
     @State private var mode: SelectionMode = .create
     @State private var hoveredItem: SelectionMode? = nil
     @State private var showingImportNameAlert = false
     @State private var pendingImportURL: URL?
     @State private var pendingImportName = ""
+    @State private var isHoveringCancel = false
 
     public enum SelectionMode: String, CaseIterable, Identifiable {
         case create = "New Project"
@@ -55,9 +57,9 @@ public struct NewProjectSheetView: View {
 
         public var tint: Color {
             switch self {
-            case .create: Color(red: 0.106, green: 0.404, blue: 0.863)
+            case .create: .accentColor
             case .importFolder: .blue
-            case .clone: Color(red: 0.35, green: 0.65, blue: 0.98)
+            case .clone: .cyan
             case .xcodeproj: .indigo
             case .scproj: .teal
             }
@@ -66,6 +68,7 @@ public struct NewProjectSheetView: View {
 
     public init(viewModel: WelcomeViewModel, initialMode: SelectionMode = .create) {
         self.viewModel = viewModel
+        self.initialMode = initialMode
         self._mode = State(initialValue: initialMode)
     }
 
@@ -89,18 +92,49 @@ public struct NewProjectSheetView: View {
                         .fill(Color.white.opacity(0.08))
                         .frame(height: 1)
 
-                    ScrollView {
-                        contentView
-                            .padding(24)
-                            .frame(maxWidth: .infinity, alignment: .topLeading)
+                    if mode == .create {
+                        TemplatePickerView(
+                            viewModel: viewModel,
+                            showsHeader: false,
+                            showsBackButton: false
+                        )
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    } else {
+                        ScrollView {
+                            contentView
+                                .padding(24)
+                                .frame(maxWidth: .infinity, alignment: .topLeading)
+                        }
                     }
                 }
-                .background(Color(red: 0.082, green: 0.102, blue: 0.180))
+                .background(VisualEffectView(material: .contentBackground, blendingMode: .withinWindow))
             }
+            .toolbar(.hidden, for: .windowToolbar)
+            .toolbar(.hidden)
         }
+        .toolbar(.hidden, for: .windowToolbar)
+        .toolbar(.hidden)
         .frame(width: 800, height: 580)
-        .background(Color(red: 0.082, green: 0.102, blue: 0.180))
+        .background(
+            ZStack {
+                VisualEffectView(material: .sheet, blendingMode: .withinWindow)
+                Rectangle()
+                    .fill(.ultraThinMaterial)
+                    .opacity(0.35)
+                Color.white.opacity(0.02)
+            }
+        )
+        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .overlay(
+            SpecularBorder(cornerRadius: 16, lineWidth: 1)
+        )
         .preferredColorScheme(.dark)
+        .onAppear {
+            mode = initialMode
+        }
+        .onChange(of: initialMode) { _, newMode in
+            mode = newMode
+        }
         .alert("Project Name", isPresented: $showingImportNameAlert) {
             TextField("Enter project name", text: $pendingImportName)
             Button("Import") {
@@ -178,7 +212,7 @@ public struct NewProjectSheetView: View {
                                 RoundedRectangle(cornerRadius: 10, style: .continuous)
                                     .fill(
                                         isSelected
-                                            ? Color(red: 0.106, green: 0.404, blue: 0.863)
+                                            ? Color.accentColor
                                             : (isHovered ? Color.white.opacity(0.06) : Color.clear)
                                     )
                             )
@@ -214,16 +248,7 @@ public struct NewProjectSheetView: View {
             .padding(.bottom, 6)
         }
         .padding(14)
-        .background(
-            LinearGradient(
-                colors: [
-                    Color(red: 0.075, green: 0.094, blue: 0.168),
-                    Color(red: 0.063, green: 0.082, blue: 0.148)
-                ],
-                startPoint: .top,
-                endPoint: .bottom
-            )
-        )
+        .background(VisualEffectView(material: .sidebar, blendingMode: .withinWindow))
     }
 
     // MARK: - Header
@@ -278,24 +303,30 @@ public struct NewProjectSheetView: View {
             } label: {
                 Text("Cancel")
                     .font(.system(size: 12, weight: .medium))
-                    .foregroundStyle(Color.white.opacity(0.85))
+                    .foregroundStyle(Color.white.opacity(isHoveringCancel ? 1.0 : 0.85))
                     .padding(.horizontal, 14)
                     .padding(.vertical, 6)
                     .background(
                         RoundedRectangle(cornerRadius: 8, style: .continuous)
-                            .fill(Color.white.opacity(0.08))
+                            .fill(Color.white.opacity(isHoveringCancel ? 0.14 : 0.08))
                     )
                     .overlay(
                         RoundedRectangle(cornerRadius: 8, style: .continuous)
-                            .stroke(Color.white.opacity(0.12), lineWidth: 1)
+                            .stroke(Color.white.opacity(isHoveringCancel ? 0.22 : 0.12), lineWidth: 1)
                     )
             }
             .buttonStyle(.plain)
+            .onHover { isHoveringCancel = $0 }
             .keyboardShortcut(.cancelAction)
         }
         .padding(.horizontal, 24)
         .padding(.vertical, 16)
-        .background(Color(red: 0.082, green: 0.102, blue: 0.180).opacity(0.95))
+        .background(
+            ZStack {
+                VisualEffectView(material: .headerView, blendingMode: .withinWindow)
+                Color.white.opacity(0.03)
+            }
+        )
     }
 
     // MARK: - Content View
@@ -304,24 +335,12 @@ public struct NewProjectSheetView: View {
     private var contentView: some View {
         switch mode {
         case .create:
-            actionPanel(
-                icon: "sparkles",
-                title: "Scaffold from Starter Templates",
-                description: "Choose an app, library, multiplatform, or command line tool template with full build structures, files, configurations, and sensible defaults automatically configured.",
-                tint: Color(red: 0.106, green: 0.404, blue: 0.863),
-                actionTitle: "Choose Scaffold Template",
-                actionIcon: "square.grid.2x2.fill"
-            ) {
-                NavigationLink(destination: TemplatePickerView(viewModel: viewModel)) {
-                    Label("Choose Template", systemImage: "square.grid.2x2.fill")
-                        .font(.headline)
-                        .foregroundColor(.white)
-                        .padding(.vertical, 10)
-                        .frame(maxWidth: .infinity)
-                }
-                .buttonStyle(.borderedProminent)
-                .tint(Color(red: 0.106, green: 0.404, blue: 0.863))
-            }
+            TemplatePickerView(
+                viewModel: viewModel,
+                showsHeader: false,
+                showsBackButton: false
+            )
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
 
         case .clone:
             GitCloneSheetView(viewModel: viewModel)
@@ -421,21 +440,7 @@ public struct NewProjectSheetView: View {
         }
         .padding(24)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(
-            RoundedRectangle(cornerRadius: 20, style: .continuous)
-                .fill(Color.white.opacity(0.04))
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: 20, style: .continuous)
-                .stroke(
-                    LinearGradient(
-                        colors: [Color.white.opacity(0.12), Color.white.opacity(0.04)],
-                        startPoint: .topLeading,
-                        endPoint: .bottomTrailing
-                    ),
-                    lineWidth: 1
-                )
-        )
+        .liquidGlass(style: .subtle, cornerRadius: 20)
     }
 
     private var title: String {

@@ -67,7 +67,7 @@ struct EditExtensionView: View {
                 deleteSection
             }
             .scrollContentBackground(.hidden)
-            .background(Color(red: 0.08, green: 0.08, blue: 0.12).ignoresSafeArea())
+            .liquidGlass(style: .sheet, cornerRadius: 0)
             .navigationTitle("Edit Extension")
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
@@ -268,7 +268,7 @@ struct EditExtensionView: View {
                 }
             }
             .scrollContentBackground(.hidden)
-            .background(Color(red: 0.08, green: 0.08, blue: 0.12).ignoresSafeArea())
+            .liquidGlass(style: .sheet, cornerRadius: 0)
             .navigationTitle("Add File")
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
@@ -303,7 +303,7 @@ struct EditExtensionView: View {
                     .scrollContentBackground(.hidden)
                     .padding()
             }
-            .background(Color(red: 0.08, green: 0.08, blue: 0.12).ignoresSafeArea())
+            .liquidGlass(style: .sheet, cornerRadius: 0)
             .navigationTitle("Edit File")
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {

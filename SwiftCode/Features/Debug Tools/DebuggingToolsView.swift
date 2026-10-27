@@ -50,7 +50,7 @@ struct DebuggingToolsView: View {
                 .padding()
             }
             .navigationTitle("Debug Tools")
-            .background(Color(red: 0.10, green: 0.10, blue: 0.14).ignoresSafeArea())
+            .liquidGlass(style: .sheet, cornerRadius: 0)
         }
     }
 
@@ -62,7 +62,7 @@ struct DebuggingToolsView: View {
         }
         .padding()
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 12))
+        .liquidGlass(style: .standard, cornerRadius: 12)
     }
 
     private func logList(_ rows: [String]) -> some View {

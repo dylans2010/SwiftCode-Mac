@@ -21,8 +21,7 @@ struct PreviewCanvasView: View {
                     Text("Open a SwiftUI View file containing a #Preview macro or PreviewProvider definition.")
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .background(Color.secondary.opacity(0.04))
-                .cornerRadius(12)
+                .liquidGlass(style: .subtle, cornerRadius: 12)
             } else {
                 GroupBox {
                     VStack(alignment: .leading, spacing: 14) {
@@ -47,8 +46,7 @@ struct PreviewCanvasView: View {
                             }
                             .padding(32)
                         }
-                        .background(Color.black.opacity(0.05))
-                        .cornerRadius(8)
+                        .liquidGlass(style: .standard, cornerRadius: 8)
                     }
                     .padding()
                 }

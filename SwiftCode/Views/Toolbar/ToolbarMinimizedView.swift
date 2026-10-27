@@ -11,12 +11,13 @@ struct ToolbarMinimizedView: View {
             Image(systemName: isExpanded ? "chevron.down" : "chevron.up")
                 .font(.system(size: 12, weight: .semibold))
                 .frame(width: 28, height: 28)
-                .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 6))
+                .liquidGlass(style: .floatingBar, cornerRadius: 6)
                 .foregroundStyle(.primary)
         }
         .buttonStyle(.plain)
         .popover(isPresented: $isExpanded, arrowEdge: .top) {
             ToolbarExpandedPanelView(isPresented: $isExpanded)
+                .liquidGlass(style: .sheet, cornerRadius: 12)
                 .preferredColorScheme(.dark)
         }
         .help("Expand Toolbar")
@@ -65,7 +66,7 @@ struct ToolbarExpandedPanelView: View {
                 .padding(.horizontal, 16)
                 .padding(.vertical, 10)
                 .frame(maxWidth: .infinity, alignment: .leading)
-                .background(Color.primary.opacity(0.05))
+                .background(VisualEffectView(material: .headerView, blendingMode: .withinWindow))
 
             LazyVGrid(columns: [GridItem(.flexible()), GridItem(.flexible())], spacing: 8) {
                 ForEach(tools) { tool in
@@ -100,7 +101,7 @@ struct ToolbarExpandedPanelView: View {
             }
             .padding(.horizontal, 12)
             .padding(.vertical, 12)
-            .background(Color.primary.opacity(0.03), in: RoundedRectangle(cornerRadius: 10))
+            .liquidGlass(style: .standard, cornerRadius: 10)
         }
         .buttonStyle(.plain)
     }

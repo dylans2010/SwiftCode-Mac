@@ -218,7 +218,7 @@ struct WorkflowEditorView: View {
             .buttonStyle(.borderedProminent)
         }
         .padding()
-        .background(Color(NSColor.windowBackgroundColor))
+        .background(VisualEffectView(material: .headerView, blendingMode: .withinWindow))
     }
 
     private var validationIcon: String {

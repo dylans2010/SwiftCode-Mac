@@ -57,7 +57,8 @@ struct AgentInputBarView: View {
             }
             .padding()
         }
-        .background(Color(NSColor.windowBackgroundColor))
+        .background(VisualEffectView(material: .headerView, blendingMode: .withinWindow))
+        .overlay(Divider(), alignment: .top)
         .popover(isPresented: $showingAttachments) {
             AgentAttachmentPickerView(attachments: $viewModel.attachments)
                 .frame(width: 300, height: 400)

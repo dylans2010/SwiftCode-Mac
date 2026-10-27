@@ -40,17 +40,26 @@ public final class NativeSettingsWindowController: NSWindowController, NSToolbar
             defer: false
         )
 
-        window.minSize = NSSize(width: NativeSettingsLayout.width, height: NativeSettingsLayout.height)
+        window.minSize = NSSize(width: 740, height: 480)
+        window.maxSize = NSSize(width: 10000, height: 10000)
         window.setContentSize(NSSize(width: NativeSettingsLayout.width, height: NativeSettingsLayout.height))
         window.setFrameAutosaveName("NativeSafariSettingsWindow")
         window.title = SettingsCategory.general.title
         window.titleVisibility = .visible
         window.titlebarAppearsTransparent = false
-        window.toolbarStyle = .preference
+        window.toolbarStyle = .unified
         window.titlebarSeparatorStyle = .line
+        window.isOpaque = true
         window.backgroundColor = .windowBackgroundColor
         window.isReleasedWhenClosed = false
-        window.collectionBehavior = [.managed]
+        window.collectionBehavior = [.fullScreenPrimary, .managed]
+
+        // Explicitly ensure standard window buttons are enabled and not hidden
+        window.standardWindowButton(.closeButton)?.isHidden = false
+        window.standardWindowButton(.miniaturizeButton)?.isHidden = false
+        window.standardWindowButton(.zoomButton)?.isHidden = false
+        window.standardWindowButton(.miniaturizeButton)?.isEnabled = true
+        window.standardWindowButton(.zoomButton)?.isEnabled = true
 
         super.init(window: window)
         window.delegate = self
@@ -108,8 +117,7 @@ public final class NativeSettingsWindowController: NSWindowController, NSToolbar
             window.toolbar?.selectedItemIdentifier = selectedCategory.toolbarIdentifier
         }
 
-        // Ensure window always preserves the set dimensions
-        window.setContentSize(NSSize(width: NativeSettingsLayout.width, height: NativeSettingsLayout.height))
+        // Do not reset window.setContentSize to fixed dimensions here to preserve user resizing and full-screen state
     }
 
     // MARK: - Public Window Management Methods
@@ -128,24 +136,32 @@ public final class NativeSettingsWindowController: NSWindowController, NSToolbar
         guard let window = self.window else { return }
 
         window.isReleasedWhenClosed = false
-        window.setContentSize(NSSize(width: NativeSettingsLayout.width, height: NativeSettingsLayout.height))
+        window.isOpaque = true
+        window.backgroundColor = .windowBackgroundColor
+        window.titlebarAppearsTransparent = false
+        window.titlebarSeparatorStyle = .line
+        window.collectionBehavior = [.fullScreenPrimary, .managed]
+        window.standardWindowButton(.closeButton)?.isHidden = false
+        window.standardWindowButton(.miniaturizeButton)?.isHidden = false
+        window.standardWindowButton(.zoomButton)?.isHidden = false
+        window.standardWindowButton(.miniaturizeButton)?.isEnabled = true
+        window.standardWindowButton(.zoomButton)?.isEnabled = true
 
-        // Find active app root / main window (WelcomeView or WorkspaceHostView)
-        let mainWindow = NSApp.mainWindow ?? NSApp.keyWindow ?? NSApp.windows.first(where: { $0.isVisible && $0 != window && !($0 is NSPanel) })
+        if !window.isVisible {
+            let settingsWidth = NativeSettingsLayout.width
+            let settingsHeight = NativeSettingsLayout.height
 
-        if let main = mainWindow {
-            if !window.isVisible {
+            let mainWindow = NSApp.mainWindow ?? NSApp.keyWindow ?? NSApp.windows.first(where: { $0.isVisible && $0 != window && !($0 is NSPanel) })
+            if let main = mainWindow {
                 let mainFrame = main.frame
-                let settingsWidth = NativeSettingsLayout.width
-                let settingsHeight = NativeSettingsLayout.height
                 let originX = mainFrame.origin.x + (mainFrame.width - settingsWidth) / 2.0
                 let originY = mainFrame.origin.y + (mainFrame.height - settingsHeight) / 2.0
                 let targetFrame = NSRect(x: originX, y: originY, width: settingsWidth, height: settingsHeight)
                 window.setFrame(targetFrame, display: true)
+            } else {
+                window.setContentSize(NSSize(width: settingsWidth, height: settingsHeight))
+                window.center()
             }
-            window.order(.above, relativeTo: main.windowNumber)
-        } else if !window.isVisible {
-            window.center()
         }
 
         window.makeKeyAndOrderFront(nil)
@@ -190,8 +206,17 @@ public final class NativeSettingsWindowController: NSWindowController, NSToolbar
         return item
     }
 
-    @objc private func categoryToolbarItemClicked(_ sender: NSToolbarItem) {
-        if let category = SettingsCategory.allCases.first(where: { $0.toolbarIdentifier == sender.itemIdentifier }) {
+    @objc private func categoryToolbarItemClicked(_ sender: Any) {
+        let identifier: NSToolbarItem.Identifier?
+        if let item = sender as? NSToolbarItem {
+            identifier = item.itemIdentifier
+        } else if let toolbar = window?.toolbar, let selected = toolbar.selectedItemIdentifier {
+            identifier = selected
+        } else {
+            identifier = nil
+        }
+        guard let validIdentifier = identifier else { return }
+        if let category = SettingsCategory.allCases.first(where: { $0.toolbarIdentifier == validIdentifier }) {
             self.selectedCategory = category
         }
     }

@@ -60,7 +60,7 @@ struct GoToLineView: View {
                 Spacer()
             }
             .padding(.top, 30)
-            .background(Color(red: 0.10, green: 0.10, blue: 0.14))
+            .liquidGlass(style: .sheet, cornerRadius: 0)
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
                     Button("Cancel") { dismiss() }

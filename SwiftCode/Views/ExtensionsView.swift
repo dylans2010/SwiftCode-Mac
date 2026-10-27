@@ -77,7 +77,7 @@ struct ExtensionsView: View {
                     .padding(.horizontal, 12)
                     .padding(.vertical, 8)
                 }
-                .background(.background.opacity(0.4))
+                .background(VisualEffectView(material: .headerView, blendingMode: .withinWindow))
 
                 Divider()
 
@@ -191,8 +191,7 @@ struct ExtensionsView: View {
                             }
                         }
                         .padding()
-                        .background(Color.white.opacity(0.04))
-                        .cornerRadius(12)
+                        .liquidGlass(style: .standard, cornerRadius: 12)
 
                         // Description
                         VStack(alignment: .leading, spacing: 8) {

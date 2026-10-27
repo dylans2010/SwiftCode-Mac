@@ -73,7 +73,7 @@ struct WorkspaceView: View {
                         FileNavigatorSidebarView(viewModel: viewModel.projectTree)
                     }
                     .frame(minWidth: 200, idealWidth: 240, maxWidth: 320)
-                    .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 22, style: .continuous))
+                    .liquidGlass(style: .sidebar, cornerRadius: 18)
                     .padding(8)
                     .transition(.move(edge: .leading).combined(with: .opacity))
 
@@ -207,7 +207,7 @@ struct WorkspaceView: View {
 
                     InfoProjView(project: project)
                         .frame(width: 320)
-                        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 16))
+                        .liquidGlass(style: .sidebar, cornerRadius: 16)
                         .padding(8)
                         .transition(.move(edge: .trailing).combined(with: .opacity))
                 }
@@ -301,7 +301,9 @@ struct WorkspaceView: View {
         }
         .onReceive(NotificationCenter.default.publisher(for: .toolbarToolActivated)) { notification in
             if let toolId = notification.userInfo?["toolID"] as? String {
-                if toolId == "ai_code_gen" || toolId == "assist_view" || toolId == "runAgent" || toolId == "ai_agent" {
+                if toolId == "studio" || toolId == "sdk_studio" {
+                    SDKStudioWindowManager.shared.openStudio()
+                } else if toolId == "ai_code_gen" || toolId == "assist_view" || toolId == "runAgent" || toolId == "ai_agent" {
                     withAnimation(.spring()) {
                         showAgentInspector = true
                         if let session = sessionStore.activeSession {
@@ -313,6 +315,9 @@ struct WorkspaceView: View {
                     activeSheet = destination
                 }
             }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("OpenStudio"))) { _ in
+            SDKStudioWindowManager.shared.openStudio()
         }
         .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("com.swiftcode.openFileInWorkspace"))) { notification in
             if let filePath = notification.userInfo?["filePath"] as? String {

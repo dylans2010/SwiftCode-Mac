@@ -23,7 +23,7 @@ struct AIAssistantPanelView: View {
                 }
             }
         }
-        .background(Color.secondary.opacity(0.05))
+        .background(VisualEffectView(material: .sidebar, blendingMode: .withinWindow))
     }
 
     private func handleAIAction(_ action: AIAction, content: String) {

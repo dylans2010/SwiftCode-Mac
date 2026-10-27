@@ -194,7 +194,7 @@ struct CommandPaletteView: View {
                         }
                     }
                     .padding(10)
-                    .background(Color.white.opacity(0.06), in: RoundedRectangle(cornerRadius: 10))
+                    .liquidGlass(style: .subtle, cornerRadius: 10)
 
                     Picker("Category", selection: $selectedCategory) {
                         ForEach(CommandCategory.allCases) { cat in
@@ -204,7 +204,7 @@ struct CommandPaletteView: View {
                     .pickerStyle(.segmented)
                 }
                 .padding()
-                .background(.ultraThinMaterial)
+                .background(VisualEffectView(material: .headerView, blendingMode: .withinWindow))
 
                 Divider().opacity(0.3)
 
@@ -214,7 +214,7 @@ struct CommandPaletteView: View {
                     commandsListPane
                 }
             }
-            .background(Color(red: 0.10, green: 0.10, blue: 0.14))
+            .liquidGlass(style: .sheet, cornerRadius: 0)
             .navigationTitle("Command Palette")
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
@@ -310,8 +310,7 @@ struct CommandPaletteView: View {
                 }
                 .padding()
             }
-            .background(Color.black.opacity(0.2))
-            .cornerRadius(8)
+            .liquidGlass(style: .standard, cornerRadius: 8)
             .padding([.horizontal, .bottom])
         }
     }

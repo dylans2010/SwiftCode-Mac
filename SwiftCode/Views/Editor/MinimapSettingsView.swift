@@ -46,7 +46,7 @@ struct MinimapSettingsView: View {
                 }
             }
             .scrollContentBackground(.hidden)
-            .background(Color(red: 0.10, green: 0.10, blue: 0.14))
+            .liquidGlass(style: .sheet, cornerRadius: 0)
             .navigationTitle("Minimap Settings")
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
