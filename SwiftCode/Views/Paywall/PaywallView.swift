@@ -31,7 +31,6 @@ struct PaywallView: View {
                     Button("Done") { dismiss() }
                 }
             }
-            .background(Color(red: 0.05, green: 0.05, blue: 0.08).ignoresSafeArea())
         }
     }
 
@@ -44,7 +43,6 @@ struct PaywallView: View {
 
             Text("Unlock Your Potential")
                 .font(.title2.bold())
-                .foregroundStyle(.white)
 
             Text("Upgrade to SwiftCode Pro and get access to powerful features designed for professional developers.")
                 .font(.body)
@@ -62,14 +60,12 @@ struct PaywallView: View {
                     Image(systemName: "checkmark.circle.fill")
                         .foregroundStyle(.orange)
                     Text(feature)
-                        .foregroundStyle(.white)
                         .font(.subheadline)
                 }
             }
         }
         .padding()
-        .background(Color.white.opacity(0.05))
-        .clipShape(RoundedRectangle(cornerRadius: 16))
+        .liquidGlass(style: .standard, cornerRadius: 16)
     }
 
     private var productsSection: some View {
@@ -120,10 +116,9 @@ struct PaywallView: View {
                         }
                         .padding()
                         .frame(maxWidth: .infinity)
-                        .background(Color.orange)
-                        .foregroundStyle(.white)
-                        .clipShape(RoundedRectangle(cornerRadius: 12))
                     }
+                    .buttonStyle(.borderedProminent)
+                    .tint(.orange)
                 }
             }
         }

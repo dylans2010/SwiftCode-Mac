@@ -35,8 +35,7 @@ public struct CreateNewAppCompletionView: View {
                 }
             }
             .padding()
-            .background(Color(NSColor.controlBackgroundColor))
-            .cornerRadius(8)
+            .liquidGlass(style: .standard, cornerRadius: 8)
             .padding(.horizontal)
 
             if let message = moveStatusMessage {

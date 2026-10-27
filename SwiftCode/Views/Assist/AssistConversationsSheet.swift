@@ -67,11 +67,7 @@ public struct AssistConversationsSheet: View {
                         }
                         .padding(.horizontal, 10)
                         .padding(.vertical, 6)
-                        .background(Color.secondary.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 8)
-                                .stroke(Color.primary.opacity(0.06), lineWidth: 0.8)
-                        )
+                        .liquidGlass(style: .subtle, cornerRadius: 8)
 
                         Picker("Category", selection: $selectedTab) {
                             Text("Active (\(history.activeConversations.count))").tag(Tab.active)

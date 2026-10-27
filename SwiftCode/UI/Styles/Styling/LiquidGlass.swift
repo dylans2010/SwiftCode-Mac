@@ -201,6 +201,9 @@ public struct LiquidGlassBackground: View {
 
     public var cornerRadius: CGFloat
     public var opacity: CGFloat
+    // Retained for source compatibility; see LiquidGlassModifier. The
+    // AppKit material controls diffusion, so this is not rendered as a
+    // content blur.
     public var blurRadius: CGFloat
     public var material: NSVisualEffectView.Material
     public var blendingMode: NSVisualEffectView.BlendingMode
@@ -303,7 +306,13 @@ public struct LiquidGlassBackground: View {
 // MARK: - View Modifier
 
 /// Applies the native macOS Liquid Glass styling to any SwiftUI view.
+///
+/// `blurRadius` is retained for source compatibility only: neither
+/// `NSVisualEffectView` nor SwiftUI's materials expose an adjustable blur
+/// radius, and applying `.blur()` here would blur the view's own content.
+/// It is therefore intentionally not rendered, rather than faked.
 public struct LiquidGlassModifier: ViewModifier {
+    @Environment(\.liquidGlassStyle) private var environmentStyle
     public var cornerRadius: CGFloat
     public var opacity: CGFloat
     public var blurRadius: CGFloat
@@ -314,6 +323,9 @@ public struct LiquidGlassModifier: ViewModifier {
     public var borderWidth: CGFloat
     public var shadowRadius: CGFloat
     public var shadowY: CGFloat
+    // Set only by the style-based init; nil means the caller chose an
+    // explicit material, which the environment style must not override.
+    private var presetStyle: LiquidGlassStyle?
 
     public init(
         cornerRadius: CGFloat = 12,
@@ -337,6 +349,7 @@ public struct LiquidGlassModifier: ViewModifier {
         self.borderWidth = borderWidth
         self.shadowRadius = shadowRadius
         self.shadowY = shadowY
+        self.presetStyle = nil
     }
 
     public init(
@@ -356,22 +369,29 @@ public struct LiquidGlassModifier: ViewModifier {
         self.borderWidth = borderWidth
         self.shadowRadius = style.shadowRadius
         self.shadowY = style.shadowY
+        self.presetStyle = style
     }
 
     public func body(content: Content) -> some View {
-        content
+        // The environment style is the hierarchy default: it only replaces
+        // the default `.standard` preset, never an explicitly chosen preset
+        // or an explicit material. Previously `liquidGlassStyle` was set by
+        // `StylingBootstrap` but never read anywhere, so it had no effect.
+        let useEnvironmentStyle = presetStyle == .standard && environmentStyle != .standard
+        let effectiveStyle = useEnvironmentStyle ? environmentStyle : nil
+        return content
             .background(
                 LiquidGlassBackground(
                     cornerRadius: cornerRadius,
-                    opacity: opacity,
+                    opacity: effectiveStyle?.opacity ?? opacity,
                     blurRadius: blurRadius,
-                    material: material,
-                    blendingMode: blendingMode,
+                    material: effectiveStyle?.material ?? material,
+                    blendingMode: effectiveStyle?.blendingMode ?? blendingMode,
                     tint: tint,
                     showSpecularBorder: showSpecularBorder,
                     borderWidth: borderWidth,
-                    shadowRadius: shadowRadius,
-                    shadowY: shadowY
+                    shadowRadius: effectiveStyle?.shadowRadius ?? shadowRadius,
+                    shadowY: effectiveStyle?.shadowY ?? shadowY
                 )
             )
     }
@@ -387,6 +407,11 @@ public struct LiquidGlassCard<Content: View>: View {
     public var style: LiquidGlassStyle
     public var tint: Color?
     public var borderWidth: CGFloat
+    // Set only by the material-based init below; nil means "use `style`".
+    // Previously this init silently discarded its material/blendingMode
+    // arguments and always rendered `.standard`.
+    private var explicitMaterial: NSVisualEffectView.Material?
+    private var explicitBlendingMode: NSVisualEffectView.BlendingMode?
     @ViewBuilder public var content: () -> Content
 
     public init(
@@ -402,6 +427,8 @@ public struct LiquidGlassCard<Content: View>: View {
         self.style = style
         self.tint = tint
         self.borderWidth = borderWidth
+        self.explicitMaterial = nil
+        self.explicitBlendingMode = nil
         self.content = content
     }
 
@@ -419,18 +446,34 @@ public struct LiquidGlassCard<Content: View>: View {
         self.style = .standard
         self.tint = tint
         self.borderWidth = borderWidth
+        self.explicitMaterial = material
+        self.explicitBlendingMode = blendingMode
         self.content = content
     }
 
     public var body: some View {
-        content()
-            .padding(padding)
-            .liquidGlass(
-                style: style,
-                cornerRadius: cornerRadius,
-                tint: tint,
-                borderWidth: borderWidth
-            )
+        Group {
+            if let material = explicitMaterial {
+                content()
+                    .padding(padding)
+                    .liquidGlass(
+                        cornerRadius: cornerRadius,
+                        material: material,
+                        blendingMode: explicitBlendingMode ?? .withinWindow,
+                        tint: tint,
+                        borderWidth: borderWidth
+                    )
+            } else {
+                content()
+                    .padding(padding)
+                    .liquidGlass(
+                        style: style,
+                        cornerRadius: cornerRadius,
+                        tint: tint,
+                        borderWidth: borderWidth
+                    )
+            }
+        }
     }
 }
 

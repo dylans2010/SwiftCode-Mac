@@ -66,7 +66,7 @@ struct ErrorsPanelView: View {
                                     }
                                     Text(error.message)
                                         .font(.system(size: 13))
-                                        .foregroundStyle(.white.opacity(0.85))
+                                        .foregroundStyle(.primary)
                                         .lineLimit(2)
                                     HStack(spacing: 6) {
                                         Text(error.severity.rawValue)
@@ -92,7 +92,6 @@ struct ErrorsPanelView: View {
                     .scrollContentBackground(.hidden)
                 }
             }
-            .background(Color(red: 0.10, green: 0.10, blue: 0.14))
             .navigationTitle("Errors & Warnings")
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {

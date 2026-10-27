@@ -257,8 +257,7 @@ public struct SDKCapabilityRow: View {
         }
         .padding(12)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color(NSColor.controlBackgroundColor))
-        .cornerRadius(8)
+        .liquidGlass(style: .standard, cornerRadius: 8)
         .overlay(
             RoundedRectangle(cornerRadius: 8)
                 .stroke(isSelected && isGrantable ? Color.accentColor.opacity(0.4) : Color.clear, lineWidth: 1)

@@ -109,12 +109,7 @@ public struct VirtualizationDashboardView: View {
                                     Spacer()
                                 }
                                 .padding()
-                                .background(Color(NSColor.controlBackgroundColor))
-                                .cornerRadius(12)
-                                .overlay(
-                                    RoundedRectangle(cornerRadius: 12)
-                                        .stroke(Color.primary.opacity(0.08), lineWidth: 1)
-                                )
+                                .liquidGlass(style: .standard, cornerRadius: 12)
                             }
                             .buttonStyle(.plain)
 
@@ -143,12 +138,7 @@ public struct VirtualizationDashboardView: View {
                                     Spacer()
                                 }
                                 .padding()
-                                .background(Color(NSColor.controlBackgroundColor))
-                                .cornerRadius(12)
-                                .overlay(
-                                    RoundedRectangle(cornerRadius: 12)
-                                        .stroke(Color.primary.opacity(0.08), lineWidth: 1)
-                                )
+                                .liquidGlass(style: .standard, cornerRadius: 12)
                             }
                             .buttonStyle(.plain)
 
@@ -177,12 +167,7 @@ public struct VirtualizationDashboardView: View {
                                     Spacer()
                                 }
                                 .padding()
-                                .background(Color(NSColor.controlBackgroundColor))
-                                .cornerRadius(12)
-                                .overlay(
-                                    RoundedRectangle(cornerRadius: 12)
-                                        .stroke(Color.primary.opacity(0.08), lineWidth: 1)
-                                )
+                                .liquidGlass(style: .standard, cornerRadius: 12)
                             }
                             .buttonStyle(.plain)
 
@@ -211,12 +196,7 @@ public struct VirtualizationDashboardView: View {
                                     Spacer()
                                 }
                                 .padding()
-                                .background(Color(NSColor.controlBackgroundColor))
-                                .cornerRadius(12)
-                                .overlay(
-                                    RoundedRectangle(cornerRadius: 12)
-                                        .stroke(Color.primary.opacity(0.08), lineWidth: 1)
-                                )
+                                .liquidGlass(style: .standard, cornerRadius: 12)
                             }
                             .buttonStyle(.plain)
                         }
@@ -257,12 +237,7 @@ public struct VirtualizationDashboardView: View {
                                             }
                                             .padding()
                                             .frame(width: 180, height: 100)
-                                            .background(Color(NSColor.controlBackgroundColor))
-                                            .cornerRadius(10)
-                                            .overlay(
-                                                RoundedRectangle(cornerRadius: 10)
-                                                    .stroke(Color.primary.opacity(0.06), lineWidth: 1)
-                                            )
+                                            .liquidGlass(style: .standard, cornerRadius: 10)
                                         }
                                         .buttonStyle(.plain)
                                     }
@@ -437,12 +412,7 @@ public struct VirtualizationDashboardView: View {
                             }
                             .frame(maxWidth: .infinity)
                             .padding(.vertical, 32)
-                            .background(Color(NSColor.controlBackgroundColor))
-                            .cornerRadius(12)
-                            .overlay(
-                                RoundedRectangle(cornerRadius: 12)
-                                    .stroke(Color.primary.opacity(0.08), lineWidth: 1)
-                            )
+                            .liquidGlass(style: .standard, cornerRadius: 12)
                         } else {
                             VirtualMachineListView()
                         }
@@ -578,12 +548,7 @@ public struct VirtualizationDashboardView: View {
                                 }
                             }
                             .padding(12)
-                            .background(Color(NSColor.controlBackgroundColor))
-                            .cornerRadius(10)
-                            .overlay(
-                                RoundedRectangle(cornerRadius: 10)
-                                    .stroke(Color.primary.opacity(0.06), lineWidth: 1)
-                            )
+                            .liquidGlass(style: .standard, cornerRadius: 10)
                         }
                         .buttonStyle(.plain)
                     }

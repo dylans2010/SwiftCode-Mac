@@ -110,12 +110,7 @@ struct HomeProjectCardView: View {
         }
         .padding()
         .frame(width: 180, height: 150)
-        .background(Color(nsColor: .controlBackgroundColor).opacity(0.8))
-        .cornerRadius(12)
-        .overlay(
-            RoundedRectangle(cornerRadius: 12)
-                .stroke(Color.secondary.opacity(isHovered ? 0.4 : 0.1), lineWidth: 1)
-        )
+        .liquidGlass(style: .standard, cornerRadius: 12)
         .onHover { isHovered = $0 }
         .onTapGesture {
             onSelect()

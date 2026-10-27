@@ -75,8 +75,7 @@ struct AccessibilityContrastGridDevToolView: View {
                             .shadow(radius: 1)
                         }
                         .padding(8)
-                        .background(Color(NSColor.controlBackgroundColor))
-                        .cornerRadius(10)
+                        .liquidGlass(style: .standard, cornerRadius: 10)
                     }
                 }
             }

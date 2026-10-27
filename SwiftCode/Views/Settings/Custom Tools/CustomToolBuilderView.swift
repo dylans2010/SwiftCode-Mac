@@ -115,7 +115,7 @@ struct CustomToolBuilderView: View {
                 labeledTextEditor("Description", placeholder: "What does this tool do?", text: $toolDescription)
             }
             .padding()
-            .background(Color.white.opacity(0.05), in: RoundedRectangle(cornerRadius: 12))
+            .liquidGlass(style: .standard, cornerRadius: 12)
         }
     }
 
@@ -139,7 +139,7 @@ struct CustomToolBuilderView: View {
                 labeledField("Endpoint URL", placeholder: "Enter Endpoint URL", text: $endpoint)
             }
             .padding()
-            .background(Color.white.opacity(0.05), in: RoundedRectangle(cornerRadius: 12))
+            .liquidGlass(style: .standard, cornerRadius: 12)
 
             // Headers
             VStack(alignment: .leading, spacing: 8) {
@@ -169,7 +169,7 @@ struct CustomToolBuilderView: View {
                 }
             }
             .padding()
-            .background(Color.white.opacity(0.05), in: RoundedRectangle(cornerRadius: 12))
+            .liquidGlass(style: .standard, cornerRadius: 12)
 
             // Body Template
             VStack(alignment: .leading, spacing: 8) {
@@ -185,7 +185,7 @@ struct CustomToolBuilderView: View {
                     .font(.caption2).foregroundStyle(.secondary)
             }
             .padding()
-            .background(Color.white.opacity(0.05), in: RoundedRectangle(cornerRadius: 12))
+            .liquidGlass(style: .standard, cornerRadius: 12)
         }
     }
 
@@ -217,7 +217,7 @@ struct CustomToolBuilderView: View {
             }
         }
         .padding()
-        .background(Color.white.opacity(0.05), in: RoundedRectangle(cornerRadius: 12))
+        .liquidGlass(style: .standard, cornerRadius: 12)
     }
 
     // MARK: - Response Tab
@@ -229,7 +229,7 @@ struct CustomToolBuilderView: View {
                 labeledField("Response Parsing Hint", placeholder: "e.g. Extract .data.temperature as Double", text: $responseParsingHint)
             }
             .padding()
-            .background(Color.white.opacity(0.05), in: RoundedRectangle(cornerRadius: 12))
+            .liquidGlass(style: .standard, cornerRadius: 12)
         }
     }
 

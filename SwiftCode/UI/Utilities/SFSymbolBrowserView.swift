@@ -172,7 +172,7 @@ struct SFSymbolBrowserView: View {
                     }
                 }
                 .padding(10)
-                .background(Color.white.opacity(0.06), in: RoundedRectangle(cornerRadius: 10))
+                .background(Color.secondary.opacity(0.12), in: RoundedRectangle(cornerRadius: 10))
                 .padding(.horizontal, 12)
                 .padding(.vertical, 8)
 
@@ -196,7 +196,6 @@ struct SFSymbolBrowserView: View {
                     .padding(.vertical, 8)
                 }
             }
-            .background(Color(red: 0.10, green: 0.10, blue: 0.14))
             .navigationTitle("SF Symbols")
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
@@ -219,7 +218,7 @@ struct SFSymbolBrowserView: View {
             VStack(spacing: 6) {
                 Image(systemName: symbol.name)
                     .font(.system(size: 24))
-                    .foregroundStyle(.white)
+                    .foregroundStyle(.primary)
                     .frame(width: 44, height: 44)
 
                 Text(symbol.name)
@@ -231,7 +230,7 @@ struct SFSymbolBrowserView: View {
             }
             .frame(maxWidth: .infinity)
             .padding(.vertical, 8)
-            .background(Color.white.opacity(0.05), in: RoundedRectangle(cornerRadius: 8))
+            .background(Color.secondary.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
         }
         .buttonStyle(.plain)
     }
@@ -318,7 +317,7 @@ struct SymbolCustomizationView: View {
                             .foregroundStyle(.green)
                             .padding(10)
                             .frame(maxWidth: .infinity, alignment: .leading)
-                            .background(Color.black.opacity(0.3), in: RoundedRectangle(cornerRadius: 8))
+                            .background(Color.secondary.opacity(0.12), in: RoundedRectangle(cornerRadius: 8))
                     }
 
                     // Action Buttons
@@ -372,7 +371,6 @@ struct SymbolCustomizationView: View {
                 }
                 .padding()
             }
-            .background(Color(red: 0.10, green: 0.10, blue: 0.14))
             .navigationTitle(symbol.name)
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
@@ -413,7 +411,7 @@ struct SymbolCustomizationView: View {
             .font(.system(size: 64, weight: weight.fontWeight))
             .imageScale(scale.imageScale)
             .frame(width: 120, height: 120)
-            .background(Color.white.opacity(0.05), in: RoundedRectangle(cornerRadius: 16))
+            .background(Color.secondary.opacity(0.08), in: RoundedRectangle(cornerRadius: 16))
         }
     }
 

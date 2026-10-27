@@ -39,6 +39,9 @@ struct EditorTabBarView: View {
                         viewModel.selectedTabID = doc.id
                         viewModel.activeDocument = doc
                     }
+                    .accessibilityElement(children: .combine)
+                    .accessibilityLabel(doc.url.lastPathComponent)
+                    .accessibilityAddTraits(viewModel.selectedTabID == doc.id ? [.isButton, .isSelected] : [.isButton])
                     Divider()
                         .frame(height: 16)
                 }

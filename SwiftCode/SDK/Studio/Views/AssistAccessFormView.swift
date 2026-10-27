@@ -481,8 +481,7 @@ public struct AssistAccessFormView: View {
             }
         }
         .padding(12)
-        .background(.background, in: RoundedRectangle(cornerRadius: 10))
-        .overlay(RoundedRectangle(cornerRadius: 10).stroke(.quaternary, lineWidth: 1))
+        .liquidGlass(style: .standard, cornerRadius: 10)
         .alert("Deny this application?", isPresented: $confirmingDeny, presenting: denyingTarget) { target in
             Button("Cancel", role: .cancel) {}
             Button("Deny Application", role: .destructive) {

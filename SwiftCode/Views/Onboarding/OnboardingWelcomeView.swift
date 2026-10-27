@@ -38,13 +38,11 @@ struct OnboardingWelcomeView: View {
             } label: {
                 Text("Get Started")
                     .font(.headline)
-                    .foregroundStyle(.white)
                     .frame(maxWidth: .infinity)
-                    .padding()
-                    .background(Color.blue, in: RoundedRectangle(cornerRadius: 14))
-                    .padding(.horizontal, 40)
             }
-            .buttonStyle(.plain)
+            .buttonStyle(.borderedProminent)
+            .controlSize(.large)
+            .padding(.horizontal, 40)
 
             Text("By continuing, you agree to our Terms of Service.")
                 .font(.caption2)

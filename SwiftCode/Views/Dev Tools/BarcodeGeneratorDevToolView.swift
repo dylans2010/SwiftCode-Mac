@@ -80,8 +80,7 @@ struct BarcodeGeneratorDevToolView: View {
                 }
                 .frame(maxWidth: .infinity)
                 .padding()
-                .background(Color(NSColor.controlBackgroundColor))
-                .cornerRadius(10)
+                .liquidGlass(style: .standard, cornerRadius: 10)
             }
             .padding()
         }

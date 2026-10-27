@@ -36,8 +36,7 @@ struct AgentInputBarView: View {
                 TextField("Ask the agent anything...", text: $text)
                     .textFieldStyle(.plain)
                     .padding(8)
-                    .background(Color(NSColor.controlBackgroundColor))
-                    .cornerRadius(8)
+                    .liquidGlass(style: .subtle, cornerRadius: 8)
                     .onSubmit {
                         logger.log("[AgentInputBarView] Return pressed, triggering sendMessage.")
                         sendMessage()

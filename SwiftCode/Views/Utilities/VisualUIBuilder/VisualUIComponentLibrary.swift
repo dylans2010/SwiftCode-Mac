@@ -164,10 +164,7 @@ struct ComponentItemButton: View {
                     .lineLimit(1)
             }
             .frame(maxWidth: .infinity, minHeight: 70)
-            .background(
-                RoundedRectangle(cornerRadius: 8)
-                    .fill(isHovering ? Color.accentColor.opacity(0.08) : Color.secondary.opacity(0.03))
-            )
+            .liquidGlass(style: .subtle, cornerRadius: 8)
             .overlay(
                 RoundedRectangle(cornerRadius: 8)
                     .stroke(isHovering ? Color.accentColor.opacity(0.3) : Color.clear, lineWidth: 1)

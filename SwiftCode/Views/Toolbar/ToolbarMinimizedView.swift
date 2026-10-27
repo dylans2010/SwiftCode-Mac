@@ -18,7 +18,6 @@ struct ToolbarMinimizedView: View {
         .popover(isPresented: $isExpanded, arrowEdge: .top) {
             ToolbarExpandedPanelView(isPresented: $isExpanded)
                 .liquidGlass(style: .sheet, cornerRadius: 12)
-                .preferredColorScheme(.dark)
         }
         .help("Expand Toolbar")
     }

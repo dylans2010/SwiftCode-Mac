@@ -44,8 +44,7 @@ struct EnergyImpactMonitorDevToolView: View {
                     ProgressView(value: viewModel.scoreValue, total: 15.0)
                 }
                 .padding()
-                .background(Color(NSColor.controlBackgroundColor))
-                .cornerRadius(12)
+                .liquidGlass(style: .standard, cornerRadius: 12)
 
                 Divider()
 

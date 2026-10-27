@@ -1,0 +1,899 @@
+# LiquidGlass Migration Map — SwiftCode-Mac
+
+Baseline: `main` at `a07640bb` (pulled 2026-10-27, clean tree, in sync with `origin/main`).
+Design contract: `SwiftCode/UI/Styles/Styling/LiquidGlass.swift` — AppKit `NSVisualEffectView`-backed, not SwiftUI `.glassEffect()`.
+APIs: `VisualEffectView`, `LiquidGlassStyle` (standard / prominent / subtle / sheet / sidebar / floatingBar / hud), `LiquidGlassBackground`, `LiquidGlassModifier`, `.liquidGlass(...)`, `LiquidGlassCard`, `LiquidGlassGroupBoxStyle`, `liquidGlassEnabled` environment.
+Adoption at baseline: only 5 files reference `LiquidGlass`/`glassEffect` (including `LiquidGlass.swift` itself and `ModernGroupBoxStyle.swift`).
+Project deployment targets are mixed in the pbxproj (15.0 and 27.0 in different configurations) — verify per-target availability on the Mac before using any newer SwiftUI glass API; the current `LiquidGlass.swift` itself uses AppKit materials and does not depend on it.
+
+Status vocabulary: Pending / In Progress / Review Required / Done / Blocked / Not Applicable.
+No file is marked Done from this inventory alone. Audit of a file, not just editing it, is required before Done.
+Source-level verification only in this Linux environment. No `xcodebuild`, `xcrun`, or simulator tool was run. Compilation and runtime/layout verification remain for Dylan's Mac.
+
+## Integration results (2026-10-27, baseline a07640bb)
+
+- All 7 batches completed and their diffs were reviewed by the parent (hunk-by-hunk for changed files).
+- Changed source files: 51, +182 / -270 lines. No new files, no pbxproj changes, no deletions, no secrets in the diff.
+- No `.glassEffect()` in source; only the existing `.liquidGlass()` API was used. No Xcode tool was run; compilation/runtime verification remains for Dylan's Mac.
+- Batch results (scope counts include supporting/non-view files and two small overlaps — CommandPaletteView in batches 2+6, SFSymbolBrowserView in batches 1+7 — so batch scope totals exceed the 767 view-file count; do not sum them as unique files):
+  - Batch 1 Shared/Main chrome: 64 files audited, 9 changed (incl. LiquidGlass.swift shared-system fixes).
+  - Batch 2 Editor/Agent/Assist/AI: 88 files, 10 changed.
+  - Batch 3 Settings/Onboarding/Paywall/Transfer: 86 files, 3 changed.
+  - Batch 4 GitHub/Collaboration/Dashboard/Gists/Deployments/Build: 209 scope files, 7 view files changed.
+  - Batch 5 Dev Tools/Developer: 242 files, 15 changed.
+  - Batch 6 Utilities/AdvancedTools/Features/Tools/ViewModels: 269 scope files, 4 changed.
+  - Batch 7 Backend/Core/SDK/UI-Utilities: 102 files, 3 changed.
+- Retained deliberately: dense text/editor/log/table surfaces (ordinary native backgrounds), specialised AppKit/rendering, selection/state strokes and badges, intentionally dark sheets (Welcome, New Project, Template Picker, Import), CodeEditorView's dark theme, and SFSymbolBrowserView's remaining light-mode work is now fixed in Batch 1.
+- Outstanding Mac checks (not fixed from source alone): light/dark contrast in LocalBuild, CollaborationDashboard, Paywall, CustomToolBuilder (forced dark), CommandPalette white text, Errors/Diff panels, HUD AI cards, card shadows/hover states, nested Settings scrolling (SettingsMainWrapper vs Backups/Updates/Credits inner ScrollViews), DiffViewer long-line horizontal scroll, AgentChatView deprecated row VoiceOver, and SFSymbolBrowserView contrast (fixed, needs visual confirmation).
+
+## Summary
+
+- View-named Swift files (case-insensitive `*View*.swift`, excluding `Resources/`): **767**
+- UI/Shared infrastructure Swift files: **20**
+- AppKit-backed candidate files (`NSViewRepresentable` / `NSWindow` / `NSVisualEffectView`): **45** (overlap with the above is expected; these need care, not automatic replacement)
+
+### View files by top-level area
+
+- Views: 629
+- Backend: 38
+- Core: 32
+- SDK: 31
+- Features: 19
+- ViewModels: 11
+- Tools: 4
+- Models: 1
+- Services: 1
+- UI: 1
+
+## Batch plan (proposed, awaiting scope confirmation)
+
+- Batch 1 — Shared system + main chrome: `LiquidGlass.swift`, `ModernGroupBoxStyle.swift`, `Styling/` bootstrap/registry, main window, navigation, sidebar, toolbar, status bar.
+- Batch 2 — Editor, project/file browsing, source control.
+- Batch 3 — Assist and agent interfaces.
+- Batch 4 — Settings, authentication, onboarding, sheets/popovers/dialogs/inspectors.
+- Batch 5 — Feature views (build, debug, deployments, extensions, dev tools, utilities) in area order.
+- Batch 6 — SDK Studio views, then remaining Backend/Core/Features/ViewModels view files.
+
+Batch assignment is deliberately NOT finalised in this file until the scope question is answered: one giant uncompiled push to `main` vs. batched pushes with a Mac build gate between batches.
+
+## UI infrastructure files
+
+- `SwiftCode/Shared/Markdown/MarkdownBlockRenderer.swift` — Pending
+- `SwiftCode/Shared/Markdown/MarkdownRenderCache.swift` — Pending
+- `SwiftCode/Shared/Markdown/MarkdownRenderer.swift` — Done (reviewed 2026-10-27)
+- `SwiftCode/Shared/Markdown/MarkdownRenderOptions.swift` — Pending
+- `SwiftCode/UI/Styles/ModernGroupBoxStyle.swift` — Pending
+- `SwiftCode/UI/Styles/Styling/AdaptiveBreakpoints.swift` — Pending
+- `SwiftCode/UI/Styles/Styling/AdaptiveDashboardPage.swift` — Pending
+- `SwiftCode/UI/Styles/Styling/AdaptiveEditorPage.swift` — Pending
+- `SwiftCode/UI/Styles/Styling/AdaptiveGrid.swift` — Pending
+- `SwiftCode/UI/Styles/Styling/AdaptiveLayoutEngine.swift` — Pending
+- `SwiftCode/UI/Styles/Styling/AdaptivePage.swift` — Pending
+- `SwiftCode/UI/Styles/Styling/AdaptiveSettingsPage.swift` — Pending
+- `SwiftCode/UI/Styles/Styling/AdaptiveSheet.swift` — Pending
+- `SwiftCode/UI/Styles/Styling/AdaptiveSplitLayout.swift` — Pending
+- `SwiftCode/UI/Styles/Styling/AdaptiveWindowMetrics.swift` — Pending
+- `SwiftCode/UI/Styles/Styling/LiquidGlass.swift` — Done (reviewed 2026-10-27)
+- `SwiftCode/UI/Styles/Styling/MacDesktopOptimized.swift` — Pending
+- `SwiftCode/UI/Styles/Styling/StylingBootstrap.swift` — Pending
+- `SwiftCode/UI/Styles/Styling/StylingRegistry.swift` — Pending
+- `SwiftCode/UI/Utilities/SFSymbolBrowserView.swift` — Done (reviewed 2026-10-27)
+
+## View files (all discovered, Pending)
+
+- `SwiftCode/Backend/Assist/Subagents/Review/WorkerReviewEngine.swift` — Pending
+- `SwiftCode/Backend/Assist/Subagents/UI/WorkersInfoView.swift` — Pending
+- `SwiftCode/Backend/Assist/Subagents/UI/WorkersMainView.swift` — Pending
+- `SwiftCode/Backend/Assist/Subagents/UI/WorkersOnAssistView.swift` — Pending
+- `SwiftCode/Backend/Assist/Tools/AssistAutonomousReviewEngine.swift` — Pending
+- `SwiftCode/Backend/Assist/Tools/AssistFileHeadPreviewTool.swift` — Pending
+- `SwiftCode/Backend/Assist/Tools/AssistGitLogViewerTool.swift` — Pending
+- `SwiftCode/Backend/Assist/Tools/AssistRepoOverviewTool.swift` — Pending
+- `SwiftCode/Backend/Assist/Tools/AssistTreeViewTool.swift` — Pending
+- `SwiftCode/Backend/Assist/Tools/AssistViewMemoryTool.swift` — Pending
+- `SwiftCode/Backend/Assist/Tools/CodeReview.swift` — Pending
+- `SwiftCode/Backend/Persistence/Templates/AnalyticsDashboardViewTemplate.swift` — Pending
+- `SwiftCode/Backend/Persistence/Templates/AudioPlayerViewTemplate.swift` — Pending
+- `SwiftCode/Backend/Persistence/Templates/BudgetTrackerViewTemplate.swift` — Pending
+- `SwiftCode/Backend/Persistence/Templates/CalculatorViewTemplate.swift` — Pending
+- `SwiftCode/Backend/Persistence/Templates/CalendarViewTemplate.swift` — Pending
+- `SwiftCode/Backend/Persistence/Templates/ChatViewTemplate.swift` — Pending
+- `SwiftCode/Backend/Persistence/Templates/DashboardViewTemplate.swift` — Pending
+- `SwiftCode/Backend/Persistence/Templates/DrawingViewTemplate.swift` — Pending
+- `SwiftCode/Backend/Persistence/Templates/ECommerceViewTemplate.swift` — Pending
+- `SwiftCode/Backend/Persistence/Templates/FileBrowserViewTemplate.swift` — Pending
+- `SwiftCode/Backend/Persistence/Templates/FitnessTrackerViewTemplate.swift` — Pending
+- `SwiftCode/Backend/Persistence/Templates/LoginViewTemplate.swift` — Pending
+- `SwiftCode/Backend/Persistence/Templates/MapViewTemplate.swift` — Pending
+- `SwiftCode/Backend/Persistence/Templates/MarkdownEditorViewTemplate.swift` — Pending
+- `SwiftCode/Backend/Persistence/Templates/NewsReaderViewTemplate.swift` — Pending
+- `SwiftCode/Backend/Persistence/Templates/NotesViewTemplate.swift` — Pending
+- `SwiftCode/Backend/Persistence/Templates/OnboardingViewTemplate.swift` — Pending
+- `SwiftCode/Backend/Persistence/Templates/PhotoGalleryViewTemplate.swift` — Pending
+- `SwiftCode/Backend/Persistence/Templates/ProfileViewTemplate.swift` — Pending
+- `SwiftCode/Backend/Persistence/Templates/QuizViewTemplate.swift` — Pending
+- `SwiftCode/Backend/Persistence/Templates/RecipeViewTemplate.swift` — Pending
+- `SwiftCode/Backend/Persistence/Templates/SettingsViewTemplate.swift` — Pending
+- `SwiftCode/Backend/Persistence/Templates/SwiftUIViewLibraryTemplate.swift` — Pending
+- `SwiftCode/Backend/Persistence/Templates/TaskBoardViewTemplate.swift` — Pending
+- `SwiftCode/Backend/Persistence/Templates/TodoViewTemplate.swift` — Pending
+- `SwiftCode/Backend/Persistence/Templates/WeatherViewTemplate.swift` — Pending
+- `SwiftCode/Backend/Projects/Collaboration/CollaborationCodeReviewManager.swift` — Pending
+- `SwiftCode/Core/Preview/DynamicSwiftUIPreviewRenderer.swift` — Pending
+- `SwiftCode/Core/Preview/PreviewBuildService.swift` — Pending
+- `SwiftCode/Core/Preview/PreviewCache.swift` — Pending
+- `SwiftCode/Core/Preview/PreviewCommunicationService.swift` — Pending
+- `SwiftCode/Core/Preview/PreviewConfiguration.swift` — Pending
+- `SwiftCode/Core/Preview/PreviewContainer.swift` — Pending
+- `SwiftCode/Core/Preview/PreviewCoordinator.swift` — Pending
+- `SwiftCode/Core/Preview/PreviewDeviceManager.swift` — Pending
+- `SwiftCode/Core/Preview/PreviewDiagnostics.swift` — Pending
+- `SwiftCode/Core/Preview/PreviewDiscoveryService.swift` — Pending
+- `SwiftCode/Core/Preview/PreviewDynamicLoader.swift` — Pending
+- `SwiftCode/Core/Preview/PreviewEngine.swift` — Pending
+- `SwiftCode/Core/Preview/PreviewEntryResolver.swift` — Pending
+- `SwiftCode/Core/Preview/PreviewEnvironment.swift` — Pending
+- `SwiftCode/Core/Preview/PreviewError.swift` — Pending
+- `SwiftCode/Core/Preview/PreviewErrorHandler.swift` — Pending
+- `SwiftCode/Core/Preview/PreviewHost.swift` — Pending
+- `SwiftCode/Core/Preview/PreviewHostManager.swift` — Pending
+- `SwiftCode/Core/Preview/PreviewInteractionManager.swift` — Pending
+- `SwiftCode/Core/Preview/PreviewLiveReloadManager.swift` — Pending
+- `SwiftCode/Core/Preview/PreviewManager.swift` — Pending
+- `SwiftCode/Core/Preview/PreviewPerformanceMonitor.swift` — Pending
+- `SwiftCode/Core/Preview/PreviewProjectScanner.swift` — Pending
+- `SwiftCode/Core/Preview/PreviewRenderer.swift` — Pending
+- `SwiftCode/Core/Preview/PreviewRuntime.swift` — Pending
+- `SwiftCode/Core/Preview/PreviewRuntimeCompiler.swift` — Pending
+- `SwiftCode/Core/Preview/PreviewSandbox.swift` — Pending
+- `SwiftCode/Core/Preview/PreviewScene.swift` — Pending
+- `SwiftCode/Core/Preview/PreviewSession.swift` — Pending
+- `SwiftCode/Core/Preview/PreviewSnapshotManager.swift` — Pending
+- `SwiftCode/Core/Preview/PreviewState.swift` — Pending
+- `SwiftCode/Core/Preview/PreviewWindowController.swift` — Pending
+- `SwiftCode/Features/AdvancedTools/Views/AssetManagerView.swift` — Pending
+- `SwiftCode/Features/AdvancedTools/Views/CodeIntelligenceView.swift` — Pending
+- `SwiftCode/Features/AdvancedTools/Views/CodeMetricsDashboardView.swift` — Pending
+- `SwiftCode/Features/AdvancedTools/Views/CodeRefactoringView.swift` — Pending
+- `SwiftCode/Features/AdvancedTools/Views/CrashLogAnalyzerView.swift` — Pending
+- `SwiftCode/Features/AdvancedTools/Views/DocumentationAIInsightsView.swift` — Pending
+- `SwiftCode/Features/AdvancedTools/Views/DocumentationAIScanView.swift` — Pending
+- `SwiftCode/Features/AdvancedTools/Views/DocumentationBrowserView.swift` — Pending
+- `SwiftCode/Features/AdvancedTools/Views/ErrorDiagnosticsView.swift` — Pending
+- `SwiftCode/Features/AdvancedTools/Views/ExtensionMarketplaceView.swift` — Pending
+- `SwiftCode/Features/AdvancedTools/Views/ProjectDependencyGraphView.swift` — Pending
+- `SwiftCode/Features/AdvancedTools/Views/ProjectNotesWorkspaceView.swift` — Pending
+- `SwiftCode/Features/AdvancedTools/Views/SearchDocumentationView.swift` — Pending
+- `SwiftCode/Features/AdvancedTools/Views/SnippetsLibraryView.swift` — Pending
+- `SwiftCode/Features/AdvancedTools/Views/SymbolIndexView.swift` — Pending
+- `SwiftCode/Features/AdvancedTools/Views/WorkspaceProfilesView.swift` — Pending
+- `SwiftCode/Features/AI/ChooseModelView.swift` — Pending
+- `SwiftCode/Features/Debug Tools/DebuggingToolsView.swift` — Pending
+- `SwiftCode/Features/Testing/Views/TestToolsView.swift` — Pending
+- `SwiftCode/Models/CodeReviewModels.swift` — Pending
+- `SwiftCode/SDK/Host/CapabilityBroker/Approval/SDKApprovalView.swift` — Done (reviewed 2026-10-27)
+- `SwiftCode/SDK/Host/ViewOpener/SDKCIWorkflowViewOpener.swift` — Pending
+- `SwiftCode/SDK/Host/ViewOpener/SDKLivePreviewViewOpener.swift` — Pending
+- `SwiftCode/SDK/Host/ViewOpener/SDKViewOpener.swift` — Pending
+- `SwiftCode/SDK/Host/ViewOpener/SDKViewOpenerBuiltIns.swift` — Pending
+- `SwiftCode/SDK/Host/ViewOpener/SDKViewOpenerSupport.swift` — Pending
+- `SwiftCode/SDK/Host/ViewOpener/SDKVirtualizationViewOpener.swift` — Pending
+- `SwiftCode/SDK/Studio/CodeEditor/Views/SDKCodeConsoleView.swift` — Pending
+- `SwiftCode/SDK/Studio/CodeEditor/Views/SDKCodeEditorShellView.swift` — Pending
+- `SwiftCode/SDK/Studio/CodeEditor/Views/SDKCodeEditorTabBarView.swift` — Pending
+- `SwiftCode/SDK/Studio/CodeEditor/Views/SDKCodeEditorView.swift` — Pending
+- `SwiftCode/SDK/Studio/CodeEditor/Views/SDKCodeFileNavigatorView.swift` — Pending
+- `SwiftCode/SDK/Studio/CodeEditor/Views/SDKCodeFindBarView.swift` — Pending
+- `SwiftCode/SDK/Studio/CodeEditor/Views/SDKCodeProjectRootView.swift` — Pending
+- `SwiftCode/SDK/Studio/CodeEditor/Views/SDKCodeSnippetLibraryView.swift` — Pending
+- `SwiftCode/SDK/Studio/Views/AssistAccessFormView.swift` — Done (reviewed 2026-10-27)
+- `SwiftCode/SDK/Studio/Views/AvailableExtensionsView.swift` — Pending
+- `SwiftCode/SDK/Studio/Views/EnterSecuritySDKView.swift` — Pending
+- `SwiftCode/SDK/Studio/Views/SDKCodeBuildRunView.swift` — Pending
+- `SwiftCode/SDK/Studio/Views/SDKFirstLaunchInstallerView.swift` — Pending
+- `SwiftCode/SDK/Studio/Views/SDKGrantManagerView.swift` — Pending
+- `SwiftCode/SDK/Studio/Views/SDKManifestEditorView.swift` — Pending
+- `SwiftCode/SDK/Studio/Views/SDKManifestInspectorView.swift` — Pending
+- `SwiftCode/SDK/Studio/Views/SDKSecurityManagerView.swift` — Pending
+- `SwiftCode/SDK/Studio/Views/SDKShipExportView.swift` — Pending
+- `SwiftCode/SDK/Studio/Views/SDKStudioAPIKeysView.swift` — Pending
+- `SwiftCode/SDK/Studio/Views/SDKStudioExtensionsView.swift` — Pending
+- `SwiftCode/SDK/Studio/Views/SDKStudioLogsView.swift` — Pending
+- `SwiftCode/SDK/Studio/Views/SDKStudioProjectsView.swift` — Done (reviewed 2026-10-27)
+- `SwiftCode/SDK/Studio/Views/SDKStudioView.swift` — Pending
+- `SwiftCode/SDK/Templates/Standalone-Swift/ContentView.swift` — Pending
+- `SwiftCode/Services/AgentCodeReviewManager.swift` — Pending
+- `SwiftCode/Tools/Agentic/ReviewCode.swift` — Pending
+- `SwiftCode/Tools/Agentic/ReviewPullRequest.swift` — Pending
+- `SwiftCode/Tools/Agentic/TreeView.swift` — Pending
+- `SwiftCode/Tools/Agentic/ViewContainerLogs.swift` — Pending
+- `SwiftCode/UI/Utilities/SFSymbolBrowserView.swift` — Done (reviewed 2026-10-27)
+- `SwiftCode/ViewModels/AgentViewModel.swift` — Pending
+- `SwiftCode/ViewModels/AIAssistantViewModel.swift` — Pending
+- `SwiftCode/ViewModels/BuildViewModel.swift` — Pending
+- `SwiftCode/ViewModels/DebugSessionViewModel.swift` — Pending
+- `SwiftCode/ViewModels/EditorViewModel.swift` — Pending
+- `SwiftCode/ViewModels/GitViewModel.swift` — Pending
+- `SwiftCode/ViewModels/ProjectTreeViewModel.swift` — Pending
+- `SwiftCode/ViewModels/SettingsViewModel.swift` — Pending
+- `SwiftCode/ViewModels/ThemeViewModel.swift` — Pending
+- `SwiftCode/ViewModels/WelcomeViewModel.swift` — Pending
+- `SwiftCode/ViewModels/WorkspaceViewModel.swift` — Pending
+- `SwiftCode/Views/AdvancedTools/Views/MainToolsView.swift` — Done (reviewed 2026-10-27)
+- `SwiftCode/Views/Agent/AgentAttachmentChipView.swift` — Pending
+- `SwiftCode/Views/Agent/AgentAttachmentPickerView.swift` — Pending
+- `SwiftCode/Views/Agent/AgentChatView.swift` — Pending
+- `SwiftCode/Views/Agent/AgentChecklistView.swift` — Pending
+- `SwiftCode/Views/Agent/AgentInputBarView.swift` — Done (reviewed 2026-10-27)
+- `SwiftCode/Views/Agent/AgentMessageBubbleView.swift` — Pending
+- `SwiftCode/Views/Agent/AgentMessageListView.swift` — Pending
+- `SwiftCode/Views/Agent/AgentToolCallSummaryView.swift` — Pending
+- `SwiftCode/Views/Agent/AskUserPromptView.swift` — Pending
+- `SwiftCode/Views/Agent/QuestionsHandleView.swift` — Pending
+- `SwiftCode/Views/Agent/Skills/SkillsEditorView.swift` — Pending
+- `SwiftCode/Views/Agent/Skills/SkillsLibraryView.swift` — Pending
+- `SwiftCode/Views/Agent/Skills/SkillsManagerView.swift` — Pending
+- `SwiftCode/Views/AI/AI New/AgentModeView.swift` — Pending
+- `SwiftCode/Views/AI/AI New/AICodeReviewView.swift` — Pending
+- `SwiftCode/Views/AI/AI New/AICoreView.swift` — Pending
+- `SwiftCode/Views/AI/AI New/AIToolExecutionView.swift` — Pending
+- `SwiftCode/Views/AI/AI New/ChatAIInterfaceView.swift` — Pending
+- `SwiftCode/Views/AI/AI New/CodeChangesView.swift` — Pending
+- `SwiftCode/Views/AI/AI New/Codex UIs/CodexAPIKeyView.swift` — Pending
+- `SwiftCode/Views/AI/AI New/Codex UIs/CodexDiffViewer.swift` — Pending
+- `SwiftCode/Views/AI/AI New/Codex UIs/CodexErrorView.swift` — Pending
+- `SwiftCode/Views/AI/AI New/Codex UIs/CodexFileHistoryView.swift` — Pending
+- `SwiftCode/Views/AI/AI New/Codex UIs/CodexMainView.swift` — Pending
+- `SwiftCode/Views/AI/AI New/Codex UIs/CodexPullRequestView.swift` — Pending
+- `SwiftCode/Views/AI/AI New/Codex UIs/CodexRerunView.swift` — Pending
+- `SwiftCode/Views/AI/AI New/Codex UIs/CodexUndoRedoView.swift` — Pending
+- `SwiftCode/Views/AI/AI New/Codex UIs/CodexUsageView.swift` — Pending
+- `SwiftCode/Views/AI/CodeReviewView.swift` — Pending
+- `SwiftCode/Views/AI/ComplexityAnalyzerView.swift` — Pending
+- `SwiftCode/Views/AI/OnDeviceAIView.swift` — Pending
+- `SwiftCode/Views/AIAssistantPanelView.swift` — Pending
+- `SwiftCode/Views/AIChatInputView.swift` — Pending
+- `SwiftCode/Views/AIChatMessageListView.swift` — Pending
+- `SwiftCode/Views/AIModelPickerView.swift` — Pending
+- `SwiftCode/Views/Assist/AgentControlsView.swift` — Pending
+- `SwiftCode/Views/Assist/AgentNotesInspectorView.swift` — Pending
+- `SwiftCode/Views/Assist/AgentTimelineView.swift` — Pending
+- `SwiftCode/Views/Assist/AssistActivityView.swift` — Pending
+- `SwiftCode/Views/Assist/AssistArtifactsView.swift` — Pending
+- `SwiftCode/Views/Assist/AssistDiffView.swift` — Pending
+- `SwiftCode/Views/Assist/AssistInfoView.swift` — Pending
+- `SwiftCode/Views/Assist/AssistMainView.swift` — Done (reviewed 2026-10-27)
+- `SwiftCode/Views/Assist/AssistPlannerView.swift` — Pending
+- `SwiftCode/Views/Assist/AssistPlanView.swift` — Pending
+- `SwiftCode/Views/Assist/CodeAssistUserView.swift` — Pending
+- `SwiftCode/Views/Assist/MetaCommandArgumentPickerView.swift` — Pending
+- `SwiftCode/Views/Assist/PlanUserAskView.swift` — Pending
+- `SwiftCode/Views/Assist/ReverseFillOutView.swift` — Pending
+- `SwiftCode/Views/Assist/TaskProgressView.swift` — Pending
+- `SwiftCode/Views/Assist/ToolExecutionView.swift` — Pending
+- `SwiftCode/Views/Build/BuildLogsView.swift` — Pending
+- `SwiftCode/Views/Build/BuildStatusView.swift` — Pending
+- `SwiftCode/Views/Build/CIBuildView.swift` — Pending
+- `SwiftCode/Views/Build/DeviceConnectKit/DeviceConnectView.swift` — Pending
+- `SwiftCode/Views/Build/DeviceConnectKit/Views/Deployment/DeviceConnectDeploymentView.swift` — Pending
+- `SwiftCode/Views/Build/DeviceConnectKit/Views/Environment/DeviceConnectEnvironmentView.swift` — Pending
+- `SwiftCode/Views/Build/DeviceConnectKit/Views/Sessions/DeviceConnectSessionsView.swift` — Pending
+- `SwiftCode/Views/Build/DeviceConnectKit/Views/Settings/DeviceConnectSettingsView.swift` — Pending
+- `SwiftCode/Views/Build/LocalBuildDemoView.swift` — Done (reviewed 2026-10-27)
+- `SwiftCode/Views/Build/LocalBuildView.swift` — Done (reviewed 2026-10-27)
+- `SwiftCode/Views/Build/PrepareCompileWaitingView.swift` — Pending
+- `SwiftCode/Views/Build/TerminalView.swift` — Pending
+- `SwiftCode/Views/Build/Xcode Build/AppleSignInView.swift` — Pending
+- `SwiftCode/Views/Build/Xcode Build/IPABuildView.swift` — Pending
+- `SwiftCode/Views/Build/Xcode Build/XcodeBuildConfigurationView.swift` — Pending
+- `SwiftCode/Views/Build/Xcode Build/XcodeBuildLogView.swift` — Pending
+- `SwiftCode/Views/BuildConsoleView.swift` — Pending
+- `SwiftCode/Views/BuildToolbarView.swift` — Pending
+- `SwiftCode/Views/Collaboration/ActivityLogView.swift` — Pending
+- `SwiftCode/Views/Collaboration/BranchGraphView.swift` — Pending
+- `SwiftCode/Views/Collaboration/BranchWorkspaceView.swift` — Pending
+- `SwiftCode/Views/Collaboration/CollaborationAuditLogView.swift` — Pending
+- `SwiftCode/Views/Collaboration/CollaborationBranchGraphView.swift` — Pending
+- `SwiftCode/Views/Collaboration/CollaborationBranchManagementView.swift` — Pending
+- `SwiftCode/Views/Collaboration/CollaborationChatView.swift` — Pending
+- `SwiftCode/Views/Collaboration/CollaborationCodeReviewView.swift` — Pending
+- `SwiftCode/Views/Collaboration/CollaborationCommitHistoryView.swift` — Pending
+- `SwiftCode/Views/Collaboration/CollaborationConflictResolverView.swift` — Pending
+- `SwiftCode/Views/Collaboration/CollaborationDashboardView.swift` — Done (reviewed 2026-10-27)
+- `SwiftCode/Views/Collaboration/CollaborationDiffViewerView.swift` — Pending
+- `SwiftCode/Views/Collaboration/CollaborationFeedbackView.swift` — Pending
+- `SwiftCode/Views/Collaboration/CollaborationMainView.swift` — Pending
+- `SwiftCode/Views/Collaboration/CollaborationNotificationCenterView.swift` — Pending
+- `SwiftCode/Views/Collaboration/CollaborationPullRequestView.swift` — Pending
+- `SwiftCode/Views/Collaboration/CollaborationSidebarView.swift` — Done (reviewed 2026-10-27)
+- `SwiftCode/Views/Collaboration/CommitManagerView.swift` — Pending
+- `SwiftCode/Views/Collaboration/ConflictResolverView.swift` — Pending
+- `SwiftCode/Views/Collaboration/FilePermissionView.swift` — Pending
+- `SwiftCode/Views/Collaboration/InviteMembersView.swift` — Pending
+- `SwiftCode/Views/Collaboration/MemberManagementView.swift` — Pending
+- `SwiftCode/Views/Collaboration/PRCreateView.swift` — Pending
+- `SwiftCode/Views/Collaboration/PushPullManagerView.swift` — Pending
+- `SwiftCode/Views/Collaboration/PushPullView.swift` — Pending
+- `SwiftCode/Views/CommandPalette/CommandPaletteView.swift` — Done (reviewed 2026-10-27)
+- `SwiftCode/Views/Dashboard/FolderCardView.swift` — Done (reviewed 2026-10-27)
+- `SwiftCode/Views/Dashboard/FolderCreateView.swift` — Pending
+- `SwiftCode/Views/Dashboard/FoldersView.swift` — Pending
+- `SwiftCode/Views/Dashboard/GitHubRemoteSetupView.swift` — Pending
+- `SwiftCode/Views/Dashboard/HomeProjectCardView.swift` — Done (reviewed 2026-10-27)
+- `SwiftCode/Views/DebugConsoleView.swift` — Pending
+- `SwiftCode/Views/Dependencies/DependencyManagerView.swift` — Pending
+- `SwiftCode/Views/Deployments/DeploymentLogsView.swift` — Pending
+- `SwiftCode/Views/Deployments/DeploymentsView.swift` — Pending
+- `SwiftCode/Views/Dev Tools/AccessibilityContrastGridDevToolView.swift` — Done (reviewed 2026-10-27)
+- `SwiftCode/Views/Dev Tools/AdvancedRegexDebuggerDevToolView.swift` — Pending
+- `SwiftCode/Views/Dev Tools/AESEncryptionDevToolView.swift` — Pending
+- `SwiftCode/Views/Dev Tools/APIResponseViewerDevToolView.swift` — Pending
+- `SwiftCode/Views/Dev Tools/APITesterView.swift` — Pending
+- `SwiftCode/Views/Dev Tools/AppleSiliconOptimizationCheatsheetView.swift` — Pending
+- `SwiftCode/Views/Dev Tools/AppReceiptInspectorDevToolView.swift` — Pending
+- `SwiftCode/Views/Dev Tools/AppSandboxExplorerDevToolView.swift` — Pending
+- `SwiftCode/Views/Dev Tools/AppStateInspectorDevToolView.swift` — Pending
+- `SwiftCode/Views/Dev Tools/AppStoreGuidelinesCheatsheetView.swift` — Pending
+- `SwiftCode/Views/Dev Tools/ASCIIArtGeneratorView.swift` — Pending
+- `SwiftCode/Views/Dev Tools/ASCIIHexConverterDevToolView.swift` — Pending
+- `SwiftCode/Views/Dev Tools/AspectRatioCalculatorView.swift` — Pending
+- `SwiftCode/Views/Dev Tools/BarcodeGeneratorDevToolView.swift` — Done (reviewed 2026-10-27)
+- `SwiftCode/Views/Dev Tools/Base32ConverterDevToolView.swift` — Pending
+- `SwiftCode/Views/Dev Tools/Base64ConverterView.swift` — Pending
+- `SwiftCode/Views/Dev Tools/Base64DecoderDevToolView.swift` — Pending
+- `SwiftCode/Views/Dev Tools/Base64EncoderDevToolView.swift` — Pending
+- `SwiftCode/Views/Dev Tools/Base64FileConverterView.swift` — Pending
+- `SwiftCode/Views/Dev Tools/Base64ImageDecoderView.swift` — Pending
+- `SwiftCode/Views/Dev Tools/BatteryStatusDevToolView.swift` — Done (reviewed 2026-10-27)
+- `SwiftCode/Views/Dev Tools/BcryptHashGeneratorView.swift` — Pending
+- `SwiftCode/Views/Dev Tools/BezierCurveVisualizerDevToolView.swift` — Pending
+- `SwiftCode/Views/Dev Tools/BezierPathCodeDevToolView.swift` — Pending
+- `SwiftCode/Views/Dev Tools/BinaryConverterView.swift` — Pending
+- `SwiftCode/Views/Dev Tools/BinaryHexConverterDevToolView.swift` — Pending
+- `SwiftCode/Views/Dev Tools/BiometricAuthSimDevToolView.swift` — Pending
+- `SwiftCode/Views/Dev Tools/BreakpointManagerDevToolView.swift` — Pending
+- `SwiftCode/Views/Dev Tools/BundleSizeAnalyzerDevToolView.swift` — Done (reviewed 2026-10-27)
+- `SwiftCode/Views/Dev Tools/CacheViewerDevToolView.swift` — Pending
+- `SwiftCode/Views/Dev Tools/CaseConverterView.swift` — Pending
+- `SwiftCode/Views/Dev Tools/CertificateDecoderView.swift` — Pending
+- `SwiftCode/Views/Dev Tools/CharacterEscaperDevToolView.swift` — Pending
+- `SwiftCode/Views/Dev Tools/ClipboardInspectorDevToolView.swift` — Pending
+- `SwiftCode/Views/Dev Tools/ColorBlendingDevToolView.swift` — Done (reviewed 2026-10-27)
+- `SwiftCode/Views/Dev Tools/ColorContrastAnalyzerView.swift` — Pending
+- `SwiftCode/Views/Dev Tools/ColorConverterView.swift` — Pending
+- `SwiftCode/Views/Dev Tools/ColorGradientGeneratorView.swift` — Pending
+- `SwiftCode/Views/Dev Tools/ColorMixerDevToolView.swift` — Done (reviewed 2026-10-27)
+- `SwiftCode/Views/Dev Tools/ColorPaletteGeneratorDevToolView.swift` — Done (reviewed 2026-10-27)
+- `SwiftCode/Views/Dev Tools/ContrastCheckerDevToolView.swift` — Done (reviewed 2026-10-27)
+- `SwiftCode/Views/Dev Tools/CookieParserView.swift` — Pending
+- `SwiftCode/Views/Dev Tools/CPUMonitorDevToolView.swift` — Done (reviewed 2026-10-27)
+- `SwiftCode/Views/Dev Tools/CronGeneratorView.swift` — Pending
+- `SwiftCode/Views/Dev Tools/CronParserView.swift` — Pending
+- `SwiftCode/Views/Dev Tools/CSRFTokenDevToolView.swift` — Pending
+- `SwiftCode/Views/Dev Tools/CSSBorderRadiusGeneratorView.swift` — Pending
+- `SwiftCode/Views/Dev Tools/CSSFlexboxPlaybookView.swift` — Pending
+- `SwiftCode/Views/Dev Tools/CSSMinifierView.swift` — Pending
+- `SwiftCode/Views/Dev Tools/CSSShadowGeneratorView.swift` — Pending
+- `SwiftCode/Views/Dev Tools/CSSUnitConverterView.swift` — Pending
+- `SwiftCode/Views/Dev Tools/CSVParserDevToolView.swift` — Pending
+- `SwiftCode/Views/Dev Tools/CSVToJSONView.swift` — Pending
+- `SwiftCode/Views/Dev Tools/CURLConverterDevToolView.swift` — Pending
+- `SwiftCode/Views/Dev Tools/CURLGeneratorDevToolView.swift` — Pending
+- `SwiftCode/Views/Dev Tools/DatabaseCreateDevToolView.swift` — Pending
+- `SwiftCode/Views/Dev Tools/DateFormatterDevToolView.swift` — Pending
+- `SwiftCode/Views/Dev Tools/DeepLinkTesterDevToolView.swift` — Pending
+- `SwiftCode/Views/Dev Tools/DesignerDevToolView.swift` — Pending
+- `SwiftCode/Views/Dev Tools/DeviceInfoView.swift` — Pending
+- `SwiftCode/Views/Dev Tools/DevToolsMainView.swift` — Pending
+- `SwiftCode/Views/Dev Tools/DiffCheckerView.swift` — Pending
+- `SwiftCode/Views/Dev Tools/DiskUsageAnalyzerDevToolView.swift` — Pending
+- `SwiftCode/Views/Dev Tools/DNSLookupView.swift` — Pending
+- `SwiftCode/Views/Dev Tools/EncryptionToolDevToolView.swift` — Pending
+- `SwiftCode/Views/Dev Tools/EnergyImpactMonitorDevToolView.swift` — Done (reviewed 2026-10-27)
+- `SwiftCode/Views/Dev Tools/EnvVarInspectorDevToolView.swift` — Pending
+- `SwiftCode/Views/Dev Tools/EpochConverterDevToolView.swift` — Pending
+- `SwiftCode/Views/Dev Tools/FPSMonitorDevToolView.swift` — Done (reviewed 2026-10-27)
+- `SwiftCode/Views/Dev Tools/GitBranchingStrategiesView.swift` — Pending
+- `SwiftCode/Views/Dev Tools/GitCheatsheetView.swift` — Pending
+- `SwiftCode/Views/Dev Tools/GzipCompressorView.swift` — Pending
+- `SwiftCode/Views/Dev Tools/HashGeneratorView.swift` — Pending
+- `SwiftCode/Views/Dev Tools/HexDecimalConverterView.swift` — Pending
+- `SwiftCode/Views/Dev Tools/HexToRGBAndHSLConverterView.swift` — Pending
+- `SwiftCode/Views/Dev Tools/HMACCalculatorDevToolView.swift` — Pending
+- `SwiftCode/Views/Dev Tools/HMACGeneratorView.swift` — Pending
+- `SwiftCode/Views/Dev Tools/HTMLEntityConverterView.swift` — Pending
+- `SwiftCode/Views/Dev Tools/HTMLMinifierView.swift` — Pending
+- `SwiftCode/Views/Dev Tools/HTTPHeaderParserView.swift` — Pending
+- `SwiftCode/Views/Dev Tools/HTTPRequestHeaderBuilderView.swift` — Pending
+- `SwiftCode/Views/Dev Tools/HTTPStatusView.swift` — Pending
+- `SwiftCode/Views/Dev Tools/ImageBase64View.swift` — Pending
+- `SwiftCode/Views/Dev Tools/iOSScreenResolutionsView.swift` — Pending
+- `SwiftCode/Views/Dev Tools/IPAddressInfoView.swift` — Pending
+- `SwiftCode/Views/Dev Tools/JSMinifierView.swift` — Pending
+- `SwiftCode/Views/Dev Tools/JSONFormatterView.swift` — Pending
+- `SwiftCode/Views/Dev Tools/JSONSchemaGeneratorView.swift` — Pending
+- `SwiftCode/Views/Dev Tools/JSONStringEscaperView.swift` — Pending
+- `SwiftCode/Views/Dev Tools/JSONToCSharpView.swift` — Pending
+- `SwiftCode/Views/Dev Tools/JSONToCSVView.swift` — Pending
+- `SwiftCode/Views/Dev Tools/JSONToDartView.swift` — Pending
+- `SwiftCode/Views/Dev Tools/JSONToGoView.swift` — Pending
+- `SwiftCode/Views/Dev Tools/JSONToJavaView.swift` — Pending
+- `SwiftCode/Views/Dev Tools/JSONToKotlinView.swift` — Pending
+- `SwiftCode/Views/Dev Tools/JSONToPHPView.swift` — Pending
+- `SwiftCode/Views/Dev Tools/JSONToPythonView.swift` — Pending
+- `SwiftCode/Views/Dev Tools/JSONToRustView.swift` — Pending
+- `SwiftCode/Views/Dev Tools/JSONToSwiftView.swift` — Pending
+- `SwiftCode/Views/Dev Tools/JSONToTOMLView.swift` — Pending
+- `SwiftCode/Views/Dev Tools/JSONToTSView.swift` — Pending
+- `SwiftCode/Views/Dev Tools/JSONTypeAnalyzerView.swift` — Pending
+- `SwiftCode/Views/Dev Tools/JWTDecoderView.swift` — Pending
+- `SwiftCode/Views/Dev Tools/LengthConverterView.swift` — Pending
+- `SwiftCode/Views/Dev Tools/LLDBDebuggerCheatsheetView.swift` — Pending
+- `SwiftCode/Views/Dev Tools/LoremIpsumGeneratorView.swift` — Pending
+- `SwiftCode/Views/Dev Tools/MACAddressGeneratorView.swift` — Pending
+- `SwiftCode/Views/Dev Tools/MarkdownPreviewerView.swift` — Pending
+- `SwiftCode/Views/Dev Tools/MarkdownSyntaxCheatsheetView.swift` — Pending
+- `SwiftCode/Views/Dev Tools/MIMETypeLookupView.swift` — Pending
+- `SwiftCode/Views/Dev Tools/NetworkReachabilityDevToolView.swift` — Pending
+- `SwiftCode/Views/Dev Tools/PasswordGeneratorView.swift` — Pending
+- `SwiftCode/Views/Dev Tools/PasswordStrengthMeterView.swift` — Pending
+- `SwiftCode/Views/Dev Tools/PercentageCalculatorView.swift` — Pending
+- `SwiftCode/Views/Dev Tools/PortLookupView.swift` — Pending
+- `SwiftCode/Views/Dev Tools/PortScannerView.swift` — Pending
+- `SwiftCode/Views/Dev Tools/QRCodeGeneratorView.swift` — Pending
+- `SwiftCode/Views/Dev Tools/RandomStringGeneratorView.swift` — Pending
+- `SwiftCode/Views/Dev Tools/RegexSyntaxCheatsheetView.swift` — Pending
+- `SwiftCode/Views/Dev Tools/RegexTesterView.swift` — Pending
+- `SwiftCode/Views/Dev Tools/RSAKeyGeneratorView.swift` — Pending
+- `SwiftCode/Views/Dev Tools/SemVerCheckerView.swift` — Pending
+- `SwiftCode/Views/Dev Tools/SFSymbolsReferenceView.swift` — Pending
+- `SwiftCode/Views/Dev Tools/SQLFormatterView.swift` — Pending
+- `SwiftCode/Views/Dev Tools/SSLCheckerView.swift` — Pending
+- `SwiftCode/Views/Dev Tools/StringEscaperView.swift` — Pending
+- `SwiftCode/Views/Dev Tools/StringLengthCounterView.swift` — Pending
+- `SwiftCode/Views/Dev Tools/SubnetCalculatorView.swift` — Pending
+- `SwiftCode/Views/Dev Tools/SVGMinifierView.swift` — Pending
+- `SwiftCode/Views/Dev Tools/SwiftConcurrencyCheatsheetView.swift` — Pending
+- `SwiftCode/Views/Dev Tools/SwiftLanguageReferenceView.swift` — Pending
+- `SwiftCode/Views/Dev Tools/SwiftLintConfigurationGuideView.swift` — Pending
+- `SwiftCode/Views/Dev Tools/SwiftUIPerformanceCheatsheetView.swift` — Pending
+- `SwiftCode/Views/Dev Tools/TemperatureConverterView.swift` — Pending
+- `SwiftCode/Views/Dev Tools/TextCaseSwapperView.swift` — Pending
+- `SwiftCode/Views/Dev Tools/TextCounterView.swift` — Pending
+- `SwiftCode/Views/Dev Tools/TextDeduplicatorView.swift` — Pending
+- `SwiftCode/Views/Dev Tools/TextLineRemoverView.swift` — Pending
+- `SwiftCode/Views/Dev Tools/TimestampConverterView.swift` — Pending
+- `SwiftCode/Views/Dev Tools/TimezoneConverterView.swift` — Pending
+- `SwiftCode/Views/Dev Tools/TOMLToJSONView.swift` — Pending
+- `SwiftCode/Views/Dev Tools/UnixPermissionsCalculatorView.swift` — Pending
+- `SwiftCode/Views/Dev Tools/URLDecomposerView.swift` — Pending
+- `SwiftCode/Views/Dev Tools/URLEncoderView.swift` — Pending
+- `SwiftCode/Views/Dev Tools/URLSlugGeneratorView.swift` — Pending
+- `SwiftCode/Views/Dev Tools/UserAgentParserView.swift` — Pending
+- `SwiftCode/Views/Dev Tools/UUIDGeneratorView.swift` — Pending
+- `SwiftCode/Views/Dev Tools/WebhookTesterView.swift` — Pending
+- `SwiftCode/Views/Dev Tools/WeightConverterView.swift` — Pending
+- `SwiftCode/Views/Dev Tools/WhoisLookupView.swift` — Pending
+- `SwiftCode/Views/Dev Tools/XcodeShortcutsCheatsheetView.swift` — Pending
+- `SwiftCode/Views/Dev Tools/XMLFormatterView.swift` — Pending
+- `SwiftCode/Views/Dev Tools/XMLToJSONView.swift` — Pending
+- `SwiftCode/Views/Dev Tools/YAMLConverterView.swift` — Pending
+- `SwiftCode/Views/Dev Tools/YAMLToJSONView.swift` — Pending
+- `SwiftCode/Views/Developer/AIModelDebugger/AIModelDebuggerView.swift` — Pending
+- `SwiftCode/Views/Developer/APIInspector/APIInspectorView.swift` — Pending
+- `SwiftCode/Views/Developer/APILatencyTrackerView.swift` — Pending
+- `SwiftCode/Views/Developer/BackgroundTaskMonitorView.swift` — Pending
+- `SwiftCode/Views/Developer/BinaryTools/BinaryToolsViews.swift` — Pending
+- `SwiftCode/Views/Developer/BuildDiagnosticsView.swift` — Pending
+- `SwiftCode/Views/Developer/BuildPipelineDebugger/BuildPipelineDebuggerView.swift` — Pending
+- `SwiftCode/Views/Developer/CacheInspectorView.swift` — Pending
+- `SwiftCode/Views/Developer/ConsoleCommandRunnerView.swift` — Pending
+- `SwiftCode/Views/Developer/CoreMLInspector/CoreMLInspectorView.swift` — Pending
+- `SwiftCode/Views/Developer/CrashDebugger/CrashDebuggerView.swift` — Pending
+- `SwiftCode/Views/Developer/CreateNewApp/CreateNewAppAdvancedView.swift` — Pending
+- `SwiftCode/Views/Developer/CreateNewApp/CreateNewAppArtifactView.swift` — Pending
+- `SwiftCode/Views/Developer/CreateNewApp/CreateNewAppCompletionView.swift` — Done (reviewed 2026-10-27)
+- `SwiftCode/Views/Developer/CreateNewApp/CreateNewAppIdeaView.swift` — Pending
+- `SwiftCode/Views/Developer/CreateNewApp/CreateNewAppMetadataView.swift` — Pending
+- `SwiftCode/Views/Developer/CreateNewApp/CreateNewAppUIOptionsView.swift` — Pending
+- `SwiftCode/Views/Developer/CreateNewApp/CreateNewAppWizardView.swift` — Pending
+- `SwiftCode/Views/Developer/DatabaseInspectorView.swift` — Pending
+- `SwiftCode/Views/Developer/DebugOverlaysView.swift` — Pending
+- `SwiftCode/Views/Developer/DependencyHealthView.swift` — Pending
+- `SwiftCode/Views/Developer/DeploymentDebug/DeploymentDebugView.swift` — Pending
+- `SwiftCode/Views/Developer/DeveloperDashboard/DeveloperDashboardView.swift` — Pending
+- `SwiftCode/Views/Developer/EnvironmentSwitcherView.swift` — Pending
+- `SwiftCode/Views/Developer/ErrorFrequencyTrackerView.swift` — Pending
+- `SwiftCode/Views/Developer/ExtensionDebugger/ExtensionDebuggerView.swift` — Pending
+- `SwiftCode/Views/Developer/FeatureFlags/FeatureFlagsView.swift` — Pending
+- `SwiftCode/Views/Developer/FileSystemInspector/FileSystemInspectorView.swift` — Pending
+- `SwiftCode/Views/Developer/GitHubAPIDebug/GitHubAPIDebugView.swift` — Pending
+- `SwiftCode/Views/Developer/LogConsole/LogConsoleView.swift` — Pending
+- `SwiftCode/Views/Developer/MemoryInspector/MemoryInspectorView.swift` — Pending
+- `SwiftCode/Views/Developer/MemoryLeakDetectionView.swift` — Pending
+- `SwiftCode/Views/Developer/NetworkInspector/NetworkInspectorView.swift` — Pending
+- `SwiftCode/Views/Developer/PaywallDebug/PaywallDebugView.swift` — Pending
+- `SwiftCode/Views/Developer/PerformanceMonitor/PerformanceMonitorView.swift` — Pending
+- `SwiftCode/Views/Developer/PermissionsCheckerView.swift` — Pending
+- `SwiftCode/Views/Developer/RealtimeMetricsDashboardView.swift` — Pending
+- `SwiftCode/Views/Developer/RuntimeFlags/RuntimeFlagsView.swift` — Pending
+- `SwiftCode/Views/Developer/StateInspectorView.swift` — Pending
+- `SwiftCode/Views/Developer/StoreKitDebug/StoreKitDebugView.swift` — Pending
+- `SwiftCode/Views/Developer/ThreadInspector/ThreadInspectorView.swift` — Pending
+- `SwiftCode/Views/Developer/VerboseLogging/VerboseLoggingView.swift` — Pending
+- `SwiftCode/Views/Developer/Virtualization/AppKit/VirtualizationSplitViewController.swift` — Pending
+- `SwiftCode/Views/Developer/Virtualization/UI/CreateVirtualMachineWizardView.swift` — Done (reviewed 2026-10-27)
+- `SwiftCode/Views/Developer/Virtualization/UI/EnvironmentProfilesView.swift` — Pending
+- `SwiftCode/Views/Developer/Virtualization/UI/OperatingSystemProviderView.swift` — Pending
+- `SwiftCode/Views/Developer/Virtualization/UI/SCVirtualizationView.swift` — Pending
+- `SwiftCode/Views/Developer/Virtualization/UI/VirtualizationDashboardView.swift` — Done (reviewed 2026-10-27)
+- `SwiftCode/Views/Developer/Virtualization/UI/VirtualizationImageBrowserView.swift` — Pending
+- `SwiftCode/Views/Developer/Virtualization/UI/VirtualizationPreferencesView.swift` — Pending
+- `SwiftCode/Views/Developer/Virtualization/UI/VirtualizationSidebarView.swift` — Pending
+- `SwiftCode/Views/Developer/Virtualization/UI/VirtualizationWorkspaceView.swift` — Pending
+- `SwiftCode/Views/Developer/Virtualization/UI/VirtualMachineConsoleView.swift` — Pending
+- `SwiftCode/Views/Developer/Virtualization/UI/VirtualMachineDetailView.swift` — Pending
+- `SwiftCode/Views/Developer/Virtualization/UI/VirtualMachineListView.swift` — Done (reviewed 2026-10-27)
+- `SwiftCode/Views/Developer/Virtualization/UI/VirtualMachineMonitorView.swift` — Pending
+- `SwiftCode/Views/Developer/Virtualization/UI/VirtualMachineNetworkView.swift` — Pending
+- `SwiftCode/Views/Developer/Virtualization/UI/VirtualMachineSettingsView.swift` — Pending
+- `SwiftCode/Views/Developer/Virtualization/UI/VirtualMachineSharedFoldersView.swift` — Pending
+- `SwiftCode/Views/Developer/Virtualization/UI/VirtualMachineSnapshotsView.swift` — Pending
+- `SwiftCode/Views/Developer/Virtualization/UI/VirtualMachineStorageView.swift` — Pending
+- `SwiftCode/Views/Developer/Virtualization/UI/VirtualMachineTerminalView.swift` — Pending
+- `SwiftCode/Views/Developer/WebViewDebugger/WebViewDebuggerView.swift` — Pending
+- `SwiftCode/Views/DiffViewer/DiffViewerView.swift` — Done (reviewed 2026-10-27)
+- `SwiftCode/Views/Editor/CodeEditorManagementView.swift` — Pending
+- `SwiftCode/Views/Editor/CodeEditorView.swift` — Pending
+- `SwiftCode/Views/Editor/EntitlementsEditorView.swift` — Pending
+- `SwiftCode/Views/Editor/GoToLineView.swift` — Pending
+- `SwiftCode/Views/Editor/InfoPlistView.swift` — Pending
+- `SwiftCode/Views/Editor/MarkdownFileView.swift` — Pending
+- `SwiftCode/Views/Editor/MinimapSettingsView.swift` — Pending
+- `SwiftCode/Views/Editor/SymbolNavigatorView.swift` — Pending
+- `SwiftCode/Views/Editor/SymbolOutlineView.swift` — Pending
+- `SwiftCode/Views/EditorGutterView.swift` — Pending
+- `SwiftCode/Views/EditorTabBarView.swift` — Done (reviewed 2026-10-27)
+- `SwiftCode/Views/EditorTextView.swift` — Pending
+- `SwiftCode/Views/EditorView.swift` — Pending
+- `SwiftCode/Views/Errors/ErrorsPanelView.swift` — Done (reviewed 2026-10-27)
+- `SwiftCode/Views/ExportProjView.swift` — Pending
+- `SwiftCode/Views/ExtensionsView.swift` — Done (reviewed 2026-10-27)
+- `SwiftCode/Views/Gists/Components/GistCommentSectionView.swift` — Pending
+- `SwiftCode/Views/Gists/Components/GistFileEditorView.swift` — Pending
+- `SwiftCode/Views/Gists/Components/GistRowView.swift` — Done (reviewed 2026-10-27)
+- `SwiftCode/Views/Gists/CreateGistView.swift` — Pending
+- `SwiftCode/Views/Gists/GistDetailView.swift` — Pending
+- `SwiftCode/Views/Gists/GistDiffView.swift` — Pending
+- `SwiftCode/Views/Gists/GistRevisionsView.swift` — Pending
+- `SwiftCode/Views/Gists/GistsView.swift` — Pending
+- `SwiftCode/Views/GitHub/ActionsView.swift` — Pending
+- `SwiftCode/Views/GitHub/ActivityFeedView.swift` — Pending
+- `SwiftCode/Views/GitHub/BranchesView.swift` — Pending
+- `SwiftCode/Views/GitHub/CommitsView.swift` — Pending
+- `SwiftCode/Views/GitHub/DiscussionsView.swift` — Pending
+- `SwiftCode/Views/GitHub/GitBlameViewer.swift` — Pending
+- `SwiftCode/Views/GitHub/GitConflictResolverView.swift` — Pending
+- `SwiftCode/Views/GitHub/GitHubAccountView.swift` — Pending
+- `SwiftCode/Views/GitHub/GitHubCodeSearchView.swift` — Pending
+- `SwiftCode/Views/GitHub/GitHubEmptyStateView.swift` — Pending
+- `SwiftCode/Views/GitHub/GitHubErrorView.swift` — Pending
+- `SwiftCode/Views/GitHub/GitHubLoadingView.swift` — Pending
+- `SwiftCode/Views/GitHub/GitHubSettingsView.swift` — Pending
+- `SwiftCode/Views/GitHub/GitWorktreesView.swift` — Pending
+- `SwiftCode/Views/GitHub/IssueDetailView.swift` — Pending
+- `SwiftCode/Views/GitHub/IssuesView.swift` — Pending
+- `SwiftCode/Views/GitHub/Legacy/BranchManagementView.swift` — Pending
+- `SwiftCode/Views/GitHub/Legacy/CommitHistoryView.swift` — Pending
+- `SwiftCode/Views/GitHub/Legacy/GitBranchesView.swift` — Pending
+- `SwiftCode/Views/GitHub/Legacy/GitChangesView.swift` — Pending
+- `SwiftCode/Views/GitHub/Legacy/GitCLIView.swift` — Pending
+- `SwiftCode/Views/GitHub/Legacy/GitCloneSheetView.swift` — Pending
+- `SwiftCode/Views/GitHub/Legacy/GitCommandView.swift` — Pending
+- `SwiftCode/Views/GitHub/Legacy/GitCommitComposerView.swift` — Pending
+- `SwiftCode/Views/GitHub/Legacy/GitConflictBannerView.swift` — Pending
+- `SwiftCode/Views/GitHub/Legacy/GitDiffView.swift` — Pending
+- `SwiftCode/Views/GitHub/Legacy/GitFileRowView.swift` — Pending
+- `SwiftCode/Views/GitHub/Legacy/GitHistoryView.swift` — Pending
+- `SwiftCode/Views/GitHub/Legacy/GitHubIntegrationView.swift` — Pending
+- `SwiftCode/Views/GitHub/Legacy/GitHubIssuesView.swift` — Pending
+- `SwiftCode/Views/GitHub/Legacy/GitNotInstalledView.swift` — Pending
+- `SwiftCode/Views/GitHub/Legacy/GitPanelView.swift` — Pending
+- `SwiftCode/Views/GitHub/Legacy/LicencesAddView.swift` — Pending
+- `SwiftCode/Views/GitHub/Legacy/PullRequestView.swift` — Pending
+- `SwiftCode/Views/GitHub/Menu Bar/NSApplyStashView.swift` — Pending
+- `SwiftCode/Views/GitHub/Menu Bar/NSCherryPickView.swift` — Pending
+- `SwiftCode/Views/GitHub/Menu Bar/NSChooseBranchView.swift` — Pending
+- `SwiftCode/Views/GitHub/Menu Bar/NSCloneView.swift` — Pending
+- `SwiftCode/Views/GitHub/Menu Bar/NSCommitView.swift` — Pending
+- `SwiftCode/Views/GitHub/Menu Bar/NSCreateBranchView.swift` — Pending
+- `SwiftCode/Views/GitHub/Menu Bar/NSCreatePRView.swift` — Pending
+- `SwiftCode/Views/GitHub/Menu Bar/NSCreateRepositoryView.swift` — Pending
+- `SwiftCode/Views/GitHub/Menu Bar/NSDeleteBranchView.swift` — Pending
+- `SwiftCode/Views/GitHub/Menu Bar/NSDiscardAllChangesView.swift` — Pending
+- `SwiftCode/Views/GitHub/Menu Bar/NSFetchView.swift` — Pending
+- `SwiftCode/Views/GitHub/Menu Bar/NSForcePushView.swift` — Pending
+- `SwiftCode/Views/GitHub/Menu Bar/NSGitErrorView.swift` — Pending
+- `SwiftCode/Views/GitHub/Menu Bar/NSIncludeTagsView.swift` — Pending
+- `SwiftCode/Views/GitHub/Menu Bar/NSMergeView.swift` — Pending
+- `SwiftCode/Views/GitHub/Menu Bar/NSPullView.swift` — Pending
+- `SwiftCode/Views/GitHub/Menu Bar/NSPushOptionsView.swift` — Pending
+- `SwiftCode/Views/GitHub/Menu Bar/NSPushView.swift` — Pending
+- `SwiftCode/Views/GitHub/Menu Bar/NSRebaseView.swift` — Pending
+- `SwiftCode/Views/GitHub/Menu Bar/NSStashView.swift` — Pending
+- `SwiftCode/Views/GitHub/Menu Bar/NSSwitchBranchView.swift` — Pending
+- `SwiftCode/Views/GitHub/NotificationsView.swift` — Pending
+- `SwiftCode/Views/GitHub/OrganizationsView.swift` — Pending
+- `SwiftCode/Views/GitHub/PullRequestDetailView.swift` — Pending
+- `SwiftCode/Views/GitHub/PullRequestsView.swift` — Pending
+- `SwiftCode/Views/GitHub/ReleasesView.swift` — Pending
+- `SwiftCode/Views/GitHub/RepositoriesView.swift` — Pending
+- `SwiftCode/Views/GitHub/RepositoryAutomationBuilderView.swift` — Pending
+- `SwiftCode/Views/GitHub/RepositoryDashboardView.swift` — Pending
+- `SwiftCode/Views/GitHub/RepositoryDetailView.swift` — Pending
+- `SwiftCode/Views/GitHub/RepositoryExplorerView.swift` — Pending
+- `SwiftCode/Views/GitHub/SourceControlView.swift` — Pending
+- `SwiftCode/Views/GitHub/SwiftCodeWorkflows/WorkflowBuilderView.swift` — Pending
+- `SwiftCode/Views/GitHub/SwiftCodeWorkflows/WorkflowDashboardView.swift` — Pending
+- `SwiftCode/Views/GitHub/SwiftCodeWorkflows/WorkflowExecutionView.swift` — Pending
+- `SwiftCode/Views/GitHub/SwiftCodeWorkflows/WorkflowsCreateView.swift` — Pending
+- `SwiftCode/Views/GitHub/TagsView.swift` — Pending
+- `SwiftCode/Views/GitHub/WorkflowRunsView.swift` — Pending
+- `SwiftCode/Views/HomeProjectGridView.swift` — Done (reviewed 2026-10-27)
+- `SwiftCode/Views/ImportProjView.swift` — Pending
+- `SwiftCode/Views/InfoProjView.swift` — Pending
+- `SwiftCode/Views/IssueNavigatorView.swift` — Pending
+- `SwiftCode/Views/NativeTextView.swift` — Pending
+- `SwiftCode/Views/Navigator/FileNavigatorView.swift` — Done (reviewed 2026-10-27)
+- `SwiftCode/Views/NewProjectSheetView.swift` — Pending
+- `SwiftCode/Views/Onboarding/OnboardingFeaturesView.swift` — Pending
+- `SwiftCode/Views/Onboarding/OnboardingSplashView.swift` — Pending
+- `SwiftCode/Views/Onboarding/OnboardingView.swift` — Pending
+- `SwiftCode/Views/Onboarding/OnboardingWelcomeView.swift` — Done (reviewed 2026-10-27)
+- `SwiftCode/Views/Paywall/PaywallView.swift` — Done (reviewed 2026-10-27)
+- `SwiftCode/Views/ProjectNavigatorView.swift` — Pending
+- `SwiftCode/Views/ProjectTreeRowView.swift` — Pending
+- `SwiftCode/Views/Search/CodeSearchView.swift` — Done (reviewed 2026-10-27)
+- `SwiftCode/Views/SectionView.swift` — Pending
+- `SwiftCode/Views/Settings/AddedMCPServersView.swift` — Pending
+- `SwiftCode/Views/Settings/AddMCPServerView.swift` — Pending
+- `SwiftCode/Views/Settings/AllowedTerminalCommandsView.swift` — Pending
+- `SwiftCode/Views/Settings/AlternativeKeysView.swift` — Pending
+- `SwiftCode/Views/Settings/AppIconSelectView.swift` — Pending
+- `SwiftCode/Views/Settings/AppPermsView.swift` — Pending
+- `SwiftCode/Views/Settings/AssistSettingsView.swift` — Pending
+- `SwiftCode/Views/Settings/BackupDetailsView.swift` — Pending
+- `SwiftCode/Views/Settings/BackupsView.swift` — Pending
+- `SwiftCode/Views/Settings/CloudAuthViews.swift` — Pending
+- `SwiftCode/Views/Settings/CloudManagementView.swift` — Pending
+- `SwiftCode/Views/Settings/CloudStatusView.swift` — Pending
+- `SwiftCode/Views/Settings/CloudSyncView.swift` — Pending
+- `SwiftCode/Views/Settings/CodeSuggestionsView.swift` — Pending
+- `SwiftCode/Views/Settings/ComposioSettingsView.swift` — Pending
+- `SwiftCode/Views/Settings/ConnectSettingsView.swift` — Pending
+- `SwiftCode/Views/Settings/CreateBackupView.swift` — Pending
+- `SwiftCode/Views/Settings/CreditsView.swift` — Pending
+- `SwiftCode/Views/Settings/Custom Tools/CustomToolBuilderView.swift` — Done (reviewed 2026-10-27)
+- `SwiftCode/Views/Settings/Extension Management/AIDocGenExtensionView.swift` — Pending
+- `SwiftCode/Views/Settings/Extension Management/AIRefactorExtensionView.swift` — Pending
+- `SwiftCode/Views/Settings/Extension Management/CodeStatsExtensionView.swift` — Pending
+- `SwiftCode/Views/Settings/Extension Management/ColorPickerExtensionView.swift` — Pending
+- `SwiftCode/Views/Settings/Extension Management/CreateExtensionView.swift` — Pending
+- `SwiftCode/Views/Settings/Extension Management/DarkProThemeExtensionView.swift` — Pending
+- `SwiftCode/Views/Settings/Extension Management/DocCGeneratorExtensionView.swift` — Pending
+- `SwiftCode/Views/Settings/Extension Management/EditExtensionView.swift` — Pending
+- `SwiftCode/Views/Settings/Extension Management/ExtensionDemoView.swift` — Pending
+- `SwiftCode/Views/Settings/Extension Management/GitBlameExtensionView.swift` — Pending
+- `SwiftCode/Views/Settings/Extension Management/GoSupportExtensionView.swift` — Pending
+- `SwiftCode/Views/Settings/Extension Management/GruvboxThemeExtensionView.swift` — Pending
+- `SwiftCode/Views/Settings/Extension Management/JSONFormatterExtensionView.swift` — Pending
+- `SwiftCode/Views/Settings/Extension Management/KotlinSupportExtensionView.swift` — Pending
+- `SwiftCode/Views/Settings/Extension Management/MarkdownPreviewExtensionView.swift` — Pending
+- `SwiftCode/Views/Settings/Extension Management/MultiCursorExtensionView.swift` — Pending
+- `SwiftCode/Views/Settings/Extension Management/NordThemeExtensionView.swift` — Pending
+- `SwiftCode/Views/Settings/Extension Management/PythonSupportExtensionView.swift` — Pending
+- `SwiftCode/Views/Settings/Extension Management/RegexTesterExtensionView.swift` — Pending
+- `SwiftCode/Views/Settings/Extension Management/RustSupportExtensionView.swift` — Pending
+- `SwiftCode/Views/Settings/Extension Management/SnippetLibraryExtensionView.swift` — Pending
+- `SwiftCode/Views/Settings/Extension Management/SwiftFormatterExtensionView.swift` — Pending
+- `SwiftCode/Views/Settings/Extension Management/SwiftLintRunnerExtensionView.swift` — Pending
+- `SwiftCode/Views/Settings/Extension Management/SwiftPackageManagerExtensionView.swift` — Pending
+- `SwiftCode/Views/Settings/Extension Management/TodoHighlighterExtensionView.swift` — Pending
+- `SwiftCode/Views/Settings/Extension Management/TypeScriptSupportExtensionView.swift` — Pending
+- `SwiftCode/Views/Settings/Extension Management/UnitTestGenExtensionView.swift` — Pending
+- `SwiftCode/Views/Settings/Extension Management/XcodeBuildToolExtensionView.swift` — Pending
+- `SwiftCode/Views/Settings/GeneralSettingsView.swift` — Pending
+- `SwiftCode/Views/Settings/InstalledOfflineModelsView.swift` — Pending
+- `SwiftCode/Views/Settings/ModelDownloadProgressView.swift` — Pending
+- `SwiftCode/Views/Settings/ModelLinkInstallGuideView.swift` — Pending
+- `SwiftCode/Views/Settings/NativeSettingsViews.swift` — Pending
+- `SwiftCode/Views/Settings/NewSettingsView.swift` — Pending
+- `SwiftCode/Views/Settings/OfflineModelsView.swift` — Pending
+- `SwiftCode/Views/Settings/PluginCodeCreateView.swift` — Pending
+- `SwiftCode/Views/Settings/PluginManagerView.swift` — Pending
+- `SwiftCode/Views/Settings/ProjectSettingsView.swift` — Pending
+- `SwiftCode/Views/Settings/ProjectTemplateView.swift` — Pending
+- `SwiftCode/Views/Settings/SettingsView.swift` — Pending
+- `SwiftCode/Views/Settings/Skills/BrowseSkillsView.swift` — Pending
+- `SwiftCode/Views/Settings/Skills/CreateSkillView.swift` — Pending
+- `SwiftCode/Views/Settings/Skills/DraftSkillWithAIView.swift` — Pending
+- `SwiftCode/Views/Settings/Skills/ModernSkillsBrowserView.swift` — Pending
+- `SwiftCode/Views/Settings/Skills/SkillsAddView.swift` — Pending
+- `SwiftCode/Views/Settings/Skills/SkillsInfoView.swift` — Pending
+- `SwiftCode/Views/Settings/Skills/SkillsView.swift` — Pending
+- `SwiftCode/Views/Settings/SoundPickerView.swift` — Pending
+- `SwiftCode/Views/Settings/SoundPreviewView.swift` — Pending
+- `SwiftCode/Views/Settings/SupabaseCloudView.swift` — Pending
+- `SwiftCode/Views/Settings/UpdatesView.swift` — Pending
+- `SwiftCode/Views/Settings/UserMemoryView.swift` — Pending
+- `SwiftCode/Views/Sidebar/BookmarksSidebarView.swift` — Pending
+- `SwiftCode/Views/Sidebar/BreakpointsSidebarView.swift` — Pending
+- `SwiftCode/Views/Sidebar/DebugInspectorSidebarView.swift` — Pending
+- `SwiftCode/Views/Sidebar/DebugSessionsSidebarView.swift` — Pending
+- `SwiftCode/Views/Sidebar/FileNavigatorSidebarView.swift` — Pending
+- `SwiftCode/Views/Sidebar/FileTemplatesView.swift` — Pending
+- `SwiftCode/Views/Sidebar/GitHubWorkflowsSidebarView.swift` — Pending
+- `SwiftCode/Views/Sidebar/GitSidebarView.swift` — Pending
+- `SwiftCode/Views/Sidebar/SearchSidebarView.swift` — Pending
+- `SwiftCode/Views/Sidebar/SidebarMainView.swift` — Pending
+- `SwiftCode/Views/Sidebar/TestsSidebarView.swift` — Pending
+- `SwiftCode/Views/Sidebar/WorkflowEditorView.swift` — Pending
+- `SwiftCode/Views/StatusBarView.swift` — Pending
+- `SwiftCode/Views/TemplatePickerView.swift` — Pending
+- `SwiftCode/Views/ThemeEditorView.swift` — Pending
+- `SwiftCode/Views/ThemeGalleryView.swift` — Done (reviewed 2026-10-27)
+- `SwiftCode/Views/Toolbar/ToolbarCustomizationView.swift` — Done (reviewed 2026-10-27)
+- `SwiftCode/Views/Toolbar/ToolbarMinimizedView.swift` — Done (reviewed 2026-10-27)
+- `SwiftCode/Views/Transfer Projects/DevicePickerView.swift` — Pending
+- `SwiftCode/Views/Transfer Projects/IncomingTransferView.swift` — Pending
+- `SwiftCode/Views/Transfer Projects/PermissionConfigView.swift` — Pending
+- `SwiftCode/Views/Transfer Projects/TransferProgressView.swift` — Pending
+- `SwiftCode/Views/Transfer Projects/TransferProjectsHomeView.swift` — Pending
+- `SwiftCode/Views/Utilities/CodingDictionaryView.swift` — Pending
+- `SwiftCode/Views/Utilities/Database/DatabaseExplorerSidebarViewController.swift` — Pending
+- `SwiftCode/Views/Utilities/Database/DatabaseExplorerSplitViewController.swift` — Pending
+- `SwiftCode/Views/Utilities/Database/DatabaseExplorerView.swift` — Pending
+- `SwiftCode/Views/Utilities/Database/Views/DatabaseAIView.swift` — Pending
+- `SwiftCode/Views/Utilities/Database/Views/DatabaseBackupView.swift` — Pending
+- `SwiftCode/Views/Utilities/Database/Views/DatabaseConnectionsView.swift` — Pending
+- `SwiftCode/Views/Utilities/Database/Views/DatabaseImportExportView.swift` — Pending
+- `SwiftCode/Views/Utilities/Database/Views/DatabaseIndexesView.swift` — Pending
+- `SwiftCode/Views/Utilities/Database/Views/DatabaseLogsView.swift` — Pending
+- `SwiftCode/Views/Utilities/Database/Views/DatabaseMigrationView.swift` — Pending
+- `SwiftCode/Views/Utilities/Database/Views/DatabasePerformanceView.swift` — Pending
+- `SwiftCode/Views/Utilities/Database/Views/DatabasePermissionsView.swift` — Pending
+- `SwiftCode/Views/Utilities/Database/Views/DatabaseRecordViewer.swift` — Pending
+- `SwiftCode/Views/Utilities/Database/Views/DatabaseSchemaView.swift` — Pending
+- `SwiftCode/Views/Utilities/Database/Views/DatabaseSettingsView.swift` — Pending
+- `SwiftCode/Views/Utilities/Database/Views/DatabaseStatisticsView.swift` — Pending
+- `SwiftCode/Views/Utilities/Database/Views/DatabaseTablesView.swift` — Pending
+- `SwiftCode/Views/Utilities/Database/Views/DatabaseTemplatesView.swift` — Pending
+- `SwiftCode/Views/Utilities/DependencyManager/DependencySecurityCenterView.swift` — Pending
+- `SwiftCode/Views/Utilities/DependencyManager/DependencyVisualizerView.swift` — Pending
+- `SwiftCode/Views/Utilities/DependencyManager/GitHubDiscoveryView.swift` — Pending
+- `SwiftCode/Views/Utilities/DependencyManager/PackageAIView.swift` — Pending
+- `SwiftCode/Views/Utilities/DependencyManager/PackageAnalyticsView.swift` — Pending
+- `SwiftCode/Views/Utilities/DependencyManager/PackageCollectionsView.swift` — Pending
+- `SwiftCode/Views/Utilities/DependencyManager/PackageDetailsView.swift` — Pending
+- `SwiftCode/Views/Utilities/DependencyManager/PackageExplorerView.swift` — Pending
+- `SwiftCode/Views/Utilities/DependencyManager/PackageInstallationView.swift` — Pending
+- `SwiftCode/Views/Utilities/DependencyManager/ProjectCompatibilityView.swift` — Pending
+- `SwiftCode/Views/Utilities/FileImporterRepresentableView.swift` — Pending
+- `SwiftCode/Views/Utilities/FilePreviewView.swift` — Pending
+- `SwiftCode/Views/Utilities/Localization/LocalizationManagerView.swift` — Pending
+- `SwiftCode/Views/Utilities/NSPersonalDocumentation/Views/DashboardView.swift` — Pending
+- `SwiftCode/Views/Utilities/NSPersonalDocumentation/Views/EcosystemViews.swift` — Pending
+- `SwiftCode/Views/Utilities/NSPersonalDocumentation/Views/Editors/Shared/BaseEditorView.swift` — Pending
+- `SwiftCode/Views/Utilities/NSPersonalDocumentation/Views/Editors/Shared/DocNSTextView.swift` — Pending
+- `SwiftCode/Views/Utilities/NSPersonalDocumentation/Views/GlobalSearchView.swift` — Pending
+- `SwiftCode/Views/Utilities/NSPersonalDocumentation/Views/NSPersonalDocumentationView.swift` — Pending
+- `SwiftCode/Views/Utilities/NSPersonalDocumentation/Views/PersonalDocCanvasView.swift` — Pending
+- `SwiftCode/Views/Utilities/NSPersonalDocumentation/Views/PlanningBoardView.swift` — Pending
+- `SwiftCode/Views/Utilities/NSPersonalDocumentation/Views/RecordDetailView.swift` — Pending
+- `SwiftCode/Views/Utilities/NSPersonalDocumentation/Views/RecordListView.swift` — Pending
+- `SwiftCode/Views/Utilities/NSPersonalDocumentation/Views/WikiPageView.swift` — Pending
+- `SwiftCode/Views/Utilities/Operations/Views/AIReportsView.swift` — Pending
+- `SwiftCode/Views/Utilities/Operations/Views/ArchiveManagerView.swift` — Pending
+- `SwiftCode/Views/Utilities/Operations/Views/BuildHistoryView.swift` — Pending
+- `SwiftCode/Views/Utilities/Operations/Views/DiagnosticsView.swift` — Pending
+- `SwiftCode/Views/Utilities/Operations/Views/OperationQueueView.swift` — Pending
+- `SwiftCode/Views/Utilities/Operations/Views/OperationsDashboardView.swift` — Done (reviewed 2026-10-27)
+- `SwiftCode/Views/Utilities/Operations/Views/OperationsDependencyManagerView.swift` — Pending
+- `SwiftCode/Views/Utilities/Operations/Views/OperationsNotificationsView.swift` — Pending
+- `SwiftCode/Views/Utilities/Operations/Views/OperationsSecurityCenterView.swift` — Pending
+- `SwiftCode/Views/Utilities/Operations/Views/OperationsSidebarView.swift` — Pending
+- `SwiftCode/Views/Utilities/Operations/Views/OperationsWorkspaceView.swift` — Pending
+- `SwiftCode/Views/Utilities/Operations/Views/PreferencesView.swift` — Pending
+- `SwiftCode/Views/Utilities/Operations/Views/ProjectRegistryView.swift` — Pending
+- `SwiftCode/Views/Utilities/Operations/Views/SCInspectorView.swift` — Pending
+- `SwiftCode/Views/Utilities/Operations/Views/SCLogsView.swift` — Pending
+- `SwiftCode/Views/Utilities/Operations/Views/SCTimelineView.swift` — Pending
+- `SwiftCode/Views/Utilities/Operations/Views/StorageManagerView.swift` — Pending
+- `SwiftCode/Views/Utilities/Operations/Views/WorkspaceAnalyticsView.swift` — Pending
+- `SwiftCode/Views/Utilities/Operations/Views/WorkspaceHealthView.swift` — Pending
+- `SwiftCode/Views/Utilities/Operations/Views/WorkspaceSearchView.swift` — Pending
+- `SwiftCode/Views/Utilities/ProjectInspector/ProjectInspectorView.swift` — Pending
+- `SwiftCode/Views/Utilities/SFSymbolPickerView.swift` — Pending
+- `SwiftCode/Views/Utilities/Sims/ApplicationDeploymentView.swift` — Pending
+- `SwiftCode/Views/Utilities/Sims/DeviceManagementView.swift` — Pending
+- `SwiftCode/Views/Utilities/Sims/PreviewCanvasView.swift` — Pending
+- `SwiftCode/Views/Utilities/Sims/PreviewConfigurationView.swift` — Pending
+- `SwiftCode/Views/Utilities/Sims/PreviewConsoleView.swift` — Pending
+- `SwiftCode/Views/Utilities/Sims/PreviewDeviceFrameView.swift` — Pending
+- `SwiftCode/Views/Utilities/Sims/RuntimeDiscoveryView.swift` — Pending
+- `SwiftCode/Views/Utilities/Sims/RuntimeManagementView.swift` — Pending
+- `SwiftCode/Views/Utilities/Sims/SimulatorActionsView.swift` — Pending
+- `SwiftCode/Views/Utilities/Sims/SimulatorAppsView.swift` — Pending
+- `SwiftCode/Views/Utilities/Sims/SimulatorConsoleView.swift` — Pending
+- `SwiftCode/Views/Utilities/Sims/SimulatorCreationView.swift` — Pending
+- `SwiftCode/Views/Utilities/Sims/SimulatorDetailView.swift` — Pending
+- `SwiftCode/Views/Utilities/Sims/SimulatorDeviceInformationView.swift` — Pending
+- `SwiftCode/Views/Utilities/Sims/SimulatorDiagnosticsView.swift` — Pending
+- `SwiftCode/Views/Utilities/Sims/SimulatorMainView.swift` — Pending
+- `SwiftCode/Views/Utilities/Sims/SimulatorPreviewView.swift` — Pending
+- `SwiftCode/Views/Utilities/Sims/SimulatorRuntimeView.swift` — Pending
+- `SwiftCode/Views/Utilities/Sims/SimulatorSettingsView.swift` — Pending
+- `SwiftCode/Views/Utilities/StoreKit/Inspector/StoreKitInspectorView.swift` — Pending
+- `SwiftCode/Views/Utilities/StoreKit/Sidebar/StoreKitSidebarView.swift` — Pending
+- `SwiftCode/Views/Utilities/StoreKit/Workspace/StoreKitSplitViewController.swift` — Pending
+- `SwiftCode/Views/Utilities/VisualUIBuilder/PreviewLogsView.swift` — Pending
+- `SwiftCode/Views/Utilities/VisualUIBuilder/RunFullAppView.swift` — Pending
+- `SwiftCode/Views/Utilities/VisualUIBuilder/VisualUIBuilderSidebarViewController.swift` — Pending
+- `SwiftCode/Views/Utilities/VisualUIBuilder/VisualUIBuilderSplitViewController.swift` — Pending
+- `SwiftCode/Views/Utilities/VisualUIBuilder/VisualUIBuilderView.swift` — Pending
+- `SwiftCode/Views/Utilities/VisualUIBuilder/VisualUICanvasView.swift` — Pending
+- `SwiftCode/Views/Utilities/VisualUIBuilder/VisualUIExportView.swift` — Pending
+- `SwiftCode/Views/Utilities/VisualUIBuilder/VisualUIPreviewPanel.swift` — Pending
+- `SwiftCode/Views/Utilities/VisualUIBuilder/VisualUITemplatesView.swift` — Pending
+- `SwiftCode/Views/Utilities/XcodeProjViewer.swift` — Pending
+- `SwiftCode/Views/WelcomeView.swift` — Pending
+- `SwiftCode/Views/WorkspaceView.swift` — Pending
+
+## AppKit-backed candidates (review before any replacement)
+
+- `SwiftCode/App/AppDelegate.swift` — Pending
+- `SwiftCode/Backend/Assist/Tools/AssistScreenCaptureEngine.swift` — Pending
+- `SwiftCode/Backend/Assist/Tools/AssistUnusedImportsDetectorTool.swift` — Pending
+- `SwiftCode/Backend/Codex/CodexRequestBuilder.swift` — Pending
+- `SwiftCode/Core/Preview/PreviewHost.swift` — Pending
+- `SwiftCode/Core/Preview/PreviewWindowController.swift` — Pending
+- `SwiftCode/Features/AdvancedTools/Views/DocumentationBrowserView.swift` — Pending
+- `SwiftCode/Features/AdvancedTools/Views/ProjectNotesWorkspaceView.swift` — Pending
+- `SwiftCode/SDK/Host/SDKBootstrap.swift` — Pending
+- `SwiftCode/SDK/Host/Security/SDKSensitiveValuePrompt.swift` — Pending
+- `SwiftCode/SDK/Host/ViewOpener/SDKCIWorkflowViewOpener.swift` — Pending
+- `SwiftCode/SDK/Host/ViewOpener/SDKLivePreviewViewOpener.swift` — Pending
+- `SwiftCode/SDK/Host/ViewOpener/SDKViewOpener.swift` — Pending
+- `SwiftCode/SDK/Host/ViewOpener/SDKViewOpenerSupport.swift` — Pending
+- `SwiftCode/SDK/Host/ViewOpener/SDKVirtualizationViewOpener.swift` — Pending
+- `SwiftCode/SDK/Studio/CodeEditor/Views/SDKCodeEditorShellView.swift` — Pending
+- `SwiftCode/SDK/Studio/CodeEditor/Views/SDKCodeEditorView.swift` — Pending
+- `SwiftCode/SDK/Studio/SDKStudioWindowManager.swift` — Pending
+- `SwiftCode/Services/GoogleAccountAuthService.swift` — Pending
+- `SwiftCode/UI/Styles/Styling/LiquidGlass.swift` — Done (reviewed 2026-10-27)
+- `SwiftCode/Views/Build/BuildStatusView.swift` — Pending
+- `SwiftCode/Views/Developer/Virtualization/AppKit/VirtualizationWindowController.swift` — Pending
+- `SwiftCode/Views/Developer/Virtualization/UI/VirtualMachineTerminalView.swift` — Pending
+- `SwiftCode/Views/Editor/CodeEditorView.swift` — Pending
+- `SwiftCode/Views/GitHub/SourceControlView.swift` — Pending
+- `SwiftCode/Views/NativeTextView.swift` — Pending
+- `SwiftCode/Views/Settings/NativeSettingsWindowController.swift` — Pending
+- `SwiftCode/Views/Settings/SettingsRoutingManager.swift` — Pending
+- `SwiftCode/Views/Settings/SettingsView.swift` — Pending
+- `SwiftCode/Views/Utilities/CodingDictionaryView.swift` — Pending
+- `SwiftCode/Views/Utilities/Database/DatabaseExplorerSidebarViewController.swift` — Pending
+- `SwiftCode/Views/Utilities/Database/DatabaseExplorerWindowController.swift` — Pending
+- `SwiftCode/Views/Utilities/Database/DatabaseExplorerWindowManager.swift` — Pending
+- `SwiftCode/Views/Utilities/FileImporterRepresentableView.swift` — Pending
+- `SwiftCode/Views/Utilities/NSPersonalDocumentation/Views/Editors/Shared/DocNSTextView.swift` — Pending
+- `SwiftCode/Views/Utilities/NSPersonalDocumentation/Views/NSPersonalDocumentationView.swift` — Pending
+- `SwiftCode/Views/Utilities/Operations/AppKit/OperationsWindowController.swift` — Pending
+- `SwiftCode/Views/Utilities/ShareSheet.swift` — Pending
+- `SwiftCode/Views/Utilities/Sims/SimulatorMainView.swift` — Pending
+- `SwiftCode/Views/Utilities/StoreKit/Windows/StoreKitWindowController.swift` — Pending
+- `SwiftCode/Views/Utilities/StoreKit/Windows/StoreKitWindowManager.swift` — Pending
+- `SwiftCode/Views/Utilities/VisualUIBuilder/VisualUIBuilderSidebarViewController.swift` — Pending
+- `SwiftCode/Views/Utilities/VisualUIBuilder/VisualUIBuilderWindowController.swift` — Pending
+- `SwiftCode/Views/Utilities/VisualUIBuilder/VisualUIBuilderWindowManager.swift` — Pending
+- `SwiftCode/Views/WelcomeView.swift` — Pending
+

@@ -626,8 +626,7 @@ public struct CreateVirtualMachineWizardView: View {
                 .toggleStyle(.checkbox)
             }
             .padding()
-            .background(Color(NSColor.controlBackgroundColor))
-            .cornerRadius(10)
+            .liquidGlass(style: .standard, cornerRadius: 10)
 
             // Progressive disclosure for Advanced Options
             DisclosureGroup(isExpanded: $showingAdvancedResources) {
@@ -1134,12 +1133,7 @@ public struct CreateVirtualMachineWizardView: View {
             }
             .padding(10)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background(Color(NSColor.controlBackgroundColor))
-            .cornerRadius(8)
-            .overlay(
-                RoundedRectangle(cornerRadius: 8)
-                    .stroke(Color.primary.opacity(0.08), lineWidth: 1)
-            )
+            .liquidGlass(style: .standard, cornerRadius: 8)
         }
         .buttonStyle(.plain)
     }

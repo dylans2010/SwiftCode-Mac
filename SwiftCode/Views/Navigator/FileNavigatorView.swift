@@ -76,7 +76,7 @@ struct FileNavigatorView: View {
                 }
             }
             .padding(8)
-            .background(.white.opacity(0.06), in: RoundedRectangle(cornerRadius: 8))
+            .liquidGlass(style: .subtle, cornerRadius: 8)
             .padding(.horizontal, 8)
             .padding(.bottom, 4)
 
@@ -266,7 +266,7 @@ struct FileNodeRowView: View {
                 // Name
                 Text(node.name)
                     .font(.caption)
-                    .foregroundStyle(isSelected ? .white : .primary)
+                    .foregroundStyle(.primary)
                     .lineLimit(1)
 
                 // Modified indicator

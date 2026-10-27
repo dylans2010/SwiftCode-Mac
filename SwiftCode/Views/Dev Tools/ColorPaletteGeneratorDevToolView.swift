@@ -81,8 +81,7 @@ struct ColorPaletteGeneratorDevToolView: View {
                             }
                             .frame(maxWidth: .infinity)
                             .padding(8)
-                            .background(Color(NSColor.controlBackgroundColor))
-                            .cornerRadius(12)
+                            .liquidGlass(style: .standard, cornerRadius: 12)
                         }
                     }
                 }

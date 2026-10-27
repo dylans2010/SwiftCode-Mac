@@ -10,7 +10,7 @@ struct GistRowView: View {
                 Text(gist.description ?? gist.files.keys.first ?? "Untitled Gist")
                     .font(.headline)
                     .lineLimit(1)
-                    .foregroundStyle(.white)
+                    .foregroundStyle(.primary)
 
                 Spacer()
 

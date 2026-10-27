@@ -91,8 +91,7 @@ struct ContrastCheckerDevToolView: View {
                 }
                 .frame(maxWidth: .infinity)
                 .padding()
-                .background(Color(NSColor.controlBackgroundColor))
-                .cornerRadius(12)
+                .liquidGlass(style: .standard, cornerRadius: 12)
             }
             .padding()
         }

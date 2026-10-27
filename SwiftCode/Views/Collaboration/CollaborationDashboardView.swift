@@ -34,7 +34,7 @@ public struct CollaborationDashboardView: View {
                         }
                     }
                     .padding()
-                    .background(Color.white.opacity(0.05), in: RoundedRectangle(cornerRadius: 16))
+                    .liquidGlass(style: .standard, cornerRadius: 16)
                     .padding(.horizontal)
                 }
 
@@ -83,11 +83,7 @@ struct StatCard: View {
         }
         .padding(16)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color.white.opacity(0.07), in: RoundedRectangle(cornerRadius: 16))
-        .overlay(
-            RoundedRectangle(cornerRadius: 16)
-                .stroke(Color.white.opacity(0.1), lineWidth: 1)
-        )
+        .liquidGlass(style: .standard, cornerRadius: 16)
     }
 }
 
@@ -182,10 +178,6 @@ struct CollaboratorMiniCard: View {
             }
         }
         .padding(8)
-        .background(Color.white.opacity(0.08), in: RoundedRectangle(cornerRadius: 12))
-        .overlay(
-            RoundedRectangle(cornerRadius: 12)
-                .stroke(Color.white.opacity(0.1), lineWidth: 1)
-        )
+        .liquidGlass(style: .subtle, cornerRadius: 12)
     }
 }

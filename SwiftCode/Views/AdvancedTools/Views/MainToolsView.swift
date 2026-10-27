@@ -343,10 +343,7 @@ private struct ToolGridCard: View {
             .padding(14)
             .frame(height: 132, alignment: .top)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background(
-                RoundedRectangle(cornerRadius: 12, style: .continuous)
-                    .fill(.background.secondary)
-            )
+            .liquidGlass(style: .standard, cornerRadius: 12)
             .overlay(
                 RoundedRectangle(cornerRadius: 12, style: .continuous)
                     .strokeBorder(
@@ -357,7 +354,6 @@ private struct ToolGridCard: View {
         }
         .buttonStyle(.plain)
         .compositingGroup()
-        .shadow(color: .black.opacity(isHovering ? 0.10 : 0.03), radius: isHovering ? 8 : 2, y: isHovering ? 4 : 1)
         .scaleEffect(isHovering ? 1.015 : 1)
         .animation(.spring(response: 0.28, dampingFraction: 0.75), value: isHovering)
         .onHover { isHovering = $0 }

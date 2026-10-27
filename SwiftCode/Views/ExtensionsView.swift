@@ -318,7 +318,6 @@ struct ExtensionsView: View {
         } message: {
             Text("This will permanently delete the extension and remove it from the IDE.")
         }
-        .preferredColorScheme(.dark)
     }
 
     // MARK: - Category Filter Bar Helpers
@@ -333,7 +332,7 @@ struct ExtensionsView: View {
             }
             .padding(.horizontal, 10)
             .padding(.vertical, 6)
-            .background(selected ? Color.orange.opacity(0.2) : Color.white.opacity(0.06), in: Capsule())
+            .background(selected ? Color.orange.opacity(0.2) : Color.secondary.opacity(0.12), in: Capsule())
             .foregroundStyle(selected ? .orange : .secondary)
             .overlay(
                 Capsule().stroke(selected ? Color.orange.opacity(0.5) : Color.clear, lineWidth: 1)

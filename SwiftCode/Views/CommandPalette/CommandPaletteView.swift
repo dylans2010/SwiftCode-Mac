@@ -310,7 +310,6 @@ struct CommandPaletteView: View {
                 }
                 .padding()
             }
-            .liquidGlass(style: .standard, cornerRadius: 8)
             .padding([.horizontal, .bottom])
         }
     }

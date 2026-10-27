@@ -289,12 +289,7 @@ private struct CreationCard: View {
         }
         .padding(16)
         .frame(maxWidth: .infinity, minHeight: 190, alignment: .leading)
-        .background(Color(nsColor: .controlBackgroundColor))
-        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .stroke(.separator, lineWidth: 1)
-        )
+        .liquidGlass(style: .standard, cornerRadius: 12)
     }
 }
 

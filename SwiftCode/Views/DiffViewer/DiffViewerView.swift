@@ -53,7 +53,7 @@ struct DiffViewerView: View {
 
                                     Text(line.text)
                                         .font(.caption.monospaced())
-                                        .foregroundStyle(.white.opacity(0.9))
+                                        .foregroundStyle(.primary)
                                         .lineLimit(1)
 
                                     Spacer()
@@ -67,7 +67,6 @@ struct DiffViewerView: View {
                     }
                 }
             }
-            .background(Color(red: 0.10, green: 0.10, blue: 0.14))
             .navigationTitle("Diff Viewer")
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {

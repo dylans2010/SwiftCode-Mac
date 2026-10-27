@@ -193,7 +193,7 @@ struct OperationsDashboardView: View {
                     }
                     .frame(maxWidth: .infinity)
                     .padding()
-                    .background(RoundedRectangle(cornerRadius: 12).fill(Color(NSColor.windowBackgroundColor)))
+                    .liquidGlass(style: .standard, cornerRadius: 12)
 
                     // Recent Builds Card
                     VStack(alignment: .leading, spacing: 12) {
@@ -246,7 +246,7 @@ struct OperationsDashboardView: View {
                     }
                     .frame(maxWidth: .infinity)
                     .padding()
-                    .background(RoundedRectangle(cornerRadius: 12).fill(Color(NSColor.windowBackgroundColor)))
+                    .liquidGlass(style: .standard, cornerRadius: 12)
                 }
             }
             .padding(24)

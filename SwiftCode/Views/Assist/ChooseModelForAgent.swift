@@ -67,7 +67,7 @@ public struct ChooseModelForAgent: View {
                 }
             }
             .padding(8)
-            .background(Color.secondary.opacity(0.12), in: RoundedRectangle(cornerRadius: 8))
+            .liquidGlass(style: .subtle, cornerRadius: 8)
             .padding()
 
             Divider()

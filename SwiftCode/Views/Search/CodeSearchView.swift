@@ -64,12 +64,7 @@ struct CodeSearchView: View {
                 }
                 .padding(.horizontal, 14)
                 .padding(.vertical, 10)
-                .background(Color(NSColor.controlBackgroundColor))
-                .cornerRadius(12)
-                .overlay(
-                    RoundedRectangle(cornerRadius: 12)
-                        .stroke(Color.primary.opacity(0.1), lineWidth: 1)
-                )
+                .liquidGlass(style: .subtle, cornerRadius: 12)
 
                 // Inline Replace Interface
                 HStack(spacing: 10) {
@@ -98,12 +93,7 @@ struct CodeSearchView: View {
                 }
                 .padding(.horizontal, 14)
                 .padding(.vertical, 8)
-                .background(Color(NSColor.controlBackgroundColor).opacity(0.5))
-                .cornerRadius(10)
-                .overlay(
-                    RoundedRectangle(cornerRadius: 10)
-                        .stroke(Color.primary.opacity(0.06), lineWidth: 1)
-                )
+                .liquidGlass(style: .subtle, cornerRadius: 10)
             }
             .padding(16)
             .background(.ultraThinMaterial)

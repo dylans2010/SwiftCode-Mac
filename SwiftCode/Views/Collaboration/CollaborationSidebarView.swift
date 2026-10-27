@@ -51,7 +51,6 @@ public struct CollaborationSidebarView: View {
             .padding(.bottom, 20)
         }
         .frame(width: 240)
-        .background(Color.black.opacity(0.4))
         .background(.ultraThinMaterial)
     }
 }

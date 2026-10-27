@@ -41,8 +41,7 @@ struct ColorBlendingDevToolView: View {
                     }
                     .frame(maxWidth: .infinity)
                     .padding()
-                    .background(Color(NSColor.controlBackgroundColor))
-                    .cornerRadius(8)
+                    .liquidGlass(style: .standard, cornerRadius: 8)
 
                     VStack {
                         Text("Color 2")
@@ -51,8 +50,7 @@ struct ColorBlendingDevToolView: View {
                     }
                     .frame(maxWidth: .infinity)
                     .padding()
-                    .background(Color(NSColor.controlBackgroundColor))
-                    .cornerRadius(8)
+                    .liquidGlass(style: .standard, cornerRadius: 8)
                 }
 
                 VStack(alignment: .leading, spacing: 8) {
@@ -78,8 +76,7 @@ struct ColorBlendingDevToolView: View {
                 }
                 .frame(maxWidth: .infinity)
                 .padding()
-                .background(Color(NSColor.controlBackgroundColor))
-                .cornerRadius(12)
+                .liquidGlass(style: .standard, cornerRadius: 12)
             }
             .padding()
         }

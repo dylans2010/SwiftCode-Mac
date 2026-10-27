@@ -21,7 +21,7 @@ struct ToolbarCustomizationView: View {
                             VStack(alignment: .leading, spacing: 2) {
                                 Text("Manage Extensions")
                                     .font(.subheadline)
-                                    .foregroundStyle(.white)
+                                    .foregroundStyle(.primary)
                                 Text("Install, enable, or create extensions")
                                     .font(.caption2)
                                     .foregroundStyle(.secondary)
@@ -74,7 +74,7 @@ struct ToolbarCustomizationView: View {
                             VStack(alignment: .leading, spacing: 2) {
                                 Text(tool.name)
                                     .font(.subheadline)
-                                    .foregroundStyle(.white)
+                                    .foregroundStyle(.primary)
                                 Text(tool.category)
                                     .font(.caption2)
                                     .foregroundStyle(.secondary)
@@ -119,7 +119,7 @@ struct ToolbarCustomizationView: View {
                 .frame(width: 24)
             Text(tool.name)
                 .font(.subheadline)
-                .foregroundStyle(.white)
+                .foregroundStyle(.primary)
             Spacer()
             Image(systemName: "line.3.horizontal")
                 .foregroundStyle(.secondary)

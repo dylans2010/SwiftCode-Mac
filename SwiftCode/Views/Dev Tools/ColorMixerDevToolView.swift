@@ -37,8 +37,7 @@ struct ColorMixerDevToolView: View {
                         .bold()
                 }
                 .padding()
-                .background(Color(NSColor.controlBackgroundColor))
-                .cornerRadius(12)
+                .liquidGlass(style: .standard, cornerRadius: 12)
 
                 Divider()
 

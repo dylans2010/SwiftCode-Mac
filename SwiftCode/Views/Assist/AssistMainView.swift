@@ -222,7 +222,7 @@ public struct AssistMainView: View {
                                 }
                             }
                             .padding(6)
-                            .background(Color.secondary.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
+                            .liquidGlass(style: .subtle, cornerRadius: 8)
                             .padding(.horizontal, 12)
                             .padding(.top, 8)
 

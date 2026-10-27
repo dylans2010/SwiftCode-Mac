@@ -129,8 +129,7 @@ struct LocalBuildDemoView: View {
                 }
             }
             .padding()
-            .background(Color.blue.opacity(0.1))
-            .cornerRadius(12)
+            .liquidGlass(style: .subtle, cornerRadius: 12)
         }
     }
 

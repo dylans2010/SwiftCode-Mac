@@ -417,7 +417,7 @@ public struct MarkdownCodeBlockView: View {
                         .padding(.leading, showsLineNumbers ? 2 : 0)
                 }
             }
-            .background(Color.black.opacity(0.3))
+            .background(Color.secondary.opacity(0.10))
         }
         .clipShape(RoundedRectangle(cornerRadius: 8))
         .overlay(

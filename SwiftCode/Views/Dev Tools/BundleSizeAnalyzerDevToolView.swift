@@ -41,8 +41,7 @@ struct BundleSizeAnalyzerDevToolView: View {
                 }
                 .padding()
                 .frame(maxWidth: .infinity, alignment: .leading)
-                .background(Color(NSColor.controlBackgroundColor))
-                .cornerRadius(10)
+                .liquidGlass(style: .standard, cornerRadius: 10)
 
                 Divider()
 

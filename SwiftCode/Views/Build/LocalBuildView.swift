@@ -149,8 +149,7 @@ struct LocalBuildView: View {
             .disabled(selectedMac == nil || buildService.isBuilding)
         }
         .padding()
-        .background(Color.white.opacity(0.05))
-        .cornerRadius(16)
+        .liquidGlass(style: .standard, cornerRadius: 16)
     }
 
     private var buildProgressSection: some View {
@@ -192,8 +191,7 @@ struct LocalBuildView: View {
             }
         }
         .padding()
-        .background(Color.white.opacity(0.05))
-        .cornerRadius(16)
+        .liquidGlass(style: .standard, cornerRadius: 16)
     }
 
     private func buildResultSection(url: URL) -> some View {
@@ -229,8 +227,7 @@ struct LocalBuildView: View {
             }
         }
         .padding()
-        .background(Color.white.opacity(0.05))
-        .cornerRadius(16)
+        .liquidGlass(style: .standard, cornerRadius: 16)
     }
 
     private var demoButton: some View {

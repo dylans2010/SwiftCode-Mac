@@ -256,8 +256,7 @@ public struct VirtualMachineListView: View {
                 }
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 40)
-                .background(Color(NSColor.controlBackgroundColor))
-                .cornerRadius(12)
+                .liquidGlass(style: .standard, cornerRadius: 12)
             } else {
                 ForEach(filteredAndSortedVMs) { vm in
                     HStack(spacing: 16) {
@@ -404,12 +403,7 @@ public struct VirtualMachineListView: View {
                         }
                     }
                     .padding(16)
-                    .background(Color(NSColor.controlBackgroundColor))
-                    .cornerRadius(12)
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 12)
-                            .stroke(Color.primary.opacity(0.08), lineWidth: 1)
-                    )
+                    .liquidGlass(style: .standard, cornerRadius: 12)
                 }
             }
         }

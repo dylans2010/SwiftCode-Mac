@@ -475,13 +475,7 @@ public struct AssistComposerPopupView: View {
             }
         }
         .frame(width: 490)
-        .background(.ultraThinMaterial)
-        .cornerRadius(10)
-        .overlay(
-            RoundedRectangle(cornerRadius: 10)
-                .stroke(Color.primary.opacity(0.08), lineWidth: 0.75)
-        )
-        .shadow(color: Color.black.opacity(0.18), radius: 14, x: 0, y: 6)
+        .liquidGlass(style: .sheet, cornerRadius: 10)
         .onAppear {
             loadResources()
         }
