@@ -7,6 +7,7 @@ public struct NewProjectSheetView: View {
     @Environment(\.dismiss) var dismiss
 
     @State private var mode: SelectionMode = .create
+    @State private var hoveredItem: SelectionMode? = nil
     @State private var showingImportNameAlert = false
     @State private var pendingImportURL: URL?
     @State private var pendingImportName = ""
@@ -14,17 +15,19 @@ public struct NewProjectSheetView: View {
     public enum SelectionMode: String, CaseIterable, Identifiable {
         case create = "New Project"
         case importFolder = "Import Folder"
-        case clone = "Clone Repo"
-        case xcodeproj = "Xcode Proj"
-        case scproj = "SwiftCode Project Archive"
+        case clone = "Clone Repository"
+        case xcodeproj = "Xcode Project"
+        case scproj = "SwiftCode Archive"
 
         public var id: String { rawValue }
+
+        public var displayName: String { rawValue }
 
         public var icon: String {
             switch self {
             case .create: "plus.square.fill"
             case .importFolder: "folder.badge.plus"
-            case .clone: "arrow.triangle.branch"
+            case .clone: "arrow.triangle.pull"
             case .xcodeproj: "hammer.circle.fill"
             case .scproj: "shippingbox.fill"
             }
@@ -32,11 +35,21 @@ public struct NewProjectSheetView: View {
 
         public var subtitle: String {
             switch self {
-            case .create: "Start from a starter template"
-            case .importFolder: "Select directory on disk"
+            case .create: "Starter template scaffold"
+            case .importFolder: "Select local folder on disk"
             case .clone: "Pull remote Git repository"
-            case .xcodeproj: "Open Apple Workspace"
+            case .xcodeproj: "Open Apple Xcode workspace"
             case .scproj: "Restore project archive"
+            }
+        }
+
+        public var headerSubtitle: String {
+            switch self {
+            case .create: "Start from a pre-configured starter template with full build structures"
+            case .importFolder: "Select an existing project directory from your Mac"
+            case .clone: "Clone a Git repository from GitHub or any remote URL"
+            case .xcodeproj: "Open an existing .xcodeproj or .xcworkspace natively"
+            case .scproj: "Select a .scproj archive to verify and restore into your workspaces"
             }
         }
 
@@ -44,7 +57,7 @@ public struct NewProjectSheetView: View {
             switch self {
             case .create: Color(red: 0.106, green: 0.404, blue: 0.863)
             case .importFolder: .blue
-            case .clone: .purple
+            case .clone: Color(red: 0.35, green: 0.65, blue: 0.98)
             case .xcodeproj: .indigo
             case .scproj: .teal
             }
@@ -81,17 +94,11 @@ public struct NewProjectSheetView: View {
                             .padding(24)
                             .frame(maxWidth: .infinity, alignment: .topLeading)
                     }
-
-                    Rectangle()
-                        .fill(Color.white.opacity(0.08))
-                        .frame(height: 1)
-
-                    footerView
                 }
                 .background(Color(red: 0.082, green: 0.102, blue: 0.180))
             }
         }
-        .frame(width: 780, height: 560)
+        .frame(width: 800, height: 580)
         .background(Color(red: 0.082, green: 0.102, blue: 0.180))
         .preferredColorScheme(.dark)
         .alert("Project Name", isPresented: $showingImportNameAlert) {
@@ -121,18 +128,22 @@ public struct NewProjectSheetView: View {
         VStack(alignment: .leading, spacing: 16) {
             VStack(alignment: .leading, spacing: 4) {
                 Text("Create Workspace")
-                    .font(.system(size: 16, weight: .bold))
+                    .font(.system(size: 15, weight: .bold))
                     .foregroundStyle(Color.white)
-                Text("Project launcher pipeline")
-                    .font(.caption2)
-                    .foregroundStyle(Color.white.opacity(0.5))
+                Text("Choose how to start your project")
+                    .font(.system(size: 11))
+                    .foregroundStyle(Color.white.opacity(0.55))
             }
             .padding(.horizontal, 10)
             .padding(.top, 4)
+            .padding(.bottom, 4)
 
             ScrollView {
                 VStack(spacing: 6) {
                     ForEach(SelectionMode.allCases) { item in
+                        let isSelected = (mode == item)
+                        let isHovered = (hoveredItem == item)
+
                         Button {
                             withAnimation(.snappy(duration: 0.18)) {
                                 mode = item
@@ -140,22 +151,22 @@ public struct NewProjectSheetView: View {
                         } label: {
                             HStack(spacing: 12) {
                                 Image(systemName: item.icon)
-                                    .font(.system(size: 14, weight: .medium))
-                                    .foregroundStyle(mode == item ? .white : item.tint)
+                                    .font(.system(size: 13.5, weight: .medium))
+                                    .foregroundStyle(isSelected ? .white : item.tint)
                                     .frame(width: 28, height: 28)
                                     .background(
                                         RoundedRectangle(cornerRadius: 8, style: .continuous)
-                                            .fill(mode == item ? Color.white.opacity(0.2) : Color.white.opacity(0.06))
+                                            .fill(isSelected ? Color.white.opacity(0.2) : Color.white.opacity(0.06))
                                     )
 
                                 VStack(alignment: .leading, spacing: 2) {
-                                    Text(item.rawValue)
-                                        .font(.system(size: 12.5, weight: mode == item ? .semibold : .medium))
-                                        .foregroundStyle(mode == item ? .white : Color.white.opacity(0.9))
+                                    Text(item.displayName)
+                                        .font(.system(size: 12.5, weight: isSelected ? .semibold : .medium))
+                                        .foregroundStyle(isSelected ? .white : Color.white.opacity(0.9))
 
                                     Text(item.subtitle)
                                         .font(.system(size: 9.5))
-                                        .foregroundStyle(mode == item ? Color.white.opacity(0.8) : Color.white.opacity(0.5))
+                                        .foregroundStyle(isSelected ? Color.white.opacity(0.85) : Color.white.opacity(0.5))
                                         .lineLimit(1)
                                 }
 
@@ -166,14 +177,26 @@ public struct NewProjectSheetView: View {
                             .background(
                                 RoundedRectangle(cornerRadius: 10, style: .continuous)
                                     .fill(
-                                        mode == item
+                                        isSelected
                                             ? Color(red: 0.106, green: 0.404, blue: 0.863)
-                                            : Color.clear
+                                            : (isHovered ? Color.white.opacity(0.06) : Color.clear)
+                                    )
+                            )
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                                    .stroke(
+                                        isSelected
+                                            ? Color.white.opacity(0.18)
+                                            : (isHovered ? Color.white.opacity(0.08) : Color.clear),
+                                        lineWidth: 1
                                     )
                             )
                             .contentShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
                         }
                         .buttonStyle(.plain)
+                        .onHover { hovering in
+                            hoveredItem = hovering ? item : nil
+                        }
                     }
                 }
             }
@@ -181,12 +204,12 @@ public struct NewProjectSheetView: View {
             Spacer()
 
             HStack(spacing: 6) {
-                Image(systemName: "macbook")
-                    .font(.caption2)
+                Image(systemName: "macwindow")
+                    .font(.system(size: 10.5))
                 Text("macOS native client")
-                    .font(.caption2)
+                    .font(.system(size: 10.5))
             }
-            .foregroundStyle(Color.white.opacity(0.45))
+            .foregroundStyle(Color.white.opacity(0.4))
             .padding(.horizontal, 10)
             .padding(.bottom, 6)
         }
@@ -206,54 +229,73 @@ public struct NewProjectSheetView: View {
     // MARK: - Header
 
     private var headerView: some View {
-        HStack(spacing: 16) {
-            Image(systemName: mode.icon)
-                .font(.system(size: 22, weight: .semibold))
-                .foregroundStyle(Color.white)
-                .frame(width: 44, height: 44)
-                .background(
-                    RoundedRectangle(cornerRadius: 12, style: .continuous)
-                        .fill(mode.tint.opacity(0.25))
-                )
-                .overlay(
-                    RoundedRectangle(cornerRadius: 12, style: .continuous)
-                        .stroke(mode.tint.opacity(0.4), lineWidth: 1)
-                )
+        HStack(spacing: 14) {
+            ZStack {
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    .fill(
+                        LinearGradient(
+                            colors: [
+                                mode.tint.opacity(0.3),
+                                mode.tint.opacity(0.12)
+                            ],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        )
+                    )
+                Image(systemName: mode.icon)
+                    .font(.system(size: 20, weight: .semibold))
+                    .foregroundStyle(Color.white)
+            }
+            .frame(width: 42, height: 42)
+            .overlay(
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    .stroke(
+                        LinearGradient(
+                            colors: [
+                                mode.tint.opacity(0.55),
+                                mode.tint.opacity(0.2)
+                            ],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        ),
+                        lineWidth: 1
+                    )
+            )
 
             VStack(alignment: .leading, spacing: 3) {
                 Text(title)
-                    .font(.system(size: 18, weight: .bold))
+                    .font(.system(size: 17, weight: .bold))
                     .foregroundStyle(Color.white)
-                Text(mode.subtitle)
-                    .font(.subheadline)
-                    .foregroundStyle(Color.white.opacity(0.6))
+                Text(mode.headerSubtitle)
+                    .font(.system(size: 12))
+                    .foregroundStyle(Color.white.opacity(0.65))
             }
 
             Spacer()
+
+            Button {
+                dismiss()
+            } label: {
+                Text("Cancel")
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundStyle(Color.white.opacity(0.85))
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 6)
+                    .background(
+                        RoundedRectangle(cornerRadius: 8, style: .continuous)
+                            .fill(Color.white.opacity(0.08))
+                    )
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 8, style: .continuous)
+                            .stroke(Color.white.opacity(0.12), lineWidth: 1)
+                    )
+            }
+            .buttonStyle(.plain)
+            .keyboardShortcut(.cancelAction)
         }
         .padding(.horizontal, 24)
         .padding(.vertical, 16)
         .background(Color(red: 0.082, green: 0.102, blue: 0.180).opacity(0.95))
-    }
-
-    // MARK: - Footer
-
-    private var footerView: some View {
-        HStack {
-            Text("Select an option to create or import native projects.")
-                .font(.caption)
-                .foregroundStyle(Color.white.opacity(0.5))
-
-            Spacer()
-
-            Button("Cancel") { dismiss() }
-                .keyboardShortcut(.cancelAction)
-                .buttonStyle(.bordered)
-                .controlSize(.regular)
-        }
-        .padding(.horizontal, 24)
-        .padding(.vertical, 14)
-        .background(Color(red: 0.075, green: 0.094, blue: 0.168))
     }
 
     // MARK: - Content View
@@ -264,7 +306,7 @@ public struct NewProjectSheetView: View {
         case .create:
             actionPanel(
                 icon: "sparkles",
-                title: "Scaffold from starter models",
+                title: "Scaffold from Starter Templates",
                 description: "Choose an app, library, multiplatform, or command line tool template with full build structures, files, configurations, and sensible defaults automatically configured.",
                 tint: Color(red: 0.106, green: 0.404, blue: 0.863),
                 actionTitle: "Choose Scaffold Template",
@@ -283,20 +325,11 @@ public struct NewProjectSheetView: View {
 
         case .clone:
             GitCloneSheetView(viewModel: viewModel)
-                .padding(16)
-                .background(
-                    RoundedRectangle(cornerRadius: 16, style: .continuous)
-                        .fill(Color.white.opacity(0.04))
-                )
-                .overlay(
-                    RoundedRectangle(cornerRadius: 16, style: .continuous)
-                        .stroke(Color.white.opacity(0.08), lineWidth: 1)
-                )
 
         case .importFolder:
             actionPanel(
                 icon: "folder.badge.plus",
-                title: "Import file directory",
+                title: "Import Local Directory",
                 description: "Map any file directory from your Mac's filesystem. SwiftCode will automatically scan, synchronize, and load it into your workspaces.",
                 tint: .blue,
                 actionTitle: "Select Directory",
@@ -335,15 +368,6 @@ public struct NewProjectSheetView: View {
 
         case .scproj:
             ImportProjView()
-                .padding(16)
-                .background(
-                    RoundedRectangle(cornerRadius: 16, style: .continuous)
-                        .fill(Color.white.opacity(0.04))
-                )
-                .overlay(
-                    RoundedRectangle(cornerRadius: 16, style: .continuous)
-                        .stroke(Color.white.opacity(0.08), lineWidth: 1)
-                )
         }
     }
 
@@ -359,9 +383,9 @@ public struct NewProjectSheetView: View {
         VStack(alignment: .leading, spacing: 20) {
             HStack(alignment: .top, spacing: 18) {
                 Image(systemName: icon)
-                    .font(.system(size: 32, weight: .semibold))
+                    .font(.system(size: 30, weight: .semibold))
                     .foregroundStyle(tint)
-                    .frame(width: 64, height: 64)
+                    .frame(width: 58, height: 58)
                     .background(
                         RoundedRectangle(cornerRadius: 16, style: .continuous)
                             .fill(tint.opacity(0.16))
@@ -403,7 +427,14 @@ public struct NewProjectSheetView: View {
         )
         .overlay(
             RoundedRectangle(cornerRadius: 20, style: .continuous)
-                .stroke(Color.white.opacity(0.08), lineWidth: 1)
+                .stroke(
+                    LinearGradient(
+                        colors: [Color.white.opacity(0.12), Color.white.opacity(0.04)],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    ),
+                    lineWidth: 1
+                )
         )
     }
 
@@ -413,7 +444,7 @@ public struct NewProjectSheetView: View {
         case .importFolder: return "Import Folder"
         case .clone: return "Clone Repository"
         case .xcodeproj: return "Open Xcode Project"
-        case .scproj: return "Open SwiftCode Project Archive"
+        case .scproj: return "Open SwiftCode Archive"
         }
     }
 

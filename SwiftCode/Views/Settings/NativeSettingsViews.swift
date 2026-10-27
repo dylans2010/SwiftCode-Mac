@@ -85,33 +85,42 @@ public struct NativeSettingsContainerView: View {
     }
 
     public var body: some View {
-        Group {
-            switch state.selectedCategory {
-            case .general:
-                NativeGeneralSettingsView()
-            case .themes:
-                NativeThemesSettingsView()
-            case .cloud:
-                NativeCloudSettingsView()
-            case .backups:
-                NativeBackupsSettingsView()
-            case .connect:
-                NativeConnectSettingsView()
-            case .assist:
-                NativeAssistSettingsView()
-            case .composio:
-                NativeComposioSettingsView()
-            case .offlineModels:
-                NativeOfflineModelsSettingsView()
-            case .plugins:
-                NativePluginsSettingsView()
-            case .updates:
-                NativeUpdatesSettingsView()
-            case .credits:
-                NativeCreditsSettingsView()
+        VStack(spacing: 0) {
+            Divider()
+                .background(Color(nsColor: .separatorColor))
+
+            Group {
+                switch state.selectedCategory {
+                case .general:
+                    NativeGeneralSettingsView()
+                case .themes:
+                    NativeThemesSettingsView()
+                case .cloud:
+                    NativeCloudSettingsView()
+                case .backups:
+                    NativeBackupsSettingsView()
+                case .connect:
+                    NativeConnectSettingsView()
+                case .assist:
+                    NativeAssistSettingsView()
+                case .composio:
+                    NativeComposioSettingsView()
+                case .offlineModels:
+                    NativeOfflineModelsSettingsView()
+                case .plugins:
+                    NativePluginsSettingsView()
+                case .updates:
+                    NativeUpdatesSettingsView()
+                case .credits:
+                    NativeCreditsSettingsView()
+                }
             }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .clipped()
         }
         .frame(width: NativeSettingsLayout.width, height: NativeSettingsLayout.height)
+        .background(Color(nsColor: .windowBackgroundColor))
+        .clipped()
         .environmentObject(settings)
     }
 }
@@ -187,7 +196,8 @@ public struct NativeGeneralSettingsView: View {
             }
         }
         .formStyle(.grouped)
-        .frame(width: NativeSettingsLayout.width, height: NativeSettingsLayout.height)
+        .clipped()
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
     private func selectCustomFolder() {
@@ -294,7 +304,8 @@ public struct NativeThemesSettingsView: View {
             }
         }
         .formStyle(.grouped)
-        .frame(width: NativeSettingsLayout.width, height: NativeSettingsLayout.height)
+        .clipped()
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 }
 
@@ -398,7 +409,8 @@ public struct NativeCloudSettingsView: View {
             }
         }
         .formStyle(.grouped)
-        .frame(width: NativeSettingsLayout.width, height: NativeSettingsLayout.height)
+        .clipped()
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
         .onAppear {
             refreshSyncInfo()
         }
@@ -520,7 +532,8 @@ public struct NativeBackupsSettingsView: View {
             }
         }
         .formStyle(.grouped)
-        .frame(width: NativeSettingsLayout.width, height: NativeSettingsLayout.height)
+        .clipped()
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
         .onAppear {
             loadBackups()
         }
@@ -691,7 +704,8 @@ public struct NativeConnectSettingsView: View {
             }
         }
         .formStyle(.grouped)
-        .frame(width: NativeSettingsLayout.width, height: NativeSettingsLayout.height)
+        .clipped()
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
         .onAppear {
             portString = "\(connectServer.configuredPort)"
             diagnostics.refreshLocalIP()
@@ -709,7 +723,10 @@ public struct NativeAssistSettingsView: View {
     public var body: some View {
         AssistSettingsView()
             .environmentObject(settings)
-            .frame(width: NativeSettingsLayout.width, height: NativeSettingsLayout.height)
+            .clipped()
+            .padding(.top, 14)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .clipped()
     }
 }
 
@@ -724,7 +741,10 @@ public struct NativeComposioSettingsView: View {
                 .padding(20)
                 .frame(maxWidth: .infinity, alignment: .leading)
         }
-        .frame(width: NativeSettingsLayout.width, height: NativeSettingsLayout.height)
+        .clipped()
+        .padding(.top, 14)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .clipped()
     }
 }
 
@@ -739,7 +759,10 @@ public struct NativeOfflineModelsSettingsView: View {
                 .padding(20)
                 .frame(maxWidth: .infinity, alignment: .leading)
         }
-        .frame(width: NativeSettingsLayout.width, height: NativeSettingsLayout.height)
+        .clipped()
+        .padding(.top, 14)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .clipped()
     }
 }
 
@@ -754,7 +777,10 @@ public struct NativePluginsSettingsView: View {
                 .padding(20)
                 .frame(maxWidth: .infinity, alignment: .leading)
         }
-        .frame(width: NativeSettingsLayout.width, height: NativeSettingsLayout.height)
+        .clipped()
+        .padding(.top, 14)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .clipped()
     }
 }
 
@@ -769,7 +795,10 @@ public struct NativeUpdatesSettingsView: View {
                 .padding(20)
                 .frame(maxWidth: .infinity, alignment: .leading)
         }
-        .frame(width: NativeSettingsLayout.width, height: NativeSettingsLayout.height)
+        .clipped()
+        .padding(.top, 14)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .clipped()
     }
 }
 
@@ -784,6 +813,9 @@ public struct NativeCreditsSettingsView: View {
                 .padding(20)
                 .frame(maxWidth: .infinity, alignment: .leading)
         }
-        .frame(width: NativeSettingsLayout.width, height: NativeSettingsLayout.height)
+        .clipped()
+        .padding(.top, 14)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .clipped()
     }
 }

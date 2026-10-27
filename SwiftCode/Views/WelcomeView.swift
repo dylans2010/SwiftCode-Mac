@@ -73,7 +73,10 @@ public struct SwiftCodeWelcomeView: View {
             loadingOverlay
         }
         .frame(width: 800, height: 480)
-        .background(Color(red: 0.082, green: 0.102, blue: 0.180))
+        .background(
+            VisualEffectView(material: .underWindowBackground, blendingMode: .behindWindow)
+                .overlay(Color.black.opacity(0.35))
+        )
         .preferredColorScheme(.dark)
         .sheet(isPresented: $showingNewProjectSheet) {
             NewProjectSheetView(viewModel: welcomeVM, initialMode: sheetInitialMode)
@@ -140,16 +143,9 @@ public struct SwiftCodeWelcomeView: View {
 
     private var leftPane: some View {
         ZStack {
-            // Dark navy background with subtle liquid gradient
-            LinearGradient(
-                colors: [
-                    Color(red: 0.086, green: 0.106, blue: 0.192),
-                    Color(red: 0.075, green: 0.094, blue: 0.168)
-                ],
-                startPoint: .top,
-                endPoint: .bottom
-            )
-            .ignoresSafeArea()
+            VisualEffectView(material: .sidebar, blendingMode: .behindWindow)
+                .overlay(Color.black.opacity(0.35))
+                .ignoresSafeArea()
 
             VStack(spacing: 0) {
                 Spacer().frame(height: 52)
@@ -237,16 +233,19 @@ public struct SwiftCodeWelcomeView: View {
 
     private var rightPane: some View {
         ZStack {
-            // Rich deep royal blue background matching the screenshot
-            LinearGradient(
-                colors: [
-                    Color(red: 0.082, green: 0.137, blue: 0.337),
-                    Color(red: 0.063, green: 0.106, blue: 0.267)
-                ],
-                startPoint: .top,
-                endPoint: .bottom
-            )
-            .ignoresSafeArea()
+            VisualEffectView(material: .underWindowBackground, blendingMode: .behindWindow)
+                .overlay(
+                    LinearGradient(
+                        colors: [
+                            Color(red: 0.082, green: 0.137, blue: 0.337).opacity(0.35),
+                            Color(red: 0.063, green: 0.106, blue: 0.267).opacity(0.45)
+                        ],
+                        startPoint: .top,
+                        endPoint: .bottom
+                    )
+                )
+                .overlay(Color.black.opacity(0.2))
+                .ignoresSafeArea()
 
             if sessionStore.projects.isEmpty {
                 emptyProjectsView
@@ -383,15 +382,21 @@ public struct SwiftCodeWelcomeView: View {
     // MARK: - Window Configuration (Strict Screenshot Parity)
 
     private func applyWelcomeWindowStyle(to window: NSWindow) {
+        window.isOpaque = false
+        window.backgroundColor = .clear
+        window.hasShadow = true
         window.titleVisibility = .hidden
         window.titlebarAppearsTransparent = true
         window.isMovableByWindowBackground = true
 
-        // The WelcomeView is NOT allowed to be minimized or full screen
+        // The WelcomeView is NOT allowed to be minimized, resized or full screen
         window.styleMask.remove([.resizable, .miniaturizable])
-        window.styleMask.insert([.closable, .titled, .fullSizeContentView])
+        window.styleMask.insert([.titled, .closable, .fullSizeContentView])
 
-        // Prevent window resizing / full-screen on the welcome window
+        let fixedSize = NSSize(width: 800, height: 480)
+        window.minSize = fixedSize
+        window.maxSize = fixedSize
+        window.showsResizeIndicator = false
         window.collectionBehavior = []
 
         // Remove/hide the minimize button and zoom button so ONLY the close button shows
@@ -399,9 +404,6 @@ public struct SwiftCodeWelcomeView: View {
         window.standardWindowButton(.zoomButton)?.isHidden = true
         window.standardWindowButton(.closeButton)?.isHidden = false
 
-        let fixedSize = NSSize(width: 800, height: 480)
-        window.minSize = fixedSize
-        window.maxSize = fixedSize
         if window.frame.size != fixedSize {
             window.setContentSize(fixedSize)
             window.center()
@@ -409,6 +411,10 @@ public struct SwiftCodeWelcomeView: View {
     }
 
     private func restoreStandardWindowStyle(for window: NSWindow) {
+        window.isOpaque = true
+        window.backgroundColor = nil
+        window.showsResizeIndicator = true
+        window.isMovableByWindowBackground = false
         window.titleVisibility = .visible
         window.titlebarAppearsTransparent = false
         window.styleMask.insert([.resizable, .miniaturizable, .closable])
@@ -546,7 +552,10 @@ struct RecentProjectRow: View {
     }
 
     var body: some View {
-        Button(action: onSelect) {
+        Button(action: {
+            onSelect()
+            onOpen()
+        }) {
             HStack(spacing: 12) {
                 macOSFolderIcon
                     .frame(width: 32, height: 32)
@@ -583,11 +592,6 @@ struct RecentProjectRow: View {
         .onHover { hovering in
             isHovering = hovering
         }
-        .simultaneousGesture(
-            TapGesture(count: 2).onEnded {
-                onOpen()
-            }
-        )
     }
 
     @ViewBuilder

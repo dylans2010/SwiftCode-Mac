@@ -323,8 +323,10 @@ public final class AppIconManager: ObservableObject {
         }
         #endif
         
-        // Apply on launch
-        applyIcon(variant: self.currentVariant)
+        // Ensure the active icon is applied if user selected a custom variant
+        if self.currentVariant != .light || self.defaultAppearance != .automatic {
+            applyIcon(variant: self.currentVariant)
+        }
     }
     
     public func setVariant(_ variant: AppIconVariant) {
@@ -365,19 +367,21 @@ public final class AppIconManager: ObservableObject {
     
     private func applyIcon(variant: AppIconVariant) {
         #if os(macOS)
-        if variant == .light {
-            // Adaptive default icon
-            let targetVariant = defaultAppearance.effectiveVariant
-            if let image = NSImage(named: targetVariant.previewImageName) {
-                NSApplication.shared.applicationIconImage = image
-            } else {
-                NSApplication.shared.applicationIconImage = nil
-            }
-        } else if let image = NSImage(named: variant.previewImageName) {
-            NSApplication.shared.applicationIconImage = image
+        let isDefault = (variant == .light && defaultAppearance == .automatic)
+        let resolvedImageName = resolvedPreviewImageName(for: variant)
+        let targetImage = NSImage(named: resolvedImageName)
+
+        // 1. Update running Dock tile immediately
+        if isDefault {
+            NSApplication.shared.applicationIconImage = nil
+        } else if let img = targetImage {
+            NSApplication.shared.applicationIconImage = img
         }
         // Force the macOS Dock tile to immediately redraw
         NSApp.dockTile.display()
+
+        // 2. Persistently apply the icon everywhere in macOS (Finder, Spotlight, Launchpad, app bundles)
+        applyIconEverywhereInMacOS(image: isDefault ? nil : targetImage, isDefault: isDefault)
         #elseif os(iOS)
         guard UIApplication.shared.supportsAlternateIcons else { return }
         UIApplication.shared.setAlternateIconName(variant.assetCatalogName) { error in
@@ -387,6 +391,141 @@ public final class AppIconManager: ObservableObject {
         }
         #endif
     }
+
+    #if os(macOS)
+    private func applyIconEverywhereInMacOS(image: NSImage?, isDefault: Bool) {
+        var bundlePaths: Set<String> = []
+        let mainBundlePath = Bundle.main.bundleURL.path
+        if mainBundlePath.hasSuffix(".app") {
+            bundlePaths.insert(mainBundlePath)
+        }
+        let appsBundlePath = "/Applications/SwiftCode.app"
+        if FileManager.default.fileExists(atPath: appsBundlePath) {
+            bundlePaths.insert(appsBundlePath)
+        }
+
+        let icnsData: Data? = (!isDefault && image != nil) ? Self.generateICNS(from: image!) : nil
+
+        for bundlePath in bundlePaths {
+            let bundleURL = URL(fileURLWithPath: bundlePath)
+            let resourcesURL = bundleURL.appendingPathComponent("Contents/Resources")
+            let appIconURL = resourcesURL.appendingPathComponent("AppIcon.icns")
+            let originalBackupURL = resourcesURL.appendingPathComponent("AppIcon.original.icns")
+
+            // Ensure original AppIcon.icns backup exists
+            if FileManager.default.fileExists(atPath: appIconURL.path) && !FileManager.default.fileExists(atPath: originalBackupURL.path) {
+                try? FileManager.default.copyItem(at: appIconURL, to: originalBackupURL)
+            }
+
+            if isDefault {
+                // Restore original AppIcon.icns in Resources for Spotlight and Launchpad
+                if FileManager.default.fileExists(atPath: originalBackupURL.path) {
+                    try? FileManager.default.removeItem(at: appIconURL)
+                    try? FileManager.default.copyItem(at: originalBackupURL, to: appIconURL)
+                }
+                // Clear custom icon attribute so Finder uses default bundle icon
+                _ = NSWorkspace.shared.setIcon(nil, forFile: bundlePath, options: [])
+            } else {
+                // Write new ICNS into Resources for Spotlight, Launchpad, and Finder indexing
+                if let data = icnsData {
+                    try? data.write(to: appIconURL, options: .atomic)
+                }
+                // Set custom icon on bundle folder for Finder
+                if let img = image {
+                    _ = NSWorkspace.shared.setIcon(img, forFile: bundlePath, options: [])
+                }
+            }
+
+            // Update bundle modification date so macOS detects changes
+            try? FileManager.default.setAttributes([.modificationDate: Date()], ofItemAtPath: bundlePath)
+
+            // Force LaunchServices database reregistration
+            let lsregisterPath = "/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister"
+            if FileManager.default.fileExists(atPath: lsregisterPath) {
+                let proc = Process()
+                proc.executableURL = URL(fileURLWithPath: lsregisterPath)
+                proc.arguments = ["-f", "-R", bundlePath]
+                try? proc.run()
+                proc.waitUntilExit()
+            }
+
+            // Notify Finder of change
+            NSWorkspace.shared.noteFileSystemChanged(bundlePath)
+        }
+
+        DistributedNotificationCenter.default().post(
+            name: NSNotification.Name("com.apple.finder.changeInformation"),
+            object: nil
+        )
+    }
+
+    /// Generates high-fidelity macOS .icns binary data covering standard and Retina resolutions
+    public static func generateICNS(from image: NSImage) -> Data? {
+        let tagsAndSizes: [(String, CGFloat)] = [
+            ("ic11", 32),    // 16@2x
+            ("ic12", 64),    // 32@2x
+            ("ic07", 128),   // 128
+            ("ic08", 256),   // 256
+            ("ic09", 512),   // 512
+            ("ic10", 1024)   // 512@2x / 1024
+        ]
+
+        var entries: [(String, Data)] = []
+        for (tag, size) in tagsAndSizes {
+            guard let pngData = renderPNG(from: image, targetSize: size) else { continue }
+            entries.append((tag, pngData))
+        }
+
+        guard !entries.isEmpty else { return nil }
+
+        var icnsData = Data()
+        icnsData.append(contentsOf: [0x69, 0x63, 0x6e, 0x73]) // 'icns' magic header
+        icnsData.append(contentsOf: [0, 0, 0, 0]) // total length placeholder
+
+        for (tag, pngData) in entries {
+            guard let tagData = tag.data(using: .utf8), tagData.count == 4 else { continue }
+            icnsData.append(tagData)
+            var elementLength = UInt32(8 + pngData.count).bigEndian
+            withUnsafeBytes(of: &elementLength) { icnsData.append(contentsOf: $0) }
+            icnsData.append(pngData)
+        }
+
+        var totalLength = UInt32(icnsData.count).bigEndian
+        withUnsafeBytes(of: &totalLength) {
+            icnsData.replaceSubrange(4..<8, with: $0)
+        }
+
+        return icnsData
+    }
+
+    private static func renderPNG(from image: NSImage, targetSize: CGFloat) -> Data? {
+        let size = NSSize(width: targetSize, height: targetSize)
+        let rect = NSRect(origin: .zero, size: size)
+
+        guard let rep = NSBitmapImageRep(
+            bitmapDataPlanes: nil,
+            pixelsWide: Int(targetSize),
+            pixelsHigh: Int(targetSize),
+            bitsPerSample: 8,
+            samplesPerPixel: 4,
+            hasAlpha: true,
+            isPlanar: false,
+            colorSpaceName: .calibratedRGB,
+            bytesPerRow: 0,
+            bitsPerPixel: 0
+        ) else { return nil }
+
+        NSGraphicsContext.saveGraphicsState()
+        let context = NSGraphicsContext(bitmapImageRep: rep)
+        NSGraphicsContext.current = context
+        context?.imageInterpolation = .high
+
+        image.draw(in: rect, from: .zero, operation: .copy, fraction: 1.0)
+        NSGraphicsContext.restoreGraphicsState()
+
+        return rep.representation(using: .png, properties: [:])
+    }
+    #endif
 }
 
 // MARK: - AppIconPickerView

@@ -1959,6 +1959,7 @@ struct AssistSettingsView: View {
             }
             .padding(24)
         }
+        .clipped()
         .navigationTitle("Assist Settings")
         .sheet(isPresented: $showFreeModelsSheet) {
             FreeORModels()

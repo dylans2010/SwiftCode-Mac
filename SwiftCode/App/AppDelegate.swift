@@ -8,9 +8,6 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         LoggingTool.info("SwiftCode launched.")
         setupDefaultPreferences()
 
-        // Apply registered app icon variant to Dock
-        _ = AppIconManager.shared
-
         // Install bundled custom alert sounds into ~/Library/Sounds/
         _ = SoundInstaller.shared.installSoundsIfNeeded()
 

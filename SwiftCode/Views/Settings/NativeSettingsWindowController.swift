@@ -47,6 +47,8 @@ public final class NativeSettingsWindowController: NSWindowController, NSToolbar
         window.titleVisibility = .visible
         window.titlebarAppearsTransparent = false
         window.toolbarStyle = .preference
+        window.titlebarSeparatorStyle = .line
+        window.backgroundColor = .windowBackgroundColor
         window.isReleasedWhenClosed = false
         window.collectionBehavior = [.managed]
 
@@ -89,6 +91,8 @@ public final class NativeSettingsWindowController: NSWindowController, NSToolbar
         toolbar.autosavesConfiguration = false
         toolbar.selectedItemIdentifier = selectedCategory.toolbarIdentifier
         window.toolbar = toolbar
+        window.titlebarSeparatorStyle = .line
+        window.titlebarAppearsTransparent = false
     }
 
     // MARK: - Category UI Updating
