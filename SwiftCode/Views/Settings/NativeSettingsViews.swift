@@ -707,76 +707,9 @@ public struct NativeAssistSettingsView: View {
     public init() {}
 
     public var body: some View {
-        Form {
-            Section("Routing Mode") {
-                Picker("Active Assist Architecture", selection: $settings.assistSystemID) {
-                    Text("Native Assist (OpenRouter / Cloud)").tag(AppSettings.nativeAssistSystemID)
-                    Text("Google Cloud (Antigravity SDK)").tag(AppSettings.googleCloudAssistSystemID)
-                    Text("Meta (Muse SDK)").tag(AppSettings.metaAssistSystemID)
-                }
-
-                Text("Defines the underlying agent engine that handles reasoning, tool execution, and code completion.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
-
-            Section("Default Model") {
-                Picker("Completion Model", selection: $settings.selectedModel) {
-                    ForEach(AssistModelOption.all) { option in
-                        Text("\(option.displayName) (\(option.provider))").tag(option.id)
-                    }
-                }
-
-                Text("Primary LLM used for multi-file code generation and editing tasks.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
-
-            Section("Reasoning & Cost Limits") {
-                Picker("Reasoning Effort", selection: $settings.metaReasoningEffort) {
-                    Text("Low").tag("low")
-                    Text("Medium").tag("medium")
-                    Text("High").tag("high")
-                }
-
-                Toggle("Only Use Free Models", isOn: $settings.onlyUseFreeModels)
-
-                Text("Restricts model discovery and completions strictly to free-tier community models.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
-
-            Section("API Key Status") {
-                LabeledContent("OpenRouter") {
-                    keyBadge(isSet: APIKeyManager.shared.retrieveKey(service: .openRouter) != nil)
-                }
-
-                LabeledContent("OpenAI") {
-                    keyBadge(isSet: APIKeyManager.shared.retrieveKey(service: .openai) != nil)
-                }
-
-                LabeledContent("Anthropic") {
-                    keyBadge(isSet: APIKeyManager.shared.retrieveKey(service: .anthropic) != nil)
-                }
-
-                LabeledContent("Google Gemini") {
-                    keyBadge(isSet: APIKeyManager.shared.retrieveKey(service: .google) != nil)
-                }
-            }
-        }
-        .formStyle(.grouped)
-        .frame(width: NativeSettingsLayout.width, height: NativeSettingsLayout.height)
-    }
-
-    @ViewBuilder
-    private func keyBadge(isSet: Bool) -> some View {
-        HStack(spacing: 4) {
-            Image(systemName: isSet ? "checkmark.circle.fill" : "xmark.circle")
-                .foregroundStyle(isSet ? .green : .secondary)
-            Text(isSet ? "Configured" : "Not Set")
-                .font(.caption)
-                .foregroundStyle(isSet ? .green : .secondary)
-        }
+        AssistSettingsView()
+            .environmentObject(settings)
+            .frame(width: NativeSettingsLayout.width, height: NativeSettingsLayout.height)
     }
 }
 

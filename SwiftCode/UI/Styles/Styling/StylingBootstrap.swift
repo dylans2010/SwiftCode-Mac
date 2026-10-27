@@ -9,5 +9,7 @@ public struct StylingBootstrap {
     public static func configureEnvironment<V: View>(_ view: V) -> some View {
         view
             .environmentObject(AdaptiveLayoutEngine.shared)
+            .liquidGlassEnabled(true)
+            .liquidGlassStyle(.standard)
     }
 }

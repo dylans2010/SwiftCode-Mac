@@ -1273,6 +1273,7 @@
 		B0020001B0020001B0020025 /* AdaptiveDashboardPage.swift in Sources */ = {isa = PBXBuildFile; fileRef = B0020001B0020001B0020012 /* AdaptiveDashboardPage.swift */; };
 		B0020001B0020001B0020026 /* AdaptiveSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = B0020001B0020001B0020013 /* AdaptiveSheet.swift */; };
 		B0020001B0020001B0020027 /* AdaptiveSplitLayout.swift in Sources */ = {isa = PBXBuildFile; fileRef = B0020001B0020001B0020014 /* AdaptiveSplitLayout.swift */; };
+		B0020001B0020001B0020029 /* LiquidGlass.swift in Sources */ = {isa = PBXBuildFile; fileRef = B0020001B0020001B0020028 /* LiquidGlass.swift */; };
 		B0089B9AE18509F845BDBFA2 /* Views/SCTimelineView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A80E1D6381257BDCE2375EF6 /* Views/SCTimelineView.swift */; };
 		B0576EB1AA30277C34366C88 /* AssistInsertCodeBlockTool.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B30C84BC01049A1C9BC5A7E /* AssistInsertCodeBlockTool.swift */; };
 		B099E4E37FB5E32571B1BB0D /* PermissionConfigView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2B0757CC6635DACECA598706 /* PermissionConfigView.swift */; };
@@ -4272,6 +4273,7 @@
 		B0020001B0020001B0020012 /* AdaptiveDashboardPage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AdaptiveDashboardPage.swift; sourceTree = "<group>"; };
 		B0020001B0020001B0020013 /* AdaptiveSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AdaptiveSheet.swift; sourceTree = "<group>"; };
 		B0020001B0020001B0020014 /* AdaptiveSplitLayout.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AdaptiveSplitLayout.swift; sourceTree = "<group>"; };
+		B0020001B0020001B0020028 /* LiquidGlass.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LiquidGlass.swift; sourceTree = "<group>"; };
 		B0BC46B5B170917934235048 /* AssistExecutionContextPersistenceStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssistExecutionContextPersistenceStore.swift; sourceTree = "<group>"; };
 		B0D8BA330BE044F1BFEA0A57 /* DeviceConnectToolbar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DeviceConnectToolbar.swift; sourceTree = "<group>"; };
 		B0DD56DEFB90345901DD4F15 /* FileNavigatorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FileNavigatorView.swift; sourceTree = "<group>"; };
@@ -9731,6 +9733,7 @@
 				B0020001B0020001B0020012 /* AdaptiveDashboardPage.swift */,
 				B0020001B0020001B0020013 /* AdaptiveSheet.swift */,
 				B0020001B0020001B0020014 /* AdaptiveSplitLayout.swift */,
+				B0020001B0020001B0020028 /* LiquidGlass.swift */,
 			);
 			path = Styling;
 			sourceTree = "<group>";
@@ -13397,6 +13400,7 @@
 				B0020001B0020001B0020025 /* AdaptiveDashboardPage.swift in Sources */,
 				B0020001B0020001B0020026 /* AdaptiveSheet.swift in Sources */,
 				B0020001B0020001B0020027 /* AdaptiveSplitLayout.swift in Sources */,
+				B0020001B0020001B0020029 /* LiquidGlass.swift in Sources */,
 				C822BBE49EB84E8B85C22375 /* SidebarMainView.swift in Sources */,
 				DBEEF4307EC44BE79FB9F936 /* FileNavigatorSidebarView.swift in Sources */,
 				FE18E54E76741F54A82CD5A2 /* FileTemplatesView.swift in Sources */,

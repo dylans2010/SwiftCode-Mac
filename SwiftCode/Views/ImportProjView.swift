@@ -8,16 +8,26 @@ struct ImportProjView: View {
 
     var body: some View {
         VStack(spacing: 24) {
-            Image(systemName: "square.and.arrow.down.fill")
-                .font(.system(size: 60))
-                .foregroundColor(.accentColor)
+            ZStack {
+                RoundedRectangle(cornerRadius: 18, style: .continuous)
+                    .fill(Color(red: 0.106, green: 0.404, blue: 0.863).opacity(0.18))
+                Image(systemName: "square.and.arrow.down.fill")
+                    .font(.system(size: 36))
+                    .foregroundStyle(Color(red: 0.35, green: 0.65, blue: 0.98))
+            }
+            .frame(width: 72, height: 72)
+            .overlay(
+                RoundedRectangle(cornerRadius: 18, style: .continuous)
+                    .stroke(Color(red: 0.106, green: 0.404, blue: 0.863).opacity(0.3), lineWidth: 1)
+            )
 
             VStack(spacing: 8) {
                 Text("Import SwiftCode Project Archive")
-                    .font(.title2)
-                    .bold()
-                Text("Select a SwiftCode Project Archive to import it into your library. The project's integrity will be verified.")
-                    .foregroundColor(.secondary)
+                    .font(.system(size: 18, weight: .bold))
+                    .foregroundStyle(Color.white)
+                Text("Select a .scproj archive to verify integrity and restore into your workspaces.")
+                    .font(.subheadline)
+                    .foregroundStyle(Color.white.opacity(0.6))
                     .multilineTextAlignment(.center)
             }
 
@@ -25,17 +35,23 @@ struct ImportProjView: View {
                 VStack(spacing: 12) {
                     ProgressView(value: importManager.importProgress)
                         .progressViewStyle(.linear)
+                        .tint(Color(red: 0.106, green: 0.404, blue: 0.863))
                     Text("Importing project... \(Int(importManager.importProgress * 100))%")
                         .font(.caption)
-                        .foregroundColor(.secondary)
+                        .foregroundStyle(Color.white.opacity(0.6))
                 }
+                .padding(.horizontal, 24)
             } else {
                 Button(action: selectAndImportFile) {
-                    Label("Select SwiftCode Project Archive...", systemImage: "folder.badge.plus")
+                    Label("Select Archive File...", systemImage: "folder.badge.plus")
+                        .font(.headline)
+                        .foregroundStyle(Color.white)
                         .frame(maxWidth: .infinity)
+                        .padding(.vertical, 8)
                 }
                 .buttonStyle(.borderedProminent)
                 .controlSize(.large)
+                .tint(Color(red: 0.106, green: 0.404, blue: 0.863))
             }
 
             if let error = importManager.importError {
@@ -47,9 +63,11 @@ struct ImportProjView: View {
                         .font(.caption)
                         .multilineTextAlignment(.center)
                 }
-                .padding()
-                .background(Color.red.opacity(0.1))
-                .cornerRadius(8)
+                .padding(12)
+                .background(
+                    RoundedRectangle(cornerRadius: 10, style: .continuous)
+                        .fill(Color.red.opacity(0.12))
+                )
             }
 
             Spacer()
@@ -57,12 +75,14 @@ struct ImportProjView: View {
             Button("Cancel") {
                 dismiss()
             }
-            .buttonStyle(.plain)
-            .foregroundStyle(.secondary)
+            .buttonStyle(.bordered)
+            .controlSize(.regular)
             .disabled(importManager.isImporting)
         }
         .padding(32)
-        .frame(width: 450, height: 400)
+        .frame(width: 480, height: 400)
+        .background(Color(red: 0.082, green: 0.102, blue: 0.180))
+        .preferredColorScheme(.dark)
     }
 
     private func selectAndImportFile() {
@@ -73,31 +93,25 @@ struct ImportProjView: View {
             panel.allowedContentTypes = [UTType(exportedAs: "com.swiftcode.project")]
         }
         panel.canChooseFiles = true
-        panel.canChooseDirectories = false // It's a package, treated as a file in picker if UTI is correct
+        panel.canChooseDirectories = false
 
         if panel.runModal() == .OK, let url = panel.url {
             Task {
                 do {
                     let project = try await importManager.importProject(from: url)
-
-                    // Save metadata on disk inside the project folder
                     try? sessionStore.saveMetadataInPlace(project)
 
-                    // Force state update by re-assigning projects array to trigger observers
                     var currentProjects = sessionStore.projects
                     if !currentProjects.contains(where: { $0.id == project.id }) {
                         currentProjects.insert(project, at: 0)
                     }
                     sessionStore.projects = currentProjects
-
-                    // Explicitly load/synchronize the project list in sessionStore
                     sessionStore.loadProjects()
 
-                    // Automatically open the project immediately
                     await sessionStore.openProject(project)
                     dismiss()
                 } catch {
-                    // Error is handled by ImportProjManager @Published property
+                    // Error is handled by importManager
                 }
             }
         }

@@ -74,8 +74,20 @@ public final class SettingsWindowManager: NSObject, NSWindowDelegate {
         // Support multiple settings windows
         let wc = SettingsWindowController()
         wc.window?.delegate = self
-        windowControllers.append(wc)
-        wc.window?.makeKeyAndOrderFront(nil)
+        if let window = wc.window {
+            window.isReleasedWhenClosed = false
+            let mainWindow = NSApp.mainWindow ?? NSApp.keyWindow ?? NSApp.windows.first(where: { $0.isVisible && $0 != window && !($0 is NSPanel) })
+            if let main = mainWindow {
+                let mainFrame = main.frame
+                let originX = mainFrame.origin.x + (mainFrame.width - window.frame.width) / 2.0
+                let originY = mainFrame.origin.y + (mainFrame.height - window.frame.height) / 2.0
+                window.setFrame(NSRect(x: originX, y: originY, width: window.frame.width, height: window.frame.height), display: true)
+                window.order(.above, relativeTo: main.windowNumber)
+            }
+            windowControllers.append(wc)
+            window.makeKeyAndOrderFront(nil)
+            NSApp.activate(ignoringOtherApps: true)
+        }
     }
 
     public var isSettingsOpen: Bool {
@@ -85,6 +97,10 @@ public final class SettingsWindowManager: NSObject, NSWindowDelegate {
     @discardableResult
     public func focusIfVisible() -> Bool {
         if let active = windowControllers.first(where: { $0.window?.isVisible ?? false })?.window {
+            let mainWindow = NSApp.mainWindow ?? NSApp.keyWindow ?? NSApp.windows.first(where: { $0.isVisible && $0 != active && !($0 is NSPanel) })
+            if let main = mainWindow {
+                active.order(.above, relativeTo: main.windowNumber)
+            }
             active.makeKeyAndOrderFront(nil)
             NSApp.activate(ignoringOtherApps: true)
             return true
@@ -139,6 +155,7 @@ public final class SettingsWindowController: NSWindowController {
         window.minSize = NSSize(width: 850, height: 600)
         window.setFrameAutosaveName("SettingsMainWindow")
         window.collectionBehavior = [.fullScreenPrimary, .managed]
+        window.isReleasedWhenClosed = false
 
         super.init(window: window)
 

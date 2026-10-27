@@ -123,8 +123,24 @@ public final class NativeSettingsWindowController: NSWindowController, NSToolbar
 
         guard let window = self.window else { return }
 
+        window.isReleasedWhenClosed = false
         window.setContentSize(NSSize(width: NativeSettingsLayout.width, height: NativeSettingsLayout.height))
-        if !window.isVisible {
+
+        // Find active app root / main window (WelcomeView or WorkspaceHostView)
+        let mainWindow = NSApp.mainWindow ?? NSApp.keyWindow ?? NSApp.windows.first(where: { $0.isVisible && $0 != window && !($0 is NSPanel) })
+
+        if let main = mainWindow {
+            if !window.isVisible {
+                let mainFrame = main.frame
+                let settingsWidth = NativeSettingsLayout.width
+                let settingsHeight = NativeSettingsLayout.height
+                let originX = mainFrame.origin.x + (mainFrame.width - settingsWidth) / 2.0
+                let originY = mainFrame.origin.y + (mainFrame.height - settingsHeight) / 2.0
+                let targetFrame = NSRect(x: originX, y: originY, width: settingsWidth, height: settingsHeight)
+                window.setFrame(targetFrame, display: true)
+            }
+            window.order(.above, relativeTo: main.windowNumber)
+        } else if !window.isVisible {
             window.center()
         }
 
@@ -133,7 +149,8 @@ public final class NativeSettingsWindowController: NSWindowController, NSToolbar
     }
 
     public func closeWindow() {
-        window?.performClose(nil)
+        guard let window = self.window, window.isVisible else { return }
+        window.orderOut(nil)
     }
 
     // MARK: - NSToolbarDelegate
@@ -178,6 +195,8 @@ public final class NativeSettingsWindowController: NSWindowController, NSToolbar
     // MARK: - NSWindowDelegate
 
     public func windowShouldClose(_ sender: NSWindow) -> Bool {
-        true
+        // Closing the settings window hides it and never terminates or closes the main app window
+        sender.orderOut(nil)
+        return false
     }
 }

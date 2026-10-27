@@ -65,69 +65,91 @@ struct TemplatePickerView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            // Elegant Modern Header
+            // Elegant Dark Header
             HStack(spacing: 16) {
                 ZStack {
-                    RoundedRectangle(cornerRadius: 18, style: .continuous)
-                        .fill(Color.orange.opacity(0.18).gradient)
+                    RoundedRectangle(cornerRadius: 14, style: .continuous)
+                        .fill(Color(red: 0.106, green: 0.404, blue: 0.863).opacity(0.2))
                     Image(systemName: "square.grid.2x2.fill")
-                        .font(.system(size: 26, weight: .bold))
-                        .foregroundStyle(.orange.gradient)
+                        .font(.system(size: 22, weight: .bold))
+                        .foregroundStyle(Color(red: 0.35, green: 0.65, blue: 0.98))
                 }
-                .frame(width: 58, height: 58)
+                .frame(width: 48, height: 48)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 14, style: .continuous)
+                        .stroke(Color(red: 0.106, green: 0.404, blue: 0.863).opacity(0.3), lineWidth: 1)
+                )
 
-                VStack(alignment: .leading, spacing: 4) {
+                VStack(alignment: .leading, spacing: 3) {
                     Text("Select a Template")
-                        .font(.system(size: 24, weight: .bold, design: .rounded))
-                    Text("Choose from various highly polished starter configurations.")
+                        .font(.system(size: 20, weight: .bold))
+                        .foregroundStyle(Color.white)
+                    Text("Choose from various starter configurations.")
                         .font(.subheadline)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(Color.white.opacity(0.6))
                 }
 
                 Spacer()
             }
             .padding(.horizontal, 24)
-            .padding(.vertical, 20)
-            .background(.thinMaterial)
+            .padding(.vertical, 16)
+            .background(Color(red: 0.082, green: 0.102, blue: 0.180).opacity(0.95))
 
-            Divider()
+            Rectangle()
+                .fill(Color.white.opacity(0.08))
+                .frame(height: 1)
 
             HStack(spacing: 0) {
                 // Left Panel: Configuration & Grid
-                VStack(spacing: 20) {
+                VStack(spacing: 18) {
                     // Project Name Input Card
-                    VStack(alignment: .leading, spacing: 8) {
+                    VStack(alignment: .leading, spacing: 6) {
                         Text("Project Name")
-                            .font(.headline)
-                            .foregroundStyle(.secondary)
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(Color.white.opacity(0.6))
 
                         TextField("MyProject", text: $projectName)
                             .textFieldStyle(.plain)
+                            .font(.system(size: 13, weight: .medium))
+                            .foregroundStyle(Color.white)
                             .padding(.horizontal, 12)
-                            .padding(.vertical, 10)
-                            .background(Color.secondary.opacity(0.1), in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+                            .padding(.vertical, 8)
+                            .background(
+                                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                                    .fill(Color.white.opacity(0.06))
+                            )
                             .overlay(
                                 RoundedRectangle(cornerRadius: 10, style: .continuous)
-                                    .stroke(Color.accentColor.opacity(0.2), lineWidth: 1)
+                                    .stroke(Color.white.opacity(0.12), lineWidth: 1)
                             )
                     }
-                    .padding(.horizontal)
+                    .padding(.horizontal, 20)
 
                     // Template Search Bar
                     HStack(spacing: 10) {
                         Image(systemName: "magnifyingglass")
-                            .foregroundStyle(.secondary)
+                            .font(.system(size: 13))
+                            .foregroundStyle(Color.white.opacity(0.5))
                         TextField("Search Templates", text: $searchText)
                             .textFieldStyle(.plain)
+                            .font(.system(size: 13))
+                            .foregroundStyle(Color.white)
                     }
                     .padding(.horizontal, 12)
                     .padding(.vertical, 8)
-                    .background(Color.secondary.opacity(0.08), in: RoundedRectangle(cornerRadius: 8))
-                    .padding(.horizontal)
+                    .background(
+                        RoundedRectangle(cornerRadius: 10, style: .continuous)
+                            .fill(Color.white.opacity(0.05))
+                    )
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 10, style: .continuous)
+                            .stroke(Color.white.opacity(0.08), lineWidth: 1)
+                    )
+                    .padding(.horizontal, 20)
 
                     // Grid Browser
                     ScrollView {
-                        LazyVGrid(columns: [GridItem(.adaptive(minimum: 110, maximum: 140), spacing: 14)], spacing: 14) {
+                        LazyVGrid(columns: [GridItem(.adaptive(minimum: 110, maximum: 140), spacing: 12)], spacing: 12) {
                             ForEach(filteredTemplates, id: \.name) { template in
                                 TemplateGridCard(
                                     template: template,
@@ -136,53 +158,58 @@ struct TemplatePickerView: View {
                                 )
                             }
                         }
-                        .padding(.horizontal)
+                        .padding(.horizontal, 20)
                         .padding(.bottom, 16)
                     }
                 }
                 .frame(maxWidth: .infinity)
-                .padding(.top, 20)
+                .padding(.top, 16)
 
-                Divider()
+                Rectangle()
+                    .fill(Color.white.opacity(0.08))
+                    .frame(width: 1)
 
                 // Right Panel: Template Inspector Detail
-                VStack(alignment: .leading, spacing: 18) {
+                VStack(alignment: .leading, spacing: 16) {
                     Text("Template Inspector")
-                        .font(.system(size: 14, weight: .bold))
-                        .foregroundStyle(.secondary)
-                        .padding(.bottom, 4)
+                        .font(.system(size: 12, weight: .bold))
+                        .foregroundStyle(Color.white.opacity(0.5))
+                        .padding(.bottom, 2)
 
                     // Header Info
-                    HStack(spacing: 14) {
+                    HStack(spacing: 12) {
                         ZStack {
-                            RoundedRectangle(cornerRadius: 14, style: .continuous)
-                                .fill(Color.orange.opacity(0.12).gradient)
+                            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                                .fill(Color(red: 0.106, green: 0.404, blue: 0.863).opacity(0.2))
                             Image(systemName: selectedTemplate.icon)
-                                .font(.title)
-                                .foregroundStyle(.orange.gradient)
+                                .font(.system(size: 20))
+                                .foregroundStyle(Color(red: 0.35, green: 0.65, blue: 0.98))
                         }
-                        .frame(width: 52, height: 52)
+                        .frame(width: 44, height: 44)
 
                         VStack(alignment: .leading, spacing: 2) {
                             Text(selectedTemplate.name)
-                                .font(.headline)
+                                .font(.system(size: 14, weight: .bold))
+                                .foregroundStyle(Color.white)
                             Text("Ready to Scaffold")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
+                                .font(.caption2)
+                                .foregroundStyle(Color.white.opacity(0.5))
                         }
                     }
 
-                    Divider()
+                    Rectangle()
+                        .fill(Color.white.opacity(0.08))
+                        .frame(height: 1)
 
                     // Description
                     VStack(alignment: .leading, spacing: 6) {
                         Text("About this Template")
                             .font(.caption.weight(.bold))
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(Color.white.opacity(0.5))
                         Text(selectedTemplate.description)
-                            .font(.body)
-                            .foregroundStyle(.primary)
-                            .lineSpacing(4)
+                            .font(.system(size: 12))
+                            .foregroundStyle(Color.white.opacity(0.8))
+                            .lineSpacing(3)
                             .fixedSize(horizontal: false, vertical: true)
                     }
 
@@ -195,12 +222,14 @@ struct TemplatePickerView: View {
                         TemplateSpecRow(label: "Deployment", value: "Native App Sandbox")
                     }
                 }
-                .frame(width: 260)
-                .padding(24)
-                .background(.regularMaterial)
+                .frame(width: 250)
+                .padding(20)
+                .background(Color(red: 0.075, green: 0.094, blue: 0.168))
             }
 
-            Divider()
+            Rectangle()
+                .fill(Color.white.opacity(0.08))
+                .frame(height: 1)
 
             // Footer Action Bar
             HStack {
@@ -208,7 +237,7 @@ struct TemplatePickerView: View {
                     Label("Back", systemImage: "chevron.left")
                         .padding(.horizontal, 4)
                 }
-                .controlSize(.large)
+                .controlSize(.regular)
 
                 Spacer()
 
@@ -218,15 +247,16 @@ struct TemplatePickerView: View {
                         .padding(.horizontal, 8)
                 }
                 .buttonStyle(.borderedProminent)
-                .controlSize(.large)
-                .tint(.orange)
+                .controlSize(.regular)
+                .tint(Color(red: 0.106, green: 0.404, blue: 0.863))
             }
             .padding(.horizontal, 24)
             .padding(.vertical, 14)
-            .background(.thinMaterial)
+            .background(Color(red: 0.075, green: 0.094, blue: 0.168))
         }
-        .frame(width: 760, height: 560)
-        .background(.ultraThinMaterial)
+        .frame(width: 780, height: 560)
+        .background(Color(red: 0.082, green: 0.102, blue: 0.180))
+        .preferredColorScheme(.dark)
         .alert("Project Name", isPresented: $showingNameAlert) {
             TextField("Enter project name", text: $projectName)
             Button("Create") {
@@ -241,16 +271,9 @@ struct TemplatePickerView: View {
     private func createProject() {
         Task {
             do {
-                // 1. Create the project entry in ProjectSessionStore first in the configured projects folder (Default or Custom)
                 let project = try sessionStore.createProject(name: projectName)
-
-                // 2. Scaffold the template directly inside the newly created project's directory
                 try await ProjectScaffoldTemplateEngine.shared.createProject(at: project.directoryURL, template: selectedTemplate)
-
-                // 3. Refresh the project's file navigator tree
                 sessionStore.refreshFileTree(for: project)
-
-                // 4. Open the project and focus the editor
                 await sessionStore.openProject(project)
                 dismiss()
             } catch {
@@ -270,34 +293,38 @@ struct TemplateGridCard: View {
 
     var body: some View {
         Button(action: onTap) {
-            VStack(spacing: 12) {
+            VStack(spacing: 10) {
                 ZStack {
-                    RoundedRectangle(cornerRadius: 16, style: .continuous)
-                        .fill(isSelected ? Color.orange.gradient : Color.secondary.opacity(isHovered ? 0.14 : 0.08).gradient)
+                    RoundedRectangle(cornerRadius: 14, style: .continuous)
+                        .fill(
+                            isSelected
+                                ? Color(red: 0.106, green: 0.404, blue: 0.863)
+                                : Color.white.opacity(isHovered ? 0.10 : 0.05)
+                        )
                     Image(systemName: template.icon)
-                        .font(.system(size: 26))
-                        .foregroundStyle(isSelected ? .white : .orange)
+                        .font(.system(size: 22))
+                        .foregroundStyle(isSelected ? Color.white : Color(red: 0.35, green: 0.65, blue: 0.98))
                 }
-                .frame(width: 58, height: 58)
+                .frame(width: 50, height: 50)
 
                 Text(template.name)
-                    .font(.system(size: 11, weight: .semibold, design: .rounded))
-                    .foregroundStyle(isSelected ? .orange : .primary)
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundStyle(isSelected ? Color.white : Color.white.opacity(0.85))
                     .lineLimit(1)
                     .multilineTextAlignment(.center)
             }
-            .padding(.vertical, 14)
-            .padding(.horizontal, 10)
+            .padding(.vertical, 12)
+            .padding(.horizontal, 8)
             .frame(maxWidth: .infinity)
             .background(
-                RoundedRectangle(cornerRadius: 18, style: .continuous)
-                    .fill(isSelected ? Color.orange.opacity(0.08) : Color.clear)
+                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    .fill(isSelected ? Color(red: 0.106, green: 0.404, blue: 0.863).opacity(0.18) : (isHovered ? Color.white.opacity(0.04) : Color.clear))
             )
             .overlay(
-                RoundedRectangle(cornerRadius: 18, style: .continuous)
-                    .stroke(isSelected ? Color.orange : Color.clear, lineWidth: 1.5)
+                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    .stroke(isSelected ? Color(red: 0.106, green: 0.404, blue: 0.863) : Color.white.opacity(0.06), lineWidth: isSelected ? 1.5 : 1)
             )
-            .contentShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
+            .contentShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
         }
         .buttonStyle(.plain)
         .onHover { hover in
@@ -315,12 +342,12 @@ struct TemplateSpecRow: View {
     var body: some View {
         HStack {
             Text(label)
-                .font(.caption)
-                .foregroundStyle(.secondary)
+                .font(.caption2)
+                .foregroundStyle(Color.white.opacity(0.5))
             Spacer()
             Text(value)
-                .font(.caption.bold())
-                .foregroundStyle(.primary)
+                .font(.caption2.bold())
+                .foregroundStyle(Color.white)
         }
     }
 }

@@ -1,45 +1,22 @@
 import SwiftUI
+import AppKit
 import os
 
 @MainActor
-struct SwiftCodeWelcomeView: View {
+public struct SwiftCodeWelcomeView: View {
     @Environment(ProjectSessionStore.self) private var sessionStore
-    @EnvironmentObject private var folderManager: FolderManager
     @Environment(ThemeViewModel.self) private var themeVM
 
-    @State private var showingNewProject = false
-    @State private var showingSettings = false
-    @State private var showingAppIconSelect = false
-    @ObservedObject private var iconManager = AppIconManager.shared
-    @State private var searchText = ""
+    @State private var welcomeVM = WelcomeViewModel()
+    @State private var showingNewProjectSheet = false
+    @State private var sheetInitialMode: NewProjectSheetView.SelectionMode = .create
+    @State private var selectedProjectID: UUID?
 
-    // Sorting and view mode
-    @AppStorage("com.swiftcode.home.viewMode") private var viewModeRaw = "grid" // "grid" or "list"
-    @State private var sortBy: SortMode = .lastOpened
-    @AppStorage("com.swiftcode.home.favoriteProjects") private var favoriteProjectIDs: String = ""
-
-    // Folder Creation Sheet
-    @State private var showCreateFolderSheet = false
-    @State private var newFolderName = ""
-    @State private var newFolderColor = "#FF5733"
-
-    // Project management states
-    @State private var showRenameSheet = false
-    @State private var projectToRename: Project?
-    @State private var renameText = ""
-    @State private var showAddToFolderSheet = false
-    @State private var projectToAssignFolder: Project?
-    @State private var exportURL: URL?
-    @State private var showShareSheet = false
-    @State private var errorMessage: String?
-    @State private var showError = false
-
-    // Save Location and Project Action Confirmations
+    // Project action confirmations
     @State private var activeConfirmation: ActiveConfirmation?
     @State private var showConfirmationAlert = false
-    @State private var showingInfoAlert = false
-    @State private var infoAlertTitle = ""
-    @State private var infoAlertMessage = ""
+    @State private var errorMessage: String?
+    @State private var showError = false
 
     enum ActiveConfirmation: Identifiable {
         case remove(Project)
@@ -61,107 +38,45 @@ struct SwiftCodeWelcomeView: View {
         }
     }
 
-    private func revealInFinder(_ project: Project) {
-        NSWorkspace.shared.selectFile(nil, inFileViewerRootedAtPath: project.directoryURL.path)
+    private var versionString: String {
+        let shortVersion = (Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String) ?? "1.0.0"
+        let bundleVersion = (Bundle.main.infoDictionary?["CFBundleVersion"] as? String) ?? "1"
+        return "Version \(shortVersion) (\(bundleVersion))"
     }
 
-    private func openProjectLocation(_ project: Project) {
-        NSWorkspace.shared.open(project.directoryURL)
-    }
+    public init() {}
 
-    private func copyProjectPath(_ project: Project) {
-        let pasteboard = NSPasteboard.general
-        pasteboard.declareTypes([.string], owner: nil)
-        pasteboard.setString(project.directoryURL.path, forType: .string)
-    }
-
-    private func showProjectInfo(_ project: Project) {
-        infoAlertTitle = "Project Information"
-        infoAlertMessage = """
-        Name: \(project.displayName)
-        Location: \(project.directoryURL.path)
-        Created At: \(project.createdAt.formatted())
-        Last Opened: \(project.lastOpened.formatted())
-        Description: \(project.description.isEmpty ? "None" : project.description)
-        """
-        showingInfoAlert = true
-    }
-
-    enum SortMode: String, CaseIterable, Identifiable {
-        case lastOpened = "Last Opened"
-        case name = "Name"
-        case dateCreated = "Date Created"
-
-        var id: String { rawValue }
-    }
-
-    private var favorites: Set<String> {
-        Set(favoriteProjectIDs.split(separator: ",").map(String.init))
-    }
-
-    private var isSearching: Bool { !searchText.isEmpty }
-
-    private var filteredProjects: [Project] {
-        var result = sessionStore.projects
-
-        if !searchText.isEmpty {
-            result = result.filter { project in
-                project.name.localizedCaseInsensitiveContains(searchText) ||
-                project.description.localizedCaseInsensitiveContains(searchText)
+    public var body: some View {
+        ZStack {
+            // Background Window Accessor for strict styling enforcement
+            WelcomeWindowAccessor { window in
+                applyWelcomeWindowStyle(to: window)
             }
-        }
 
-        switch sortBy {
-        case .lastOpened:
-            result.sort { $0.lastOpened > $1.lastOpened }
-        case .name:
-            result.sort { $0.name.localizedStandardCompare($1.name) == .orderedAscending }
-        case .dateCreated:
-            result.sort { $0.createdAt > $1.createdAt }
-        }
+            // Main Two-Column Layout (Matching Screenshot: 800 x 480)
+            HStack(spacing: 0) {
+                // Left Column: App Branding & Quick Actions
+                leftPane
+                    .frame(width: 470)
 
-        return result
-    }
+                // Subtle vertical divider line
+                Rectangle()
+                    .fill(Color.white.opacity(0.08))
+                    .frame(width: 1)
 
-    var body: some View {
-        NavigationStack {
-            AdaptivePage {
-                mainDashboard
+                // Right Column: Recent Projects List
+                rightPane
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
-            .searchable(text: $searchText, prompt: "Search Projects")
-            .toolbar {
-                ToolbarItemGroup(placement: .primaryAction) {
-                    Button {
-                        SDKStudioWindowManager.shared.openStudio(section: .projects)
-                    } label: {
-                        Label("Open Studio", systemImage: "hammer.fill")
-                    }
-                    .help("Open SwiftCode Studio and SDK tools")
 
-                    Button {
-                        showCreateFolderSheet = true
-                    } label: {
-                        Label("Create Folder", systemImage: "folder.badge.plus")
-                    }
-                    .help("Create Folder")
-
-                    Picker("Sort By", selection: $sortBy) {
-                        ForEach(SortMode.allCases) { mode in
-                            Text(mode.rawValue).tag(mode)
-                        }
-                    }
-                    .pickerStyle(.menu)
-
-                    Picker("View Mode", selection: $viewModeRaw) {
-                        Image(systemName: "square.grid.2x2").tag("grid")
-                        Image(systemName: "list.bullet").tag("list")
-                    }
-                    .pickerStyle(.segmented)
-                }
-            }
+            // Loading / Error Overlay
+            loadingOverlay
         }
-        .sheet(isPresented: $showingNewProject) {
-            NewProjectSheetView(viewModel: WelcomeViewModel())
+        .frame(width: 800, height: 480)
+        .background(Color(red: 0.082, green: 0.102, blue: 0.180))
+        .preferredColorScheme(.dark)
+        .sheet(isPresented: $showingNewProjectSheet) {
+            NewProjectSheetView(viewModel: welcomeVM, initialMode: sheetInitialMode)
         }
         .alert(
             confirmationAlertTitle,
@@ -172,14 +87,20 @@ struct SwiftCodeWelcomeView: View {
             case .remove(let project):
                 Button("Remove from Recents", role: .destructive) {
                     sessionStore.removeProjectFromRecents(project)
+                    if selectedProjectID == project.id {
+                        selectedProjectID = sessionStore.projects.first?.id
+                    }
                 }
                 Button("Cancel", role: .cancel) {}
             case .delete(let project):
                 Button("Delete From Disk", role: .destructive) {
                     do {
                         try sessionStore.deleteProject(project)
+                        if selectedProjectID == project.id {
+                            selectedProjectID = sessionStore.projects.first?.id
+                        }
                     } catch {
-                        showError(error)
+                        showErrorMessage(error.localizedDescription)
                     }
                 }
                 Button("Cancel", role: .cancel) {}
@@ -187,384 +108,196 @@ struct SwiftCodeWelcomeView: View {
         } message: { config in
             switch config {
             case .remove(let project):
-                Text("Are you sure you want to remove \"\(project.displayName)\" from the list? The folder on disk will NOT be touched.")
+                Text("Are you sure you want to remove \"\(project.displayName)\" from the recents list? Files on disk will remain untouched.")
             case .delete(let project):
-                Text("Are you sure you want to permanently delete \"\(project.displayName)\" from your disk? This action is irreversible.")
+                Text("Are you sure you want to permanently delete \"\(project.displayName)\" from your disk? This cannot be undone.")
             }
-        }
-        .alert(infoAlertTitle, isPresented: $showingInfoAlert) {
-            Button("OK", role: .cancel) {}
-        } message: {
-            Text(infoAlertMessage)
-        }
-        .background(
-            Group {
-                if showingSettings {
-                    SettingsView()
-                        .environmentObject(AppSettings.shared)
-                        .frame(width: 0, height: 0)
-                        .opacity(0)
-                        .allowsHitTesting(false)
-                        .onAppear {
-                            showingSettings = false
-                        }
-                }
-            }
-        )
-        .sheet(isPresented: $showCreateFolderSheet) {
-            createFolderSheet
-        }
-        .sheet(isPresented: $showRenameSheet) {
-            renameSheet
-        }
-        .sheet(isPresented: $showAddToFolderSheet) {
-            addToFolderSheet
-        }
-        .sheet(isPresented: $showShareSheet) {
-            if let url = exportURL {
-                ShareSheet(activityItems: [url])
-            }
-        }
-        .sheet(isPresented: $showingAppIconSelect) {
-            AppIconSelectView()
         }
         .alert("Error", isPresented: $showError, presenting: errorMessage) { _ in
             Button("OK") {}
         } message: { msg in Text(msg) }
-        .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("ShowImportPicker"))) { _ in
-            showingNewProject = true
-        }
-        .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("com.swiftcode.project.addToFolder"))) { notification in
-            if let project = notification.object as? Project {
-                projectToAssignFolder = project
-                showAddToFolderSheet = true
-            }
-        }
         .onAppear {
-            if let window = NSApplication.shared.windows.first(where: { $0.isVisible && !$0.title.isEmpty }) {
-                window.titleVisibility = .visible
-                window.titlebarAppearsTransparent = false
-                window.styleMask.insert([.resizable, .miniaturizable, .closable])
-                window.standardWindowButton(.closeButton)?.isHidden = false
-                window.standardWindowButton(.miniaturizeButton)?.isHidden = false
-                window.standardWindowButton(.zoomButton)?.isHidden = false
-                window.minSize = NSSize(width: 950, height: 620)
-                window.collectionBehavior = [.fullScreenPrimary]
-                window.center()
+            if let window = NSApplication.shared.windows.first(where: { $0.isVisible }) {
+                applyWelcomeWindowStyle(to: window)
+            }
+            if selectedProjectID == nil {
+                selectedProjectID = sessionStore.projects.first?.id
             }
         }
         .onDisappear {
-            if let window = NSApplication.shared.windows.first(where: { $0.isVisible && !$0.title.isEmpty }) {
-                window.styleMask.insert([.resizable, .miniaturizable, .closable])
-                window.titleVisibility = .visible
-                window.titlebarAppearsTransparent = false
-                window.standardWindowButton(.closeButton)?.isHidden = false
-                window.standardWindowButton(.miniaturizeButton)?.isHidden = false
-                window.standardWindowButton(.zoomButton)?.isHidden = false
-                window.minSize = NSSize(width: 800, height: 600)
-                window.maxSize = NSSize(width: 10000, height: 10000)
-                window.collectionBehavior = [.fullScreenPrimary]
+            if let window = NSApplication.shared.windows.first(where: { $0.isVisible }) {
+                restoreStandardWindowStyle(for: window)
+            }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: NSWindow.didBecomeKeyNotification)) { notification in
+            if let window = notification.object as? NSWindow, window.isVisible {
+                applyWelcomeWindowStyle(to: window)
             }
         }
     }
 
-    private var mainDashboard: some View {
+    // MARK: - Left Column (Hero & Action Buttons)
+
+    private var leftPane: some View {
         ZStack {
-            // Modern, rich background gradient with neon accents
+            // Dark navy background with subtle liquid gradient
             LinearGradient(
                 colors: [
-                    Color(hex: themeVM.currentTheme.background).opacity(0.95),
-                    Color.accentColor.opacity(0.12),
-                    Color.orange.opacity(0.08)
+                    Color(red: 0.086, green: 0.106, blue: 0.192),
+                    Color(red: 0.075, green: 0.094, blue: 0.168)
                 ],
-                startPoint: .topLeading,
-                endPoint: .bottomTrailing
+                startPoint: .top,
+                endPoint: .bottom
             )
             .ignoresSafeArea()
 
-            // Glowing glassmorphic ambient circles
-            GeometryReader { geo in
+            VStack(spacing: 0) {
+                Spacer().frame(height: 52)
+
+                // App Icon centered in a squircle with shadow
+                appIconView
+
+                // Title: "SwiftCode"
+                Text("SwiftCode")
+                    .font(.system(size: 32, weight: .bold, design: .default))
+                    .foregroundStyle(Color.white)
+                    .padding(.top, 14)
+
+                // Subtitle: Version dynamically pulled from Bundle info
+                Text(versionString)
+                    .font(.system(size: 13, weight: .regular))
+                    .foregroundStyle(Color(red: 0.62, green: 0.67, blue: 0.77))
+                    .padding(.top, 4)
+
+                Spacer().frame(height: 32)
+
+                // Buttons List (matching the screenshot pill style)
+                VStack(spacing: 12) {
+                    WelcomePillButton(
+                        title: "Create Project",
+                        systemImage: "plus.app"
+                    ) {
+                        sheetInitialMode = .create
+                        showingNewProjectSheet = true
+                    }
+
+                    WelcomePillButton(
+                        title: "Clone Git Repository...",
+                        systemImage: "arrow.down.doc"
+                    ) {
+                        sheetInitialMode = .clone
+                        showingNewProjectSheet = true
+                    }
+
+                    WelcomePillButton(
+                        title: "Open File or Folder...",
+                        systemImage: "folder"
+                    ) {
+                        openFileOrFolder()
+                    }
+                }
+                .padding(.horizontal, 40)
+
+                Spacer(minLength: 24)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var appIconView: some View {
+        Group {
+            if let icon = NSImage(named: NSImage.applicationIconName) ?? NSImage(named: "AppIcon") {
+                Image(nsImage: icon)
+                    .resizable()
+                    .aspectRatio(contentMode: .fit)
+            } else if let icon = NSImage(named: AppIconManager.shared.resolvedPreviewImageName(for: AppIconManager.shared.currentVariant)) {
+                Image(nsImage: icon)
+                    .resizable()
+                    .aspectRatio(contentMode: .fit)
+            } else {
                 ZStack {
-                    Circle()
-                        .fill(Color.accentColor.opacity(0.15))
-                        .frame(width: 350, height: 350)
-                        .blur(radius: 60)
-                        .position(x: 100, y: 150)
-
-                    Circle()
-                        .fill(Color.orange.opacity(0.12))
-                        .frame(width: 300, height: 300)
-                        .blur(radius: 50)
-                        .position(x: geo.size.width - 100, y: geo.size.height - 150)
+                    RoundedRectangle(cornerRadius: 22, style: .continuous)
+                        .fill(Color(red: 0.12, green: 0.15, blue: 0.25))
+                    Image(systemName: "swift")
+                        .font(.system(size: 48, weight: .semibold))
+                        .foregroundStyle(Color.orange)
                 }
             }
-            .allowsHitTesting(false)
-
-            HStack(spacing: 0) {
-                // Left Column: Modern Welcoming Hero & Quick Actions
-                leftPanel
-                    .frame(width: 360)
-                    .background(.ultraThinMaterial)
-
-                Divider()
-
-                // Right Column: Active/Recent Workspace Manager
-                rightPanel
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-            }
         }
+        .frame(width: 96, height: 96)
+        .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 22, style: .continuous)
+                .stroke(Color.white.opacity(0.12), lineWidth: 1)
+        )
+        .shadow(color: Color.black.opacity(0.45), radius: 14, x: 0, y: 7)
     }
 
-    private var leftPanel: some View {
-        VStack(spacing: 0) {
-            ScrollView {
-                VStack(spacing: 32) {
-                    // Active Handcrafted App Icon (customizable by user)
-                    Button {
-                        showingAppIconSelect = true
-                    } label: {
-                        ZStack {
-                            Circle()
-                                .fill(Color.orange.opacity(0.14).gradient)
-                                .frame(width: 116, height: 116)
-                                .blur(radius: 12)
+    // MARK: - Right Column (Recent Projects)
 
-                            Group {
-                                if let nsImg = NSImage(named: iconManager.resolvedPreviewImageName(for: iconManager.currentVariant)) {
-                                    Image(nsImage: nsImg)
-                                        .resizable()
-                                } else {
-                                    Image(iconManager.currentVariant.previewImageName)
-                                        .resizable()
+    private var rightPane: some View {
+        ZStack {
+            // Rich deep royal blue background matching the screenshot
+            LinearGradient(
+                colors: [
+                    Color(red: 0.082, green: 0.137, blue: 0.337),
+                    Color(red: 0.063, green: 0.106, blue: 0.267)
+                ],
+                startPoint: .top,
+                endPoint: .bottom
+            )
+            .ignoresSafeArea()
+
+            if sessionStore.projects.isEmpty {
+                emptyProjectsView
+            } else {
+                ScrollView {
+                    LazyVStack(spacing: 4) {
+                        ForEach(sessionStore.projects) { project in
+                            RecentProjectRow(
+                                project: project,
+                                isSelected: selectedProjectID == project.id,
+                                onSelect: {
+                                    selectedProjectID = project.id
+                                },
+                                onOpen: {
+                                    Task {
+                                        await sessionStore.openProject(project)
+                                    }
                                 }
+                            )
+                            .contextMenu {
+                                projectContextMenu(for: project)
                             }
-                            .aspectRatio(contentMode: .fit)
-                            .frame(width: 88, height: 88)
-                            .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
-                            .shadow(color: Color.black.opacity(0.35), radius: 12, x: 0, y: 6)
                         }
                     }
-                    .buttonStyle(.plain)
-                    .help("Customize App Icon (\(iconManager.currentVariant.displayName))")
-                    .padding(.top, 24)
-
-                    // Modernised "Welcome to SwiftCode" Header Text - only Accent Color
-                    VStack(spacing: 12) {
-                        Text("Welcome to SwiftCode")
-                            .font(.system(size: 30, weight: .black, design: .rounded))
-                            .multilineTextAlignment(.center)
-                            .foregroundStyle(Color.accentColor)
-
-                        Text("The desktop IDE for building and organizing cutting-edge Swift applications natively.")
-                            .font(.subheadline)
-                            .fontWeight(.medium)
-                            .foregroundStyle(.secondary)
-                            .multilineTextAlignment(.center)
-                            .padding(.horizontal, 24)
-                    }
-
-                    // Modern Quick Action Cards - only Accent Color
-                    VStack(spacing: 14) {
-                        ModernActionCard(
-                            title: "New Project",
-                            subtitle: "Start a fresh app from templates",
-                            iconName: "plus.circle.fill",
-                            color: .accentColor
-                        ) {
-                            showingNewProject = true
-                        }
-
-                        ModernActionCard(
-                            title: "Import Folder",
-                            subtitle: "Open a project directory from disk",
-                            iconName: "folder.badge.plus",
-                            color: .accentColor
-                        ) {
-                            importFolder()
-                        }
-
-                        ModernActionCard(
-                            title: "Settings",
-                            subtitle: "Configure accounts, themes & AI",
-                            iconName: "gearshape.fill",
-                            color: .accentColor
-                        ) {
-                            showingSettings = true
-                        }
-                    }
-                    .padding(.horizontal, 20)
-
-                    Spacer(minLength: 20)
-                }
-            }
-            .scrollIndicators(.never)
-
-            // Keep Studio available even when the welcome content is taller than the window.
-            Divider()
-
-            Button {
-                SDKStudioWindowManager.shared.openStudio(section: .projects)
-            } label: {
-                HStack(spacing: 12) {
-                    VStack(alignment: .leading, spacing: 3) {
-                        Text("SwiftCode Studio")
-                            .font(.headline)
-                        Text("Build extensions, install the SDK & ship")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                    }
-                    Spacer(minLength: 8)
-                    Image(systemName: "arrow.up.right.square")
-                        .foregroundStyle(Color.accentColor)
-                }
-                .padding(12)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .background(Color(NSColor.controlBackgroundColor).opacity(0.65), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
-                .overlay {
-                    RoundedRectangle(cornerRadius: 12, style: .continuous)
-                        .stroke(Color.primary.opacity(0.08), lineWidth: 1)
-                }
-                .contentShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-            }
-            .buttonStyle(.plain)
-            .help("Open SwiftCode Studio and SDK tools")
-            .padding(.horizontal, 20)
-            .padding(.vertical, 12)
-
-            // Dynamic stats bar at the bottom
-            HStack(spacing: 12) {
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("\(sessionStore.projects.count)")
-                        .font(.headline)
-                        .foregroundColor(.primary)
-                    Text("Total Projects")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                }
-                .frame(maxWidth: .infinity)
-
-                Divider()
-                    .frame(height: 24)
-
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("\(favorites.count)")
-                        .font(.headline)
-                        .foregroundColor(.primary)
-                    Text("Favorites")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                }
-                .frame(maxWidth: .infinity)
-            }
-            .padding(.vertical, 16)
-            .background(.ultraThinMaterial.opacity(0.8))
-        }
-    }
-
-    private var rightPanel: some View {
-        VStack(spacing: 0) {
-            // Workspace Header Bar - Shorter header text "Workspaces" and no redundant inline controls
-            HStack(spacing: 16) {
-                Text("Workspaces")
-                    .font(.system(size: 20, weight: .bold, design: .rounded))
-                    .foregroundColor(.primary)
-
-                Spacer()
-            }
-            .padding(.horizontal, 24)
-            .padding(.vertical, 20)
-
-            Divider()
-
-            // Main List/Grid Area - Grid is wrapped in a ScrollView to solve centered layout shift bug!
-            ZStack {
-                if filteredProjects.isEmpty {
-                    emptyStateView
-                } else {
-                    if viewModeRaw == "grid" {
-                        ScrollView {
-                            projectsGrid
-                        }
-                    } else {
-                        projectsList
-                    }
-                }
-
-                loadingOverlay
-            }
-        }
-    }
-
-    private var projectsGrid: some View {
-        AdaptiveGrid(filteredProjects, id: \.id) { project in
-            HomeProjectCardView(project: project) {
-                Task {
-                    await sessionStore.openProject(project)
-                }
-            } onDelete: {
-                activeConfirmation = .delete(project)
-                showConfirmationAlert = true
-            }
-            .onTapGesture(count: 2) {
-                Task {
-                    await sessionStore.openProject(project)
-                }
-            }
-            .contextMenu { projectContextMenu(for: project) }
-        }
-        .padding(24)
-    }
-
-    private var projectsList: some View {
-        ScrollView {
-            LazyVStack(spacing: 8) {
-                ForEach(filteredProjects) { project in
-                    HStack(spacing: 16) {
-                        Image(systemName: "swift")
-                            .font(.title3)
-                            .foregroundColor(.orange)
-                            .padding(10)
-                            .background(Color.orange.opacity(0.12))
-                            .cornerRadius(8)
-
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text(project.displayName)
-                                .font(.headline)
-                                .foregroundColor(.primary)
-                            Text(project.description.isEmpty ? "No description provided" : project.description)
-                                .font(.subheadline)
-                                .foregroundStyle(.secondary)
-                        }
-
-                        Spacer()
-
-                        HStack(spacing: 16) {
-                            if favorites.contains(project.id.uuidString) {
-                                Image(systemName: "star.fill")
-                                    .foregroundColor(.orange)
-                            }
-
-                            Text(project.lastOpened, style: .relative)
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                        }
-                    }
-                    .padding(.horizontal, 16)
+                    .padding(.horizontal, 10)
                     .padding(.vertical, 12)
-                    .background(Color(NSColor.controlBackgroundColor).opacity(0.4))
-                    .cornerRadius(12)
-                    .contentShape(Rectangle())
-                    .onTapGesture {
-                        Task {
-                            await sessionStore.openProject(project)
-                        }
-                    }
-                    .contextMenu { projectContextMenu(for: project) }
                 }
             }
-            .padding(24)
         }
     }
+
+    private var emptyProjectsView: some View {
+        VStack(spacing: 12) {
+            Image(systemName: "folder")
+                .font(.system(size: 38, weight: .light))
+                .foregroundStyle(Color.white.opacity(0.35))
+
+            Text("No Recent Projects")
+                .font(.system(size: 14, weight: .semibold))
+                .foregroundStyle(Color.white.opacity(0.75))
+
+            Text("Opened and created projects will appear here.")
+                .font(.system(size: 11))
+                .foregroundStyle(Color.white.opacity(0.45))
+                .multilineTextAlignment(.center)
+                .padding(.horizontal, 24)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    // MARK: - Context Menu
 
     @ViewBuilder
     private func projectContextMenu(for project: Project) -> some View {
@@ -573,39 +306,8 @@ struct SwiftCodeWelcomeView: View {
                 await sessionStore.openProject(project)
             }
         } label: {
-            Label("Open Project", systemImage: "play.fill")
+            Label("Open Project", systemImage: "arrow.right.circle")
         }
-
-        Button {
-            toggleFavorite(project)
-        } label: {
-            Label(favorites.contains(project.id.uuidString) ? "Remove Favorite" : "Add to Favorites", systemImage: "star")
-        }
-
-        Button {
-            projectToRename = project
-            renameText = project.displayName
-            showRenameSheet = true
-        } label: {
-            Label("Rename", systemImage: "pencil")
-        }
-
-        Button {
-            Task {
-                do { try sessionStore.duplicateProject(project) }
-                catch { showError(error) }
-            }
-        } label: {
-            Label("Duplicate", systemImage: "doc.on.doc")
-        }
-
-        Button {
-            exportProject(project)
-        } label: {
-            Label("Export As ZIP", systemImage: "square.and.arrow.up")
-        }
-
-        Divider()
 
         Button {
             revealInFinder(project)
@@ -614,21 +316,9 @@ struct SwiftCodeWelcomeView: View {
         }
 
         Button {
-            openProjectLocation(project)
-        } label: {
-            Label("Open Project Location", systemImage: "arrow.up.right.square")
-        }
-
-        Button {
             copyProjectPath(project)
         } label: {
-            Label("Copy Project Path", systemImage: "doc.on.doc")
-        }
-
-        Button {
-            showProjectInfo(project)
-        } label: {
-            Label("Show Project Information", systemImage: "info.circle")
+            Label("Copy Path", systemImage: "doc.on.doc")
         }
 
         Divider()
@@ -648,11 +338,95 @@ struct SwiftCodeWelcomeView: View {
         }
     }
 
+    // MARK: - Actions & Helpers
+
+    private func openFileOrFolder() {
+        let panel = NSOpenPanel()
+        panel.canChooseFiles = true
+        panel.canChooseDirectories = true
+        panel.allowsMultipleSelection = false
+        panel.prompt = "Open"
+        if panel.runModal() == .OK, let url = panel.url {
+            Task {
+                do {
+                    var targetURL = url
+                    var isDir: ObjCBool = false
+                    if FileManager.default.fileExists(atPath: url.path, isDirectory: &isDir), !isDir.boolValue {
+                        if url.pathExtension != "xcodeproj" && url.pathExtension != "xcworkspace" {
+                            targetURL = url.deletingLastPathComponent()
+                        }
+                    }
+                    let project = try await sessionStore.importProject(from: targetURL)
+                    await sessionStore.openProject(project)
+                } catch {
+                    showErrorMessage(error.localizedDescription)
+                }
+            }
+        }
+    }
+
+    private func revealInFinder(_ project: Project) {
+        NSWorkspace.shared.selectFile(nil, inFileViewerRootedAtPath: project.directoryURL.path)
+    }
+
+    private func copyProjectPath(_ project: Project) {
+        let pasteboard = NSPasteboard.general
+        pasteboard.clearContents()
+        pasteboard.setString(project.directoryURL.path, forType: .string)
+    }
+
+    private func showErrorMessage(_ message: String) {
+        errorMessage = message
+        showError = true
+    }
+
+    // MARK: - Window Configuration (Strict Screenshot Parity)
+
+    private func applyWelcomeWindowStyle(to window: NSWindow) {
+        window.titleVisibility = .hidden
+        window.titlebarAppearsTransparent = true
+        window.isMovableByWindowBackground = true
+
+        // The WelcomeView is NOT allowed to be minimized or full screen
+        window.styleMask.remove([.resizable, .miniaturizable])
+        window.styleMask.insert([.closable, .titled, .fullSizeContentView])
+
+        // Prevent window resizing / full-screen on the welcome window
+        window.collectionBehavior = []
+
+        // Remove/hide the minimize button and zoom button so ONLY the close button shows
+        window.standardWindowButton(.miniaturizeButton)?.isHidden = true
+        window.standardWindowButton(.zoomButton)?.isHidden = true
+        window.standardWindowButton(.closeButton)?.isHidden = false
+
+        let fixedSize = NSSize(width: 800, height: 480)
+        window.minSize = fixedSize
+        window.maxSize = fixedSize
+        if window.frame.size != fixedSize {
+            window.setContentSize(fixedSize)
+            window.center()
+        }
+    }
+
+    private func restoreStandardWindowStyle(for window: NSWindow) {
+        window.titleVisibility = .visible
+        window.titlebarAppearsTransparent = false
+        window.styleMask.insert([.resizable, .miniaturizable, .closable])
+        window.collectionBehavior = [.fullScreenPrimary]
+        window.standardWindowButton(.miniaturizeButton)?.isHidden = false
+        window.standardWindowButton(.zoomButton)?.isHidden = false
+        window.standardWindowButton(.closeButton)?.isHidden = false
+        window.minSize = NSSize(width: 900, height: 600)
+        window.maxSize = NSSize(width: 10000, height: 10000)
+    }
+
+    // MARK: - Loading Overlay
+
     @ViewBuilder
     private var loadingOverlay: some View {
         if sessionStore.state != .idle && sessionStore.state != .cancelled {
             ZStack {
-                Color.black.opacity(0.3)
+                Color.black.opacity(0.4)
                     .ignoresSafeArea()
 
                 VStack(spacing: 16) {
@@ -660,29 +434,26 @@ struct SwiftCodeWelcomeView: View {
                     case .resolving, .loading:
                         ProgressView()
                             .controlSize(.large)
-
                         Text("Opening project...")
                             .font(.headline)
-
+                            .foregroundStyle(Color.white)
                         Button("Cancel") {
                             sessionStore.cancelLoad()
                         }
                         .buttonStyle(.bordered)
                     case .failed(let error):
-                        Image(systemName: "exclamationmark.triangle")
-                            .font(.system(size: 40))
+                        Image(systemName: "exclamationmark.triangle.fill")
+                            .font(.system(size: 38))
                             .foregroundColor(.red)
-
                         Text("Failed to open project")
                             .font(.headline)
-
+                            .foregroundStyle(Color.white)
                         Text(error.localizedDescription)
                             .font(.subheadline)
-                            .foregroundStyle(.secondary)
+                            .foregroundStyle(Color.white.opacity(0.7))
                             .multilineTextAlignment(.center)
-                            .frame(maxWidth: 300)
-
-                        HStack {
+                            .frame(maxWidth: 320)
+                        HStack(spacing: 12) {
                             Button("Cancel") {
                                 sessionStore.closeProject()
                             }
@@ -698,228 +469,171 @@ struct SwiftCodeWelcomeView: View {
                     }
                 }
                 .padding(32)
-                .background(RoundedRectangle(cornerRadius: 16).fill(.thinMaterial))
+                .background(RoundedRectangle(cornerRadius: 16, style: .continuous).fill(.ultraThinMaterial))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 16, style: .continuous)
+                        .stroke(Color.white.opacity(0.1), lineWidth: 1)
+                )
             }
         }
-    }
-
-
-    private var emptyStateView: some View {
-        VStack(spacing: 24) {
-            Image(systemName: "sparkles")
-                .font(.system(size: 64, weight: .semibold))
-                .foregroundStyle(.orange.gradient)
-                .padding(24)
-                .background(.regularMaterial, in: Circle())
-                .overlay(Circle().stroke(.orange.opacity(0.2), lineWidth: 1))
-
-            VStack(spacing: 8) {
-                Text("No Projects Found")
-                    .font(.title2)
-                    .bold()
-                Text("Get started by creating a new project or importing an existing folder from your Mac.")
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-                    .multilineTextAlignment(.center)
-                    .frame(maxWidth: 360)
-            }
-
-            HStack(spacing: 16) {
-                Button(action: { showingNewProject = true }) {
-                    Label("Create New Project", systemImage: "plus")
-                        .padding(.horizontal, 8)
-                }
-                .buttonStyle(.borderedProminent)
-                .controlSize(.large)
-
-                Button(action: { importFolder() }) {
-                    Label("Import Folder", systemImage: "folder.badge.plus")
-                        .padding(.horizontal, 8)
-                }
-                .buttonStyle(.bordered)
-                .controlSize(.large)
-            }
-        }
-        .frame(maxHeight: .infinity)
-    }
-
-    private var createFolderSheet: some View {
-        NavigationStack {
-            VStack(spacing: 16) {
-                TextField("Folder Name", text: $newFolderName)
-                    .textFieldStyle(.roundedBorder)
-
-                HStack {
-                    Text("Folder Theme Color")
-                    Spacer()
-                    ColorPicker("", selection: Binding(
-                        get: { Color(hex: newFolderColor) },
-                        set: { newFolderColor = $0.toHex }
-                    ))
-                }
-            }
-            .padding()
-            .navigationTitle("Create Folder")
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") { showCreateFolderSheet = false }
-                }
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("Create") {
-                        folderManager.createFolder(name: newFolderName, symbol: "folder.badge.gearshape", colorHex: newFolderColor)
-                        showCreateFolderSheet = false
-                    }
-                    .disabled(newFolderName.isEmpty)
-                }
-            }
-        }
-        .frame(width: 320, height: 180)
-    }
-
-    private var renameSheet: some View {
-        NavigationStack {
-            VStack {
-                TextField("Project Name", text: $renameText)
-                    .textFieldStyle(.roundedBorder)
-            }
-            .padding()
-            .navigationTitle("Rename Project")
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") { showRenameSheet = false }
-                }
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("Rename") {
-                        if let project = projectToRename {
-                            try? sessionStore.renameProject(project, to: renameText)
-                            showRenameSheet = false
-                        }
-                    }
-                    .disabled(renameText.isEmpty)
-                }
-            }
-        }
-        .frame(width: 300, height: 150)
-    }
-
-    private var addToFolderSheet: some View {
-        NavigationStack {
-            List(folderManager.folders) { folder in
-                Button(folder.folderName) {
-                    if let project = projectToAssignFolder {
-                        folderManager.addProject(project.id, to: folder.folderId)
-                    }
-                    showAddToFolderSheet = false
-                }
-            }
-            .navigationTitle("Add to Folder")
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") { showAddToFolderSheet = false }
-                }
-            }
-        }
-        .frame(width: 300, height: 400)
-    }
-
-    private func importFolder() {
-        let panel = NSOpenPanel()
-        panel.canChooseFiles = false
-        panel.canChooseDirectories = true
-        if panel.runModal() == .OK, let url = panel.url {
-            Task {
-                do {
-                    let project = try await sessionStore.importProject(from: url)
-                    await sessionStore.openProject(project)
-                } catch {
-                    LoggingTool.error("Failed to import folder: \(error)")
-                }
-            }
-        }
-    }
-
-    private func exportProject(_ project: Project) {
-        Task {
-            do {
-                let url = try await ZipImporter.shared.exportZip(for: project)
-                await MainActor.run {
-                    exportURL = url
-                    showShareSheet = true
-                }
-            } catch {
-                showError(error)
-            }
-        }
-    }
-
-    private func toggleFavorite(_ project: Project) {
-        var favs = favorites
-        let uuidStr = project.id.uuidString
-        if favs.contains(uuidStr) {
-            favs.remove(uuidStr)
-        } else {
-            favs.insert(uuidStr)
-        }
-        favoriteProjectIDs = favs.joined(separator: ",")
-    }
-
-    private func showError(_ error: Error) {
-        errorMessage = error.localizedDescription
-        showError = true
     }
 }
 
-@MainActor
-struct ModernActionCard: View {
+// MARK: - Typealias for seamless compatibility
+public typealias WelcomeView = SwiftCodeWelcomeView
+
+// MARK: - Pill Button Component (Dark Rounded Pill Matching Screenshot)
+
+struct WelcomePillButton: View {
     let title: String
-    let subtitle: String
-    let iconName: String
-    let color: Color
+    let systemImage: String
     let action: () -> Void
 
     @State private var isHovering = false
 
     var body: some View {
         Button(action: action) {
-            HStack(spacing: 16) {
-                ZStack {
-                    RoundedRectangle(cornerRadius: 12, style: .continuous)
-                        .fill(color.opacity(isHovering ? 0.35 : 0.12).gradient)
-                    Image(systemName: iconName)
-                        .font(.title2)
-                        .foregroundColor(color)
-                }
-                .frame(width: 44, height: 44)
+            HStack(spacing: 14) {
+                Image(systemName: systemImage)
+                    .font(.system(size: 18, weight: .regular))
+                    .foregroundStyle(Color.white.opacity(0.9))
+                    .frame(width: 22, height: 22)
 
-                VStack(alignment: .leading, spacing: 3) {
-                    Text(title)
-                        .font(.headline)
-                        .foregroundColor(.primary)
-                    Text(subtitle)
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                        .multilineTextAlignment(.leading)
-                }
+                Text(title)
+                    .font(.system(size: 13.5, weight: .medium))
+                    .foregroundStyle(Color.white)
+
                 Spacer()
             }
-            .padding(12)
+            .padding(.horizontal, 16)
+            .frame(width: 340, height: 44)
             .background(
-                RoundedRectangle(cornerRadius: 16, style: .continuous)
-                    .fill(Color(NSColor.controlBackgroundColor).opacity(0.6))
-                    .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
-                    .shadow(color: color.opacity(isHovering ? 0.35 : 0.05), radius: isHovering ? 10 : 3, x: 0, y: isHovering ? 4 : 1)
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    .fill(Color.white.opacity(isHovering ? 0.12 : 0.055))
             )
             .overlay(
-                RoundedRectangle(cornerRadius: 16, style: .continuous)
-                    .stroke(isHovering ? color.opacity(0.4) : Color.primary.opacity(0.08), lineWidth: 1)
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    .stroke(Color.white.opacity(isHovering ? 0.14 : 0.07), lineWidth: 1)
             )
-            .scaleEffect(isHovering ? 1.02 : 1.0)
-            .animation(.interactiveSpring(response: 0.35, dampingFraction: 0.82), value: isHovering)
+            .contentShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+        }
+        .buttonStyle(.plain)
+        .onHover { hovering in
+            withAnimation(.snappy(duration: 0.15)) {
+                isHovering = hovering
+            }
+        }
+    }
+}
+
+// MARK: - Recent Project Row (Matching Active Blue Card from Screenshot)
+
+struct RecentProjectRow: View {
+    let project: Project
+    let isSelected: Bool
+    let onSelect: () -> Void
+    let onOpen: () -> Void
+
+    @State private var isHovering = false
+
+    private var truncatedPath: String {
+        let fullPath = project.directoryURL.path
+        let home = FileManager.default.homeDirectoryForCurrentUser.path
+        if fullPath.hasPrefix(home) {
+            return "~" + fullPath.dropFirst(home.count)
+        }
+        return fullPath
+    }
+
+    var body: some View {
+        Button(action: onSelect) {
+            HStack(spacing: 12) {
+                macOSFolderIcon
+                    .frame(width: 32, height: 32)
+
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(project.displayName)
+                        .font(.system(size: 13.5, weight: .bold))
+                        .foregroundStyle(Color.white)
+                        .lineLimit(1)
+
+                    Text(truncatedPath)
+                        .font(.system(size: 11, weight: .regular))
+                        .foregroundStyle(isSelected ? Color.white.opacity(0.85) : Color.white.opacity(0.55))
+                        .lineLimit(1)
+                        .truncationMode(.head)
+                }
+
+                Spacer(minLength: 4)
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 8)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    .fill(
+                        isSelected
+                            ? Color(red: 0.106, green: 0.404, blue: 0.863) // Vibrant Royal Blue Accent
+                            : (isHovering ? Color.white.opacity(0.08) : Color.clear)
+                    )
+            )
+            .contentShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
         }
         .buttonStyle(.plain)
         .onHover { hovering in
             isHovering = hovering
         }
+        .simultaneousGesture(
+            TapGesture(count: 2).onEnded {
+                onOpen()
+            }
+        )
+    }
+
+    @ViewBuilder
+    private var macOSFolderIcon: some View {
+        if FileManager.default.fileExists(atPath: project.directoryURL.path) {
+            let icon = NSWorkspace.shared.icon(forFile: project.directoryURL.path)
+            Image(nsImage: icon)
+                .resizable()
+                .aspectRatio(contentMode: .fit)
+        } else {
+            Image(systemName: "folder.fill")
+                .font(.system(size: 26))
+                .foregroundStyle(
+                    LinearGradient(
+                        colors: [
+                            Color(red: 0.35, green: 0.72, blue: 0.98),
+                            Color(red: 0.18, green: 0.52, blue: 0.92)
+                        ],
+                        startPoint: .top,
+                        endPoint: .bottom
+                    )
+                )
+        }
     }
 }
 
+// MARK: - Window Accessor Representable
+
+struct WelcomeWindowAccessor: NSViewRepresentable {
+    let onWindow: (NSWindow) -> Void
+
+    func makeNSView(context: Context) -> NSView {
+        let view = NSView()
+        DispatchQueue.main.async {
+            if let window = view.window {
+                onWindow(window)
+            }
+        }
+        return view
+    }
+
+    func updateNSView(_ nsView: NSView, context: Context) {
+        DispatchQueue.main.async {
+            if let window = nsView.window {
+                onWindow(window)
+            }
+        }
+    }
+}
