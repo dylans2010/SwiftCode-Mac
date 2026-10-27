@@ -1044,8 +1044,6 @@ struct GeneralSettingsView: View {
 
     private var quickSetupSection: some View {
         SettingsCardSection {
-            Toggle("Use New Settings Window", isOn: $settings.useNewSettingsWindow)
-
             Button {
                 showOfflineModelsSheet = true
             } label: {

@@ -14,9 +14,11 @@ import AppKit
 public final class NativeSettingsWindowController: NSWindowController, NSToolbarDelegate, NSWindowDelegate {
     public static let shared = NativeSettingsWindowController()
 
-    public var selectedCategory: SettingsCategory = .general {
-        didSet {
-            updateContent()
+    public var selectedCategory: SettingsCategory {
+        get { NativeSettingsState.shared.selectedCategory }
+        set {
+            NativeSettingsState.shared.selectedCategory = newValue
+            updateCategoryUI()
         }
     }
 
@@ -25,7 +27,12 @@ public final class NativeSettingsWindowController: NSWindowController, NSToolbar
     }
 
     public init() {
-        let contentRect = NSRect(x: 100, y: 100, width: 820, height: 640)
+        let contentRect = NSRect(
+            x: 100,
+            y: 100,
+            width: NativeSettingsLayout.width,
+            height: NativeSettingsLayout.height
+        )
         let window = NSWindow(
             contentRect: contentRect,
             styleMask: [.titled, .closable, .miniaturizable, .resizable],
@@ -33,7 +40,8 @@ public final class NativeSettingsWindowController: NSWindowController, NSToolbar
             defer: false
         )
 
-        window.minSize = NSSize(width: 760, height: 520)
+        window.minSize = NSSize(width: NativeSettingsLayout.width, height: NativeSettingsLayout.height)
+        window.setContentSize(NSSize(width: NativeSettingsLayout.width, height: NativeSettingsLayout.height))
         window.setFrameAutosaveName("NativeSafariSettingsWindow")
         window.title = SettingsCategory.general.title
         window.titleVisibility = .visible
@@ -46,7 +54,25 @@ public final class NativeSettingsWindowController: NSWindowController, NSToolbar
         window.delegate = self
 
         setupToolbar(for: window)
-        updateContent()
+
+        // Single persistent contentViewController hosting NativeSettingsContainerView
+        // reacting to NativeSettingsState.shared so the window frame never collapses
+        let containerView = NativeSettingsContainerView(state: NativeSettingsState.shared)
+            .environmentObject(AppSettings.shared)
+
+        let hostingController = NSHostingController(
+            rootView: StylingBootstrap.configureEnvironment(containerView)
+        )
+        hostingController.sizingOptions = []
+        hostingController.view.frame = NSRect(
+            x: 0,
+            y: 0,
+            width: NativeSettingsLayout.width,
+            height: NativeSettingsLayout.height
+        )
+        hostingController.view.autoresizingMask = [.width, .height]
+        window.contentViewController = hostingController
+        updateCategoryUI()
     }
 
     required init?(coder: NSCoder) {
@@ -65,9 +91,9 @@ public final class NativeSettingsWindowController: NSWindowController, NSToolbar
         window.toolbar = toolbar
     }
 
-    // MARK: - Content Updating
+    // MARK: - Category UI Updating
 
-    private func updateContent() {
+    private func updateCategoryUI() {
         guard let window = self.window else { return }
 
         // Centered window title displaying the selected category name
@@ -78,16 +104,8 @@ public final class NativeSettingsWindowController: NSWindowController, NSToolbar
             window.toolbar?.selectedItemIdentifier = selectedCategory.toolbarIdentifier
         }
 
-        // Host the SwiftUI content view wrapped in StylingBootstrap
-        let containerView = NativeSettingsContainerView(selectedCategory: selectedCategory)
-            .environmentObject(AppSettings.shared)
-
-        let hostingController = NSHostingController(
-            rootView: StylingBootstrap.configureEnvironment(containerView)
-        )
-        hostingController.sizingOptions = []
-        hostingController.view.autoresizingMask = [.width, .height]
-        window.contentViewController = hostingController
+        // Ensure window always preserves the set dimensions
+        window.setContentSize(NSSize(width: NativeSettingsLayout.width, height: NativeSettingsLayout.height))
     }
 
     // MARK: - Public Window Management Methods
@@ -99,10 +117,13 @@ public final class NativeSettingsWindowController: NSWindowController, NSToolbar
                $0.title.caseInsensitiveCompare(categoryString) == .orderedSame
            }) {
             self.selectedCategory = matchedCategory
+        } else {
+            updateCategoryUI()
         }
 
         guard let window = self.window else { return }
 
+        window.setContentSize(NSSize(width: NativeSettingsLayout.width, height: NativeSettingsLayout.height))
         if !window.isVisible {
             window.center()
         }

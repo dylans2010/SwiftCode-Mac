@@ -55,19 +55,38 @@ public enum SettingsCategory: String, CaseIterable, Identifiable, Sendable {
     }
 }
 
+// MARK: - 0. NativeSettingsLayout & State
+
+public enum NativeSettingsLayout {
+    public static let width: CGFloat = 820
+    public static let height: CGFloat = 640
+}
+
+@Observable
+@MainActor
+public final class NativeSettingsState {
+    public static let shared = NativeSettingsState()
+    public var selectedCategory: SettingsCategory = .general
+}
+
 // MARK: - 2. NativeSettingsContainerView
 
 public struct NativeSettingsContainerView: View {
-    public let selectedCategory: SettingsCategory
+    @Bindable var state: NativeSettingsState = .shared
     @EnvironmentObject private var settings: AppSettings
 
-    public init(selectedCategory: SettingsCategory = .general) {
-        self.selectedCategory = selectedCategory
+    public init(state: NativeSettingsState = .shared) {
+        self.state = state
+    }
+
+    public init(selectedCategory: SettingsCategory) {
+        self.state = .shared
+        self.state.selectedCategory = selectedCategory
     }
 
     public var body: some View {
         Group {
-            switch selectedCategory {
+            switch state.selectedCategory {
             case .general:
                 NativeGeneralSettingsView()
             case .themes:
@@ -92,6 +111,7 @@ public struct NativeSettingsContainerView: View {
                 NativeCreditsSettingsView()
             }
         }
+        .frame(width: NativeSettingsLayout.width, height: NativeSettingsLayout.height)
         .environmentObject(settings)
     }
 }
@@ -167,6 +187,7 @@ public struct NativeGeneralSettingsView: View {
             }
         }
         .formStyle(.grouped)
+        .frame(width: NativeSettingsLayout.width, height: NativeSettingsLayout.height)
     }
 
     private func selectCustomFolder() {
@@ -273,6 +294,7 @@ public struct NativeThemesSettingsView: View {
             }
         }
         .formStyle(.grouped)
+        .frame(width: NativeSettingsLayout.width, height: NativeSettingsLayout.height)
     }
 }
 
@@ -376,6 +398,7 @@ public struct NativeCloudSettingsView: View {
             }
         }
         .formStyle(.grouped)
+        .frame(width: NativeSettingsLayout.width, height: NativeSettingsLayout.height)
         .onAppear {
             refreshSyncInfo()
         }
@@ -497,6 +520,7 @@ public struct NativeBackupsSettingsView: View {
             }
         }
         .formStyle(.grouped)
+        .frame(width: NativeSettingsLayout.width, height: NativeSettingsLayout.height)
         .onAppear {
             loadBackups()
         }
@@ -667,6 +691,7 @@ public struct NativeConnectSettingsView: View {
             }
         }
         .formStyle(.grouped)
+        .frame(width: NativeSettingsLayout.width, height: NativeSettingsLayout.height)
         .onAppear {
             portString = "\(connectServer.configuredPort)"
             diagnostics.refreshLocalIP()
@@ -740,6 +765,7 @@ public struct NativeAssistSettingsView: View {
             }
         }
         .formStyle(.grouped)
+        .frame(width: NativeSettingsLayout.width, height: NativeSettingsLayout.height)
     }
 
     @ViewBuilder
@@ -763,7 +789,9 @@ public struct NativeComposioSettingsView: View {
         ScrollView {
             ComposioSettingsView()
                 .padding(20)
+                .frame(maxWidth: .infinity, alignment: .leading)
         }
+        .frame(width: NativeSettingsLayout.width, height: NativeSettingsLayout.height)
     }
 }
 
@@ -773,7 +801,12 @@ public struct NativeOfflineModelsSettingsView: View {
     public init() {}
 
     public var body: some View {
-        OfflineModelsView()
+        ScrollView {
+            OfflineModelsView()
+                .padding(20)
+                .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .frame(width: NativeSettingsLayout.width, height: NativeSettingsLayout.height)
     }
 }
 
@@ -783,7 +816,12 @@ public struct NativePluginsSettingsView: View {
     public init() {}
 
     public var body: some View {
-        PluginManagerView()
+        ScrollView {
+            PluginManagerView()
+                .padding(20)
+                .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .frame(width: NativeSettingsLayout.width, height: NativeSettingsLayout.height)
     }
 }
 
@@ -793,7 +831,12 @@ public struct NativeUpdatesSettingsView: View {
     public init() {}
 
     public var body: some View {
-        UpdatesView()
+        ScrollView {
+            UpdatesView()
+                .padding(20)
+                .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .frame(width: NativeSettingsLayout.width, height: NativeSettingsLayout.height)
     }
 }
 
@@ -803,6 +846,11 @@ public struct NativeCreditsSettingsView: View {
     public init() {}
 
     public var body: some View {
-        CreditsView()
+        ScrollView {
+            CreditsView()
+                .padding(20)
+                .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .frame(width: NativeSettingsLayout.width, height: NativeSettingsLayout.height)
     }
 }
