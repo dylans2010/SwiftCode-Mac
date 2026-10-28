@@ -39,66 +39,7 @@ struct UpdatesView: View {
                 }
                 .padding(.horizontal, 4)
 
-                // 1. Current Version Card
-                GroupBox {
-                    VStack(alignment: .leading, spacing: 14) {
-                        HStack {
-                            Label("Current Version Details", systemImage: "info.circle.fill")
-                                .font(.headline)
-                                .foregroundColor(.blue)
-                            Spacer()
-                            Text("Local System")
-                                .font(.caption.bold())
-                                .padding(.horizontal, 8)
-                                .padding(.vertical, 2)
-                                .background(Color.blue.opacity(0.12), in: Capsule())
-                                .foregroundStyle(.blue)
-                        }
-
-                        VStack(spacing: 12) {
-                            HStack {
-                                Text("Application Name")
-                                    .fontWeight(.medium)
-                                Spacer()
-                                Text("SwiftCode")
-                                    .foregroundStyle(.secondary)
-                            }
-                            Divider()
-                            HStack {
-                                Text("Version")
-                                    .fontWeight(.medium)
-                                Spacer()
-                                Text(AppUpdateConfiguration.currentDisplayVersion)
-                                    .foregroundStyle(.secondary)
-                            }
-                            Divider()
-                            HStack {
-                                Text("Build Number")
-                                    .fontWeight(.medium)
-                                Spacer()
-                                Text(AppUpdateConfiguration.currentBuildVersion)
-                                    .font(.system(.body, design: .monospaced))
-                                    .foregroundStyle(.secondary)
-                            }
-                            Divider()
-                            HStack {
-                                Text("Update Feed")
-                                    .fontWeight(.medium)
-                                Spacer()
-                                Text(AppUpdateConfiguration.feedURLString)
-                                    .font(.system(.caption, design: .monospaced))
-                                    .foregroundStyle(.secondary)
-                                    .lineLimit(1)
-                                    .truncationMode(.middle)
-                            }
-                        }
-                        .padding(.vertical, 4)
-                    }
-                    .padding()
-                }
-                .groupBoxStyle(ModernGroupBoxStyle())
-
-                // 2. Update Status Card
+                // Update Status Card
                 GroupBox {
                     VStack(alignment: .leading, spacing: 16) {
                         HStack {
@@ -223,6 +164,9 @@ struct UpdatesView: View {
                 }
                 .groupBoxStyle(ModernGroupBoxStyle())
 
+                // Previous Releases Section
+                PreviousReleasesCard()
+
                 // 3. Automatic Updates Card
                 GroupBox {
                     VStack(alignment: .leading, spacing: 16) {
@@ -264,5 +208,187 @@ struct UpdatesView: View {
             .padding(24)
         }
         .navigationTitle("Updates")
+    }
+}
+
+// MARK: - Previous Releases Card & Fetcher
+
+struct GitHubReleaseItem: Identifiable, Decodable {
+    let id: Int
+    let tagName: String
+    let name: String?
+    let body: String?
+
+    enum CodingKeys: String, CodingKey {
+        case id
+        case tagName = "tag_name"
+        case name
+        case body
+    }
+
+    var displayVersion: String {
+        if let name = name, !name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            return name
+        }
+        return tagName
+    }
+
+    var releaseNotes: String {
+        let cleaned = body?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        return cleaned.isEmpty ? "No release notes provided." : cleaned
+    }
+}
+
+@MainActor
+final class PreviousReleasesViewModel: ObservableObject {
+    @Published var releases: [GitHubReleaseItem] = []
+    @Published var isLoading = false
+    @Published var errorMessage: String?
+
+    func fetchReleases() async {
+        guard !isLoading else { return }
+        isLoading = true
+        errorMessage = nil
+
+        guard let url = URL(string: "https://api.github.com/repos/dylans2010/SwiftCode-Mac/releases") else {
+            isLoading = false
+            errorMessage = "Invalid GitHub releases URL."
+            return
+        }
+
+        var request = URLRequest(url: url)
+        request.setValue("application/vnd.github.v3+json", forHTTPHeaderField: "Accept")
+        request.setValue("SwiftCode-Mac", forHTTPHeaderField: "User-Agent")
+        request.cachePolicy = .reloadRevalidatingCacheData
+
+        do {
+            let (data, response) = try await URLSession.shared.data(for: request)
+            if let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode != 200 {
+                throw URLError(.badServerResponse)
+            }
+            let decoder = JSONDecoder()
+            let decodedReleases = try decoder.decode([GitHubReleaseItem].self, from: data)
+            self.releases = decodedReleases
+        } catch {
+            self.errorMessage = error.localizedDescription
+        }
+
+        self.isLoading = false
+    }
+}
+
+struct PreviousReleasesCard: View {
+    @StateObject private var viewModel = PreviousReleasesViewModel()
+
+    var body: some View {
+        GroupBox {
+            VStack(alignment: .leading, spacing: 16) {
+                HStack {
+                    Label("Previous Releases", systemImage: "clock.arrow.circlepath")
+                        .font(.headline)
+                        .foregroundColor(.blue)
+
+                    Spacer()
+
+                    if viewModel.isLoading {
+                        ProgressView()
+                            .controlSize(.small)
+                    } else {
+                        Button {
+                            Task {
+                                await viewModel.fetchReleases()
+                            }
+                        } label: {
+                            Image(systemName: "arrow.clockwise")
+                                .font(.caption.bold())
+                        }
+                        .buttonStyle(.plain)
+                        .foregroundStyle(.secondary)
+                        .help("Refresh Releases")
+                    }
+                }
+
+                if viewModel.isLoading && viewModel.releases.isEmpty {
+                    VStack(spacing: 12) {
+                        ProgressView()
+                            .progressViewStyle(.circular)
+                        Text("Loading previous releases…")
+                            .font(.subheadline)
+                            .foregroundStyle(.secondary)
+                    }
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 20)
+                } else if let error = viewModel.errorMessage, viewModel.releases.isEmpty {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("Unable to load previous releases")
+                            .font(.subheadline.bold())
+                            .foregroundColor(.secondary)
+                        Text(error)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                        Button("Try Again") {
+                            Task {
+                                await viewModel.fetchReleases()
+                            }
+                        }
+                        .buttonStyle(.bordered)
+                        .controlSize(.small)
+                        .padding(.top, 4)
+                    }
+                    .padding(.vertical, 8)
+                } else if viewModel.releases.isEmpty {
+                    Text("No previous releases found.")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                        .padding(.vertical, 10)
+                } else {
+                    VStack(spacing: 12) {
+                        ForEach(viewModel.releases) { release in
+                            ReleaseRowView(release: release)
+                            if release.id != viewModel.releases.last?.id {
+                                Divider()
+                            }
+                        }
+                    }
+                    .padding(.top, 4)
+                }
+            }
+            .padding()
+        }
+        .groupBoxStyle(ModernGroupBoxStyle())
+        .task {
+            await viewModel.fetchReleases()
+        }
+    }
+}
+
+struct ReleaseRowView: View {
+    let release: GitHubReleaseItem
+    @State private var isExpanded = true
+
+    var body: some View {
+        DisclosureGroup(isExpanded: $isExpanded) {
+            ScrollView(.vertical, showsIndicators: true) {
+                Text(release.releaseNotes)
+                    .font(.system(size: 12.5, design: .default))
+                    .foregroundStyle(.secondary)
+                    .textSelection(.enabled)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(12)
+            }
+            .frame(maxHeight: 180)
+            .background(Color.primary.opacity(0.04))
+            .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+            .padding(.top, 8)
+        } label: {
+            HStack(spacing: 10) {
+                Text(release.displayVersion)
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundStyle(.primary)
+
+                Spacer()
+            }
+            .contentShape(Rectangle())
+        }
     }
 }

@@ -5,7 +5,7 @@
 # DMG packaging, Sparkle update archive and appcast generation, and GitHub release publication.
 #
 # Usage:
-#   ./scripts/release.sh [--dry-run] [--skip-notarize] [--allow-adhoc] [--version <v>] [--build-num <n>] [--help]
+#   ./scripts/release.sh [--dry-run] [--skip-notarize] [--allow-adhoc] [--version <v>] [--build-num <n>] [--notes-file <file>] [--notes <text>] [--help]
 
 set -euo pipefail
 
@@ -22,6 +22,8 @@ SKIP_NOTARIZE=false
 ALLOW_ADHOC=false
 OVERRIDE_VERSION=""
 OVERRIDE_BUILD=""
+CUSTOM_NOTES_FILE=""
+CUSTOM_NOTES_TEXT=""
 TAG_NAME=""
 
 # Colors
@@ -49,6 +51,8 @@ Options:
   --allow-adhoc         Allow ad-hoc code signing if Developer ID Application is not present
   --version <ver>       Override marketing version (e.g. 1.0.0)
   --build-num <num>     Override current project build version (e.g. 2)
+  --notes-file <file>   Path to Markdown/HTML release notes file
+  --notes <text>        Inline release notes string
   -h, --help            Show this help message
 
 Environment variables (optional overrides):
@@ -82,6 +86,14 @@ while [[ $# -gt 0 ]]; do
             ;;
         --build-num)
             OVERRIDE_BUILD="$2"
+            shift 2
+            ;;
+        --notes-file)
+            CUSTOM_NOTES_FILE="$2"
+            shift 2
+            ;;
+        --notes)
+            CUSTOM_NOTES_TEXT="$2"
             shift 2
             ;;
         -h|--help)
@@ -264,16 +276,31 @@ TAG_NAME="v${MARKETING_VERSION}"
 log_info "Release version: $MARKETING_VERSION (Build $CURRENT_PROJECT_VERSION)"
 log_info "Release tag: $TAG_NAME"
 
-# Check tag collision
+# Check tag collision or existing release
+EXISTING_LOCAL_TAG=false
+EXISTING_REMOTE_TAG=false
+EXISTING_GH_RELEASE=false
+
 if git rev-parse "$TAG_NAME" >/dev/null 2>&1; then
-    log_err "Git tag '$TAG_NAME' already exists locally! Bump version or remove conflicting local tag."
-    exit 1
+    EXISTING_LOCAL_TAG=true
 fi
 if git ls-remote --tags origin "refs/tags/$TAG_NAME" | grep -q "$TAG_NAME"; then
-    log_err "Git tag '$TAG_NAME' already exists on remote origin! Bump version."
-    exit 1
+    EXISTING_REMOTE_TAG=true
 fi
-log_ok "Release tag '$TAG_NAME' is available."
+if gh release view "$TAG_NAME" >/dev/null 2>&1; then
+    EXISTING_GH_RELEASE=true
+fi
+
+if [ "$EXISTING_LOCAL_TAG" = true ] || [ "$EXISTING_REMOTE_TAG" = true ] || [ "$EXISTING_GH_RELEASE" = true ]; then
+    if [ "$DRY_RUN" = true ]; then
+        log_warn "Tag/Release '$TAG_NAME' already exists (local: $EXISTING_LOCAL_TAG, remote tag: $EXISTING_REMOTE_TAG, release: $EXISTING_GH_RELEASE). Continuing dry-run verification..."
+    else
+        log_warn "Tag/Release '$TAG_NAME' already exists (local: $EXISTING_LOCAL_TAG, remote tag: $EXISTING_REMOTE_TAG, release: $EXISTING_GH_RELEASE)."
+        log_warn "Running in UPDATE/OVERWRITE mode for release '$TAG_NAME'."
+    fi
+else
+    log_ok "Release tag '$TAG_NAME' is fresh and available."
+fi
 
 # --------------------------------------------------
 # Phase 4: Run Tests
@@ -435,15 +462,98 @@ log_ok "SwiftCode.dmg generated ($(stat -f%z "$DMG_OUTPUT" 2>/dev/null || wc -c 
 # --------------------------------------------------
 log_info "Step 9: Generating signed Sparkle appcast.xml..."
 
+# Prepare release notes for GitHub Release and Sparkle appcast
+RELEASE_NOTES_FILE="$BUILD_DIR/RELEASE_NOTES.md"
+if [ -n "$CUSTOM_NOTES_FILE" ] && [ -f "$CUSTOM_NOTES_FILE" ]; then
+    log_info "Using provided release notes file: $CUSTOM_NOTES_FILE"
+    cp "$CUSTOM_NOTES_FILE" "$RELEASE_NOTES_FILE"
+elif [ -n "$CUSTOM_NOTES_TEXT" ]; then
+    log_info "Using provided inline release notes text."
+    printf '%s\n' "$CUSTOM_NOTES_TEXT" > "$RELEASE_NOTES_FILE"
+else
+    log_info "Generating release notes from git commit log..."
+    cat << EOF > "$RELEASE_NOTES_FILE"
+## SwiftCode ${MARKETING_VERSION}
+
+### Changes
+$(git log -n 10 --pretty=format:"* %s (%h)")
+
+### Sparkle Updates
+* Update feed: \`appcast.xml\`
+* Direct package: \`SwiftCode.dmg\`
+EOF
+fi
+
 rm -rf "$APPCAST_STAGING"
 mkdir -p "$APPCAST_STAGING"
 cp "$DMG_OUTPUT" "$APPCAST_STAGING/SwiftCode.dmg"
+
+# Sparkle generate_appcast reads HTML release notes if placed next to the archive (e.g. SwiftCode.html)
+# Format the markdown notes into valid embedded HTML without outer html/body tags
+NOTES_HTML_FILE="$APPCAST_STAGING/SwiftCode.html"
+cat << 'PYEOF' > "$BUILD_DIR/md_to_sparkle_html.py"
+import sys, re, html
+
+def md_to_html(md_text):
+    lines = md_text.strip().splitlines()
+    out = []
+    in_ul = False
+    for line in lines:
+        s = line.strip()
+        if not s:
+            if in_ul:
+                out.append("</ul>")
+                in_ul = False
+            continue
+        if s.startswith("### "):
+            if in_ul:
+                out.append("</ul>"); in_ul = False
+            out.append(f"<h3>{html.escape(s[4:])}</h3>")
+        elif s.startswith("## "):
+            if in_ul:
+                out.append("</ul>"); in_ul = False
+            out.append(f"<h2>{html.escape(s[3:])}</h2>")
+        elif s.startswith("# "):
+            if in_ul:
+                out.append("</ul>"); in_ul = False
+            out.append(f"<h1>{html.escape(s[2:])}</h1>")
+        elif s.startswith("* ") or s.startswith("- "):
+            if not in_ul:
+                out.append("<ul>"); in_ul = True
+            content = html.escape(s[2:])
+            # bold & code formatting
+            content = re.sub(r'\*\*(.*?)\*\*', r'<b>\1</b>', content)
+            content = re.sub(r'`(.*?)`', r'<code>\1</code>', content)
+            out.append(f"<li>{content}</li>")
+        else:
+            if in_ul:
+                out.append("</ul>"); in_ul = False
+            content = html.escape(s)
+            content = re.sub(r'\*\*(.*?)\*\*', r'<b>\1</b>', content)
+            content = re.sub(r'`(.*?)`', r'<code>\1</code>', content)
+            out.append(f"<p>{content}</p>")
+    if in_ul:
+        out.append("</ul>")
+    return "\n".join(out)
+
+if __name__ == "__main__":
+    if len(sys.argv) > 1:
+        with open(sys.argv[1], "r", encoding="utf-8") as f:
+            content = f.read()
+    else:
+        content = sys.stdin.read()
+    print(md_to_html(content))
+PYEOF
+
+python3 "$BUILD_DIR/md_to_sparkle_html.py" "$RELEASE_NOTES_FILE" > "$NOTES_HTML_FILE"
+rm -f "$BUILD_DIR/md_to_sparkle_html.py"
 
 DOWNLOAD_URL_PREFIX="https://github.com/dylans2010/SwiftCode-Mac/releases/download/${TAG_NAME}/"
 APPCAST_OUTPUT="$ARTIFACTS_DIR/appcast.xml"
 
 GENERATE_ARGS=(
     --download-url-prefix "$DOWNLOAD_URL_PREFIX"
+    --embed-release-notes
     -o "$APPCAST_OUTPUT"
 )
 
@@ -484,7 +594,10 @@ if [ "$DRY_RUN" = true ]; then
     log_ok "DRY-RUN COMPLETE: All build, test, signing, packaging, and Sparkle appcast gates passed."
     echo "Artifacts generated in: $ARTIFACTS_DIR"
     ls -lh "$ARTIFACTS_DIR"
+    echo "Release notes preview:"
+    cat "$RELEASE_NOTES_FILE"
     echo "================================================================"
+    rm -f "$RELEASE_NOTES_FILE"
     exit 0
 fi
 
@@ -493,29 +606,35 @@ fi
 # --------------------------------------------------
 log_info "Step 11: Publishing GitHub Release..."
 
-# Generate release notes
-RELEASE_NOTES_FILE="$BUILD_DIR/RELEASE_NOTES.md"
-cat << EOF > "$RELEASE_NOTES_FILE"
-## SwiftCode ${MARKETING_VERSION}
+# Ensure git tag is present
+if [ "$EXISTING_LOCAL_TAG" = false ]; then
+    log_info "Creating git tag $TAG_NAME..."
+    git tag -a "$TAG_NAME" -m "Release $TAG_NAME"
+fi
 
-### Changes
-$(git log -n 10 --pretty=format:"* %s (%h)")
+if [ "$EXISTING_REMOTE_TAG" = false ]; then
+    log_info "Pushing git tag $TAG_NAME to origin..."
+    git push origin "$TAG_NAME"
+fi
 
-### Sparkle Updates
-* Update feed: \`appcast.xml\`
-* Direct package: \`SwiftCode.dmg\`
-EOF
+if [ "$EXISTING_GH_RELEASE" = true ]; then
+    log_info "Existing GitHub Release found for $TAG_NAME. Updating release and clobbering assets..."
+    gh release edit "$TAG_NAME" \
+        --title "SwiftCode $TAG_NAME" \
+        --notes-file "$RELEASE_NOTES_FILE"
 
-log_info "Creating git tag $TAG_NAME and pushing to origin..."
-git tag -a "$TAG_NAME" -m "Release $TAG_NAME"
-git push origin "$TAG_NAME"
-
-log_info "Creating GitHub Release with gh CLI..."
-gh release create "$TAG_NAME" \
-    "$DMG_OUTPUT" \
-    "$APPCAST_OUTPUT" \
-    --title "SwiftCode $TAG_NAME" \
-    --notes-file "$RELEASE_NOTES_FILE"
+    gh release upload "$TAG_NAME" \
+        "$DMG_OUTPUT" \
+        "$APPCAST_OUTPUT" \
+        --clobber
+else
+    log_info "Creating GitHub Release with gh CLI..."
+    gh release create "$TAG_NAME" \
+        "$DMG_OUTPUT" \
+        "$APPCAST_OUTPUT" \
+        --title "SwiftCode $TAG_NAME" \
+        --notes-file "$RELEASE_NOTES_FILE"
+fi
 
 rm -f "$RELEASE_NOTES_FILE"
 
