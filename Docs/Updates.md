@@ -116,7 +116,37 @@ To enable real updates:
    before expecting clients to install updates: a client built without
    the key cannot verify a signed update.
 
-## Release workflow
+## Local Release Pipeline (`scripts/release.sh`)
+
+Instead of relying on GitHub Actions CI runners, SwiftCode provides a fully local, reproducible release pipeline via [`scripts/release.sh`](../scripts/release.sh).
+
+### Prerequisites
+- macOS machine with Xcode 15+ and developer command-line tools.
+- GitHub CLI (`gh`) authenticated with repository access (`gh auth status`).
+- Developer ID Application certificate installed in Keychain (for direct distribution).
+- Apple Notarization credentials: either Keychain profile (`NOTARY_KEYCHAIN_PROFILE`) or Apple ID / App Password (`APPLE_ID`, `APPLE_APP_PASSWORD`, `APPLE_TEAM_ID`).
+- Sparkle EdDSA signing key in Keychain (`https://sparkle-project.org` entry) or `SPARKLE_PRIVATE_KEY` env var.
+
+### Usage
+```bash
+# Dry-run validation (runs tests, preflight checks, builds, and verifies packaging without publishing)
+./scripts/release.sh --dry-run
+
+# Local development / ad-hoc testing (skips Apple notarization and Developer ID requirement)
+./scripts/release.sh --allow-adhoc --skip-notarize
+
+# Full production release (builds, signs, notarizes, staples, creates DMG & appcast, tags, and publishes)
+./scripts/release.sh
+```
+
+### Options
+- `--dry-run`: Runs preflight, test runner, application build, ad-hoc signing, DMG creation, and Sparkle appcast generation to verify the full pipeline without publishing or touching remote state.
+- `--skip-notarize`: Bypasses `xcrun notarytool` submission and stapling.
+- `--allow-adhoc`: Permits ad-hoc (`-`) codesigning if no "Developer ID Application" identity is present in Keychain.
+- `--version <ver>`: Explicitly overrides the marketing version (defaults to Xcode project `MARKETING_VERSION`).
+- `--build-num <num>`: Explicitly overrides the build version (defaults to Xcode project `CURRENT_PROJECT_VERSION`).
+
+## Release workflow (GitHub Actions)
 
 `.github/workflows/release.yml` runs on tags matching `v*` and, in order:
 

@@ -53,4 +53,5 @@ agent_notes.md
 
 # Python bytecode
 *.pyc
-__pycache__/
+__pycache__/dist
+dist/

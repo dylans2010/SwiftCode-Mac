@@ -115,7 +115,8 @@ enum ReleaseNotesFormatter {
         var text = htmlOrText
         // List items first, so their content survives tag stripping.
         text = text.replacingOccurrences(of: "(?i)<li[^>]*>", with: "\n• ", options: .regularExpression)
-        text = text.replacingOccurrences(of: "(?i)</li>", with: "", options: .regularExpression)
+        text = text.replacingOccurrences(of: "(?i)</li>", with: "\n", options: .regularExpression)
+        text = text.replacingOccurrences(of: "(?i)<p[^>]*>", with: "\n", options: .regularExpression)
         text = text.replacingOccurrences(of: "(?i)<br\\s*/?>", with: "\n", options: .regularExpression)
         text = text.replacingOccurrences(of: "(?i)</p>", with: "\n", options: .regularExpression)
         text = text.replacingOccurrences(of: "(?i)</h[1-6]>", with: "\n", options: .regularExpression)
