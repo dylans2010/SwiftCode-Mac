@@ -406,6 +406,7 @@ fi
 # --------------------------------------------------
 log_info "Step 8: Packaging SwiftCode.dmg..."
 
+mkdir -p "$ARTIFACTS_DIR"
 DMG_OUTPUT="$ARTIFACTS_DIR/SwiftCode.dmg"
 rm -rf "$DMG_STAGING" "$DMG_OUTPUT"
 mkdir -p "$DMG_STAGING"
