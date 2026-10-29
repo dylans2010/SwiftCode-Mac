@@ -572,8 +572,10 @@ public actor HermesProvider {
         guard let executable else {
             throw HermesError.executableNotFound("no `hermes` executable on PATH or in the configured path")
         }
-        let output = try await runModelCommand(executablePath: executable)
-        let current = parseModelOutput(output)
+        // Read Hermes' configured model straight from its config file.
+        // `hermes model` is an interactive picker that refuses to run
+        // without a terminal, so it is never launched here.
+        let current = readConfiguredModelSpecs()
         var models = current.map { HermesDiscoveredModel(spec: $0) }
         // OpenRouter-backed Hermes: expand to the live catalog.
         let openRouterProvider = current.first { $0.hasPrefix("openrouter:") }
@@ -595,48 +597,46 @@ public actor HermesProvider {
         return models
     }
 
-    /// Runs `hermes model` (no arguments: prints the current model,
-    /// does not open the interactive picker) with a 15-second cap.
-    private static func runModelCommand(executablePath: String) async throws -> String {
-        try await withCheckedThrowingContinuation { continuation in
-            let process = Process()
-            process.executableURL = URL(fileURLWithPath: executablePath)
-            process.arguments = ["model"]
-            let stdout = Pipe()
-            let stderr = Pipe()
-            process.standardOutput = stdout
-            process.standardError = stderr
-            let finish = HermesContinuationGuard(continuation)
-            let timeoutBox = HermesTimeoutWorkBox()
-            let timeoutWork = DispatchWorkItem {
-                if process.isRunning {
-                    process.terminate()
-                    finish.resume(with: .failure(HermesError.detectionFailed("`hermes model` did not respond within 15s")))
-                }
+    /// Reads the model Hermes is configured to use from its
+    /// `config.yaml` (`model.provider` and `model.default`, under
+    /// `HERMES_HOME` or `~/.hermes`). Returns `provider:model` specs,
+    /// or an empty list when the file has no usable model. Never
+    /// launches Hermes, so no terminal is needed.
+    public static func readConfiguredModelSpecs(
+        homeDirectory: URL = FileManager.default.homeDirectoryForCurrentUser
+    ) -> [String] {
+        let hermesHome = ProcessInfo.processInfo.environment["HERMES_HOME"]
+            .flatMap { $0.isEmpty ? nil : URL(fileURLWithPath: ($0 as NSString).expandingTildeInPath) }
+            ?? homeDirectory.appendingPathComponent(".hermes", isDirectory: true)
+        let configURL = hermesHome.appendingPathComponent("config.yaml")
+        guard let text = try? String(contentsOf: configURL, encoding: .utf8) else { return [] }
+
+        var inModelBlock = false
+        var provider: String?
+        var model: String?
+        for rawLine in text.split(separator: "\n", omittingEmptySubsequences: false) {
+            let line = String(rawLine)
+            let trimmed = line.trimmingCharacters(in: .whitespaces)
+            if trimmed.isEmpty || trimmed.hasPrefix("#") { continue }
+            let isTopLevel = !line.hasPrefix(" ") && !line.hasPrefix("\t")
+            if isTopLevel {
+                inModelBlock = trimmed == "model:"
+                continue
             }
-            timeoutBox.store(timeoutWork)
-            DispatchQueue.global().asyncAfter(deadline: .now() + 15, execute: timeoutWork)
-            process.terminationHandler = { proc in
-                timeoutBox.cancel()
-                let out = String(data: stdout.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8) ?? ""
-                if proc.terminationStatus == 0 {
-                    finish.resume(with: .success(out))
-                } else {
-                    let err = String(data: stderr.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8) ?? ""
-                    finish.resume(with: .failure(HermesError.detectionFailed(
-                        err.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-                            ? "`hermes model` exited \(proc.terminationStatus)"
-                            : String(SDKToolEvent.redact(err).prefix(500))
-                    )))
-                }
-            }
-            do {
-                try process.run()
-            } catch {
-                timeoutBox.cancel()
-                finish.resume(with: .failure(HermesError.launchFailed(error.localizedDescription)))
-            }
+            guard inModelBlock, let colon = trimmed.firstIndex(of: ":") else { continue }
+            let key = trimmed[..<colon]
+            let value = trimmed[trimmed.index(after: colon)...]
+                .trimmingCharacters(in: .whitespaces)
+                .trimmingCharacters(in: CharacterSet(charactersIn: "\"'"))
+            guard !value.isEmpty else { continue }
+            if key == "provider" { provider = value }
+            if key == "default" { model = value }
         }
+        guard let model else { return [] }
+        if let provider {
+            return ["\(provider):\(model)"]
+        }
+        return [model]
     }
 
     /// Parses `hermes model` output into model specs. Pure, so tests

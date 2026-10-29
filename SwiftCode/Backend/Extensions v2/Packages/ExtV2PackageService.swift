@@ -189,7 +189,10 @@ public struct ExtV2PackageService: Sendable {
         }
 
         let compatibility = ExtV2Compatibility.evaluate(manifest: manifest)
-        try commit(stagedPackage: packageRoot, extensionId: identity.id)
+        // Commit the whole extracted VSIX, not only `extension/`, so every
+        // file the package ships is kept. Readers resolve the manifest at
+        // `<install>/extension/package.json`, which this layout matches.
+        try commit(stagedPackage: extractionRoot, extensionId: identity.id)
         return ExtV2InstalledPackage(
             directory: installDirectory(for: identity.id),
             manifest: manifest,

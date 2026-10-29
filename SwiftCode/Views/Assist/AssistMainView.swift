@@ -13,6 +13,7 @@ public struct AssistMainView: View {
     @State private var showAgentNotesSheet = false
     @State private var showArtifactsSheet = false
     @State private var showExecutionModeSheet = false
+    @State private var showSDKModelProviderList = false
     @State private var showApprovalSheet = false
     @State private var searchConversationText = ""
     @State private var attachedFiles: [AgentFileContext] = []
@@ -101,7 +102,11 @@ public struct AssistMainView: View {
                 Spacer()
 
                 Button {
-                    showExecutionModeSheet = true
+                    if [AssistModelProvider.openCode, .openRouter, .hermes].contains(AssistProviderSelection.persistedProvider) {
+                        showSDKModelProviderList = true
+                    } else {
+                        showExecutionModeSheet = true
+                    }
                 } label: {
                     HStack(spacing: 4) {
                         Image(systemName: isAgentMode ? "cpu" : "text.bubble")
@@ -491,6 +496,9 @@ public struct AssistMainView: View {
         }
         .sheet(isPresented: $showingCodexSetup) {
             CodexSignInFlow()
+        }
+        .sheet(isPresented: $showSDKModelProviderList) {
+            SDKModelProviderList()
         }
         .sheet(isPresented: $showExecutionModeSheet) {
             ExecutionModeSheet()
@@ -1423,26 +1431,6 @@ public struct AssistMainView: View {
                     modelsList.append(DynamicModelOption(
                         modelID: m.id,
                         name: m.name,
-                        provider: "OpenRouter Cloud",
-                        status: "Cloud",
-                        isAvailable: true,
-                        category: .openRouter
-                    ))
-                }
-            }
-        } else {
-            let openRouterPresets = [
-                ("openai/gpt-4o", "GPT-4o"),
-                ("anthropic/claude-3.5-sonnet", "Claude 3.5 Sonnet"),
-                ("google/gemini-2.5-pro", "Gemini 2.5 Pro"),
-                ("meta-llama/llama-3-70b-instruct", "Llama 3 70B"),
-                ("openai/gpt-4o-mini", "GPT-4o Mini")
-            ]
-            for preset in openRouterPresets {
-                if filter.isEnabled(preset.0) {
-                    modelsList.append(DynamicModelOption(
-                        modelID: preset.0,
-                        name: preset.1,
                         provider: "OpenRouter Cloud",
                         status: "Cloud",
                         isAvailable: true,
@@ -2652,6 +2640,115 @@ struct ExecutionModeSheet: View {
         }
         .padding(.bottom)
         .frame(width: 360)
+    }
+}
+
+// MARK: - SDK Model Provider List
+
+/// Lists the models fetched live from the active SDK provider
+/// (OpenCode, OpenRouter or Hermes). Nothing is hardcoded: the list
+/// is whatever the provider reports, and the user's pick is stored
+/// in `selectedAssistModelID`.
+struct SDKModelProviderList: View {
+    @Environment(\.dismiss) private var dismiss
+    @ObservedObject private var settings = AppSettings.shared
+    @State private var openCodeModels: [OpenCodeModel] = []
+    @State private var openRouterModels: [OpenRouterModel] = []
+    @State private var hermesModels: [HermesProvider.HermesDiscoveredModel] = []
+    @State private var isLoading = false
+    @State private var errorMessage: String?
+
+    private var provider: AssistModelProvider {
+        AssistModelProvider(rawValue: AssistProviderSelection.persistedProvider.rawValue) ?? .openRouter
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            HStack {
+                Text("\(provider.rawValue) Models")
+                    .font(.headline)
+                Spacer()
+                Button {
+                    dismiss()
+                } label: {
+                    Image(systemName: "xmark.circle.fill")
+                        .foregroundStyle(.secondary)
+                }
+                .buttonStyle(.borderless)
+            }
+            .padding()
+
+            if isLoading {
+                ProgressView()
+                    .frame(maxWidth: .infinity, minHeight: 120)
+            } else if let errorMessage {
+                Text(errorMessage)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .padding()
+            } else {
+                List {
+                    ForEach(rows, id: \.id) { row in
+                        Button {
+                            settings.selectedAssistModelID = row.id
+                            dismiss()
+                        } label: {
+                            HStack {
+                                Text(row.name)
+                                    .font(.subheadline)
+                                Spacer()
+                                if settings.selectedAssistModelID == row.id {
+                                    Image(systemName: "checkmark")
+                                        .foregroundColor(.accentColor)
+                                }
+                            }
+                            .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+                .overlay {
+                    if rows.isEmpty {
+                        Text("No models returned by \(provider.rawValue).")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+            }
+        }
+        .frame(width: 420, height: 420)
+        .task { await load() }
+    }
+
+    private var rows: [(id: String, name: String)] {
+        switch provider {
+        case .openCode:
+            return openCodeModels.map { ($0.storedID, $0.displayName) }
+        case .hermes:
+            return hermesModels.map { ($0.storedID, $0.displayName) }
+        default:
+            return openRouterModels.map { ($0.id, $0.name) }
+        }
+    }
+
+    private func load() async {
+        isLoading = true
+        errorMessage = nil
+        defer { isLoading = false }
+        do {
+            switch provider {
+            case .openCode:
+                openCodeModels = try await OpenCodeClient.shared.fetchModels()
+            case .hermes:
+                hermesModels = try await HermesProvider.fetchModels()
+            case .openRouter:
+                openRouterModels = try await OpenRouterAssistProvider.fetchModels()
+            default:
+                errorMessage = "Model selection is available for OpenCode, OpenRouter and Hermes."
+            }
+        } catch {
+            errorMessage = error.localizedDescription
+        }
     }
 }
 

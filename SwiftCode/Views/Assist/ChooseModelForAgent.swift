@@ -166,26 +166,7 @@ public struct ChooseModelForAgent: View {
             ))
         }
 
-        // 4. OpenRouter Cloud Models (Fallback Presets)
-        let openRouterPresets = [
-            ("openai/gpt-4o", "GPT-4o"),
-            ("anthropic/claude-3.5-sonnet", "Claude 3.5 Sonnet"),
-            ("google/gemini-2.5-pro", "Gemini 2.5 Pro"),
-            ("meta-llama/llama-3-70b-instruct", "Llama 3 70B"),
-            ("openai/gpt-4o-mini", "GPT-4o Mini")
-        ]
-        for preset in openRouterPresets {
-            if filter.isEnabled(preset.0) {
-                modelsList.append(DynamicModelOption(
-                    modelID: preset.0,
-                    name: preset.1,
-                    provider: "OpenRouter Cloud",
-                    status: "Cloud",
-                    isAvailable: true,
-                    category: .openRouter
-                ))
-            }
-        }
+        // 4. OpenRouter Cloud Models are added from the live fetch below.
 
         self.dynamicModels = modelsList
 

@@ -518,6 +518,10 @@ public actor OpenCodeClient {
         try await ensureServer()
         let config = OpenCodeConfiguration.load()
         var sessionID = try await session(for: directory)
+        // Subscribe to events before sending the prompt. If the prompt goes
+        // first, the server can emit session.idle before this subscriber is
+        // connected, and the run then waits for an event that already passed.
+        var bytes = try await openEventStream(config: config, directory: directory)
         do {
             try await promptAsync(sessionID: sessionID, prompt: prompt, systemPrompt: systemPrompt, model: model, config: config, directory: directory)
         } catch let error as OpenCodeError {
@@ -527,29 +531,17 @@ public actor OpenCodeClient {
             if case .sessionFailed(let detail) = error, detail.contains("status 404") {
                 resetSession(directory: directory)
                 sessionID = try await session(for: directory)
+                bytes = try await openEventStream(config: config, directory: directory)
                 try await promptAsync(sessionID: sessionID, prompt: prompt, systemPrompt: systemPrompt, model: model, config: config, directory: directory)
             } else {
                 throw error
             }
         }
 
-        guard let eventURL = endpointURL(config: config, path: "event", directory: directory) else {
-            throw OpenCodeError.invalidConfiguration("Invalid OpenCode server URL.")
-        }
-        var request = URLRequest(url: eventURL)
-        request.timeoutInterval = 3600
-        request.setValue("text/event-stream", forHTTPHeaderField: "Accept")
         // Precompute the abort request here: the stream's onTermination
         // closure must not capture actor `self` (strict concurrency), so
         // cancellation aborts via this plain URLRequest instead.
         let abortRequest = abortRequest(sessionID: sessionID, config: config, directory: directory)
-        let (bytes, response) = try await urlSession.bytes(for: request)
-        guard let http = response as? HTTPURLResponse, http.statusCode == 200 else {
-            let status = (response as? HTTPURLResponse)?.statusCode ?? -1
-            throw OpenCodeError.streamInterrupted(
-                "OpenCode event stream returned status \(status). The prompt may still be running on the server; abort it from the OpenCode session if needed."
-            )
-        }
 
         return AsyncThrowingStream { [bytes, sessionID] continuation in
             let task = Task {
@@ -592,6 +584,25 @@ public actor OpenCodeClient {
                 }
             }
         }
+    }
+
+    /// Opens the server's SSE event stream and waits for its headers, so the
+    /// subscription is live before a prompt is sent.
+    private func openEventStream(config: OpenCodeConfiguration, directory: String?) async throws -> URLSession.AsyncBytes {
+        guard let eventURL = endpointURL(config: config, path: "event", directory: directory) else {
+            throw OpenCodeError.invalidConfiguration("Invalid OpenCode server URL.")
+        }
+        var request = URLRequest(url: eventURL)
+        request.timeoutInterval = 3600
+        request.setValue("text/event-stream", forHTTPHeaderField: "Accept")
+        let (bytes, response) = try await urlSession.bytes(for: request)
+        guard let http = response as? HTTPURLResponse, http.statusCode == 200 else {
+            let status = (response as? HTTPURLResponse)?.statusCode ?? -1
+            throw OpenCodeError.streamInterrupted(
+                "OpenCode event stream returned status \(status). The prompt may still be running on the server; abort it from the OpenCode session if needed."
+            )
+        }
+        return bytes
     }
 
     // MARK: Session plumbing

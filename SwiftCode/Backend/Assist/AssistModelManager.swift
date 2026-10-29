@@ -24,7 +24,7 @@ public final class AssistModelManager: ObservableObject {
         if !customModelID.isEmpty {
             return AssistModelOption.resolve(id: customModelID)
         }
-        return AssistModelOption.swiftCodeBalanced.id
+        return ""
     }
 
     public var selectedModelSpecification: ModelSpecification {

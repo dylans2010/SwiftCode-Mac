@@ -45,9 +45,11 @@ struct WorkspaceView: View {
     // Feature sheet states
     @State private var activeSheet: ToolbarActionManager.SheetDestination?
     @State private var showingExportSheet = false
-    // Extensions sheet, opened from the code-editor toolbar next to
-    // the Assist button (not from the workspace sidebar anymore).
-    @State private var showingExtensionsSheet = false
+    // Extensions sidebar, toggled from the code-editor toolbar next to
+    // the Assist button. Renders as a column beside the editor, like Assist.
+    @State private var showExtensionsSidebar = false
+    @AppStorage("com.swiftcode.workspace.extensionsSidebarWidth") private var extensionsSidebarWidth = 720.0
+    @State private var dragStartWidthExtensions: CGFloat? = nil
 
     // Coding Tools Modal State
     @State private var showCodingToolsModal = false
@@ -162,6 +164,39 @@ struct WorkspaceView: View {
 
                     AssistMainView()
                         .frame(width: agentInspectorWidth)
+                        .transition(.move(edge: .trailing))
+                }
+
+                if showExtensionsSidebar {
+                    // Custom drag handle divider
+                    Rectangle()
+                        .fill(Color.secondary.opacity(0.2))
+                        .frame(width: 4)
+                        .contentShape(Rectangle())
+                        .onHover { isHovered in
+                            if isHovered {
+                                NSCursor.resizeLeftRight.push()
+                            } else {
+                                NSCursor.pop()
+                            }
+                        }
+                        .gesture(
+                            DragGesture()
+                                .onChanged { value in
+                                    if dragStartWidthExtensions == nil {
+                                        dragStartWidthExtensions = extensionsSidebarWidth
+                                    }
+                                    let delta = value.translation.width
+                                    let newWidth = (dragStartWidthExtensions ?? 720.0) - delta
+                                    extensionsSidebarWidth = max(480, min(1200, newWidth))
+                                }
+                                .onEnded { _ in
+                                    dragStartWidthExtensions = nil
+                                }
+                        )
+
+                    ExtensionsHomeView()
+                        .frame(width: extensionsSidebarWidth)
                         .transition(.move(edge: .trailing))
                 }
 
@@ -291,12 +326,14 @@ struct WorkspaceView: View {
                     .help("Toggle AI Agent Inspector")
 
                     Button {
-                        showingExtensionsSheet = true
+                        withAnimation(.spring()) {
+                            showExtensionsSidebar.toggle()
+                        }
                     } label: {
                         Image(systemName: "puzzlepiece")
-                            .foregroundColor(showingExtensionsSheet ? .accentColor : .secondary)
+                            .foregroundColor(showExtensionsSidebar ? .accentColor : .secondary)
                     }
-                    .help("Open Extensions")
+                    .help("Toggle Extensions")
 
                     BuildToolbarView(viewModel: viewModel.build, projectURL: viewModel.projectURL, editorViewModel: viewModel.editor)
                 }
@@ -304,17 +341,6 @@ struct WorkspaceView: View {
         }
         .sheet(item: $activeSheet) { destination in
             sheetView(for: destination)
-        }
-        .sheet(isPresented: $showingExtensionsSheet) {
-            NavigationStack {
-                ExtensionsHomeView()
-                    .toolbar {
-                        ToolbarItem(placement: .confirmationAction) {
-                            Button("Done") { showingExtensionsSheet = false }
-                        }
-                    }
-            }
-            .frame(minWidth: 900, minHeight: 600)
         }
         .sheet(isPresented: $showingExportSheet) {
             ExportProjView()

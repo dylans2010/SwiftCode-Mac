@@ -658,7 +658,7 @@ class AppSettings: ObservableObject {
         selectedModel = UserDefaults.standard.string(forKey: "selectedModel") ?? "openai/gpt-4o"
         customModel   = UserDefaults.standard.string(forKey: "customModel") ?? ""
         customModelProviderID = UserDefaults.standard.string(forKey: "assist_custom_model_provider_id") ?? "google"
-        selectedAssistModelID = UserDefaults.standard.string(forKey: "selectedAssistModelID") ?? AssistModelOption.swiftCodeBalanced.id
+        selectedAssistModelID = UserDefaults.standard.string(forKey: "selectedAssistModelID") ?? ""
         autoSave = UserDefaults.standard.object(forKey: "autoSave") as? Bool ?? true
         editorFontSize = UserDefaults.standard.object(forKey: "editorFontSize") as? Double ?? 14
         useDarkTheme = UserDefaults.standard.object(forKey: "useDarkTheme") as? Bool ?? true
