@@ -38,10 +38,15 @@ Stream-json stdout lines:
 | `result` | terminal record: `session_id`, `exit_code`, `text` (the whole reply), `tokens`, `error` |
 
 Diagnostics stay on stderr and are kept as a capped, redacted tail
-for error reporting. Finite-run exit codes: 0 completed, 1 failed /
-partial / iteration budget / never ran, 130 interrupted, 75
-transient provider failure (surfaced as a failure, never silently
-retried).
+for error reporting. Exit codes for `chat` one-shot runs: 0
+completed, 1 failed / partial / iteration budget / never ran, 2
+usage or gateway-client error (including an unreadable or empty
+query file), 130 interrupted. The terminal `result` record's
+`exit_code` is authoritative and is what SwiftCode judges the run
+by; no other exit code is assumed. (An earlier draft of this doc
+listed 75 as a transient-provider code — that code does not appear
+in the Hermes CLI source and has been removed; the separate `-z`
+table of 0/1/2/130 does not apply to `chat` runs.)
 
 ### Interfaces deliberately not used
 
@@ -155,7 +160,18 @@ Cancellation terminates only the child process SwiftCode started
 (SIGTERM, a 2-second grace wait, then SIGKILL), marks the run's
 non-terminal tool rows cancelled in the store, and does not
 re-report the cancellation as a failure. Each run owns one process
-and one temp query file; repeated runs leak neither.
+and one temp query file; repeated runs leak neither. Cancellation
+caveat: modern `hermes chat` is a gateway client
+(`hermes_cli/gateway_chat.py`), and its own interrupt path says
+"Detached; accepted work continues at the gateway." No CLI command
+was found to cancel a gateway turn from outside, so SwiftCode's
+cancel guarantees the local CLI process dies and SwiftCode stops
+observing/reporting the run — it cannot guarantee a gateway turn
+that was already accepted stops executing. Treat a cancelled Hermes
+run as "SwiftCode stopped watching", not "Hermes stopped working",
+until a gateway-side cancel (e.g. via ACP `session/cancel`) is
+implemented. This is the one place the first report overstated
+cancellation, and it is corrected here.
 
 ## Known limitations (honest list)
 
@@ -178,6 +194,12 @@ and one temp query file; repeated runs leak neither.
 6. Hermes must be installed and authenticated outside SwiftCode
    (`hermes setup`, `hermes model` in a terminal). SwiftCode never
    downloads or executes a remote install script.
+7. Cancellation is local-only (see above): killing the CLI detaches
+   from the gateway; no gateway-side cancel is implemented yet. A
+   future ACP-based provider could close this gap with
+   `session/cancel`, and could also expose SwiftCode tools to Hermes
+   via ACP `session/new` `mcpServers` — both are documented Hermes
+   capabilities, neither is claimed by this CLI implementation.
 
 ## Verification status
 

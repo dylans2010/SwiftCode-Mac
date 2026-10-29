@@ -568,6 +568,12 @@ public actor HermesProvider {
         }
     }
 
+    /// Terminates the CLI child process SwiftCode started. This does
+    /// NOT guarantee the gateway turn stops: modern `hermes chat` is
+    /// a gateway client, and Hermes documents that accepted work
+    /// continues at the gateway after detach. No CLI command exists
+    /// to cancel a gateway turn from outside (that would need ACP
+    /// `session/cancel`); see Docs/Assist-Hermes-Provider.md.
     public func cancel() {
         cancelled = true
         lineContinuation?.finish()
