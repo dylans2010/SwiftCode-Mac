@@ -131,6 +131,7 @@ public enum SDKToolSourceSetting: String, CaseIterable, Sendable {
     /// Anything else (legacy persisted values) keeps the old
     /// persisted setting, so removing the standalone tool-source
     /// picker from Settings never silently changes a stored choice.
+    @MainActor
     public static func effective() -> SDKToolSourceSetting {
         let toolkit = AppSettings.shared.assistToolkit
         if toolkit.caseInsensitiveCompare("system") == .orderedSame {

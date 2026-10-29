@@ -585,16 +585,17 @@ class AppSettings: ObservableObject {
 
     private init() {
         assistSystemID = UserDefaults.standard.string(forKey: "assistSystemID") ?? Self.nativeAssistSystemID
-        assistToolkit = UserDefaults.standard.string(forKey: "assistToolkit")
+        var initialToolkit = UserDefaults.standard.string(forKey: "assistToolkit")
             ?? UserDefaults.standard.string(forKey: "assist.assistToolkit")
             ?? Self.defaultAssistToolkit
         // Rename migration: the old "Cloud" toolkit value means the
         // provider toolset, now stored as "Provider".
-        if assistToolkit.caseInsensitiveCompare("cloud") == .orderedSame {
-            assistToolkit = "Provider"
+        if initialToolkit.caseInsensitiveCompare("cloud") == .orderedSame {
+            initialToolkit = "Provider"
             UserDefaults.standard.set("Provider", forKey: "assist.assistToolkit")
             UserDefaults.standard.set("Provider", forKey: "assistToolkit")
         }
+        assistToolkit = initialToolkit
         assistAutomaticallySwitchModels = UserDefaults.standard.object(forKey: "assist.automaticallySwitchModels") as? Bool ?? true
         assistUseProviderModels = UserDefaults.standard.object(forKey: "assist.useProviderModels") as? Bool ?? false
         metaAssistModelID = UserDefaults.standard.string(forKey: "metaAssistModelID")

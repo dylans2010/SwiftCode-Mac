@@ -10,14 +10,22 @@ private final class OpenCodeInstallGuard: @unchecked Sendable {
     private let lock = NSLock()
     private var done = false
     private let continuation: CheckedContinuation<Bool, Never>
+    private var timeoutWork: DispatchWorkItem?
 
     init(continuation: CheckedContinuation<Bool, Never>) { self.continuation = continuation }
+
+    func setTimeoutWork(_ work: DispatchWorkItem) {
+        lock.lock()
+        defer { lock.unlock() }
+        timeoutWork = work
+    }
 
     func resume(with value: Bool) {
         lock.lock()
         defer { lock.unlock() }
         guard !done else { return }
         done = true
+        timeoutWork?.cancel()
         continuation.resume(returning: value)
     }
 }
@@ -426,15 +434,14 @@ public actor OpenCodeClient {
                     guardBox.resume(with: false)
                 }
             }
+            guardBox.setTimeoutWork(timeoutWork)
             DispatchQueue.global().asyncAfter(deadline: .now() + timeoutSeconds, execute: timeoutWork)
             process.terminationHandler = { proc in
-                timeoutWork.cancel()
                 guardBox.resume(with: proc.terminationStatus == 0)
             }
             do {
                 try process.run()
             } catch {
-                timeoutWork.cancel()
                 guardBox.resume(with: false)
             }
         }
