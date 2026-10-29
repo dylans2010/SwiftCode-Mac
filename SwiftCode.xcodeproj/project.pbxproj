@@ -3021,6 +3021,7 @@
 		121649468D5570E2E16208FF /* ExtensionsHomeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2280919871E27934AE2E4A27 /* ExtensionsHomeView.swift */; };
 		40117BB3518EC7DB8FA220DD /* ExtensionsInstalledView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8D58D560B7BDA8186A00C3B8 /* ExtensionsInstalledView.swift */; };
 		8E31DE943A0130E6EF528022 /* ExtensionsSearchView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F15CB6A173340350C1FEC56D /* ExtensionsSearchView.swift */; };
+		C1694AE95EC0150EB84A05AF /* UseExtensionTool.swift in Sources */ = {isa = PBXBuildFile; fileRef = 215759B819F37C7F9AE85C1D /* UseExtensionTool.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -6041,6 +6042,7 @@
 		2280919871E27934AE2E4A27 /* ExtensionsHomeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExtensionsHomeView.swift; sourceTree = "<group>"; };
 		8D58D560B7BDA8186A00C3B8 /* ExtensionsInstalledView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExtensionsInstalledView.swift; sourceTree = "<group>"; };
 		F15CB6A173340350C1FEC56D /* ExtensionsSearchView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExtensionsSearchView.swift; sourceTree = "<group>"; };
+		215759B819F37C7F9AE85C1D /* UseExtensionTool.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UseExtensionTool.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -6499,6 +6501,7 @@
 				FB0BB585A96EF0AC8C62EE2E /* AssistRemoteFetchSupport.swift */,
 				BF39084260E217837BAD92F6 /* AssistFetchDocumentationTool.swift */,
 				CA9E6D970225547241968F04 /* AssistGitHubRepoTool.swift */,
+				215759B819F37C7F9AE85C1D /* UseExtensionTool.swift */,
 			);
 			path = Tools;
 			sourceTree = "<group>";
@@ -14327,6 +14330,7 @@
 				121649468D5570E2E16208FF /* ExtensionsHomeView.swift in Sources */,
 				40117BB3518EC7DB8FA220DD /* ExtensionsInstalledView.swift in Sources */,
 				8E31DE943A0130E6EF528022 /* ExtensionsSearchView.swift in Sources */,
+				C1694AE95EC0150EB84A05AF /* UseExtensionTool.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

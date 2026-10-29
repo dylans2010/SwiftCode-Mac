@@ -466,6 +466,7 @@ public enum ToolCallMap: Sendable {
         // MARK: - use
         "use_app": ToolCallDescriptor(title: "Use App", symbolName: "app.fill", tint: .blue),
         "use_composio": ToolCallDescriptor(title: "Execute Composio Tool", symbolName: "app.connected.to.app.below.fill", tint: .teal),
+        "use_extension": ToolCallDescriptor(title: "Use Extension", symbolName: "puzzlepiece.fill", tint: .orange),
         "use_mcp": ToolCallDescriptor(title: "Execute MCP Tool", symbolName: "network", tint: .teal),
         "use_system": ToolCallDescriptor(title: "System Diagnostics", symbolName: "cpu.fill", tint: .gray),
         "use_terminal": ToolCallDescriptor(title: "Use Terminal", symbolName: "terminal.fill", tint: .purple),

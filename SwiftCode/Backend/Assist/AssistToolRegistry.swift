@@ -109,6 +109,7 @@ public final class AssistToolRegistry {
         register(AssistEnvironmentInfoTool())
         register(UseTermFunction())
         register(UseMCP())
+        register(UseExtensionTool())
         register(AssistComposioTool())
 
         register(AssistCreateNewAppTool())

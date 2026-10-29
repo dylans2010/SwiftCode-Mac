@@ -305,16 +305,16 @@ public final class ExtV2Manager: ObservableObject {
         refreshInstalled()
     }
 
-    public func executeCommand(extensionId: String, command: String) async throws -> String {
+    public func executeCommand(extensionId: String, command: String, args: [ExtV2JSONValue] = []) async throws -> String {
         // Native plugin commands resolve through the native registry.
         if ExtV2NativePluginRegistry.handler(for: command) != nil {
-            let result = try await ExtV2NativePluginRegistry.shared.executeCommand(command)
+            let result = try await ExtV2NativePluginRegistry.shared.executeCommand(command, args: args)
             return result.stringValue ?? ""
         }
         if let owner = hostManager.ownerOfCommand(command), owner != extensionId {
             throw ExtV2Error.invalidRequest("Command '\(command)' belongs to '\(owner)', not '\(extensionId)'.")
         }
-        let result = try await hostManager.executeCommand(extensionId: extensionId, command: command)
+        let result = try await hostManager.executeCommand(extensionId: extensionId, command: command, args: args)
         return result.stringValue ?? ""
     }
 

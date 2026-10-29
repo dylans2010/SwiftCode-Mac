@@ -195,6 +195,67 @@ public final class ExtV2TestSuite: Sendable {
                 throw ExtV2Error.unknown("Assist tool id wrong")
             }
         })
+        results.append(await check("use_extension validation") {
+            guard UseExtensionAction(rawValue: "bogus") == nil else {
+                throw ExtV2Error.unknown("Unknown action parsed successfully")
+            }
+            guard (try? UseExtensionRouter.validate(action: .details, extensionId: nil, command: nil, file: nil, confirm: false)) == nil else {
+                throw ExtV2Error.unknown("details without extensionId validated")
+            }
+            guard (try? UseExtensionRouter.validate(action: .execute, extensionId: "acme.demo", command: "demo.cmd", file: nil, confirm: false)) == nil else {
+                throw ExtV2Error.unknown("execute without confirm validated")
+            }
+            try UseExtensionRouter.validate(action: .list, extensionId: nil, command: nil, file: nil, confirm: false)
+            try UseExtensionRouter.validate(
+                action: .runXcodeCommand, extensionId: nil, command: "com.swiftcode.xcode.sortLines",
+                file: "demo.txt", confirm: true)
+            guard UseExtensionRouter.clampedLimit(999) == 200, UseExtensionRouter.clampedLimit(nil) == 50 else {
+                throw ExtV2Error.unknown("Limit clamping wrong")
+            }
+        })
+        results.append(await check("use_extension Xcode file round-trip") {
+            let root = FileManager.default.temporaryDirectory
+                .appendingPathComponent("ExtV2UseExtensionTests-\(UUID().uuidString)", isDirectory: true)
+            try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+            defer { try? FileManager.default.removeItem(at: root) }
+            let fileURL = root.appendingPathComponent("demo.txt")
+            try "banana\nApple\ncherry".write(to: fileURL, atomically: true, encoding: .utf8)
+            ExtV2XcodeCommandRegistry.shared.register(ExtV2SortLinesCommand())
+            let outcome = try await UseExtensionRouter.run(
+                action: .runXcodeCommand, extensionId: nil, command: "com.swiftcode.xcode.sortLines",
+                file: "demo.txt", selection: nil, args: [:], limit: 50, workspaceRoot: root)
+            guard outcome.filesChanged == ["demo.txt"] else {
+                throw ExtV2Error.unknown("Xcode round-trip did not report the changed file")
+            }
+            let updated = try String(contentsOf: fileURL, encoding: .utf8)
+            guard updated == "Apple\nbanana\ncherry" else {
+                throw ExtV2Error.unknown("Xcode round-trip produced '\(updated)'")
+            }
+        })
+        results.append(await check("use_extension Xcode failures are honest") {
+            let root = FileManager.default.temporaryDirectory
+                .appendingPathComponent("ExtV2UseExtensionTests-\(UUID().uuidString)", isDirectory: true)
+            try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+            defer { try? FileManager.default.removeItem(at: root) }
+            let fileURL = root.appendingPathComponent("demo.txt")
+            try "banana\nApple".write(to: fileURL, atomically: true, encoding: .utf8)
+            let unknown = try? await UseExtensionRouter.run(
+                action: .runXcodeCommand, extensionId: nil, command: "com.example.nope",
+                file: "demo.txt", selection: nil, args: [:], limit: 50, workspaceRoot: root)
+            guard unknown == nil else {
+                throw ExtV2Error.unknown("Unknown Xcode command succeeded")
+            }
+            let escaped = try? await UseExtensionRouter.run(
+                action: .runXcodeCommand, extensionId: nil, command: "com.swiftcode.xcode.sortLines",
+                file: "../escape.txt", selection: nil, args: [:], limit: 50, workspaceRoot: root)
+            guard escaped == nil else {
+                throw ExtV2Error.unknown("Workspace-escaping file was accepted")
+            }
+            let unchanged = try String(contentsOf: fileURL, encoding: .utf8)
+            guard unchanged == "banana\nApple" else {
+                throw ExtV2Error.unknown("Failed Xcode runs mutated the file")
+            }
+        })
         let passed = results.filter { $0.passed }.count
         return RuntimeTestSuiteReport(
             totalTests: results.count, passedTests: passed,

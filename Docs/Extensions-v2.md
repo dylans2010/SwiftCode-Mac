@@ -166,6 +166,25 @@ capabilities, routes by command ownership (a tool can never run
 another extension's command), and enforces the host timeout.
 Failures return `.failure`, never silent success.
 
+### Assist: `use_extension`
+
+Assist interacts with installed extensions through the `use_extension`
+tool (`SwiftCode/Backend/Assist/Tools/UseExtensionTool.swift`,
+registered in `AssistToolRegistry`, catalogued in `AvailableTools.md`,
+mapped in `ToolCallMap`). Actions: `list`, `details`,
+`list_commands`, `list_xcode_commands`, `activate`, `deactivate`,
+`execute`, `run_xcode_command`, `enable`, `disable`, `diagnostics`.
+VS Code extensions run via activation + command execution through
+the real host (with confirm: true, `execute` activates first when
+stopped, so one call works end to end); native plugin commands route
+through the native registry; Xcode commands run against real
+workspace files via a source buffer, writing back only on change.
+Mutating actions require `confirm: true`. The tool itself launches
+nothing — all execution goes through `ExtV2Manager`, so permission
+checks, the IPC allowlist, and crash handling apply exactly as from
+the UI. Test coverage lives in `ExtV2TestSuite` (validation, Xcode
+file round-trip, unknown-command and path-escape failures).
+
 ### Permissions and security
 
 Capabilities are declared per extension, granted explicitly,
