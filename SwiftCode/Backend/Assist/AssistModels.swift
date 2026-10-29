@@ -69,6 +69,7 @@ public enum AssistModelProvider: String, Codable, CaseIterable, Sendable {
     case kimi = "Kimi"
     case openRouter = "OpenRouter"
     case openCode = "OpenCode"
+    case hermes = "Hermes"
     case codex = "Codex"
 
     public static func from(llmProvider: LLMProvider) -> AssistModelProvider {
@@ -96,13 +97,16 @@ public enum AssistModelProvider: String, Codable, CaseIterable, Sendable {
         case .meta, .kimi: return .openRouter
         case .openRouter: return .openRouter
         case .openCode: return nil
+        case .hermes: return nil
         case .codex: return .openai
         }
     }
 
     /// Stored key for this provider, or nil for OpenCode (no
-    /// SwiftCode-managed key exists for it). Single call site for the
-    /// legacy final-report paths so they cannot accidentally pick up
+    /// SwiftCode-managed key exists for it) and for Hermes (its
+    /// credentials live in Hermes' own ~/.hermes/.env, never in
+    /// SwiftCode's Keychain). Single call site for the legacy
+    /// final-report paths so they cannot accidentally pick up
     /// another provider's credential.
     @MainActor
     public func storedAPIKey() async -> String? {
@@ -116,6 +120,10 @@ public enum AssistModelProvider: String, Codable, CaseIterable, Sendable {
     /// so this mapping is never consulted for it — and
     /// AssistLLMService.generateResponse fails closed for .openCode
     /// rather than silently sending an OpenCode model to OpenRouter.
+    /// Hermes likewise never goes through LLMService (it runs through
+    /// HermesProvider's CLI process); the mapping value below is
+    /// unreachable for it because generateResponse fails closed for
+    /// .hermes first.
     var llmProvider: LLMProvider {
         switch self {
         case .openAI: return .openai
@@ -124,6 +132,7 @@ public enum AssistModelProvider: String, Codable, CaseIterable, Sendable {
         case .mistral: return .mistral
         case .meta, .kimi, .openRouter: return .openRouter
         case .openCode: return .openRouter
+        case .hermes: return .openRouter
         case .codex: return .codex
         }
     }
@@ -138,6 +147,7 @@ public enum AssistModelProvider: String, Codable, CaseIterable, Sendable {
         case .kimi: return URL(string: "https://api.moonshot.cn/v1/chat/completions")
         case .openRouter: return URL(string: "https://openrouter.ai/api/v1/chat/completions")
         case .openCode: return OpenCodeConfiguration.load().serverURL
+        case .hermes: return nil // No SwiftCode HTTP endpoint: Hermes runs through its CLI process (HermesProvider).
         case .codex: return URL(string: "http://localhost:3003/v1/chat/completions")
         }
     }
@@ -167,6 +177,17 @@ public struct AssistLLMService {
                 content: "",
                 success: false,
                 error: "OpenCode models run through OpenCodeClient (see AgentModelAdapter), not LLMService. Select the model in Assist Settings and retry."
+            )
+        }
+        // Fail closed for Hermes, for the same reason: it runs through
+        // HermesProvider's CLI process, never through LLMService, and
+        // routing it here would silently send a Hermes model to
+        // OpenRouter with an OpenRouter credential.
+        if provider == .hermes {
+            return AssistAIResponse(
+                content: "",
+                success: false,
+                error: "Hermes models run through HermesProvider (see HermesSessionRunner), not LLMService. Select a Hermes model in Assist Settings and retry."
             )
         }
         do {

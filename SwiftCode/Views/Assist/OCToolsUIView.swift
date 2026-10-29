@@ -140,6 +140,7 @@ private struct OCToolCallRow: View {
         case .swiftcode: return "SwiftCode"
         case .openrouter: return "OpenRouter"
         case .opencode: return "OpenCode"
+        case .hermes: return "Hermes"
         }
     }
 

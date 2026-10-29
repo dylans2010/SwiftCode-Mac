@@ -954,6 +954,9 @@
 		AC0D000500000000000002 /* SDKRuntimeManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC0D000500000000000001 /* SDKRuntimeManager.swift */; };
 		SDKRUN000000000000000002 /* AssistSDKSessionRunner.swift in Sources */ = {isa = PBXBuildFile; fileRef = SDKRUN000000000000000001 /* AssistSDKSessionRunner.swift */; };
 		SDKTEST00000000000000002 /* SDKProviderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = SDKTEST00000000000000001 /* SDKProviderTests.swift */; };
+		HERMES0000000000000002 /* HermesProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = HERMES0000000000000001 /* HermesProvider.swift */; };
+		HERMES0000000000000004 /* HermesSessionRunner.swift in Sources */ = {isa = PBXBuildFile; fileRef = HERMES0000000000000003 /* HermesSessionRunner.swift */; };
+		HERMES0000000000000006 /* HermesProviderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = HERMES0000000000000005 /* HermesProviderTests.swift */; };
 		SDKBRG000000000000000002 /* opencode-bridge.mjs in Resources */ = {isa = PBXBuildFile; fileRef = SDKBRG000000000000000001 /* opencode-bridge.mjs */; };
 		SDKBRG000000000000000004 /* openrouter-bridge.mjs in Resources */ = {isa = PBXBuildFile; fileRef = SDKBRG000000000000000003 /* openrouter-bridge.mjs */; };
 		SDKTOOL0000000000000004 /* SDKToolEventStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = SDKTOOL0000000000000003 /* SDKToolEventStore.swift */; };
@@ -991,6 +994,7 @@
 		8D9E00050001000100000008 /* MuseSDKToolCall.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8D9E00050001000100000007 /* MuseSDKToolCall.swift */; };
 		SDKTOOL0000000000000008 /* OCToolsUIView.swift in Sources */ = {isa = PBXBuildFile; fileRef = SDKTOOL0000000000000007 /* OCToolsUIView.swift */; };
 		SDKTOOL0000000000000006 /* ORToolsUIView.swift in Sources */ = {isa = PBXBuildFile; fileRef = SDKTOOL0000000000000005 /* ORToolsUIView.swift */; };
+		HERMES0000000000000008 /* HermesToolsUIView.swift in Sources */ = {isa = PBXBuildFile; fileRef = HERMES0000000000000007 /* HermesToolsUIView.swift */; };
 		8DA2FD4C6BBD0AF84E0FFDD8 /* FilePermissionView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6160E9FC707A9B07E04C2B81 /* FilePermissionView.swift */; };
 		8E03DBB467F75893FCBCF8FA /* WorkerPersistenceStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8EE85E4A3CB85D595FA6A604 /* WorkerPersistenceStore.swift */; };
 		8E0E69CD6E58E6F88F27FFC7 /* WorkerEvent.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8E3EDACA1831B2DA97BFB826 /* WorkerEvent.swift */; };
@@ -3938,6 +3942,9 @@
 		AC0D000500000000000001 /* SDKRuntimeManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SDKRuntimeManager.swift; sourceTree = "<group>"; };
 		SDKRUN000000000000000001 /* AssistSDKSessionRunner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssistSDKSessionRunner.swift; sourceTree = "<group>"; };
 		SDKTEST00000000000000001 /* SDKProviderTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SDKProviderTests.swift; sourceTree = "<group>"; };
+		HERMES0000000000000001 /* HermesProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HermesProvider.swift; sourceTree = "<group>"; };
+		HERMES0000000000000003 /* HermesSessionRunner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HermesSessionRunner.swift; sourceTree = "<group>"; };
+		HERMES0000000000000005 /* HermesProviderTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HermesProviderTests.swift; sourceTree = "<group>"; };
 		SDKBRG000000000000000001 /* opencode-bridge.mjs */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.javascript; path = SDKHosts/opencode-bridge.mjs; sourceTree = "<group>"; };
 		SDKBRG000000000000000003 /* openrouter-bridge.mjs */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.javascript; path = SDKHosts/openrouter-bridge.mjs; sourceTree = "<group>"; };
 		SDKTOOL0000000000000003 /* SDKToolEventStore.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = SDKToolEventStore.swift; sourceTree = "<group>"; };
@@ -3976,6 +3983,7 @@
 		8D9E00050001000100000007 /* MuseSDKToolCall.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = MuseSDKToolCall.swift; sourceTree = "<group>"; };
 		SDKTOOL0000000000000007 /* OCToolsUIView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = OCToolsUIView.swift; sourceTree = "<group>"; };
 		SDKTOOL0000000000000005 /* ORToolsUIView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = ORToolsUIView.swift; sourceTree = "<group>"; };
+		HERMES0000000000000007 /* HermesToolsUIView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = HermesToolsUIView.swift; sourceTree = "<group>"; };
 		8DB9F5B5EFA343C181131ABF /* HistoryManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HistoryManager.swift; sourceTree = "<group>"; };
 		8DDA9799B405D0C0A63CFFF9 /* Models/SyncState.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = Models/SyncState.swift; sourceTree = "<group>"; };
 		8DFAFD1E72DA4FEF88B866D8 /* BuildProjectCommand.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BuildProjectCommand.swift; sourceTree = "<group>"; };
@@ -6831,6 +6839,7 @@
 				8D9E00050001000100000007 /* MuseSDKToolCall.swift */,
 				SDKTOOL0000000000000007 /* OCToolsUIView.swift */,
 				SDKTOOL0000000000000005 /* ORToolsUIView.swift */,
+				HERMES0000000000000007 /* HermesToolsUIView.swift */,
 				AA9E000100000006 /* ToolExecutionGroupModel.swift */,
 				D9F800020000000000000003 /* PlanUserAskView.swift */,
 				D1A0000128C0000100000004 /* AssistActivityView.swift */,
@@ -8349,6 +8358,9 @@
 				AC0D000500000000000001 /* SDKRuntimeManager.swift */,
 				SDKRUN000000000000000001 /* AssistSDKSessionRunner.swift */,
 				SDKTEST00000000000000001 /* SDKProviderTests.swift */,
+				HERMES0000000000000001 /* HermesProvider.swift */,
+				HERMES0000000000000003 /* HermesSessionRunner.swift */,
+				HERMES0000000000000005 /* HermesProviderTests.swift */,
 				SDKBRG000000000000000001 /* opencode-bridge.mjs */,
 				SDKBRG000000000000000003 /* openrouter-bridge.mjs */,
 				SDKTOOL0000000000000003 /* SDKToolEventStore.swift */,
@@ -12063,6 +12075,9 @@
 				AC0D000500000000000002 /* SDKRuntimeManager.swift in Sources */,
 				SDKRUN000000000000000002 /* AssistSDKSessionRunner.swift in Sources */,
 				SDKTEST00000000000000002 /* SDKProviderTests.swift in Sources */,
+				HERMES0000000000000002 /* HermesProvider.swift in Sources */,
+				HERMES0000000000000004 /* HermesSessionRunner.swift in Sources */,
+				HERMES0000000000000006 /* HermesProviderTests.swift in Sources */,
 				AC0D000300000000000002 /* OpenRouterAssistProvider.swift in Sources */,
 				AC0D000200000000000002 /* OpenCodeClient.swift in Sources */,
 				OCSDK0000000000000002 /* OpenCodeSDKProvider.swift in Sources */,
@@ -12109,6 +12124,7 @@
 				8D9E00050001000100000008 /* MuseSDKToolCall.swift in Sources */,
 				SDKTOOL0000000000000008 /* OCToolsUIView.swift in Sources */,
 				SDKTOOL0000000000000006 /* ORToolsUIView.swift in Sources */,
+				HERMES0000000000000008 /* HermesToolsUIView.swift in Sources */,
 				SDKTOOL0000000000000004 /* SDKToolEventStore.swift in Sources */,
 				SDKTOOL0000000000000002 /* SDKToolEvent.swift in Sources */,
 				CMPBLD000000000000000002 /* AssistComposioTool.swift in Sources */,

@@ -1738,9 +1738,12 @@ private struct AssistChatBubble: View {
                        let sdkKind = manager.agentSession.sdkSessionKind {
                         let sdkEvents = sdkEventStore.events(for: sdkSessionId)
                         if !sdkEvents.isEmpty {
-                            if sdkKind == .openRouter {
+                            switch sdkKind {
+                            case .openRouter:
                                 ORToolsUIView(events: sdkEvents)
-                            } else {
+                            case .hermes:
+                                HermesToolsUIView(events: sdkEvents)
+                            case .openCode:
                                 OCToolsUIView(events: sdkEvents)
                             }
                         }

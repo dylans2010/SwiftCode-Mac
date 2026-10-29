@@ -38,6 +38,11 @@ public enum SDKToolSource: String, Codable, Sendable {
     case swiftcode
     case openrouter
     case opencode
+    /// Tools executed by the Hermes Agent runtime and observed via
+    /// its stream-json output. Hermes events are session-only (like
+    /// the other SDK events) and are never persisted with saved
+    /// conversations, so adding this case changes no stored data.
+    case hermes
 }
 
 /// Execution state of a single tool call. Terminal states never regress.

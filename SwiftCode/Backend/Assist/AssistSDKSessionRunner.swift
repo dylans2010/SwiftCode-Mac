@@ -34,10 +34,15 @@
 
 import Foundation
 
-/// Which SDK-backed runtime serves an Assist agent session, if any.
+/// Which non-plan runtime serves an Assist agent session, if any.
+/// `.hermes` reuses this transcript-panel kind only: a Hermes run is
+/// not an SDK run (Hermes is a child-process CLI run, owned by
+/// HermesSessionRunner), but its tool panel is rendered under the
+/// same transcript message as the SDK runs, keyed by session id.
 public enum SDKSessionKind: Sendable {
     case openCode
     case openRouter
+    case hermes
 }
 
 public enum SDKSessionRunnerError: LocalizedError, Sendable {
@@ -86,6 +91,13 @@ public final class AssistSDKSessionRunner {
     /// resort. Bare ids without "/" are never OpenRouter ids (native
     /// Anthropic ids carry no slash), so they return nil immediately.
     public static func applicableKind(for selectedModel: String) -> SDKSessionKind? {
+        // Hermes ids carry "/" too (hermes:provider/model) and must
+        // never be claimed by the OpenRouter persisted-provider
+        // fallback below: Hermes runs go through HermesSessionRunner,
+        // not an SDK bridge.
+        if HermesModelID.isHermesModelID(selectedModel) {
+            return nil
+        }
         if OpenCodeModelID.isOpenCodeModelID(selectedModel) {
             return .openCode
         }
@@ -151,29 +163,7 @@ public final class AssistSDKSessionRunner {
         objective: String,
         context: AssistContext
     ) async throws -> String {
-        // Fresh baseline on every SDK run (the old cached prompt was
-        // never invalidated, so in-session System Asset updates never
-        // reached a later run), plus the same per-task retrieved
-        // instructions the legacy agent path injects — SDK runs
-        // previously got the baseline only, missing task sections,
-        // and the doc claim that updated assets reach the next run
-        // was false within one app lifetime.
-        AssistManager.shared.invalidateSystemPromptCache()
-        let baselinePrompt = try AssistManager.shared.getSystemPrompt()
-        let instructionQuery = InstructionQueryContext(
-            userText: objective,
-            taskCategory: SystemIndexService.classifyCategory(for: objective),
-            stage: .preparation,
-            modelID: AssistModelManager.shared.selectedModelID,
-            maxTokens: 4000,
-            excludingChunkIDs: AssistManager.shared.activeRetrievalLedger?.retrievedChunkIDs ?? []
-        )
-        let instructionRetrieval = await SystemIndexService.shared.retrieve(for: instructionQuery)
-        AssistManager.shared.recordRetrieval(instructionRetrieval)
-        let retrievedBlock = instructionRetrieval.formattedForPrompt()
-        let systemPrompt = retrievedBlock.isEmpty
-            ? baselinePrompt
-            : "\(baselinePrompt)\n\n\(retrievedBlock)"
+        let systemPrompt = try await Self.buildSystemPrompt(objective: objective)
         let history = Self.historyItems(objective: objective)
         let tools = Self.toolDefinitions()
         let toolSource = SDKToolSourceSetting.load()
@@ -245,6 +235,32 @@ public final class AssistSDKSessionRunner {
             }
             return finalText
         }
+    }
+
+    /// Builds SwiftCode's assembled system prompt for one task:
+    /// the fresh baseline (cache invalidated first, so in-session
+    /// System Asset updates reach the next run) plus the per-task
+    /// retrieved instructions the legacy agent path injects. Shared
+    /// with HermesSessionRunner so both non-plan runtimes deliver
+    /// exactly the same SwiftCode prompt — there is only one prompt
+    /// construction, not one per provider.
+    public static func buildSystemPrompt(objective: String) async throws -> String {
+        AssistManager.shared.invalidateSystemPromptCache()
+        let baselinePrompt = try AssistManager.shared.getSystemPrompt()
+        let instructionQuery = InstructionQueryContext(
+            userText: objective,
+            taskCategory: SystemIndexService.classifyCategory(for: objective),
+            stage: .preparation,
+            modelID: AssistModelManager.shared.selectedModelID,
+            maxTokens: 4000,
+            excludingChunkIDs: AssistManager.shared.activeRetrievalLedger?.retrievedChunkIDs ?? []
+        )
+        let instructionRetrieval = await SystemIndexService.shared.retrieve(for: instructionQuery)
+        AssistManager.shared.recordRetrieval(instructionRetrieval)
+        let retrievedBlock = instructionRetrieval.formattedForPrompt()
+        return retrievedBlock.isEmpty
+            ? baselinePrompt
+            : "\(baselinePrompt)\n\n\(retrievedBlock)"
     }
 
     // MARK: - Bridge installation

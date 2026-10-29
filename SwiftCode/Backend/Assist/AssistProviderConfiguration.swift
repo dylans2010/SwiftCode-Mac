@@ -193,6 +193,9 @@ public struct OpenCodeConfiguration: Equatable, Sendable {
 public enum AssistProviderSelection {
     @MainActor
     public static func provider(for storedModelID: String) -> AssistModelProvider {
+        if HermesModelID.isHermesModelID(storedModelID) {
+            return .hermes
+        }
         if OpenCodeModelID.isOpenCodeModelID(storedModelID) {
             return .openCode
         }

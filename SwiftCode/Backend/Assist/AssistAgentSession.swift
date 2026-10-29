@@ -37,6 +37,13 @@ public final class AssistAgentSession: Sendable {
     /// Active SDK-backed run, if any, so cancellation reaches the
     /// bridge process. Set only by the SDK branch in start().
     private var sdkRunner: AssistSDKSessionRunner?
+    /// Active Hermes run, if any, so cancellation reaches the Hermes
+    /// child process. Set only by the Hermes branch in start().
+    /// The transcript panel reuses the SDK panel plumbing: the Hermes
+    /// branch sets sdkSessionId / sdkSessionKind (.hermes) /
+    /// sdkMessageId, and AssistMainView renders HermesToolsUIView
+    /// for that kind.
+    private var hermesRunner: HermesSessionRunner?
     /// Last SDK-backed run, for transcript rendering: AssistChatBubble
     /// shows ORToolsUIView / OCToolsUIView under exactly this message,
     /// with events from SDKToolEventStore for this session id. Kept
@@ -355,6 +362,47 @@ public final class AssistAgentSession: Sendable {
             phaseCoordinator.failPhase("PHASE_01_INIT", error: errorMsg)
             transition(to: .failed, reason: errorMsg)
             throw NSError(domain: "AssistAgentSession", code: 400, userInfo: [NSLocalizedDescriptionKey: errorMsg])
+        }
+
+        // 2a. Hermes runs through HermesSessionRunner instead of the
+        // plan-based loop below. This branch runs BEFORE the SDK
+        // branch and before legacy validation: Hermes ids carry "/"
+        // and would otherwise be misclassified by the OpenRouter
+        // fallback, and the legacy key check would demand a
+        // SwiftCode-managed key Hermes does not have (its credentials
+        // live in ~/.hermes/.env). A failure here is terminal for
+        // the turn — it never falls back to another provider. A
+        // cancellation is not re-reported as a failure: cancel()
+        // already transitioned the session to .cancelled.
+        if HermesModelID.isHermesModelID(selectedModel) {
+            do {
+                let runner = HermesSessionRunner()
+                self.hermesRunner = runner
+                self.sdkSessionId = context.sessionId.uuidString
+                self.sdkSessionKind = .hermes
+                self.sdkMessageId = currentAssistantMessageId
+                transition(to: .executing, reason: "Running Hermes session (\(selectedModel)).")
+                let finalText = try await runner.run(objective: objective, context: context)
+                postConversationalMessage(finalText, isComplete: true)
+                phaseCoordinator.completePhase("PHASE_01_INIT", evidence: "Hermes session completed for model \(selectedModel).")
+                transition(to: .completed, reason: "Hermes session completed.")
+                self.hermesRunner = nil
+                return
+            } catch {
+                self.hermesRunner = nil
+                // HermesError.cancelled is only ever thrown for a
+                // user cancel, so it is a cancellation even if the
+                // session flag was not the path that raised it.
+                if isCancelled || Task.isCancelled {
+                    return
+                }
+                if case HermesError.cancelled = error {
+                    return
+                }
+                phaseCoordinator.failPhase("PHASE_01_INIT", error: error.localizedDescription)
+                transition(to: .failed, reason: error.localizedDescription)
+                throw error
+            }
         }
 
         // 2b. SDK-backed providers (OpenCode via @opencode-ai/sdk,
@@ -1360,6 +1408,10 @@ public final class AssistAgentSession: Sendable {
         if let runner = sdkRunner {
             Task { await runner.cancel() }
             sdkRunner = nil
+        }
+        if let runner = hermesRunner {
+            Task { await runner.cancel() }
+            hermesRunner = nil
         }
         self.state.takeoverActive = false
         self.currentActivityGroup.isExecuting = false

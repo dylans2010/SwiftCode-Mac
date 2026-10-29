@@ -559,6 +559,20 @@ struct AssistSettingsView: View {
     @State private var openCodeFetchError: String? = nil
     @State private var openCodeManualModel = ""
 
+    // Hermes provider state. Like the SDK state above, this holds
+    // only status strings, paths, and model specs — never credentials
+    // (Hermes keys live in ~/.hermes/.env, never in SwiftCode).
+    @State private var hermesExecutablePath = HermesConfiguration.load().executablePath
+    @State private var hermesManualModel = ""
+    @State private var hermesToolsets = HermesConfiguration.load().toolsets
+    @State private var hermesMaxTurnsText = {
+        let turns = HermesConfiguration.load().maxTurns
+        return turns > 0 ? String(turns) : ""
+    }()
+    @State private var hermesStatus: String? = nil
+    @State private var hermesError: String? = nil
+    @State private var isCheckingHermes = false
+
     // SDK Providers (Workstream D) state. The SDK runtimes are real
     // JS processes managed by SDKRuntimeManager; this state only ever
     // holds status strings and versions — never credentials.
@@ -835,6 +849,11 @@ struct AssistSettingsView: View {
                 // SDK-backed OpenCode/OpenRouter sessions, plus the
                 // independent tool-source setting.
                 sdkProvidersSection
+
+                // Hermes Agent: a real, selectable Assist provider
+                // powered by the `hermes` CLI's stream-json one-shot
+                // interface. See Docs/Assist-Hermes-Provider.md.
+                hermesProvidersSection
 
                 // Reverse (native REA integration) — readiness, versions,
                 // capabilities, and runtime locations.
@@ -2762,6 +2781,183 @@ struct AssistSettingsView: View {
             }
             sdkInstallingProviders.remove(provider)
         }
+    }
+
+    // MARK: - Hermes Provider Section
+
+    private var isHermesModelSelected: Bool {
+        HermesModelID.isHermesModelID(settings.selectedAssistModelID)
+    }
+
+    private var hermesProvidersSection: some View {
+        GroupBox {
+            VStack(alignment: .leading, spacing: 14) {
+                HStack(spacing: 10) {
+                    ZStack {
+                        RoundedRectangle(cornerRadius: 8)
+                            .fill(Color.teal.opacity(0.14))
+                            .frame(width: 32, height: 32)
+                        Image(systemName: "bolt.fill")
+                            .font(.system(size: 14, weight: .bold))
+                            .foregroundStyle(Color.teal)
+                    }
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Hermes Agent")
+                            .font(.system(size: 14, weight: .semibold))
+                        Text("Nous Research's Hermes Agent as a selectable Assist provider, via its documented stream-json one-shot CLI. SwiftCode stays the host: it owns the session, the prompt, and the transcript; Hermes owns only the agent loop inside one run.")
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+
+                Divider()
+
+                Text(hermesStatus ?? "Status unknown — use Check installation.")
+                    .font(.system(size: 10))
+                    .foregroundStyle(.secondary)
+                if let error = hermesError {
+                    Text(error)
+                        .font(.system(size: 10))
+                        .foregroundStyle(.red)
+                }
+                HStack {
+                    if isCheckingHermes {
+                        ProgressView()
+                            .controlSize(.small)
+                        Text("Checking…")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    } else {
+                        Button("Check installation") { hermesCheck() }
+                            .buttonStyle(.bordered)
+                            .controlSize(.small)
+                        Button("Save Hermes settings") { hermesSave() }
+                            .buttonStyle(.bordered)
+                            .controlSize(.small)
+                    }
+                    Spacer()
+                }
+
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("Executable path (blank = auto-detect from PATH and ~/.local/bin)")
+                        .font(.system(size: 12, weight: .medium))
+                    TextField("hermes", text: $hermesExecutablePath)
+                        .textFieldStyle(.roundedBorder)
+                        .font(.system(.caption, design: .monospaced))
+                }
+
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("Hermes model (without the hermes: prefix)")
+                        .font(.system(size: 12, weight: .medium))
+                    HStack {
+                        TextField("provider:model (e.g. openrouter:anthropic/claude-sonnet-4-6) or a bare model", text: $hermesManualModel)
+                            .textFieldStyle(.roundedBorder)
+                            .font(.system(.caption, design: .monospaced))
+                        Button("Select") {
+                            let trimmed = hermesManualModel.trimmingCharacters(in: .whitespacesAndNewlines)
+                            guard HermesModelID.parse("hermes:\(trimmed)") != nil else {
+                                hermesError = "Enter a Hermes model as provider:model or a bare model name (without the hermes: prefix)."
+                                return
+                            }
+                            hermesError = nil
+                            selectProviderModel(storedID: "hermes:\(trimmed)", provider: .hermes)
+                        }
+                        .buttonStyle(.bordered)
+                        .controlSize(.small)
+                        .disabled(hermesManualModel.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                    }
+                    if isHermesModelSelected {
+                        Text("Hermes is the currently selected provider: \(settings.selectedAssistModelID)")
+                            .font(.system(size: 10))
+                            .foregroundStyle(.green)
+                    }
+                }
+
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("Toolsets (optional, comma-separated; blank = Hermes defaults)")
+                        .font(.system(size: 12, weight: .medium))
+                    TextField("file,web", text: $hermesToolsets)
+                        .textFieldStyle(.roundedBorder)
+                        .font(.system(.caption, design: .monospaced))
+                    Text("Max turns (optional; blank = Hermes default). This is the iteration budget for a run.")
+                        .font(.system(size: 12, weight: .medium))
+                    TextField("500", text: $hermesMaxTurnsText)
+                        .textFieldStyle(.roundedBorder)
+                        .font(.system(.caption, design: .monospaced))
+                }
+
+                Divider()
+
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("How Hermes runs in SwiftCode — read before first use")
+                        .font(.system(size: 12, weight: .medium))
+                    Text("SwiftCode launches `hermes chat --oneshot --query-file … --format stream-json` in the project directory, one fresh run per task (sessions are never resumed across tasks). It never passes --yolo and never sets HERMES_YOLO_MODE: the scripted `hermes -z` path is deliberately not used, because it auto-approves and prints final text only, with no tool events.")
+                        .font(.system(size: 10))
+                        .foregroundStyle(.secondary)
+                    Text("Tools: Hermes runs its own tools; SwiftCode native tools do NOT execute in Hermes runs, and no SwiftCode tool schemas are sent to Hermes. The tool panel under a Hermes message shows Hermes' own tool activity, observed from its stream-json output.")
+                        .font(.system(size: 10))
+                        .foregroundStyle(.secondary)
+                    Text("Approvals: in a single-query run Hermes applies its own approvals.single_query_mode (default: deny for dangerous commands). SwiftCode's tool permissions do not apply to Hermes tools. Only run Hermes in workspaces you trust, and narrow Toolsets above to remove terminal / code execution if you need a smaller surface.")
+                        .font(.system(size: 10))
+                        .foregroundStyle(.secondary)
+                    Text("Prompt: SwiftCode's assembled system prompt and System Asset instructions are sent as the first part of the query, because Hermes has no --system-prompt flag. Hermes' own SOUL.md and workspace rules still apply on top. SwiftCode never edits ~/.hermes configuration to force its prompt in.")
+                        .font(.system(size: 10))
+                        .foregroundStyle(.secondary)
+                    Text("Credentials: Hermes keys live in Hermes' own ~/.hermes/.env and config.yaml; SwiftCode stores no Hermes key. Install and authenticate first by running `hermes setup` and `hermes model` in a terminal, then use Check installation above. Selecting any other model restores that provider's execution; Hermes settings are kept but unused.")
+                        .font(.system(size: 10))
+                        .foregroundStyle(.secondary)
+                }
+            }
+            .padding(14)
+        }
+        .groupBoxStyle(ModernGroupBoxStyle())
+    }
+
+    private func hermesCheck() {
+        guard !isCheckingHermes else { return }
+        isCheckingHermes = true
+        hermesError = nil
+        let configured = hermesExecutablePath.trimmingCharacters(in: .whitespacesAndNewlines)
+        Task {
+            do {
+                let executable = configured.isEmpty
+                    ? HermesProvider.resolveExecutable()
+                    : (FileManager.default.isExecutableFile(atPath: configured) ? configured : nil)
+                guard let executable else {
+                    throw HermesError.executableNotFound(
+                        configured.isEmpty
+                            ? "no `hermes` executable on PATH or in ~/.local/bin"
+                            : "configured path \"\(configured)\" is not executable"
+                    )
+                }
+                let version = try await HermesProvider.detectVersion(executablePath: executable)
+                hermesStatus = "Found: \(version) at \(executable)"
+            } catch {
+                hermesError = error.localizedDescription
+                hermesStatus = "Hermes not verified."
+            }
+            isCheckingHermes = false
+        }
+    }
+
+    private func hermesSave() {
+        let trimmedTurns = hermesMaxTurnsText.trimmingCharacters(in: .whitespacesAndNewlines)
+        let turns: Int
+        if trimmedTurns.isEmpty {
+            turns = 0
+        } else if let parsed = Int(trimmedTurns), parsed > 0 {
+            turns = parsed
+        } else {
+            hermesError = "Max turns must be a positive number, or blank for the Hermes default. Nothing was saved."
+            return
+        }
+        var config = HermesConfiguration.load()
+        config.executablePath = hermesExecutablePath.trimmingCharacters(in: .whitespacesAndNewlines)
+        config.toolsets = hermesToolsets.trimmingCharacters(in: .whitespacesAndNewlines)
+        config.maxTurns = turns
+        config.save()
+        hermesError = nil
+        hermesStatus = "Hermes settings saved."
     }
 
     // MARK: - SwiftCode Cloud Model Section
