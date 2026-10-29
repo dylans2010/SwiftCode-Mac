@@ -528,9 +528,9 @@ public actor OpenCodeSDKProvider {
 
     /// Waits for the bridge's ready line, with a 30-second timeout and
     /// early failure on an error line or EOF. Returns false on timeout.
-    /// The iterator is taken by value: ready lines are consumed from the
-    /// stream's shared storage, and the run loop below ignores any
-    /// stray "ready" line anyway, so either consumption outcome is safe.
+    /// Ready lines are consumed from the stream's shared storage, and
+    /// the run loop below ignores any stray "ready" line anyway, so
+    /// either consumption outcome is safe.
     ///
     /// Timeout fix: the old task-group race never actually timed out
     /// for a live-but-silent bridge, because AsyncStream's next() is
@@ -543,9 +543,13 @@ public actor OpenCodeSDKProvider {
     /// any ready line; the runner's disk check is the primary gate,
     /// this is defence in depth).
     private func waitForReady(stream: AsyncStream<String>, bridge: SDKBridgeSession) async throws -> Bool {
-        let iterator = stream.makeAsyncIterator()
         return try await withThrowingTaskGroup(of: Bool.self) { group in
             group.addTask {
+                // The iterator is created inside the task: AsyncStream
+                // shares one storage, so consumption order is unchanged,
+                // and a captured mutating iterator cannot cross into a
+                // concurrently-executing closure.
+                var iterator = stream.makeAsyncIterator()
                 while let line = await iterator.next() {
                     guard let data = line.data(using: .utf8),
                           let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],

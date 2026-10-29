@@ -50,6 +50,7 @@ public enum SDKSessionRunnerError: LocalizedError, Sendable {
     case bridgeScriptMissing(provider: SDKProvider, fileName: String)
     case unsupportedToolSource(provider: String, source: String)
     case emptyFinalResponse
+    case hermesUsesHermesRunner
 
     public var errorDescription: String? {
         switch self {
@@ -61,6 +62,8 @@ public enum SDKSessionRunnerError: LocalizedError, Sendable {
             return "Tool source \"\(source)\" is not supported for \(provider). Change the tool source in Assist Settings → SDK Providers; it was not silently changed for you."
         case .emptyFinalResponse:
             return "The SDK run completed without a final response. No text was posted."
+        case .hermesUsesHermesRunner:
+            return "Hermes sessions run through HermesSessionRunner, not the SDK bridge. Reselect the model and retry."
         }
     }
 }
@@ -234,6 +237,11 @@ public final class AssistSDKSessionRunner {
                 throw SDKSessionRunnerError.emptyFinalResponse
             }
             return finalText
+        case .hermes:
+            // Hermes is a child-process CLI runtime owned by
+            // HermesSessionRunner; applicableKind never returns it.
+            // Reject explicitly rather than silently running nothing.
+            throw SDKSessionRunnerError.hermesUsesHermesRunner
         }
     }
 

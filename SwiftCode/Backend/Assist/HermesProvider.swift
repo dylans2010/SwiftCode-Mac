@@ -389,6 +389,28 @@ private final class HermesContinuationGuard: @unchecked Sendable {
     }
 }
 
+/// Holds the `detectVersion` timeout work item so the @Sendable
+/// termination handler can cancel it without capturing the
+/// non-Sendable DispatchWorkItem directly.
+private final class HermesTimeoutWorkBox: @unchecked Sendable {
+    private let lock = NSLock()
+    private var workItem: DispatchWorkItem?
+
+    func store(_ item: DispatchWorkItem) {
+        lock.lock()
+        workItem = item
+        lock.unlock()
+    }
+
+    func cancel() {
+        lock.lock()
+        let item = workItem
+        workItem = nil
+        lock.unlock()
+        item?.cancel()
+    }
+}
+
 /// Swift facade for Hermes stream-json runs. One provider instance
 /// serves one run at a time; `cancel()` terminates the child process
 /// it owns (SIGTERM, a grace wait, then SIGKILL) and never touches
@@ -479,15 +501,17 @@ public actor HermesProvider {
             // Timeout via DispatchWorkItem, not a Task: a Task's
             // @Sendable closure cannot capture the non-Sendable
             // Process under strict Swift 6 concurrency.
+            let timeoutBox = HermesTimeoutWorkBox()
             let timeoutWork = DispatchWorkItem {
                 if process.isRunning {
                     process.terminate()
                     finish.resume(with: .failure(HermesError.detectionFailed("hermes --version did not respond within \(Int(timeout))s")))
                 }
             }
+            timeoutBox.store(timeoutWork)
             DispatchQueue.global().asyncAfter(deadline: .now() + timeout, execute: timeoutWork)
             process.terminationHandler = { proc in
-                timeoutWork.cancel()
+                timeoutBox.cancel()
                 let outData = stdout.fileHandleForReading.readDataToEndOfFile()
                 let errData = stderr.fileHandleForReading.readDataToEndOfFile()
                 let out = String(data: outData, encoding: .utf8) ?? ""
@@ -505,7 +529,7 @@ public actor HermesProvider {
             do {
                 try process.run()
             } catch {
-                timeoutWork.cancel()
+                timeoutBox.cancel()
                 finish.resume(with: .failure(HermesError.launchFailed(error.localizedDescription)))
                 return
             }
@@ -622,7 +646,7 @@ public actor HermesProvider {
         // exit path, including cancellation.
         let queryFile = FileManager.default.temporaryDirectory
             .appendingPathComponent("swiftcode-hermes-query-\(UUID().uuidString).txt")
-        let payload = HermesPromptBuilder.build(systemPrompt: request.systemPrompt, userText: request.userText)
+        let payload = HermesPromptBuilder.build(systemPrompt: request.systemPrompt, objective: request.userText)
         do {
             try payload.write(to: queryFile, atomically: true, encoding: .utf8)
         } catch {

@@ -332,14 +332,17 @@ public actor OpenRouterSDKProvider {
         bridge.process.terminationHandler = { [weak self] _ in
             Task { await self?.handleTermination() }
         }
-        // Keep the iterator alive for the run loop below.
-        var iterator = lineStream.makeAsyncIterator()
+        // Keep the iterator alive for the run loop below. It is a
+        // single-consumer local: no other task touches it, so the
+        // actor-isolation region check (which flags every `await` on a
+        // local mutable iterator as a send) is opted out of here.
+        nonisolated(unsafe) var iterator = lineStream.makeAsyncIterator()
 
         // Readiness: the bridge prints {"type":"ready"} only after the
         // SDK imports resolve. Anything else first (an error line, EOF,
         // or 30 seconds of silence) is a failed connection — never a
         // successful one. Ready does NOT mean authenticated (see header).
-        let ready = try await waitForReady(iterator: iterator, bridge: bridge)
+        let ready = try await waitForReady(stream: lineStream, bridge: bridge)
         guard ready else {
             let tail = bridge.stderrTail.trimmingCharacters(in: .whitespacesAndNewlines)
             cleanup(bridge: bridge)
@@ -475,13 +478,13 @@ public actor OpenRouterSDKProvider {
 
     /// Waits for the bridge's ready line, with a 30-second timeout and
     /// early failure on an error line or EOF. Returns false on timeout.
-    /// The iterator is taken by value: ready lines are consumed from
-    /// the stream's shared storage, and the run loop below ignores any
-    /// stray "ready" line anyway, so either consumption outcome is safe.
-    private func waitForReady(iterator: AsyncStream<String>.Iterator, bridge: SDKBridgeSession) async throws -> Bool {
-        var iterator = iterator
+    /// Ready lines are consumed from the stream's shared storage, and
+    /// the run loop below ignores any stray "ready" line anyway, so
+    /// either consumption outcome is safe.
+    private func waitForReady(stream: AsyncStream<String>, bridge: SDKBridgeSession) async throws -> Bool {
         return try await withThrowingTaskGroup(of: Bool.self) { group in
             group.addTask {
+                var iterator = stream.makeAsyncIterator()
                 while let line = await iterator.next() {
                     guard let data = line.data(using: .utf8),
                           let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],

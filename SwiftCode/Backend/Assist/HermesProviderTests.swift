@@ -208,8 +208,8 @@ public final class HermesProviderTests: Sendable {
             passed = false
             message = "An error tool_result did not parse as failed."
         }
-        let result = HermesStreamParser.parseLine(#"{"type":"result","session_id":"abc","exit_code":0,"text":"Done","tokens":{"input":1,"output":2}}"#)
-        if result != .result(HermesStreamResult(sessionId: "abc", exitCode: 0, text: "Done", error: nil)) {
+        let terminalResult = HermesStreamParser.parseLine(#"{"type":"result","session_id":"abc","exit_code":0,"text":"Done","tokens":{"input":1,"output":2}}"#)
+        if terminalResult != .result(HermesStreamResult(sessionId: "abc", exitCode: 0, text: "Done", error: nil)) {
             passed = false
             message = "Terminal result did not parse."
         }
