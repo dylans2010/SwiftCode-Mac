@@ -67,9 +67,31 @@ public struct SwiftCodeWelcomeView: View {
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
 
-            // No top bar: the welcome view has no header strip at all.
-            // The native close button (restored in applyWelcomeWindowStyle)
-            // is the only window control; there is no custom top overlay.
+            // No top bar, ever: the native titlebar buttons are all
+            // hidden in applyWelcomeWindowStyle, and this custom
+            // close control is the only window control. It sits where
+            // the traffic lights used to be, inside the content, so
+            // no titlebar strip can ever reappear above it.
+            VStack {
+                HStack {
+                    Button(action: closeWelcomeWindow) {
+                        ZStack {
+                            Circle()
+                                .fill(Color.red)
+                            Image(systemName: "xmark")
+                                .font(.system(size: 7, weight: .bold))
+                                .foregroundStyle(.white)
+                        }
+                        .frame(width: 14, height: 14)
+                    }
+                    .buttonStyle(.plain)
+                    .help("Close SwiftCode")
+                    .padding(.leading, 12)
+                    .padding(.top, 10)
+                    Spacer()
+                }
+                Spacer()
+            }
             // Loading / Error Overlay
             loadingOverlay
         }
@@ -334,6 +356,18 @@ public struct SwiftCodeWelcomeView: View {
 
     // MARK: - Actions & Helpers
 
+    /// Closes the welcome window. When it is the last main window,
+    /// AppDelegate terminates the app — so this custom control is
+    /// the welcome screen's close-app button, with no titlebar
+    /// button involved at any point.
+    private func closeWelcomeWindow() {
+        if let window = windowHolder.window {
+            window.close()
+        } else {
+            NSApplication.shared.keyWindow?.close()
+        }
+    }
+
     private func openFileOrFolder() {
         let panel = NSOpenPanel()
         panel.canChooseFiles = true
@@ -410,12 +444,15 @@ public struct SwiftCodeWelcomeView: View {
         window.showsResizeIndicator = false
         window.collectionBehavior = []
 
-        // No custom top bar, so the native close button stays visible as
-        // the only window control; minimize/zoom stay hidden (the welcome
-        // window is fixed-size and never fullscreen).
+        // No titlebar strip, ever: every native traffic-light button
+        // is hidden, including close. The in-content custom close
+        // button above is the only close control. Keeping .titled
+        // (rather than going borderless) preserves key-window
+        // behavior; with a transparent titlebar and hidden buttons
+        // the strip itself is invisible.
         window.standardWindowButton(.miniaturizeButton)?.isHidden = true
         window.standardWindowButton(.zoomButton)?.isHidden = true
-        window.standardWindowButton(.closeButton)?.isHidden = false
+        window.standardWindowButton(.closeButton)?.isHidden = true
 
         let currentContentSize = window.contentLayoutRect.size
         if abs(currentContentSize.width - fixedSize.width) > 2 || abs(currentContentSize.height - fixedSize.height) > 2 {

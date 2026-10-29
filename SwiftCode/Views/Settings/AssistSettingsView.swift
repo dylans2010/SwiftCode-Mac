@@ -644,13 +644,19 @@ struct AssistSettingsView: View {
     var body: some View {
         ScrollView {
             VStack(spacing: 24) {
-                // 0. Assist System Selection (Native Assist vs Assist on Google Cloud vs Assist on Meta)
+                // 0. Assist System Selection. The provider systems
+                // below (OpenRouter, OpenCode, Hermes) are settings
+                // focus, not execution switches: picking one shows
+                // only that provider's dedicated card below, and
+                // hides the other provider cards entirely. Execution
+                // still follows the selected model id — see
+                // assistSystemModelNote.
                 GroupBox {
                     VStack(alignment: .leading, spacing: 8) {
                         HStack(alignment: .center, spacing: 10) {
                             Image(systemName: "cpu.fill")
                                 .font(.system(size: 13, weight: .semibold))
-                                .foregroundStyle(settings.isMetaAssist ? Color.orange : (settings.isGoogleCloudAssist ? Color.blue : Color.purple))
+                                .foregroundStyle(settings.isMetaAssist ? Color.orange : (settings.isGoogleCloudAssist ? Color.blue : (settings.isHermesAssist ? Color.teal : Color.purple)))
 
                             Text("Assist System")
                                 .font(.system(size: 13, weight: .semibold))
@@ -664,10 +670,22 @@ struct AssistSettingsView: View {
                                     .tag(AppSettings.googleCloudAssistSystemID)
                                 Text("Assist on Meta")
                                     .tag(AppSettings.metaAssistSystemID)
+                                Text("OpenRouter")
+                                    .tag(AppSettings.openRouterAssistSystemID)
+                                Text("OpenCode")
+                                    .tag(AppSettings.openCodeAssistSystemID)
+                                Text("Hermes")
+                                    .tag(AppSettings.hermesAssistSystemID)
                             }
                             .labelsHidden()
                             .pickerStyle(.menu)
                             .frame(width: 200)
+                        }
+
+                        if let note = assistSystemModelNote {
+                            Text(note)
+                                .font(.caption2)
+                                .foregroundStyle(.secondary)
                         }
 
                         if settings.isMetaAssist {
@@ -837,23 +855,27 @@ struct AssistSettingsView: View {
                 }
                 .groupBoxStyle(ModernGroupBoxStyle())
 
-                // OpenRouter & OpenCode providers. Both run through the
-                // same Assist loop (system prompt, JSON tool protocol,
-                // registry validation, permissions, real tool execution);
-                // neither replaces it. See
-                // Docs/Assist-OpenCode-OpenRouter-Providers.md.
-                openRouterOpenCodeProvidersSection
-
-                // SDK Providers (Workstream D): the real JS SDK
-                // runtimes (Node/Bun + pinned npm packages) that power
-                // SDK-backed OpenCode/OpenRouter sessions, plus the
-                // independent tool-source setting.
-                sdkProvidersSection
-
-                // Hermes Agent: a real, selectable Assist provider
-                // powered by the `hermes` CLI's stream-json one-shot
-                // interface. See Docs/Assist-Hermes-Provider.md.
-                hermesProvidersSection
+                // Provider cards are shown only for the Assist
+                // System picked above — never all at once. OpenRouter
+                // and OpenCode each get their own dedicated card;
+                // the SDK Providers card is their shared JS SDK
+                // runtime (it powers agent-mode sessions for both),
+                // so it appears for either of them. Hermes gets only
+                // its own card. See
+                // Docs/Assist-OpenCode-OpenRouter-Providers.md and
+                // Docs/Assist-Hermes-Provider.md.
+                if settings.isOpenRouterAssist {
+                    openRouterProvidersSection
+                }
+                if settings.isOpenCodeAssist {
+                    openCodeProvidersSection
+                }
+                if settings.isOpenRouterAssist || settings.isOpenCodeAssist {
+                    sdkProvidersSection
+                }
+                if settings.isHermesAssist {
+                    hermesProvidersSection
+                }
 
                 // Reverse (native REA integration) — readiness, versions,
                 // capabilities, and runtime locations.
@@ -2304,7 +2326,9 @@ struct AssistSettingsView: View {
         }
     }
 
-    private var openRouterOpenCodeProvidersSection: some View {
+    // MARK: - OpenRouter Provider Section (shown only when OpenRouter is the selected Assist System)
+
+    private var openRouterProvidersSection: some View {
         GroupBox {
             VStack(alignment: .leading, spacing: 14) {
                 HStack(spacing: 10) {
@@ -2317,9 +2341,9 @@ struct AssistSettingsView: View {
                             .foregroundStyle(Color.purple)
                     }
                     VStack(alignment: .leading, spacing: 2) {
-                        Text("OpenRouter & OpenCode")
+                        Text("OpenRouter")
                             .font(.system(size: 14, weight: .semibold))
-                        Text("Model providers for the same Assist loop — SwiftCode keeps its system prompt, tools, and permissions.")
+                        Text("Model provider for the same Assist loop — SwiftCode keeps its system prompt, tools, and permissions.")
                             .font(.caption2)
                             .foregroundStyle(.secondary)
                     }
@@ -2446,6 +2470,35 @@ struct AssistSettingsView: View {
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
                         }
+                    }
+                }
+
+            }
+            .padding(14)
+        }
+        .groupBoxStyle(ModernGroupBoxStyle())
+    }
+
+    // MARK: - OpenCode Provider Section (shown only when OpenCode is the selected Assist System)
+
+    private var openCodeProvidersSection: some View {
+        GroupBox {
+            VStack(alignment: .leading, spacing: 14) {
+                HStack(spacing: 10) {
+                    ZStack {
+                        RoundedRectangle(cornerRadius: 8)
+                            .fill(Color.purple.opacity(0.14))
+                            .frame(width: 32, height: 32)
+                        Image(systemName: "cpu")
+                            .font(.system(size: 14, weight: .bold))
+                            .foregroundStyle(Color.purple)
+                    }
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("OpenCode")
+                            .font(.system(size: 14, weight: .semibold))
+                        Text("Model provider for the same Assist loop — SwiftCode keeps its system prompt, tools, and permissions.")
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
                     }
                 }
 
@@ -2787,6 +2840,33 @@ struct AssistSettingsView: View {
 
     private var isHermesModelSelected: Bool {
         HermesModelID.isHermesModelID(settings.selectedAssistModelID)
+    }
+
+    /// Honesty note for the Assist System picker: the picker only
+    /// chooses which provider card is shown. Execution follows the
+    /// selected model id, so when the two disagree the user must be
+    /// told — never left believing the shown provider is the active
+    /// one. Nil when the picker selection and the active model agree
+    /// (or when no provider system is picked).
+    private var assistSystemModelNote: String? {
+        let expected: AssistModelProvider?
+        let systemName: String
+        if settings.isOpenRouterAssist {
+            expected = .openRouter; systemName = "OpenRouter"
+        } else if settings.isOpenCodeAssist {
+            expected = .openCode; systemName = "OpenCode"
+        } else if settings.isHermesAssist {
+            expected = .hermes; systemName = "Hermes"
+        } else {
+            return nil
+        }
+        let selected = settings.selectedAssistModelID.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !selected.isEmpty else {
+            return "Showing \(systemName) settings. No model is selected yet — pick one in the card below to route new Assist requests to \(systemName)."
+        }
+        let actual = AssistProviderSelection.provider(for: selected)
+        guard actual != expected else { return nil }
+        return "Showing \(systemName) settings, but new Assist requests still use “\(selected)” until you select a \(systemName) model in the card below."
     }
 
     private var hermesProvidersSection: some View {

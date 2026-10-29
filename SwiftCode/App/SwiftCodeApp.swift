@@ -29,6 +29,10 @@ struct SwiftCodeApp: App {
     }
 
     @State private var sessionStore = ProjectSessionStore.shared
+    /// A Finder-opened `.scproj` package awaiting the trust decision.
+    @State private var pendingScprojURL: URL?
+    /// Error from a Finder open or a trust-alert delete, if any.
+    @State private var finderOpenError: String?
     @StateObject private var settings = AppSettings.shared
     @StateObject private var codingManager = CodingManager.shared
     @StateObject private var toolbarSettings = ToolbarSettings.shared
@@ -112,6 +116,14 @@ struct SwiftCodeApp: App {
             .environmentObject(codeSuggestionsML)
             .environmentObject(gistService)
             .onOpenURL { url in
+                // Finder-opened files arrive here (the app declares
+                // .scproj as Owner and .xcodeproj/.xcworkspace as
+                // Alternate Viewer in Info.plist). URL schemes keep
+                // their existing handlers below.
+                if url.isFileURL {
+                    handleFinderOpenedFile(url)
+                    return
+                }
                 if url.scheme == "docc" || url.pathExtension.lowercased() == "doccarchive" {
                     DocumentationBrowserWindowManager.shared.openURL(url)
                     return
@@ -122,6 +134,46 @@ struct SwiftCodeApp: App {
                 if GoogleAccountAuthService.shared.handleOpenURL(url) {
                     return
                 }
+            }
+            .alert(
+                "Trust this SwiftCode project?",
+                isPresented: Binding(
+                    get: { pendingScprojURL != nil },
+                    set: { if !$0 { pendingScprojURL = nil } }
+                ),
+                presenting: pendingScprojURL
+            ) { url in
+                Button("Trust and Open") {
+                    pendingScprojURL = nil
+                    ProjectSessionStore.ScprojTrustStore.markTrusted(url)
+                    Task {
+                        do {
+                            let project = try await sessionStore.openScprojPackage(at: url)
+                            await sessionStore.openProject(project)
+                        } catch {
+                            finderOpenError = error.localizedDescription
+                        }
+                    }
+                }
+                Button("Delete from Disk", role: .destructive) {
+                    pendingScprojURL = nil
+                    deleteUntrustedScproj(url)
+                }
+                Button("Cancel", role: .cancel) {}
+            } message: { url in
+                // project.json carries no author identity, so the
+                // alert names the package and its location instead of
+                // inventing an author. Deletion is permanent, by the
+                // user's explicit choice at this alert.
+                Text("“\(url.lastPathComponent)” at \(url.deletingLastPathComponent().path) was not created by this copy of SwiftCode. SwiftCode projects can run code and tools when opened. Open it only if you trust where it came from — otherwise SwiftCode will permanently delete it from disk.")
+            }
+            .alert("Couldn't Open File", isPresented: Binding(
+                get: { finderOpenError != nil },
+                set: { if !$0 { finderOpenError = nil } }
+            ), presenting: finderOpenError) { _ in
+                Button("OK") {}
+            } message: { message in
+                Text(message)
             }
             .task {
                 // Ensure the persistent Projects and Models directories exist at launch
@@ -143,6 +195,60 @@ struct SwiftCodeApp: App {
         .windowResizability(.contentSize)
         .commands {
             AppCommands()
+        }
+    }
+
+    // MARK: - Finder-opened files
+
+    private func handleFinderOpenedFile(_ url: URL) {
+        switch url.pathExtension.lowercased() {
+        case "scproj":
+            // Already trusted once? Open straight away; otherwise
+            // the trust alert decides (open, or delete from disk).
+            if ProjectSessionStore.ScprojTrustStore.isTrusted(url) {
+                Task {
+                    do {
+                        let project = try await sessionStore.openScprojPackage(at: url)
+                        await sessionStore.openProject(project)
+                    } catch {
+                        finderOpenError = error.localizedDescription
+                    }
+                }
+            } else {
+                pendingScprojURL = url
+            }
+        case "xcodeproj", "xcworkspace":
+            // Same path as Open File or Folder in the welcome view:
+            // importProject takes the containing directory for a
+            // project/workspace bundle, then the project opens.
+            Task {
+                do {
+                    let project = try await sessionStore.importProject(from: url)
+                    await sessionStore.openProject(project)
+                } catch {
+                    finderOpenError = error.localizedDescription
+                }
+            }
+        default:
+            break
+        }
+    }
+
+    /// Deletes an untrusted `.scproj` package from disk, exactly as
+    /// the trust alert promises. Also drops it from recents and
+    /// forgets any trust grant, so a later copy at the same path is
+    /// prompted again instead of opening silently.
+    private func deleteUntrustedScproj(_ url: URL) {
+        if let existing = sessionStore.projects.first(where: {
+            $0.directoryURL.standardizedFileURL.path == url.standardizedFileURL.path
+        }) {
+            sessionStore.removeProjectFromRecents(existing)
+        }
+        ProjectSessionStore.ScprojTrustStore.forget(url)
+        do {
+            try FileManager.default.removeItem(at: url)
+        } catch {
+            finderOpenError = error.localizedDescription
         }
     }
 }

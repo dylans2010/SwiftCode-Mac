@@ -30,10 +30,10 @@ struct WorkspaceView: View {
     // Collapsible App Details Sidebar Panel
     @State private var showAppDetailsSidebar = false
 
-    // Full-pane special editors (swiftcode.json, Localizable.xcstrings)
-    // hide every sidebar and the toolbar while active, then restore
-    // exactly what was visible before. Driven by EditorView's
-    // .specialEditorActive notification.
+    // Full-pane special editors (swiftcode.json only — xcstrings is
+    // in-pane like Entitlements) hide every sidebar and the toolbar
+    // while active, then restore exactly what was visible before.
+    // Driven by EditorView's .specialEditorActive notification.
     @State private var specialEditorActive = false
     @State private var stashedChrome: (fileNavigator: Bool, artboard: Bool, agent: Bool, appDetails: Bool, infoProj: Bool)?
     // Collapsible SwiftCode Project Archive Info Sidebar
@@ -232,7 +232,7 @@ struct WorkspaceView: View {
         .environment(viewModel)
         .toolbar {
             // No toolbar at all while a full-pane special editor is
-            // active (swiftcode.json / Localizable.xcstrings).
+            // active (swiftcode.json).
             if !specialEditorActive {
                 ToolbarItemGroup(placement: .primaryAction) {
                     Button {

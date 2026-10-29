@@ -52,6 +52,15 @@ class AppSettings: ObservableObject {
     public static let nativeAssistSystemID = "com.swiftcode.assist.native"
     public static let googleCloudAssistSystemID = "com.swiftcode.Assist.Google-Cloud"
     public static let metaAssistSystemID = "com.swiftcode.Assist.Meta"
+    /// Provider systems shown on the Assist System card. These are
+    /// settings-focus selections, not separate execution backends:
+    /// execution still routes by the selected model id through the
+    /// native path (only Meta/Google Cloud divert it), so adding
+    /// these ids changes no routing — it only decides which
+    /// provider's dedicated settings card is shown below.
+    public static let openRouterAssistSystemID = "com.swiftcode.assist.openrouter"
+    public static let openCodeAssistSystemID = "com.swiftcode.assist.opencode"
+    public static let hermesAssistSystemID = "com.swiftcode.assist.hermes"
 
     @Published var assistSystemID: String {
         didSet { debouncedSave("assistSystemID", assistSystemID) }
@@ -63,6 +72,18 @@ class AppSettings: ObservableObject {
 
     public var isMetaAssist: Bool {
         assistSystemID == Self.metaAssistSystemID
+    }
+
+    public var isOpenRouterAssist: Bool {
+        assistSystemID == Self.openRouterAssistSystemID
+    }
+
+    public var isOpenCodeAssist: Bool {
+        assistSystemID == Self.openCodeAssistSystemID
+    }
+
+    public var isHermesAssist: Bool {
+        assistSystemID == Self.hermesAssistSystemID
     }
 
     public static let defaultAssistToolkit = "System"

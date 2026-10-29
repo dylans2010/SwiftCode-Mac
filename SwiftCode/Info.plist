@@ -7,6 +7,8 @@
 		<dict>
 			<key>CFBundleTypeIconSystemImageName</key>
 			<string>doc.zipper</string>
+			<key>CFBundleTypeIconFile</key>
+			<string>SCProjDocumentIcon</string>
 			<key>CFBundleTypeName</key>
 			<string>SwiftCode Project</string>
 			<key>CFBundleTypeRole</key>
@@ -16,6 +18,21 @@
 			<key>LSItemContentTypes</key>
 			<array>
 				<string>com.swiftcode.project</string>
+			</array>
+			<key>LSTypeIsPackage</key>
+			<true/>
+		</dict>
+		<dict>
+			<key>CFBundleTypeName</key>
+			<string>Xcode Project</string>
+			<key>CFBundleTypeRole</key>
+			<string>Viewer</string>
+			<key>LSHandlerRank</key>
+			<string>Alternate</string>
+			<key>LSItemContentTypes</key>
+			<array>
+				<string>com.apple.xcode.project</string>
+				<string>com.apple.xcode.workspace</string>
 			</array>
 			<key>LSTypeIsPackage</key>
 			<true/>
@@ -147,6 +164,8 @@
 			<dict>
 				<key>UTTypeIconSystemImageName</key>
 				<string>doc.zipper</string>
+				<key>UTTypeIconFile</key>
+				<string>SCProjDocumentIcon</string>
 			</dict>
 			<key>UTTypeIdentifier</key>
 			<string>com.swiftcode.project</string>

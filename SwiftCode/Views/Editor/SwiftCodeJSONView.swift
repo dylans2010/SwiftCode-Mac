@@ -15,6 +15,10 @@ public struct SwiftCodeJSONView: View {
     @State private var original: SDKManifest?
     @State private var loadError: String?
     @State private var saveError: String?
+    /// Decoded `project.json` found next to this manifest, if any.
+    /// Read-only: project metadata is edited in Project Settings,
+    /// never from the manifest editor.
+    @State private var projectDetails: ProjectFileDetails?
     @State private var newCapabilityID = ""
     @State private var newCapabilityReason = ""
     @State private var newCommandID = ""
@@ -206,6 +210,33 @@ public struct SwiftCodeJSONView: View {
                         .foregroundStyle(.secondary)
                 }
 
+                Section("Project Details (project.json)") {
+                    if let details = projectDetails {
+                        LabeledContent("Project", value: details.name)
+                        if !details.description.isEmpty {
+                            LabeledContent("Description", value: details.description)
+                        }
+                        LabeledContent("Bundle ID", value: details.bundleIdentifier)
+                        LabeledContent("Platform", value: details.platform)
+                        LabeledContent("Deployment Target", value: details.deploymentTarget)
+                        LabeledContent("Scheme", value: details.scheme)
+                        if let created = details.createdAt {
+                            LabeledContent("Created", value: created.formatted(date: .abbreviated, time: .omitted))
+                        }
+                        if let lastOpened = details.lastOpened {
+                            LabeledContent("Last Opened", value: lastOpened.formatted(date: .abbreviated, time: .omitted))
+                        }
+                        Text(details.path)
+                            .font(.system(.caption, design: .monospaced))
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                            .truncationMode(.middle)
+                    } else {
+                        Text("No project.json found next to this manifest. Project details appear here when the manifest lives in a project folder (or its SwiftCode/ folder).")
+                            .foregroundStyle(.secondary)
+                    }
+                }
+
                 if !manifest.unknownFields.isEmpty {
                     Section("Other Fields (preserved on save)") {
                         ForEach(manifest.unknownFields.keys.sorted(), id: \.self) { key in
@@ -258,11 +289,62 @@ public struct SwiftCodeJSONView: View {
         }
     }
 
+    // MARK: - Project details (project.json, read-only)
+
+    private struct ProjectFileDetails {
+        let path: String
+        let name: String
+        let description: String
+        let bundleIdentifier: String
+        let platform: String
+        let deploymentTarget: String
+        let scheme: String
+        let createdAt: Date?
+        let lastOpened: Date?
+    }
+
+    /// Finds the `project.json` that belongs to this manifest: a
+    /// sibling first (covers manifests at the project root and
+    /// manifests inside a project's `SwiftCode/` folder, where the
+    /// copy lives), then the project root when the manifest sits
+    /// inside `SwiftCode/`. Nothing else is consulted — a manifest
+    /// opened outside a project shows no project details rather
+    /// than some other project's metadata.
+    private func loadProjectDetails() -> ProjectFileDetails? {
+        let manifestDir = fileURL.deletingLastPathComponent()
+        var candidates: [URL] = [manifestDir.appendingPathComponent("project.json")]
+        if manifestDir.lastPathComponent == "SwiftCode" {
+            candidates.append(manifestDir.deletingLastPathComponent().appendingPathComponent("project.json"))
+        }
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        for url in candidates {
+            guard let data = try? Data(contentsOf: url),
+                  let project = try? decoder.decode(Project.self, from: data) else { continue }
+            let ci = project.ciBuildConfiguration
+            let bundleID = [ci?.bundleIdentifier, project.buildSettings.bundleIdentifier]
+                .compactMap { $0 }.first { !$0.isEmpty } ?? "—"
+            return ProjectFileDetails(
+                path: url.path,
+                name: project.name,
+                description: project.description,
+                bundleIdentifier: bundleID,
+                platform: ci?.platform.rawValue ?? project.buildSettings.deploymentTargetPlatform,
+                deploymentTarget: ci?.deploymentTarget ?? project.buildSettings.deploymentTargetVersion,
+                scheme: ci?.schemeName ?? "—",
+                createdAt: project.createdAt,
+                lastOpened: project.lastOpened
+            )
+        }
+        return nil
+    }
+
     // MARK: - Load / save
 
     private func load() {
         loadError = nil
         saveError = nil
+        projectDetails = loadProjectDetails()
         do {
             let data = try Data(contentsOf: fileURL)
             let decoded = try JSONDecoder().decode(SDKManifest.self, from: data)

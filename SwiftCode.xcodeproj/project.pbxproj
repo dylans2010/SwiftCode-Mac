@@ -499,6 +499,7 @@
 		5042A0A253E483E0A60FB55B /* JSONToDartView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 274C103D6321266994AAF994 /* JSONToDartView.swift */; };
 		50449986FA13E01B106DB1E6 /* BuildingXcodeProject.swift in Sources */ = {isa = PBXBuildFile; fileRef = 50449986FA13E01B106DB1E5 /* BuildingXcodeProject.swift */; };
 		3A1B570AF9E4F916D3CCA145 /* build_ipa.sh in Resources */ = {isa = PBXBuildFile; fileRef = 3A1B570AF9E4F916D3CCA144 /* build_ipa.sh */; };
+		SCDOC0000000000000002 /* SCProjDocumentIcon.icns in Resources */ = {isa = PBXBuildFile; fileRef = SCDOC0000000000000001 /* SCProjDocumentIcon.icns */; };
 		50D0D0AED75DBA2F34F935A8 /* SFSymbolsReferenceView.swift in Sources */ = {isa = PBXBuildFile; fileRef = FDF84F7206A228709DB3EDD0 /* SFSymbolsReferenceView.swift */; };
 		510287B125804BF682415391 /* GitBranch.swift in Sources */ = {isa = PBXBuildFile; fileRef = 595FA7D22183D3ACCE8D6400 /* GitBranch.swift */; };
 		511F21B043B88EE7C1CE71B5 /* DiskUsageAnalyzerDevToolView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 37BC644D5C1459878A3A9846 /* DiskUsageAnalyzerDevToolView.swift */; };
@@ -3353,6 +3354,7 @@
 		396A57BC2AE5DFA118F30037 /* PreviewSnapshotManager.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = PreviewSnapshotManager.swift; sourceTree = "<group>"; };
 		39f6c64a70597fef62118053 /* SDKCodeDocument.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SDKCodeDocument.swift; sourceTree = "<group>"; };
 		3A1B570AF9E4F916D3CCA144 /* build_ipa.sh */ = {isa = PBXFileReference; lastKnownFileType = text.script.sh; path = build_ipa.sh; sourceTree = "<group>"; };
+		SCDOC0000000000000001 /* SCProjDocumentIcon.icns */ = {isa = PBXFileReference; lastKnownFileType = image.icns; path = SCProjDocumentIcon.icns; sourceTree = "<group>"; };
 		3A3E0113B2444B9D7FEA5EED /* SimctlService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SimctlService.swift; sourceTree = "<group>"; };
 		3AA81789A4D24930B8235EFF /* EnvironmentValidator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EnvironmentValidator.swift; sourceTree = "<group>"; };
 		3AE914FF307B62AFA04D064F /* SimulatorError.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SimulatorError.swift; sourceTree = "<group>"; };
@@ -8113,6 +8115,7 @@
 				F8373FD99C056ADA512A5B32 /* Themes */,
 				8D9E00030001000100000020 /* Google Cloud SDK */,
 				3A1B570AF9E4F916D3CCA144 /* build_ipa.sh */,
+				SCDOC0000000000000001 /* SCProjDocumentIcon.icns */,
 			);
 			path = Resources;
 			sourceTree = "<group>";
@@ -11003,6 +11006,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				3A1B570AF9E4F916D3CCA145 /* build_ipa.sh in Resources */,
+				SCDOC0000000000000002 /* SCProjDocumentIcon.icns in Resources */,
 				SNDBLD000000000000000001 /* SwiftCode_Notification_A.aiff in Resources */,
 				SNDBLD000000000000000002 /* SwiftCode_Notification_B.aiff in Resources */,
 				SNDBLD000000000000000003 /* SwiftCode_Message_A.aiff in Resources */,

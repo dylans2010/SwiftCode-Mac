@@ -1,9 +1,9 @@
 import SwiftUI
 
-/// Full-pane editor for `Localizable.xcstrings` — the user never sees
-/// the raw JSON. One organized page, no sidebar, no tab bar, no
-/// toolbar inside the view (the workspace hides its chrome while
-/// this view is on screen, like the Info.plist editor):
+/// In-pane editor for `Localizable.xcstrings`, rendered like the
+/// Entitlements editor: the editor tabs, jump bar, and workspace
+/// chrome stay put, and the visual/raw switcher offers the raw JSON
+/// text editor as Raw. The user never sees raw JSON in Visual mode:
 /// header, AI assistant, filters, then the strings themselves.
 ///
 /// Editing here writes this file directly (it *is* the file's
@@ -135,10 +135,6 @@ public struct LocalizingAppNewView: View {
         }
         .onAppear {
             load()
-            NotificationCenter.default.post(name: .specialEditorActive, object: nil, userInfo: ["active": true])
-        }
-        .onDisappear {
-            NotificationCenter.default.post(name: .specialEditorActive, object: nil, userInfo: ["active": false])
         }
     }
 
@@ -162,17 +158,12 @@ public struct LocalizingAppNewView: View {
 
     private var header: some View {
         let count = counts()
+        // Slim header: the editor jump bar above already names the
+        // file, so this row carries only the counts and actions.
         return HStack(spacing: 12) {
-            Image(systemName: "character.bubble")
-                .font(.system(size: 18, weight: .semibold))
-                .foregroundStyle(Color.accentColor)
-            VStack(alignment: .leading, spacing: 2) {
-                Text("Localizable.xcstrings")
-                    .font(.system(size: 15, weight: .bold))
-                Text("\(count.total) strings · \(count.translated) translated in \(displayLanguage) · \(count.untranslated) untranslated · Source: \(sourceLanguage)")
-                    .font(.system(size: 11))
-                    .foregroundStyle(.secondary)
-            }
+            Text("\(count.total) strings · \(count.translated) translated in \(displayLanguage) · \(count.untranslated) untranslated · Source: \(sourceLanguage)")
+                .font(.system(size: 11))
+                .foregroundStyle(.secondary)
             Spacer()
             if isDirty {
                 Text("Unsaved changes")
@@ -366,8 +357,10 @@ public struct LocalizingAppNewView: View {
 
     private func setValue(_ value: String, for key: String, language: String) {
         guard var strings = root?["strings"] as? [String: Any],
-              var entry = strings[key] as? [String: Any],
-              var localizations = entry["localizations"] as? [String: Any] else { return }
+              var entry = strings[key] as? [String: Any] else { return }
+        // A key without a localizations dictionary yet used to
+        // swallow the edit silently; create the dictionary instead.
+        var localizations = entry["localizations"] as? [String: Any] ?? [:]
         var loc = (localizations[language] as? [String: Any]) ?? [:]
         let newState = value.isEmpty ? "new" : "translated"
         loc["stringUnit"] = ["state": newState, "value": value]

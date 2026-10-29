@@ -1,7 +1,8 @@
 import SwiftUI
 
-/// Posted by full-pane special editors (swiftcode.json, Localizable.xcstrings)
-/// so the workspace can hide every sidebar and toolbar while they are
+/// Posted by full-pane special editors (swiftcode.json only, since
+/// Localizable.xcstrings moved in-pane like Entitlements) so the
+/// workspace can hide every sidebar and toolbar while they are
 /// on screen, then restore them when the user leaves. userInfo: ["active": Bool].
 public extension Notification.Name {
     static let specialEditorActive = Notification.Name("com.swiftcode.specialEditorActive")
@@ -46,7 +47,8 @@ struct EditorView: View {
         return url.lastPathComponent == "swiftcode.json"
     }
 
-    /// Full-pane string-catalog editor, not raw JSON (see LocalizingAppNewView).
+    /// In-pane string-catalog editor, rendered like Entitlements
+    /// (tabs, jump bar, visual/raw switcher) — see LocalizingAppNewView.
     private var isXCStrings: Bool {
         guard let url = viewModel.activeDocument?.url else { return false }
         return url.pathExtension == "xcstrings"
@@ -81,10 +83,6 @@ struct EditorView: View {
                 // mode switcher, no sidebars — the view itself hides
                 // workspace chrome via .specialEditorActive).
                 SwiftCodeJSONView(fileURL: url)
-            } else if isXCStrings, let url = viewModel.activeDocument?.url {
-                // Section: full-pane string-catalog editor, same chrome
-                // treatment as the manifest editor above.
-                LocalizingAppNewView(fileURL: url)
             } else {
                 VStack(spacing: 0) {
                     // Section 1: open-document tabs.
@@ -97,7 +95,7 @@ struct EditorView: View {
 
                     // Section 3: visual/raw switcher, only for the file
                     // kinds that actually have a visual editor.
-                    if isInfoPlist || isEntitlements {
+                    if isInfoPlist || isEntitlements || isXCStrings {
                         editorModeBar
                         Divider()
                     }
@@ -172,6 +170,11 @@ struct EditorView: View {
         } else if isEntitlements, let url = viewModel.activeDocument?.url, editorMode == .visual {
             let resolvedURL = url.lastPathComponent.contains("Unresolved") ? nil : url
             EntitlementsEditorView(fileURL: resolvedURL)
+        } else if isXCStrings, let url = viewModel.activeDocument?.url, editorMode == .visual {
+            // In-pane, like Entitlements: tabs, jump bar, and the
+            // workspace chrome stay put. Raw mode falls through to
+            // the plain text editor below.
+            LocalizingAppNewView(fileURL: url)
         } else if isMarkdown, let url = viewModel.activeDocument?.url {
             MarkdownFileView(viewModel: viewModel, fileURL: url)
         } else {

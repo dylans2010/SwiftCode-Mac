@@ -467,6 +467,13 @@ final class ProjectSessionStore {
 
         try fm.createDirectory(at: projectDir, withIntermediateDirectories: true)
 
+        // New projects get a SwiftCode/ metadata directory. It holds
+        // swiftcode.json (the manifest) and a project.json copy; the
+        // root project.json written below stays the open-time source
+        // of truth, and the copy is refreshed on every later save
+        // (see refreshSwiftCodeProjectJSONCopy).
+        try fm.createDirectory(at: projectDir.appendingPathComponent("SwiftCode"), withIntermediateDirectories: true)
+
         var project = Project(name: sanitized)
         project.description = "A new SwiftCode project"
         project.transferConfiguration = .owner
@@ -483,7 +490,10 @@ final class ProjectSessionStore {
             bundleIdentifier: bundleID
         )
 
-        try saveMetadata(project)
+        // saveMetadataInPlace (not the root-only saveMetadata) so
+        // the fresh project also gets its SwiftCode/swiftcode.json
+        // manifest and its SwiftCode/project.json copy immediately.
+        try saveMetadataInPlace(project)
         projects.insert(project, at: 0)
         return project
     }
@@ -547,8 +557,16 @@ final class ProjectSessionStore {
     }
 
     func ensureSwiftCodeJSON(for project: Project, at directoryURL: URL) {
-        let manifestURL = directoryURL.appendingPathComponent("swiftcode.json")
-        let fm = FileManager.default
+        // When the project has a SwiftCode/ metadata directory, the
+        // manifest lives there — not at the project root. Projects
+        // created before SwiftCode/ existed keep the root manifest;
+        // nothing is moved for them, so their layout never changes
+        // under them.
+        let swiftCodeDir = directoryURL.appendingPathComponent("SwiftCode")
+        var isDir: ObjCBool = false
+        let manifestDir = (fm.fileExists(atPath: swiftCodeDir.path, isDirectory: &isDir) && isDir.boolValue)
+            ? swiftCodeDir : directoryURL
+        let manifestURL = manifestDir.appendingPathComponent("swiftcode.json")
 
         if fm.fileExists(atPath: manifestURL.path) {
             if let data = try? Data(contentsOf: manifestURL),
@@ -582,12 +600,24 @@ final class ProjectSessionStore {
         }
     }
 
+    /// Keeps the SwiftCode/project.json copy in sync when the project
+    /// has a SwiftCode/ directory. Best-effort by design: the root
+    /// project.json is the source of truth, and a failed copy must
+    /// never fail a save.
+    private func refreshSwiftCodeProjectJSONCopy(for project: Project, data: Data) {
+        let dir = project.directoryURL.appendingPathComponent("SwiftCode")
+        var isDir: ObjCBool = false
+        guard fm.fileExists(atPath: dir.path, isDirectory: &isDir), isDir.boolValue else { return }
+        try? data.write(to: dir.appendingPathComponent("project.json"), options: .atomic)
+    }
+
     func saveMetadataInPlace(_ project: Project) throws {
         let encoder = JSONEncoder()
         encoder.dateEncodingStrategy = .iso8601
         let data = try encoder.encode(project)
         let metaURL = project.directoryURL.appendingPathComponent("project.json")
         try data.write(to: metaURL, options: .atomic)
+        refreshSwiftCodeProjectJSONCopy(for: project, data: data)
         ensureSwiftCodeJSON(for: project, at: project.directoryURL)
     }
 
@@ -662,6 +692,92 @@ final class ProjectSessionStore {
         _ = getOrCreateSession(for: project)
 
         return project
+    }
+
+    // MARK: - Finder-opened .scproj packages
+
+    /// Trust granted from the Finder-open trust alert. A trusted
+    /// package path opens without prompting again; trust is per
+    /// directory path, is only ever granted from that alert, and is
+    /// forgotten when the package is deleted through the same alert.
+    enum ScprojTrustStore {
+        private static let key = "com.swiftcode.scproj.trustedPaths"
+
+        static func isTrusted(_ url: URL) -> Bool {
+            let paths = UserDefaults.standard.stringArray(forKey: key) ?? []
+            return paths.contains(url.standardizedFileURL.path)
+        }
+
+        static func markTrusted(_ url: URL) {
+            var paths = UserDefaults.standard.stringArray(forKey: key) ?? []
+            let path = url.standardizedFileURL.path
+            guard !paths.contains(path) else { return }
+            paths.append(path)
+            UserDefaults.standard.set(paths, forKey: key)
+        }
+
+        static func forget(_ url: URL) {
+            var paths = UserDefaults.standard.stringArray(forKey: key) ?? []
+            paths.removeAll { $0 == url.standardizedFileURL.path }
+            UserDefaults.standard.set(paths, forKey: key)
+        }
+    }
+
+    /// Opens a `.scproj` package directory from Finder, after the
+    /// trust alert in SwiftCodeApp has approved it. A package is a
+    /// directory holding `project.json` (at its root, or inside
+    /// `SwiftCode/` for the new layout). Unlike `importProject`,
+    /// this never mints a new project id or overwrites the package's
+    /// own metadata with an imported copy: the package's project is
+    /// the project that opens.
+    func openScprojPackage(at url: URL) async throws -> Project {
+        let isAccessing = url.startAccessingSecurityScopedResource()
+        defer { if isAccessing { url.stopAccessingSecurityScopedResource() } }
+
+        var isDir: ObjCBool = false
+        guard fm.fileExists(atPath: url.path, isDirectory: &isDir), isDir.boolValue else {
+            throw ProjectOpenError.pathNotFound
+        }
+        if let existing = projects.first(where: {
+            $0.directoryURL.standardizedFileURL.path == url.standardizedFileURL.path
+        }) {
+            return existing
+        }
+
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        let candidates = [
+            url.appendingPathComponent("project.json"),
+            url.appendingPathComponent("SwiftCode/project.json"),
+        ]
+        var decoded: Project?
+        for metaURL in candidates {
+            if let data = try? Data(contentsOf: metaURL),
+               let project = try? decoder.decode(Project.self, from: data) {
+                decoded = project
+                break
+            }
+        }
+
+        var resolved: Project
+        if var project = decoded {
+            // Point the decoded project at the package wherever it
+            // lives on disk; without this, directoryURL would resolve
+            // through the projects root and miss the package.
+            project.customDirectoryPath = url.path
+            project.lastOpened = Date()
+            resolved = project
+        } else {
+            var fresh = Project(name: url.deletingPathExtension().lastPathComponent)
+            fresh.customDirectoryPath = url.path
+            fresh.description = "SwiftCode project package"
+            resolved = fresh
+            try saveMetadataInPlace(resolved)
+        }
+
+        projects.insert(resolved, at: 0)
+        _ = getOrCreateSession(for: resolved)
+        return resolved
     }
 
     private func loadOrCreateProject(at url: URL) throws -> Project {
@@ -969,6 +1085,7 @@ final class ProjectSessionStore {
         if let data = try? encoder.encode(project) {
             let metaURL = project.directoryURL.appendingPathComponent("project.json")
             try? data.write(to: metaURL)
+            refreshSwiftCodeProjectJSONCopy(for: project, data: data)
         }
     }
 
