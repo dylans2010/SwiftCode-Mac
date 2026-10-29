@@ -171,7 +171,7 @@ public final class ExtV2HostManager {
             // Best effort: ask, then terminate. Never wait on the UI thread
             // for a host that has already misbehaved.
             if let data = try? ExtV2RPC.encodeRequest(ExtV2RPCRequest(id: "shutdown", method: "shutdown")) {
-                host.stdin.fileHandleForWriting.write(data)
+                try? host.stdin.fileHandleForWriting.write(contentsOf: data)
             }
             host.process.terminate()
         }
@@ -195,7 +195,7 @@ public final class ExtV2HostManager {
         let data = try ExtV2RPC.encodeRequest(request)
         return try await withCheckedThrowingContinuation { continuation in
             pending[requestId] = continuation
-            host.stdin.fileHandleForWriting.write(data)
+            try? host.stdin.fileHandleForWriting.write(contentsOf: data)
             Task { [weak self] in
                 try? await Task.sleep(nanoseconds: UInt64(timeout * 1_000_000_000))
                 await self?.failRequest(id: requestId, error: ExtV2Error.timeout("Extension host did not answer '\(method)' within \(Int(timeout))s."))
@@ -214,14 +214,19 @@ public final class ExtV2HostManager {
             id: id, result: result,
             error: error.map { ExtV2RPCErrorPayload(code: -32000, message: $0) })
         if let data = try? ExtV2RPC.encodeResponse(response) {
-            host.stdin.fileHandleForWriting.write(data)
+            try? host.stdin.fileHandleForWriting.write(contentsOf: data)
         }
     }
 
     private func startReading(extensionId: String, stdout: Pipe) {
         Task { [weak self] in
-            for await line in stdout.fileHandleForReading.bytes.lines {
-                await self?.handleLine(extensionId: extensionId, line: line)
+            do {
+                for try await line in stdout.fileHandleForReading.bytes.lines {
+                    await self?.handleLine(extensionId: extensionId, line: line)
+                }
+            } catch {
+                // A read error ends the stream the same way EOF does:
+                // the host is gone, so its exit handling still runs.
             }
             await self?.handleHostExit(extensionId: extensionId)
         }

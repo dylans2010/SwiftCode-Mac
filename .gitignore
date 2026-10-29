@@ -22,7 +22,7 @@ xcuserdata/
 # SwiftPM
 .build/
 .swiftpm/
-Packages/
+/Packages/
 .package.resolved
 
 # Agent & Development Directories

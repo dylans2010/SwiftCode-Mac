@@ -40,14 +40,19 @@ public struct ExtV2SourceRange: Codable, Hashable, Sendable {
 /// A mutable text buffer mirroring XCSourceTextBuffer: lines plus the
 /// current selections. `completeBuffer` is the joined text; edits go
 /// through `applyEdits`, which validates ranges before touching text.
-public final class ExtV2SourceTextBuffer: Sendable {
+public final class ExtV2SourceTextBuffer: @unchecked Sendable {
     private let lock = NSLock()
     private var _lines: [String]
-    public var selections: [ExtV2SourceRange]
+    private var _selections: [ExtV2SourceRange]
+
+    public var selections: [ExtV2SourceRange] {
+        get { lock.lock(); defer { lock.unlock() }; return _selections }
+        set { lock.lock(); defer { lock.unlock() }; _selections = newValue }
+    }
 
     public init(lines: [String], selections: [ExtV2SourceRange] = []) {
         self._lines = lines
-        self.selections = selections
+        self._selections = selections
     }
 
     public convenience init(text: String, selections: [ExtV2SourceRange] = []) {
@@ -143,7 +148,7 @@ public protocol ExtV2SourceEditorCommand: Sendable {
 /// Registry for reusable command logic. Commands are looked up by
 /// identifier — the same stable-key discipline as the rest of the
 /// platform — and executed against a caller-supplied buffer.
-public final class ExtV2XcodeCommandRegistry: Sendable {
+public final class ExtV2XcodeCommandRegistry: @unchecked Sendable {
     public static let shared = ExtV2XcodeCommandRegistry()
     private let lock = NSLock()
     private var commands: [String: any ExtV2SourceEditorCommand] = [:]

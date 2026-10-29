@@ -79,15 +79,15 @@ public final class ExtV2NativePluginRegistry: ObservableObject {
     // Command table is static and lock-guarded so plugin contexts can
     // register handlers from @Sendable closures without capturing
     // MainActor-isolated registry state.
-    private static let commandLock = NSLock()
-    private static var commandTable: [String: @Sendable ([ExtV2JSONValue]) async throws -> ExtV2JSONValue] = [:]
+    nonisolated private static let commandLock = NSLock()
+    nonisolated(unsafe) private static var commandTable: [String: @Sendable ([ExtV2JSONValue]) async throws -> ExtV2JSONValue] = [:]
 
-    public static func registerCommand(_ id: String, handler: @escaping @Sendable ([ExtV2JSONValue]) async throws -> ExtV2JSONValue) {
+    nonisolated public static func registerCommand(_ id: String, handler: @escaping @Sendable ([ExtV2JSONValue]) async throws -> ExtV2JSONValue) {
         commandLock.lock(); defer { commandLock.unlock() }
         commandTable[id] = handler
     }
 
-    public static func handler(for id: String) -> (@Sendable ([ExtV2JSONValue]) async throws -> ExtV2JSONValue)? {
+    nonisolated public static func handler(for id: String) -> (@Sendable ([ExtV2JSONValue]) async throws -> ExtV2JSONValue)? {
         commandLock.lock(); defer { commandLock.unlock() }
         return commandTable[id]
     }

@@ -43,11 +43,12 @@ public final class ExtV2Manager: ObservableObject {
     public init() {
         let storage = ExtV2Storage()
         self.storage = storage
-        self.settings = storage.loadSettings()
+        let loadedSettings = storage.loadSettings()
+        self.settings = loadedSettings
         self.permissions = ExtV2PermissionManager(storage: storage)
         self.hostManager = ExtV2HostManager(storage: storage, permissions: permissions)
         self.packageService = ExtV2PackageService(storage: storage)
-        self.registryClient = ExtV2RegistryClient(settings: settings)
+        self.registryClient = ExtV2RegistryClient(settings: loadedSettings)
         ExtV2AssistExecution.shared.hostManager = hostManager
         ExtV2AssistExecution.shared.permissions = permissions
         hostManager.hostRequestHandler = { [weak self] extensionId, request in
