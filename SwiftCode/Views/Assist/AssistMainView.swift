@@ -1657,6 +1657,7 @@ private struct AssistChatBubble: View {
     let message: AssistMessage
     @ObservedObject private var manager = AssistManager.shared
     @ObservedObject private var settings = AppSettings.shared
+    @State private var sdkEventStore = SDKToolEventStore.shared
 
     private var alignment: HorizontalAlignment {
         message.role == .user ? .trailing : .leading
@@ -1725,6 +1726,24 @@ private struct AssistChatBubble: View {
                     // 1. Native Live Activity Feed (Default: MuseCallsNativeToolsUI)
                     if let activity = message.activityGroup, activity.hasContent {
                         MuseCallsNativeToolsUI(activityGroup: activity)
+                    }
+
+                    // 1b. SDK-backed tool activity. Shown only under the
+                    // SDK run's own transcript message, with that run's
+                    // session events. The provider view is chosen by the
+                    // run's kind, and each event renders in exactly one
+                    // provider view (see the views' provider filter).
+                    if message.id == manager.agentSession.sdkMessageId,
+                       let sdkSessionId = manager.agentSession.sdkSessionId,
+                       let sdkKind = manager.agentSession.sdkSessionKind {
+                        let sdkEvents = sdkEventStore.events(for: sdkSessionId)
+                        if !sdkEvents.isEmpty {
+                            if sdkKind == .openRouter {
+                                ORToolsUIView(events: sdkEvents)
+                            } else {
+                                OCToolsUIView(events: sdkEvents)
+                            }
+                        }
                     }
 
                     // 2. Streamed / Completed Assistant Markdown Message

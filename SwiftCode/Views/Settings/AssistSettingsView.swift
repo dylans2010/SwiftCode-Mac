@@ -559,6 +559,15 @@ struct AssistSettingsView: View {
     @State private var openCodeFetchError: String? = nil
     @State private var openCodeManualModel = ""
 
+    // SDK Providers (Workstream D) state. The SDK runtimes are real
+    // JS processes managed by SDKRuntimeManager; this state only ever
+    // holds status strings and versions — never credentials.
+    @State private var sdkToolSource = SDKToolSourceSetting.load()
+    @State private var sdkStatuses: [SDKProvider: SDKRuntimeStatus] = [:]
+    @State private var sdkInstallingProviders: Set<SDKProvider> = []
+    @State private var sdkInstallErrors: [SDKProvider: String] = [:]
+    @State private var sdkInstallNotices: [SDKProvider: String] = [:]
+
     // Custom Model configurations
     @State private var customEndpointsManager = CustomEndpointManager.shared
     @State private var selectedEndpoint: SavedCustomEndpoint? = nil
@@ -820,6 +829,12 @@ struct AssistSettingsView: View {
                 // neither replaces it. See
                 // Docs/Assist-OpenCode-OpenRouter-Providers.md.
                 openRouterOpenCodeProvidersSection
+
+                // SDK Providers (Workstream D): the real JS SDK
+                // runtimes (Node/Bun + pinned npm packages) that power
+                // SDK-backed OpenCode/OpenRouter sessions, plus the
+                // independent tool-source setting.
+                sdkProvidersSection
 
                 // Reverse (native REA integration) — readiness, versions,
                 // capabilities, and runtime locations.
@@ -2556,6 +2571,171 @@ struct AssistSettingsView: View {
             .padding(14)
         }
         .groupBoxStyle(ModernGroupBoxStyle())
+    }
+
+    // MARK: - SDK Providers Section (Workstream D)
+
+    private var sdkProvidersSection: some View {
+        GroupBox {
+            VStack(alignment: .leading, spacing: 14) {
+                HStack(spacing: 10) {
+                    ZStack {
+                        RoundedRectangle(cornerRadius: 8)
+                            .fill(Color.teal.opacity(0.14))
+                            .frame(width: 32, height: 32)
+                        Image(systemName: "terminal")
+                            .font(.system(size: 14, weight: .bold))
+                            .foregroundStyle(Color.teal)
+                    }
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("SDK Providers")
+                            .font(.system(size: 14, weight: .semibold))
+                        Text("Real OpenCode / OpenRouter SDK runtimes, hosted in a JS process SwiftCode installs and supervises. These replace the previous native-HTTP clients for SDK-backed sessions.")
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+
+                Divider()
+
+                // Tool source is independent of provider and model:
+                // changing it never changes either one.
+                VStack(alignment: .leading, spacing: 6) {
+                    HStack {
+                        Text("Tool source")
+                            .font(.system(size: 12, weight: .medium))
+                        Spacer()
+                        Picker("", selection: $sdkToolSource) {
+                            ForEach(SDKToolSourceSetting.allCases, id: \.self) { source in
+                                Text(source.displayName).tag(source)
+                            }
+                        }
+                        .pickerStyle(.menu)
+                        .frame(width: 200)
+                        .onChange(of: sdkToolSource) { _, newValue in
+                            newValue.save()
+                        }
+                    }
+                    Text(sdkToolSource.explanation)
+                        .font(.system(size: 10))
+                        .foregroundStyle(.secondary)
+                    Text("Combined is enabled because the shared bridge protocol defines it and both SDKs report their own tool events. Provider tools in a combined session run under the provider runtime's permissions, not SwiftCode's — see the explanation above.")
+                        .font(.system(size: 10))
+                        .foregroundStyle(.secondary)
+                }
+
+                Divider()
+
+                ForEach(SDKProvider.allCases, id: \.self) { provider in
+                    VStack(alignment: .leading, spacing: 6) {
+                        HStack {
+                            Text(provider.displayName)
+                                .font(.system(size: 12, weight: .medium))
+                            Spacer()
+                            if sdkStatuses[provider]?.isBridgeRunning == true {
+                                Text("Bridge running")
+                                    .font(.system(size: 10, weight: .semibold))
+                                    .foregroundStyle(.green)
+                            }
+                        }
+                        Text(sdkStatuses[provider]?.summary ?? "Status unknown — use Refresh status.")
+                            .font(.system(size: 10))
+                            .foregroundStyle(.secondary)
+                        Text("\(provider.packageName)@\(provider.pinnedVersion) pinned. Runtime directory: \(SDKRuntimeManager.runtimeDirectory(for: provider)?.path ?? "unavailable"). Deleting that directory uninstalls the runtime; Install recreates it.")
+                            .font(.system(size: 10))
+                            .foregroundStyle(.secondary)
+                        HStack {
+                            if sdkInstallingProviders.contains(provider) {
+                                ProgressView()
+                                    .controlSize(.small)
+                                Text("Installing…")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            } else {
+                                Button("Install") { sdkInstall(provider: provider, force: false) }
+                                    .buttonStyle(.bordered)
+                                    .controlSize(.small)
+                                Button("Repair") { sdkInstall(provider: provider, force: true) }
+                                    .buttonStyle(.bordered)
+                                    .controlSize(.small)
+                                if sdkStatuses[provider]?.isBridgeRunning == true {
+                                    Button("Stop bridge") {
+                                        Task {
+                                            await SDKRuntimeManager.shared.terminateBridge(provider: provider)
+                                            await refreshSDKStatuses()
+                                        }
+                                    }
+                                    .buttonStyle(.bordered)
+                                    .controlSize(.small)
+                                }
+                            }
+                            Spacer()
+                            Button("Refresh status") {
+                                Task { await refreshSDKStatuses() }
+                            }
+                            .buttonStyle(.bordered)
+                            .controlSize(.small)
+                            .disabled(sdkInstallingProviders.contains(provider))
+                        }
+                        if let error = sdkInstallErrors[provider] {
+                            Text(error)
+                                .font(.system(size: 10))
+                                .foregroundStyle(.red)
+                        } else if let notice = sdkInstallNotices[provider] {
+                            Text(notice)
+                                .font(.system(size: 10))
+                                .foregroundStyle(.green)
+                        }
+                    }
+                    Divider()
+                }
+
+                // OpenCode server settings, bound to the SAME state as
+                // the OpenRouter & OpenCode section above — editing
+                // here edits the same value, saved with the same
+                // saver. No second copy of these settings exists.
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("OpenCode server (shared with the section above)")
+                        .font(.system(size: 12, weight: .medium))
+                    TextField("http://127.0.0.1:4096", text: $openCodeServerURL)
+                        .textFieldStyle(.roundedBorder)
+                    TextField("swiftcode", text: $openCodeAgentName)
+                        .textFieldStyle(.roundedBorder)
+                    Button("Save OpenCode server settings") {
+                        saveOpenCodeConfiguration()
+                    }
+                    .buttonStyle(.bordered)
+                    .controlSize(.small)
+                }
+            }
+            .padding(14)
+        }
+        .groupBoxStyle(ModernGroupBoxStyle())
+        .onAppear {
+            Task { await refreshSDKStatuses() }
+        }
+    }
+
+    private func refreshSDKStatuses() async {
+        sdkStatuses = await SDKRuntimeManager.shared.statuses()
+    }
+
+    private func sdkInstall(provider: SDKProvider, force: Bool) {
+        guard !sdkInstallingProviders.contains(provider) else { return }
+        sdkInstallingProviders.insert(provider)
+        sdkInstallErrors[provider] = nil
+        sdkInstallNotices[provider] = nil
+        Task {
+            do {
+                let status = try await SDKRuntimeManager.shared.ensureInstalled(for: provider, force: force)
+                sdkStatuses[provider] = status
+                sdkInstallNotices[provider] = "Installed \(provider.packageName) \(status.installedVersion ?? "")"
+            } catch {
+                sdkInstallErrors[provider] = error.localizedDescription
+                await refreshSDKStatuses()
+            }
+            sdkInstallingProviders.remove(provider)
+        }
     }
 
     // MARK: - SwiftCode Cloud Model Section

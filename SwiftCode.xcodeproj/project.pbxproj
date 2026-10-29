@@ -951,8 +951,17 @@
 		8D9E00020001000100000004 /* AgentNotesManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8D9E00020001000100000003 /* AgentNotesManager.swift */; };
 		8D9E00020001000100000006 /* AgentModelAdapter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8D9E00020001000100000005 /* AgentModelAdapter.swift */; };
 		AC0D000400000000000002 /* AssistProviderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC0D000400000000000001 /* AssistProviderTests.swift */; };
+		AC0D000500000000000002 /* SDKRuntimeManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC0D000500000000000001 /* SDKRuntimeManager.swift */; };
+		SDKRUN000000000000000002 /* AssistSDKSessionRunner.swift in Sources */ = {isa = PBXBuildFile; fileRef = SDKRUN000000000000000001 /* AssistSDKSessionRunner.swift */; };
+		SDKTEST00000000000000002 /* SDKProviderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = SDKTEST00000000000000001 /* SDKProviderTests.swift */; };
+		SDKBRG000000000000000002 /* opencode-bridge.mjs in Resources */ = {isa = PBXBuildFile; fileRef = SDKBRG000000000000000001 /* opencode-bridge.mjs */; };
+		SDKBRG000000000000000004 /* openrouter-bridge.mjs in Resources */ = {isa = PBXBuildFile; fileRef = SDKBRG000000000000000003 /* openrouter-bridge.mjs */; };
+		SDKTOOL0000000000000004 /* SDKToolEventStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = SDKTOOL0000000000000003 /* SDKToolEventStore.swift */; };
+		SDKTOOL0000000000000002 /* SDKToolEvent.swift in Sources */ = {isa = PBXBuildFile; fileRef = SDKTOOL0000000000000001 /* SDKToolEvent.swift */; };
 		AC0D000300000000000002 /* OpenRouterAssistProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC0D000300000000000001 /* OpenRouterAssistProvider.swift */; };
 		AC0D000200000000000002 /* OpenCodeClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC0D000200000000000001 /* OpenCodeClient.swift */; };
+		OCSDK0000000000000002 /* OpenCodeSDKProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = OCSDK0000000000000001 /* OpenCodeSDKProvider.swift */; };
+		ORSDK0000000000000002 /* OpenRouterSDKProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = ORSDK0000000000000001 /* OpenRouterSDKProvider.swift */; };
 		AC0D000100000000000002 /* AssistProviderConfiguration.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC0D000100000000000001 /* AssistProviderConfiguration.swift */; };
 		8D9E00020001000100000008 /* AgentSkillResolver.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8D9E00020001000100000007 /* AgentSkillResolver.swift */; };
 		8D9E0002000100010000000A /* AgentRepositoryScanner.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8D9E00020001000100000009 /* AgentRepositoryScanner.swift */; };
@@ -980,6 +989,8 @@
 		8D9E00050001000100000004 /* MuseCallsNativeToolsUI.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8D9E00050001000100000003 /* MuseCallsNativeToolsUI.swift */; };
 		8D9E00050001000100000006 /* AssistSpeechUI.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8D9E00050001000100000005 /* AssistSpeechUI.swift */; };
 		8D9E00050001000100000008 /* MuseSDKToolCall.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8D9E00050001000100000007 /* MuseSDKToolCall.swift */; };
+		SDKTOOL0000000000000008 /* OCToolsUIView.swift in Sources */ = {isa = PBXBuildFile; fileRef = SDKTOOL0000000000000007 /* OCToolsUIView.swift */; };
+		SDKTOOL0000000000000006 /* ORToolsUIView.swift in Sources */ = {isa = PBXBuildFile; fileRef = SDKTOOL0000000000000005 /* ORToolsUIView.swift */; };
 		8DA2FD4C6BBD0AF84E0FFDD8 /* FilePermissionView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6160E9FC707A9B07E04C2B81 /* FilePermissionView.swift */; };
 		8E03DBB467F75893FCBCF8FA /* WorkerPersistenceStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8EE85E4A3CB85D595FA6A604 /* WorkerPersistenceStore.swift */; };
 		8E0E69CD6E58E6F88F27FFC7 /* WorkerEvent.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8E3EDACA1831B2DA97BFB826 /* WorkerEvent.swift */; };
@@ -3921,8 +3932,17 @@
 		8D9E00020001000100000003 /* AgentNotesManager.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = AgentNotesManager.swift; sourceTree = "<group>"; };
 		8D9E00020001000100000005 /* AgentModelAdapter.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = AgentModelAdapter.swift; sourceTree = "<group>"; };
 		AC0D000400000000000001 /* AssistProviderTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssistProviderTests.swift; sourceTree = "<group>"; };
+		AC0D000500000000000001 /* SDKRuntimeManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SDKRuntimeManager.swift; sourceTree = "<group>"; };
+		SDKRUN000000000000000001 /* AssistSDKSessionRunner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssistSDKSessionRunner.swift; sourceTree = "<group>"; };
+		SDKTEST00000000000000001 /* SDKProviderTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SDKProviderTests.swift; sourceTree = "<group>"; };
+		SDKBRG000000000000000001 /* opencode-bridge.mjs */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.javascript; path = SDKHosts/opencode-bridge.mjs; sourceTree = "<group>"; };
+		SDKBRG000000000000000003 /* openrouter-bridge.mjs */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.javascript; path = SDKHosts/openrouter-bridge.mjs; sourceTree = "<group>"; };
+		SDKTOOL0000000000000003 /* SDKToolEventStore.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = SDKToolEventStore.swift; sourceTree = "<group>"; };
+		SDKTOOL0000000000000001 /* SDKToolEvent.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = SDKToolEvent.swift; sourceTree = "<group>"; };
 		AC0D000300000000000001 /* OpenRouterAssistProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OpenRouterAssistProvider.swift; sourceTree = "<group>"; };
 		AC0D000200000000000001 /* OpenCodeClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OpenCodeClient.swift; sourceTree = "<group>"; };
+		OCSDK0000000000000001 /* OpenCodeSDKProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OpenCodeSDKProvider.swift; sourceTree = "<group>"; };
+		ORSDK0000000000000001 /* OpenRouterSDKProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OpenRouterSDKProvider.swift; sourceTree = "<group>"; };
 		AC0D000100000000000001 /* AssistProviderConfiguration.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssistProviderConfiguration.swift; sourceTree = "<group>"; };
 		8D9E00020001000100000007 /* AgentSkillResolver.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = AgentSkillResolver.swift; sourceTree = "<group>"; };
 		8D9E00020001000100000009 /* AgentRepositoryScanner.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = AgentRepositoryScanner.swift; sourceTree = "<group>"; };
@@ -3951,6 +3971,8 @@
 		8D9E00050001000100000003 /* MuseCallsNativeToolsUI.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = MuseCallsNativeToolsUI.swift; sourceTree = "<group>"; };
 		8D9E00050001000100000005 /* AssistSpeechUI.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = AssistSpeechUI.swift; sourceTree = "<group>"; };
 		8D9E00050001000100000007 /* MuseSDKToolCall.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = MuseSDKToolCall.swift; sourceTree = "<group>"; };
+		SDKTOOL0000000000000007 /* OCToolsUIView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = OCToolsUIView.swift; sourceTree = "<group>"; };
+		SDKTOOL0000000000000005 /* ORToolsUIView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = ORToolsUIView.swift; sourceTree = "<group>"; };
 		8DB9F5B5EFA343C181131ABF /* HistoryManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HistoryManager.swift; sourceTree = "<group>"; };
 		8DDA9799B405D0C0A63CFFF9 /* Models/SyncState.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = Models/SyncState.swift; sourceTree = "<group>"; };
 		8DFAFD1E72DA4FEF88B866D8 /* BuildProjectCommand.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BuildProjectCommand.swift; sourceTree = "<group>"; };
@@ -6801,6 +6823,8 @@
 				8D9E00050001000100000003 /* MuseCallsNativeToolsUI.swift */,
 				8D9E00050001000100000005 /* AssistSpeechUI.swift */,
 				8D9E00050001000100000007 /* MuseSDKToolCall.swift */,
+				SDKTOOL0000000000000007 /* OCToolsUIView.swift */,
+				SDKTOOL0000000000000005 /* ORToolsUIView.swift */,
 				AA9E000100000006 /* ToolExecutionGroupModel.swift */,
 				D9F800020000000000000003 /* PlanUserAskView.swift */,
 				D1A0000128C0000100000004 /* AssistActivityView.swift */,
@@ -8316,8 +8340,17 @@
 				8D9E00020001000100000003 /* AgentNotesManager.swift */,
 				8D9E00020001000100000005 /* AgentModelAdapter.swift */,
 				AC0D000400000000000001 /* AssistProviderTests.swift */,
+				AC0D000500000000000001 /* SDKRuntimeManager.swift */,
+				SDKRUN000000000000000001 /* AssistSDKSessionRunner.swift */,
+				SDKTEST00000000000000001 /* SDKProviderTests.swift */,
+				SDKBRG000000000000000001 /* opencode-bridge.mjs */,
+				SDKBRG000000000000000003 /* openrouter-bridge.mjs */,
+				SDKTOOL0000000000000003 /* SDKToolEventStore.swift */,
+				SDKTOOL0000000000000001 /* SDKToolEvent.swift */,
 				AC0D000300000000000001 /* OpenRouterAssistProvider.swift */,
 				AC0D000200000000000001 /* OpenCodeClient.swift */,
+				OCSDK0000000000000001 /* OpenCodeSDKProvider.swift */,
+				ORSDK0000000000000001 /* OpenRouterSDKProvider.swift */,
 				AC0D000100000000000001 /* AssistProviderConfiguration.swift */,
 				8D9E00020001000100000007 /* AgentSkillResolver.swift */,
 				8D9E00020001000100000009 /* AgentRepositoryScanner.swift */,
@@ -11866,6 +11899,8 @@
 				2d8ac922c9c89dd26cfcab38 /* SwiftCodeSDK.json in Resources */,
 				c31bf70d0f80bb034190e5d6 /* snippets.json in Resources */,
 				29D4454DCCD93795FB363066 /* ReverseBridge.mjs in Resources */,
+				SDKBRG000000000000000002 /* opencode-bridge.mjs in Resources */,
+				SDKBRG000000000000000004 /* openrouter-bridge.mjs in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -12015,8 +12050,13 @@
 				8D9E00020001000100000004 /* AgentNotesManager.swift in Sources */,
 				8D9E00020001000100000006 /* AgentModelAdapter.swift in Sources */,
 				AC0D000400000000000002 /* AssistProviderTests.swift in Sources */,
+				AC0D000500000000000002 /* SDKRuntimeManager.swift in Sources */,
+				SDKRUN000000000000000002 /* AssistSDKSessionRunner.swift in Sources */,
+				SDKTEST00000000000000002 /* SDKProviderTests.swift in Sources */,
 				AC0D000300000000000002 /* OpenRouterAssistProvider.swift in Sources */,
 				AC0D000200000000000002 /* OpenCodeClient.swift in Sources */,
+				OCSDK0000000000000002 /* OpenCodeSDKProvider.swift in Sources */,
+				ORSDK0000000000000002 /* OpenRouterSDKProvider.swift in Sources */,
 				AC0D000100000000000002 /* AssistProviderConfiguration.swift in Sources */,
 				8D9E00020001000100000008 /* AgentSkillResolver.swift in Sources */,
 				8D9E0002000100010000000A /* AgentRepositoryScanner.swift in Sources */,
@@ -12057,6 +12097,10 @@
 				8D9E00050001000100000004 /* MuseCallsNativeToolsUI.swift in Sources */,
 				8D9E00050001000100000006 /* AssistSpeechUI.swift in Sources */,
 				8D9E00050001000100000008 /* MuseSDKToolCall.swift in Sources */,
+				SDKTOOL0000000000000008 /* OCToolsUIView.swift in Sources */,
+				SDKTOOL0000000000000006 /* ORToolsUIView.swift in Sources */,
+				SDKTOOL0000000000000004 /* SDKToolEventStore.swift in Sources */,
+				SDKTOOL0000000000000002 /* SDKToolEvent.swift in Sources */,
 				CMPBLD000000000000000002 /* AssistComposioTool.swift in Sources */,
 				CMPBLD000000000000000003 /* AgentUseComposio.swift in Sources */,
 				CMPBLD000000000000000004 /* ComposioSettingsView.swift in Sources */,

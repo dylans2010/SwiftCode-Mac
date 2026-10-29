@@ -34,6 +34,16 @@ public final class AssistAgentSession: Sendable {
     private var didInjectToolStageGuidance = false
 
     private var isCancelled = false
+    /// Active SDK-backed run, if any, so cancellation reaches the
+    /// bridge process. Set only by the SDK branch in start().
+    private var sdkRunner: AssistSDKSessionRunner?
+    /// Last SDK-backed run, for transcript rendering: AssistChatBubble
+    /// shows ORToolsUIView / OCToolsUIView under exactly this message,
+    /// with events from SDKToolEventStore for this session id. Kept
+    /// after the run so the panel survives scrolling back to it.
+    public var sdkSessionId: String?
+    public var sdkSessionKind: SDKSessionKind?
+    public var sdkMessageId: UUID?
     private let registry = AssistToolRegistry()
     private var contextManager: AgentContextManager?
     private var conversationHistory: [String] = []
@@ -345,6 +355,41 @@ public final class AssistAgentSession: Sendable {
             phaseCoordinator.failPhase("PHASE_01_INIT", error: errorMsg)
             transition(to: .failed, reason: errorMsg)
             throw NSError(domain: "AssistAgentSession", code: 400, userInfo: [NSLocalizedDescriptionKey: errorMsg])
+        }
+
+        // 2b. SDK-backed providers (OpenCode via @opencode-ai/sdk,
+        // OpenRouter via @openrouter/agent) run through
+        // AssistSDKSessionRunner instead of the plan-based loop below.
+        // This branch runs BEFORE the legacy validation: the legacy
+        // OpenCode check would fail a managed server that is not
+        // running yet, and the legacy key check would duplicate the
+        // SDK path's own validation. A failure here is terminal for
+        // the turn — it never falls back to the HTTP clients or to
+        // another provider. Chat-mode OpenRouter traffic (LLMService)
+        // is unaffected: this session only runs in agent mode.
+        if let sdkKind = AssistSDKSessionRunner.applicableKind(for: selectedModel) {
+            do {
+                let runner = AssistSDKSessionRunner()
+                self.sdkRunner = runner
+                // The "I'll inspect…" message posted above becomes this
+                // run's transcript message; key the tool panel to it now
+                // so streaming events render under it while running.
+                self.sdkSessionId = context.sessionId.uuidString
+                self.sdkSessionKind = sdkKind
+                self.sdkMessageId = currentAssistantMessageId
+                transition(to: .executing, reason: "Running SDK-backed session (\(selectedModel)).")
+                let finalText = try await runner.run(kind: sdkKind, objective: objective, context: context)
+                postConversationalMessage(finalText, isComplete: true)
+                phaseCoordinator.completePhase("PHASE_01_INIT", evidence: "SDK session completed for model \(selectedModel).")
+                transition(to: .completed, reason: "SDK session completed.")
+                self.sdkRunner = nil
+                return
+            } catch {
+                phaseCoordinator.failPhase("PHASE_01_INIT", error: error.localizedDescription)
+                transition(to: .failed, reason: error.localizedDescription)
+                self.sdkRunner = nil
+                throw error
+            }
         }
 
         // 3. Verify Authentication state and capabilities
@@ -1312,6 +1357,10 @@ public final class AssistAgentSession: Sendable {
 
     public func cancel() {
         self.isCancelled = true
+        if let runner = sdkRunner {
+            Task { await runner.cancel() }
+            sdkRunner = nil
+        }
         self.state.takeoverActive = false
         self.currentActivityGroup.isExecuting = false
         WorkerRuntimeState.shared.stopAllActiveWorkers(reason: "Operation cancelled by user.")
