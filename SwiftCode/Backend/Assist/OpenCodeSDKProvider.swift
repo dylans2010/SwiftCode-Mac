@@ -321,13 +321,11 @@ public actor OpenCodeSDKProvider {
         }
 
         var bridgeArgs = ["--server-url", configuration.serverURL.absoluteString]
-        if configuration.managedServerEnabled {
-            guard configuration.isLoopback else {
-                throw OpenCodeSDKProviderError.bridgeNotReady(
-                    "Managed OpenCode server refused for non-loopback URL \"\(configuration.serverURL.absoluteString)\". " +
-                    "Managed servers are loopback-only."
-                )
-            }
+        // The server is managed automatically for loopback URLs
+        // (see OpenCodeClient.ensureServer), so the bridge always
+        // gets --managed there, whether or not the legacy toggle
+        // was ever turned on. Non-loopback URLs connect only.
+        if configuration.managedServerEnabled || configuration.isLoopback {
             bridgeArgs.append("--managed")
         }
 

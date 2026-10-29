@@ -392,6 +392,23 @@ public final class AssistManager: ObservableObject {
             return
         }
 
+        // "Use Provider Models" is on: never run a user-provided
+        // model, and never substitute another one for it. Fail the
+        // turn explicitly so the user picks a provider model in
+        // Assist Settings instead of silently getting a different
+        // model. SwiftCode Cloud models are provider-hosted, not
+        // user-provided, and are handled by the short-circuit above.
+        if AppSettings.shared.assistUseProviderModels {
+            let selectedID = AppSettings.shared.selectedAssistModelID
+            let discovered = AssistModelDiscoveryService.shared.discoveredModels.first(where: { $0.modelIdentifier == selectedID })
+            if AssistModelRouter.isUserProvidedSelectedModelID(selectedID, discovered: discovered) {
+                await MainActor.run {
+                    failRequest("Use Provider Models is on, so Assist will not use the user-provided model '\(selectedID)'. Select a provider model in Assist Settings → Assist System → Provider Models.")
+                }
+                return
+            }
+        }
+
         // Assist with Meta (Muse Code SDK / MSP Protocol execution path)
         let selectedModelID = AppSettings.shared.selectedAssistModelID
         let selectedDiscoveredModel = AssistModelDiscoveryService.shared.discoveredModels.first(where: { $0.modelIdentifier == selectedModelID })
@@ -2228,6 +2245,35 @@ public final class AssistManager: ObservableObject {
                             currentModelId = failover.nextModel.modelIdentifier
                             continue executionLoop
                         }
+                    }
+
+                    // No failover and automatic switching is off:
+                    // never switch, and never fail silently. Show
+                    // the wait (model + reason + that switching is
+                    // off) in the activity status, keep the turn in
+                    // .waitingForModel, and retry the SAME model on
+                    // the next loop iteration. The loop is already
+                    // bounded (maxFailoverAttempts), so this waits
+                    // and retries instead of hanging forever; when
+                    // it finally exhausts, the terminal message
+                    // below says explicitly that no other model
+                    // was tried.
+                    if !AppSettings.shared.assistAutomaticallySwitchModels {
+                        let waitDetail = "Waiting on '\(currentModelName)' — automatic model switching is off, so Assist will not switch to another model. Last error: \(errText)"
+                        await postNotice(.warning, waitDetail)
+                        await MainActor.run {
+                            self.currentActivityStatus = waitDetail
+                            self.requestPhase = .waitingForModel
+                            if let idx = self.messages.indices.last {
+                                self.messages[idx].activityGroup?.isExecuting = true
+                            }
+                        }
+                        if attempts < maxFailoverAttempts {
+                            try? await Task.sleep(nanoseconds: 5_000_000_000)
+                            turnError = "Automatic model switching is off, so no other model was tried; retrying '\(currentModelName)'."
+                            continue executionLoop
+                        }
+                        turnError = "Automatic model switching is off, so no other model was tried. Last error from '\(currentModelName)': \(errText)"
                     }
                 }
 

@@ -30,10 +30,11 @@ struct WorkspaceView: View {
     // Collapsible App Details Sidebar Panel
     @State private var showAppDetailsSidebar = false
 
-    // Full-pane special editors (swiftcode.json only — xcstrings is
-    // in-pane like Entitlements) hide every sidebar and the toolbar
-    // while active, then restore exactly what was visible before.
-    // Driven by EditorView's .specialEditorActive notification.
+    // Legacy full-pane special-editor chrome hiding, driven by
+    // .specialEditorActive. No current editor posts it (swiftcode.json
+    // and .xcstrings are both in-pane now), so this stashes nothing
+    // in practice; it is kept only so an older posting view could
+    // not leave the workspace chrome hidden.
     @State private var specialEditorActive = false
     @State private var stashedChrome: (fileNavigator: Bool, artboard: Bool, agent: Bool, appDetails: Bool, infoProj: Bool)?
     // Collapsible SwiftCode Project Archive Info Sidebar
@@ -44,6 +45,9 @@ struct WorkspaceView: View {
     // Feature sheet states
     @State private var activeSheet: ToolbarActionManager.SheetDestination?
     @State private var showingExportSheet = false
+    // Extensions sheet, opened from the code-editor toolbar next to
+    // the Assist button (not from the workspace sidebar anymore).
+    @State private var showingExtensionsSheet = false
 
     // Coding Tools Modal State
     @State private var showCodingToolsModal = false
@@ -286,12 +290,31 @@ struct WorkspaceView: View {
                     }
                     .help("Toggle AI Agent Inspector")
 
+                    Button {
+                        showingExtensionsSheet = true
+                    } label: {
+                        Image(systemName: "puzzlepiece")
+                            .foregroundColor(showingExtensionsSheet ? .accentColor : .secondary)
+                    }
+                    .help("Open Extensions")
+
                     BuildToolbarView(viewModel: viewModel.build, projectURL: viewModel.projectURL, editorViewModel: viewModel.editor)
                 }
             }
         }
         .sheet(item: $activeSheet) { destination in
             sheetView(for: destination)
+        }
+        .sheet(isPresented: $showingExtensionsSheet) {
+            NavigationStack {
+                ExtensionsHomeView()
+                    .toolbar {
+                        ToolbarItem(placement: .confirmationAction) {
+                            Button("Done") { showingExtensionsSheet = false }
+                        }
+                    }
+            }
+            .frame(minWidth: 900, minHeight: 600)
         }
         .sheet(isPresented: $showingExportSheet) {
             ExportProjView()

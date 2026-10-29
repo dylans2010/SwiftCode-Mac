@@ -536,6 +536,157 @@ public actor HermesProvider {
         }
     }
 
+    // MARK: - Provider model discovery
+
+    /// One model Hermes can actually run, as SwiftCode may select
+    /// it. `spec` is Hermes' own syntax (provider:model or a bare
+    /// model); `storedID` is what Assist stores (`hermes:<spec>`).
+    public struct HermesDiscoveredModel: Identifiable, Equatable, Sendable {
+        public let spec: String
+        public var id: String { storedID }
+        public var storedID: String { "hermes:\(spec)" }
+        public var displayName: String { spec }
+        public init(spec: String) { self.spec = spec }
+    }
+
+    /// Fetches the models Hermes itself can run — the answer to
+    /// "show the models fetched from that specific provider" for
+    /// Hermes. There is no non-interactive Hermes model-list
+    /// command, so this uses the two real sources that exist:
+    /// 1. `hermes model` with no arguments, which prints the
+    ///    currently configured model/provider (parsed, never
+    ///    guessed — see parseModelOutput).
+    /// 2. When that provider is OpenRouter, OpenRouter's live
+    ///    /models catalog (via SwiftCode's saved OpenRouter key),
+    ///    because Hermes then routes through OpenRouter and those
+    ///    are exactly the models Hermes can be pointed at. When
+    ///    SwiftCode has no OpenRouter key, only the current model
+    ///    is returned — never a fabricated catalog.
+    /// Throws (rather than returning a hardcoded list) when Hermes
+    /// is not installed or its output parses to nothing.
+    public static func fetchModels(
+        executablePath: String? = nil,
+        configuration: HermesConfiguration = HermesConfiguration.load()
+    ) async throws -> [HermesDiscoveredModel] {
+        let executable = executablePath ?? resolveExecutable(configuration: configuration)
+        guard let executable else {
+            throw HermesError.executableNotFound("no `hermes` executable on PATH or in the configured path")
+        }
+        let output = try await runModelCommand(executablePath: executable)
+        let current = parseModelOutput(output)
+        var models = current.map { HermesDiscoveredModel(spec: $0) }
+        // OpenRouter-backed Hermes: expand to the live catalog.
+        let openRouterProvider = current.first { $0.hasPrefix("openrouter:") }
+        if openRouterProvider != nil {
+            if let catalog = try? await OpenRouterAssistProvider.fetchModels() {
+                for entry in catalog {
+                    let spec = "openrouter:\(entry.id)"
+                    if !models.contains(where: { $0.spec == spec }) {
+                        models.append(HermesDiscoveredModel(spec: spec))
+                    }
+                }
+            }
+        }
+        guard !models.isEmpty else {
+            throw HermesError.detectionFailed(
+                "Could not read a model from `hermes model` output. Run `hermes model` in a terminal to confirm Hermes has a model configured, then try again."
+            )
+        }
+        return models
+    }
+
+    /// Runs `hermes model` (no arguments: prints the current model,
+    /// does not open the interactive picker) with a 15-second cap.
+    private static func runModelCommand(executablePath: String) async throws -> String {
+        try await withCheckedThrowingContinuation { continuation in
+            let process = Process()
+            process.executableURL = URL(fileURLWithPath: executablePath)
+            process.arguments = ["model"]
+            let stdout = Pipe()
+            let stderr = Pipe()
+            process.standardOutput = stdout
+            process.standardError = stderr
+            let finish = HermesContinuationGuard(continuation)
+            let timeoutBox = HermesTimeoutWorkBox()
+            let timeoutWork = DispatchWorkItem {
+                if process.isRunning {
+                    process.terminate()
+                    finish.resume(with: .failure(HermesError.detectionFailed("`hermes model` did not respond within 15s")))
+                }
+            }
+            timeoutBox.store(timeoutWork)
+            DispatchQueue.global().asyncAfter(deadline: .now() + 15, execute: timeoutWork)
+            process.terminationHandler = { proc in
+                timeoutBox.cancel()
+                let out = String(data: stdout.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8) ?? ""
+                if proc.terminationStatus == 0 {
+                    finish.resume(with: .success(out))
+                } else {
+                    let err = String(data: stderr.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8) ?? ""
+                    finish.resume(with: .failure(HermesError.detectionFailed(
+                        err.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+                            ? "`hermes model` exited \(proc.terminationStatus)"
+                            : String(SDKToolEvent.redact(err).prefix(500))
+                    )))
+                }
+            }
+            do {
+                try process.run()
+            } catch {
+                timeoutBox.cancel()
+                finish.resume(with: .failure(HermesError.launchFailed(error.localizedDescription)))
+            }
+        }
+    }
+
+    /// Parses `hermes model` output into model specs. Pure, so tests
+    /// can feed sample output without launching Hermes. Strategy:
+    /// prefer a `provider:model` token on a line mentioning "model"
+    /// (the current-model line), otherwise any provider:model token
+    /// in the output. Tokens that look like URLs, session ids, or
+    /// key/value labels are ignored; a bare model name on a
+    /// "model" line is kept as a bare spec (Hermes resolves it
+    /// against its default provider).
+    public static func parseModelOutput(_ output: String) -> [String] {
+        let tokenPattern = #"([A-Za-z][A-Za-z0-9_-]*):([A-Za-z0-9][A-Za-z0-9._/-]*)"#
+        guard let regex = try? NSRegularExpression(pattern: tokenPattern) else { return [] }
+        var specs: [String] = []
+        func scan(_ text: String) {
+            let range = NSRange(text.startIndex..., in: text)
+            for match in regex.matches(in: text, range: range) {
+                guard let providerRange = Range(match.range(at: 1), in: text),
+                      let modelRange = Range(match.range(at: 2), in: text) else { continue }
+                let provider = String(text[providerRange]).lowercased()
+                let model = String(text[modelRange])
+                // Skip URLs ("https://…") and label-like tokens
+                // ("Provider: openrouter" is a label, not a spec).
+                if provider == "https" || provider == "http" { continue }
+                if ["session", "id", "error", "code", "provider", "model", "name", "status"].contains(provider) { continue }
+                if model.isEmpty || model == "/" { continue }
+                let spec = "\(provider):\(model)"
+                if !specs.contains(spec) { specs.append(spec) }
+            }
+        }
+        let modelLines = output.split(separator: "\n").filter { $0.lowercased().contains("model") }
+        for line in modelLines { scan(String(line)) }
+        if specs.isEmpty { scan(output) }
+        if specs.isEmpty {
+            // Bare model name ("Model: gpt-5.5"): Hermes resolves it
+            // against its configured default provider, so the bare
+            // spec is a real selectable model, not a guess.
+            for line in modelLines {
+                guard let colon = line.firstIndex(of: ":") else { continue }
+                let bare = String(line[line.index(after: colon)...])
+                    .trimmingCharacters(in: .whitespacesAndNewlines)
+                    .trimmingCharacters(in: CharacterSet(charactersIn: "\"'"))
+                guard !bare.isEmpty, !bare.contains(" "), bare.rangeOfCharacter(from: .alphanumerics) != nil else { continue }
+                specs.append(bare)
+                break
+            }
+        }
+        return specs
+    }
+
     // MARK: Argument construction
 
     /// Builds the argv for one run (excluding the executable itself).

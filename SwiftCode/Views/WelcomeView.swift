@@ -466,10 +466,12 @@ public struct SwiftCodeWelcomeView: View {
         window.backgroundColor = nil
         window.showsResizeIndicator = true
         window.isMovableByWindowBackground = false
-        window.titleVisibility = .visible
-        window.titlebarAppearsTransparent = false
-        window.titlebarSeparatorStyle = .automatic
-        window.styleMask.insert([.titled, .closable, .miniaturizable, .resizable])
+        // Workspace titlebar strip hidden: no separate title/titlebar band above the toolbar.
+        // The toolbar buttons stay; content extends to the top edge via fullSizeContentView.
+        window.titleVisibility = .hidden
+        window.titlebarAppearsTransparent = true
+        window.titlebarSeparatorStyle = .none
+        window.styleMask.insert([.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView])
         window.collectionBehavior.insert(.fullScreenPrimary)
         window.standardWindowButton(.miniaturizeButton)?.isHidden = false
         window.standardWindowButton(.zoomButton)?.isHidden = false

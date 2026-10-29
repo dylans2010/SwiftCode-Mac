@@ -204,11 +204,20 @@ final class ProjectSessionStore {
         if let existing = sessions[project.id] {
             return existing
         }
-        let sessionURL = project.directoryURL.appendingPathComponent("session.json")
-        if let data = try? Data(contentsOf: sessionURL),
-           let session = try? JSONDecoder().decode(ProjectSession.self, from: data) {
-            sessions[project.id] = session
-            return session
+        // SwiftCode/session.json is the open-time copy (see
+        // ensureSwiftCodeMetadataOnOpen); the root session.json is
+        // kept as the fallback so projects opened before SwiftCode/
+        // existed still resume exactly where they left off.
+        let candidates = [
+            project.directoryURL.appendingPathComponent("SwiftCode/session.json"),
+            project.directoryURL.appendingPathComponent("session.json"),
+        ]
+        for sessionURL in candidates {
+            if let data = try? Data(contentsOf: sessionURL),
+               let session = try? JSONDecoder().decode(ProjectSession.self, from: data) {
+                sessions[project.id] = session
+                return session
+            }
         }
         let session = ProjectSession(id: project.id, projectRootPath: project.directoryURL.path)
         sessions[project.id] = session
@@ -219,7 +228,19 @@ final class ProjectSessionStore {
         let sessionURL = URL(fileURLWithPath: session.projectRootPath).appendingPathComponent("session.json")
         if let data = try? JSONEncoder().encode(session) {
             try? data.write(to: sessionURL, options: .atomic)
+            refreshSwiftCodeSessionJSONCopy(session: session, data: data)
         }
+    }
+
+    /// Keeps the SwiftCode/session.json copy in sync when the
+    /// project has a SwiftCode/ directory. Best-effort: the root
+    /// session.json is the source of truth, and a failed copy must
+    /// never fail a save.
+    private func refreshSwiftCodeSessionJSONCopy(session: ProjectSession, data: Data) {
+        let dir = URL(fileURLWithPath: session.projectRootPath).appendingPathComponent("SwiftCode")
+        var isDir: ObjCBool = false
+        guard fm.fileExists(atPath: dir.path, isDirectory: &isDir), isDir.boolValue else { return }
+        try? data.write(to: dir.appendingPathComponent("session.json"), options: .atomic)
     }
 
     // MARK: - Library Management
@@ -397,6 +418,15 @@ final class ProjectSessionStore {
 
                 state = .ready(loadedProject)
 
+                // Opening a project (not just creating one) creates
+                // its SwiftCode/ metadata directory with
+                // swiftcode.json, session.json, and project.json
+                // derived from this project. Best-effort: a failure
+                // here must never fail the open itself, and existing
+                // files are never overwritten — only missing ones
+                // are created, and the project.json copy is refreshed.
+                self.ensureSwiftCodeMetadataOnOpen(for: loadedProject, session: session)
+
                 // Reset and isolate DocumentCoordinator state to prevent Project A vs B loading bug
                 DocumentCoordinator.shared.projectURL = loadedProject.directoryURL
                 DocumentCoordinator.shared.activeDocument = nil
@@ -558,10 +588,11 @@ final class ProjectSessionStore {
 
     func ensureSwiftCodeJSON(for project: Project, at directoryURL: URL) {
         // When the project has a SwiftCode/ metadata directory, the
-        // manifest lives there — not at the project root. Projects
-        // created before SwiftCode/ existed keep the root manifest;
-        // nothing is moved for them, so their layout never changes
-        // under them.
+        // manifest lives there — not at the project root. Opening a
+        // project creates that directory (see
+        // ensureSwiftCodeMetadataOnOpen), so pre-SwiftCode/ projects
+        // gain it on first open; a root manifest is copied in first
+        // rather than discarded, and is never deleted.
         let swiftCodeDir = directoryURL.appendingPathComponent("SwiftCode")
         var isDir: ObjCBool = false
         let manifestDir = (fm.fileExists(atPath: swiftCodeDir.path, isDirectory: &isDir) && isDir.boolValue)
@@ -597,6 +628,45 @@ final class ProjectSessionStore {
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
         if let data = try? encoder.encode(manifest) {
             try? data.write(to: manifestURL, options: .atomic)
+        }
+    }
+
+    /// Creates (or completes) the project's SwiftCode/ metadata
+    /// directory on open. Contents, all derived from the opened
+    /// project — never invented from another project:
+    /// - `SwiftCode/project.json`: a copy of the root project.json
+    ///   (the root file stays the open-time source of truth).
+    /// - `SwiftCode/swiftcode.json`: the root manifest copied in
+    ///   when one exists and the copy does not, otherwise created
+    ///   by ensureSwiftCodeJSON (which also refreshes its name).
+    /// - `SwiftCode/session.json`: a copy of the active session.
+    /// Existing files are never overwritten, except the
+    /// project.json copy, which is refreshed like every save.
+    func ensureSwiftCodeMetadataOnOpen(for project: Project, session: ProjectSession) {
+        let swiftCodeDir = project.directoryURL.appendingPathComponent("SwiftCode")
+        try? fm.createDirectory(at: swiftCodeDir, withIntermediateDirectories: true)
+        var isDir: ObjCBool = false
+        guard fm.fileExists(atPath: swiftCodeDir.path, isDirectory: &isDir), isDir.boolValue else { return }
+        let manifestCopy = swiftCodeDir.appendingPathComponent("swiftcode.json")
+        if !fm.fileExists(atPath: manifestCopy.path) {
+            let rootManifest = project.directoryURL.appendingPathComponent("swiftcode.json")
+            if fm.fileExists(atPath: rootManifest.path) {
+                try? fm.copyItem(at: rootManifest, to: manifestCopy)
+            }
+        }
+        do {
+            let projectEncoder = JSONEncoder()
+            projectEncoder.dateEncodingStrategy = .iso8601
+            let projectData = try projectEncoder.encode(project)
+            // Root project.json is written by saveMetadata, not here;
+            // only the SwiftCode/ copy is refreshed on open.
+            refreshSwiftCodeProjectJSONCopy(for: project, data: projectData)
+        } catch {
+            // Best-effort: a failed copy never fails the open.
+        }
+        ensureSwiftCodeJSON(for: project, at: project.directoryURL)
+        if let sessionData = try? JSONEncoder().encode(session) {
+            try? sessionData.write(to: swiftCodeDir.appendingPathComponent("session.json"), options: .atomic)
         }
     }
 
@@ -1071,6 +1141,7 @@ final class ProjectSessionStore {
         let data = try encoder.encode(project)
         let metaURL = project.directoryURL.appendingPathComponent("project.json")
         try data.write(to: metaURL, options: .atomic)
+        refreshSwiftCodeProjectJSONCopy(for: project, data: data)
 
         if !projects.contains(where: { $0.id == project.id }) {
             projects.insert(project, at: 0)

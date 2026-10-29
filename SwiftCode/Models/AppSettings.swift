@@ -95,13 +95,58 @@ class AppSettings: ObservableObject {
         }
     }
 
-    public var activeCloudToolkitName: String {
-        if isMetaAssist {
+    /// True for the provider toolset, including the legacy "Cloud"
+    /// value stored before the rename to "Provider". The stored
+    /// string is migrated to "Provider" on load (see init).
+    public var isProviderToolkit: Bool {
+        assistToolkit.caseInsensitiveCompare("provider") == .orderedSame
+            || assistToolkit.caseInsensitiveCompare("cloud") == .orderedSame
+    }
+
+    /// The toolset name for the Assist System currently picked in
+    /// Assist Settings. This is what the "Provider" toolkit option
+    /// means: the toolset belonging to that provider, not a
+    /// separate Cloud toolkit.
+    public var activeProviderToolkitName: String {
+        if isOpenRouterAssist {
+            return "OpenRouter SDK"
+        } else if isOpenCodeAssist {
+            return "OpenCode SDK"
+        } else if isHermesAssist {
+            return "Hermes tools"
+        } else if isMetaAssist {
             return "Muse SDK"
         } else if isGoogleCloudAssist {
             return "Antigravity SDK"
         } else {
-            return "Cloud SDK"
+            return "Provider SDK"
+        }
+    }
+
+    public var activeCloudToolkitName: String {
+        activeProviderToolkitName
+    }
+
+    /// "Automatically Switch Models" (Assist System card). When off,
+    /// Assist may never switch to another model on a turn failure:
+    /// it waits on (retries) the selected model and shows that wait
+    /// in the activity status instead of failing over. Default true,
+    /// preserving the existing failover behaviour for current users.
+    @Published var assistAutomaticallySwitchModels: Bool {
+        didSet {
+            debouncedSave("assistAutomaticallySwitchModels", assistAutomaticallySwitchModels)
+            UserDefaults.standard.set(assistAutomaticallySwitchModels, forKey: "assist.automaticallySwitchModels")
+        }
+    }
+
+    /// "Use Provider Models" (Assist System card). When on, Assist
+    /// may only use models fetched from the selected provider
+    /// (OpenRouter / OpenCode / Hermes provider-model lists) and
+    /// never any user-provided (custom) model. Default false.
+    @Published var assistUseProviderModels: Bool {
+        didSet {
+            debouncedSave("assistUseProviderModels", assistUseProviderModels)
+            UserDefaults.standard.set(assistUseProviderModels, forKey: "assist.useProviderModels")
         }
     }
 
@@ -204,8 +249,8 @@ class AppSettings: ObservableObject {
     }
 
     public var assistToolkitDisplayName: String {
-        if assistToolkit.caseInsensitiveCompare("cloud") == .orderedSame {
-            return "Cloud (\(activeCloudToolkitName))"
+        if isProviderToolkit {
+            return "Provider (\(activeProviderToolkitName))"
         } else {
             return "System (SwiftCode)"
         }
@@ -543,6 +588,15 @@ class AppSettings: ObservableObject {
         assistToolkit = UserDefaults.standard.string(forKey: "assistToolkit")
             ?? UserDefaults.standard.string(forKey: "assist.assistToolkit")
             ?? Self.defaultAssistToolkit
+        // Rename migration: the old "Cloud" toolkit value means the
+        // provider toolset, now stored as "Provider".
+        if assistToolkit.caseInsensitiveCompare("cloud") == .orderedSame {
+            assistToolkit = "Provider"
+            UserDefaults.standard.set("Provider", forKey: "assist.assistToolkit")
+            UserDefaults.standard.set("Provider", forKey: "assistToolkit")
+        }
+        assistAutomaticallySwitchModels = UserDefaults.standard.object(forKey: "assist.automaticallySwitchModels") as? Bool ?? true
+        assistUseProviderModels = UserDefaults.standard.object(forKey: "assist.useProviderModels") as? Bool ?? false
         metaAssistModelID = UserDefaults.standard.string(forKey: "metaAssistModelID")
             ?? UserDefaults.standard.string(forKey: "assist.metaAssistModelID")
             ?? Self.defaultMetaAssistModelID

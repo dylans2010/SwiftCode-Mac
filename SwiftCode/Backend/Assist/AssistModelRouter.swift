@@ -321,6 +321,9 @@ public final class AssistModelRouter: Sendable {
         // Filter: must support agentic use and tool calling, must be configured, must not be quarantined
         let eligible = baseModels.filter { model in
             guard model.supportsAgenticUse && model.supportsToolCalling else { return false }
+            // "Use Provider Models" is on: failover/selection may never
+            // pick a user-provided (custom) model, even as a fallback.
+            if AppSettings.shared.assistUseProviderModels, Self.isUserProvidedModel(model) { return false }
             guard model.isConfigured, hasCredentials(forModelID: model.modelIdentifier, provider: model.providerID) else { return false }
 
             // Check quarantine
@@ -643,6 +646,32 @@ public final class AssistModelRouter: Sendable {
         )
     }
 
+    /// A user-provided model: a Custom Model Setup (source .custom),
+    /// excluding SwiftCode Cloud models, which are also recorded as
+    /// .custom synthetics but are provider-hosted, not user-provided.
+    public static func isUserProvidedModel(_ model: AssistAvailableModel) -> Bool {
+        model.source == .custom && !SCCloudConfiguration.isCloudModelID(model.id)
+            && !SCCloudConfiguration.isCloudModelID(model.modelIdentifier)
+    }
+
+    /// Whether the selected model id is a user-provided custom model
+    /// (not a provider model, not a cloud model). Used as the
+    /// send-time gate when "Use Provider Models" is on.
+    public static func isUserProvidedSelectedModelID(_ selectedID: String, discovered: AssistAvailableModel?) -> Bool {
+        if let discovered {
+            return isUserProvidedModel(discovered)
+        }
+        let trimmed = selectedID.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return false }
+        if SCCloudConfiguration.isCloudModelID(trimmed) { return false }
+        if HermesModelID.isHermesModelID(trimmed) { return false }
+        if OpenCodeModelID.isOpenCodeModelID(trimmed) { return false }
+        // A bare custom-model id stored in AppSettings.customModel is
+        // user-provided by definition; provider ids arrive as
+        // provider/model (OpenRouter) or via a discovered record.
+        return trimmed == AppSettings.shared.customModel && !AppSettings.shared.customModel.isEmpty
+    }
+
     // MARK: - Failover & Task State Continuity
 
     public func handleTurnFailure(
@@ -677,6 +706,16 @@ public final class AssistModelRouter: Sendable {
                 let handoff = "CONTINUATION DIRECTIVE:\nRotated to next Gemini API key (\(nextKeyInfo.metadata.maskedValue)) due to rate limit.\n\n" + (completedTurnContent.isEmpty ? "" : "Partial output:\n\"\"\"\n\(completedTurnContent)\n\"\"\"\n\n") + "Continue fulfilling the objective without repeating already completed work."
                 return (failedModel, handoff, nextConfig)
             }
+        }
+
+        // "Automatically Switch Models" is off: never switch, not
+        // even to the next ranked model. Key rotation above already
+        // handled the same-model case; returning nil here means the
+        // caller must wait on / retry the selected model and show
+        // that wait, never silently substitute another model.
+        if !AppSettings.shared.assistAutomaticallySwitchModels {
+            logger.warning("[ModelRouter] Automatic model switching is off: will not switch away from '\(failedModel.displayName)' after failure.")
+            return nil
         }
 
         var excluding = Set<String>()

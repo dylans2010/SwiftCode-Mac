@@ -3,6 +3,25 @@ import os
 
 private let openCodeLogger = Logger(subsystem: "com.swiftcode.app", category: "OpenCodeClient")
 
+/// Exactly-once guard for the npm/bun install continuation: the
+/// termination handler and the timeout work item race, so a plain
+/// flag would be a data race under Swift 6.
+private final class OpenCodeInstallGuard: @unchecked Sendable {
+    private let lock = NSLock()
+    private var done = false
+    private let continuation: CheckedContinuation<Bool, Never>
+
+    init(continuation: CheckedContinuation<Bool, Never>) { self.continuation = continuation }
+
+    func resume(with value: Bool) {
+        lock.lock()
+        defer { lock.unlock() }
+        guard !done else { return }
+        done = true
+        continuation.resume(returning: value)
+    }
+}
+
 // MARK: - OpenCode errors
 //
 // Messages are user-facing and never include server URLs with embedded
@@ -189,10 +208,18 @@ enum OpenCodeEvent {
 /// The server is loopback by default and is never exposed by SwiftCode:
 /// SwiftCode only ever connects out to the configured URL.
 ///
-/// Lifecycle: by default SwiftCode connects to a server the user runs
-/// (`opencode serve --hostname 127.0.0.1 --port 4096`). With
-/// `managedServerEnabled` (opt-in, loopback only) it may start that
-/// server from the `opencode` binary on PATH and stops it on request.
+/// Lifecycle: SwiftCode manages the server itself for loopback
+/// URLs. `ensureServer()` auto-heals both failure modes that used
+/// to surface as user-facing errors: a missing server is started
+/// automatically, and a missing `opencode` binary is located in the
+/// well-known install locations or installed via npm/bun
+/// (`opencode-ai`) automatically. The user never has to start a
+/// server by hand or flip a Managed-server toggle to get OpenCode
+/// working. Only a non-loopback URL is left alone (SwiftCode never
+/// starts a server that listens on a LAN interface), and only a
+/// total auto-heal failure (no binary, no npm/bun, no network)
+/// surfaces — as one message describing what was tried, never as
+/// the old "start one yourself / turn Managed server on" errors.
 public actor OpenCodeClient {
     public static let shared = OpenCodeClient()
 
@@ -246,34 +273,37 @@ public actor OpenCodeClient {
         }
     }
 
-    /// Throws a user-actionable error when no server is reachable. Starts
-    /// a managed server only when the user opted in.
+    /// Auto-heals a missing OpenCode server. Never throws the old
+    /// "no server is running, start one yourself" or "no binary
+    /// was found, install it yourself" errors: both cases are
+    /// fixed here (start the server; locate or install the binary)
+    /// before any error is considered.
     public func ensureServer() async throws {
         if await checkHealth() { return }
         let config = OpenCodeConfiguration.load()
-        guard config.managedServerEnabled else {
+        guard config.isLoopback else {
             throw OpenCodeError.serverUnavailable(
-                "No OpenCode server is running at \(config.serverURL.absoluteString). " +
-                "Start one with `opencode serve --hostname 127.0.0.1 --port \(config.port)` " +
-                "and try again, or turn on Managed server in Assist Settings."
+                "OpenCode server at \(config.serverURL.absoluteString) is not reachable, and SwiftCode only auto-starts loopback servers. Point the server URL at 127.0.0.1 in Assist Settings → OpenCode, or run your own server at that URL."
             )
         }
-        try startManagedServer(config: config)
+        try await startManagedServer(config: config)
         for _ in 0..<60 {
             try? await Task.sleep(nanoseconds: 500_000_000)
             if Task.isCancelled { break }
             if await checkHealth() { return }
         }
         throw OpenCodeError.serverUnavailable(
-            "Started an OpenCode server, but it did not become healthy at " +
-            "\(config.serverURL.absoluteString) within 30 seconds. Check that the " +
-            "`opencode` binary works and the port is free."
+            "SwiftCode started an OpenCode server, but it did not become healthy at " +
+            "\(config.serverURL.absoluteString) within 30 seconds. The port may be in use by another process."
         )
     }
 
-    // MARK: Managed server (opt-in)
+    // MARK: Managed server (automatic, loopback only)
 
-    public func startManagedServer(config: OpenCodeConfiguration? = nil) throws {
+    /// Starts `opencode serve` for a loopback URL, installing the
+    /// binary first when it cannot be found anywhere. Async because
+    /// the install step runs npm/bun, which takes seconds.
+    public func startManagedServer(config: OpenCodeConfiguration? = nil) async throws {
         let config = config ?? OpenCodeConfiguration.load()
         guard config.isLoopback else {
             throw OpenCodeError.invalidConfiguration(
@@ -281,10 +311,22 @@ public actor OpenCodeClient {
             )
         }
         if let process = managedProcess, process.isRunning { return }
-        guard let binaryPath = findBinary(named: "opencode") else {
-            throw OpenCodeError.invalidConfiguration(
-                "Managed server is on, but no `opencode` binary was found on PATH. " +
-                "Install OpenCode or turn Managed server off and run `opencode serve` yourself."
+        // The swiftcode agent definition (deny-all, so OpenCode acts
+        // as a pure model behind SwiftCode's tool loop) is written
+        // globally when missing, so a fresh server never fails a
+        // session for want of the agent. An existing file is never
+        // overwritten — a user's own agent definition wins.
+        ensureSwiftCodeAgentDefinition()
+        var binaryPath = findBinary(named: "opencode")
+        if binaryPath == nil {
+            binaryPath = await autoInstallOpenCodeBinary()
+            if binaryPath == nil {
+                binaryPath = findBinary(named: "opencode")
+            }
+        }
+        guard let binaryPath else {
+            throw OpenCodeError.serverUnavailable(
+                "SwiftCode could not find an `opencode` binary and could not install one automatically (no npm or bun was found, or the install failed). Install Node.js, then try again — SwiftCode will pick the binary up automatically."
             )
         }
         let process = Process()
@@ -311,6 +353,11 @@ public actor OpenCodeClient {
         sessionsByDirectory.removeAll()
     }
 
+    /// Finds a binary by PATH first, then by the well-known install
+    /// locations (Homebrew, npm-global, ~/.local/bin). A GUI app's
+    /// PATH is often far shorter than a terminal's, so PATH alone
+    /// misses most real installs — that gap was the "binary not
+    /// found" error users kept hitting.
     private func findBinary(named name: String) -> String? {
         let probe = Process()
         probe.executableURL = URL(fileURLWithPath: "/bin/sh")
@@ -321,12 +368,94 @@ public actor OpenCodeClient {
         do {
             try probe.run()
         } catch {
-            return nil
+            // Fall through to the well-known locations below.
         }
         probe.waitUntilExit()
         let output = String(data: pipe.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8) ?? ""
         let path = output.trimmingCharacters(in: .whitespacesAndNewlines)
-        return path.isEmpty ? nil : path
+        if !path.isEmpty, FileManager.default.isExecutableFile(atPath: path) {
+            return path
+        }
+        let home = FileManager.default.homeDirectoryForCurrentUser.path
+        let candidates = [
+            "\(home)/.local/bin/\(name)",
+            "\(home)/.npm-global/bin/\(name)",
+            "/opt/homebrew/bin/\(name)",
+            "/usr/local/bin/\(name)",
+            "/opt/homebrew/lib/node_modules/opencode-ai/bin/\(name)",
+        ]
+        for candidate in candidates {
+            if FileManager.default.isExecutableFile(atPath: candidate) {
+                return candidate
+            }
+        }
+        return nil
+    }
+
+    /// Installs the OpenCode CLI globally via npm or bun
+    /// (`opencode-ai`, the published CLI package) and returns the
+    /// resulting binary path, or nil when neither installer is
+    /// available or the install fails. Runs off the main actor
+    /// (this client is an actor, not MainActor-isolated) with a
+    /// 180-second cap so a hung installer can never hang Assist.
+    private func autoInstallOpenCodeBinary() async -> String? {
+        for installer in ["npm", "bun"] {
+            guard let installerPath = findBinary(named: installer) else { continue }
+            let args = installer == "npm"
+                ? ["install", "-g", "opencode-ai"]
+                : ["install", "-g", "opencode-ai"]
+            let installed = await runInstallCommand(executable: installerPath, arguments: args, timeoutSeconds: 180)
+            if installed {
+                return findBinary(named: "opencode")
+            }
+        }
+        return nil
+    }
+
+    private func runInstallCommand(executable: String, arguments: [String], timeoutSeconds: TimeInterval) async -> Bool {
+        await withCheckedContinuation { continuation in
+            let process = Process()
+            process.executableURL = URL(fileURLWithPath: executable)
+            process.arguments = arguments
+            process.standardOutput = FileHandle(forWritingAtPath: "/dev/null")
+            process.standardError = FileHandle(forWritingAtPath: "/dev/null")
+            let guardBox = OpenCodeInstallGuard(continuation: continuation)
+            let timeoutWork = DispatchWorkItem {
+                if process.isRunning {
+                    process.terminate()
+                    guardBox.resume(with: false)
+                }
+            }
+            DispatchQueue.global().asyncAfter(deadline: .now() + timeoutSeconds, execute: timeoutWork)
+            process.terminationHandler = { proc in
+                timeoutWork.cancel()
+                guardBox.resume(with: proc.terminationStatus == 0)
+            }
+            do {
+                try process.run()
+            } catch {
+                timeoutWork.cancel()
+                guardBox.resume(with: false)
+            }
+        }
+    }
+
+    /// Writes the `swiftcode` agent definition (deny-all) to the
+    /// global OpenCode config when it does not already exist, so a
+    /// fresh managed server accepts SwiftCode sessions immediately.
+    /// Never overwrites an existing definition.
+    private func ensureSwiftCodeAgentDefinition() {
+        let home = FileManager.default.homeDirectoryForCurrentUser
+        let agentDir = home.appendingPathComponent(".config/opencode/agent", isDirectory: true)
+        let agentFile = agentDir.appendingPathComponent("swiftcode.md")
+        guard !FileManager.default.fileExists(atPath: agentFile.path) else { return }
+        do {
+            try FileManager.default.createDirectory(at: agentDir, withIntermediateDirectories: true)
+            try OpenCodeConfiguration.swiftcodeAgentDefinition.write(to: agentFile, atomically: true, encoding: .utf8)
+            openCodeLogger.log("Wrote missing OpenCode swiftcode agent definition to ~/.config/opencode/agent/swiftcode.md.")
+        } catch {
+            openCodeLogger.error("Could not write OpenCode swiftcode agent definition: \(error.localizedDescription, privacy: .public)")
+        }
     }
 
     // MARK: Model discovery

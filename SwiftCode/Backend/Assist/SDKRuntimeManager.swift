@@ -121,6 +121,28 @@ public enum SDKToolSourceSetting: String, CaseIterable, Sendable {
 
     private static let defaultsKey = "assist.toolSource"
 
+    /// The tool source a session actually uses, derived from the
+    /// Assist Toolkit picker (the single switch for this):
+    /// - System: SwiftCode tools, always.
+    /// - Provider: the toolset of the provider picked on the Assist
+    ///   System picker (OpenRouter tools for OpenRouter, OpenCode
+    ///   tools for OpenCode). Other systems do not run SDK sessions,
+    ///   so they fall back to the persisted setting.
+    /// Anything else (legacy persisted values) keeps the old
+    /// persisted setting, so removing the standalone tool-source
+    /// picker from Settings never silently changes a stored choice.
+    public static func effective() -> SDKToolSourceSetting {
+        let toolkit = AppSettings.shared.assistToolkit
+        if toolkit.caseInsensitiveCompare("system") == .orderedSame {
+            return .swiftcode
+        }
+        if AppSettings.shared.isProviderToolkit {
+            if AppSettings.shared.isOpenRouterAssist { return .openrouter }
+            if AppSettings.shared.isOpenCodeAssist { return .opencode }
+        }
+        return load()
+    }
+
     public static func load() -> SDKToolSourceSetting {
         guard let raw = UserDefaults.standard.string(forKey: defaultsKey),
               let source = SDKToolSourceSetting(rawValue: raw) else {

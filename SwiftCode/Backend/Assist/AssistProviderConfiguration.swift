@@ -105,10 +105,11 @@ public struct OpenCodeConfiguration: Equatable, Sendable {
     /// its own tools instead of returning JSON tool requests for
     /// SwiftCode's dispatcher.
     public var agentName: String
-    /// Opt-in only, off by default. When on, SwiftCode may start
-    /// `opencode serve` bound to 127.0.0.1 if the health check fails and
-    /// the binary is on PATH. When off (the default), SwiftCode only
-    /// connects to a server the user already runs.
+    /// Retained for compatibility with previously saved settings.
+    /// The server is now managed automatically for loopback URLs
+    /// regardless of this flag (see OpenCodeClient.ensureServer):
+    /// a missing server is started, and a missing binary is
+    /// located or installed, without the user toggling anything.
     public var managedServerEnabled: Bool
 
     public init(

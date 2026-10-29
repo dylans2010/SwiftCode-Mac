@@ -62,10 +62,10 @@ struct SwiftCodeApp: App {
                             window.backgroundColor = nil
                             window.showsResizeIndicator = true
                             window.isMovableByWindowBackground = false
-                            window.titleVisibility = .visible
-                            window.titlebarAppearsTransparent = false
-                            window.titlebarSeparatorStyle = .automatic
-                            window.styleMask.insert([.titled, .closable, .miniaturizable, .resizable])
+                            window.titleVisibility = .hidden
+                            window.titlebarAppearsTransparent = true
+                            window.titlebarSeparatorStyle = .none
+                            window.styleMask.insert([.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView])
                             window.collectionBehavior.insert(.fullScreenPrimary)
                             window.minSize = NSSize(width: 900, height: 600)
                             window.maxSize = NSSize(width: 10000, height: 10000)
@@ -87,10 +87,10 @@ struct SwiftCodeApp: App {
                             window.backgroundColor = nil
                             window.showsResizeIndicator = true
                             window.isMovableByWindowBackground = false
-                            window.titleVisibility = .visible
-                            window.titlebarAppearsTransparent = false
-                            window.titlebarSeparatorStyle = .automatic
-                            window.styleMask.insert([.titled, .closable, .miniaturizable, .resizable])
+                            window.titleVisibility = .hidden
+                            window.titlebarAppearsTransparent = true
+                            window.titlebarSeparatorStyle = .none
+                            window.styleMask.insert([.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView])
                             window.collectionBehavior.insert(.fullScreenPrimary)
                             window.minSize = NSSize(width: 900, height: 600)
                             window.maxSize = NSSize(width: 10000, height: 10000)
@@ -282,12 +282,12 @@ private struct WorkspaceHostView: View {
         window.backgroundColor = nil
         window.showsResizeIndicator = true
         window.isMovableByWindowBackground = false
-        window.title = project.name
-        window.titleVisibility = .visible
-        window.titlebarAppearsTransparent = false
-        window.titlebarSeparatorStyle = .automatic
+        // Titlebar is hidden (see below): the project name lives in the editor jump bar, not a title strip.
+        window.titleVisibility = .hidden
+        window.titlebarAppearsTransparent = true
+        window.titlebarSeparatorStyle = .none
 
-        window.styleMask.insert([.titled, .closable, .miniaturizable, .resizable])
+        window.styleMask.insert([.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView])
         window.collectionBehavior.insert(.fullScreenPrimary)
         window.minSize = NSSize(width: 900, height: 600)
         window.maxSize = NSSize(width: 10000, height: 10000)

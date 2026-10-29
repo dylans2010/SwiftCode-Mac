@@ -169,7 +169,11 @@ public final class AssistSDKSessionRunner {
         let systemPrompt = try await Self.buildSystemPrompt(objective: objective)
         let history = Self.historyItems(objective: objective)
         let tools = Self.toolDefinitions()
-        let toolSource = SDKToolSourceSetting.load()
+        // The Assist Toolkit picker is the switch: System forces
+        // SwiftCode tools, Provider forces the picked provider's
+        // toolset. The old persisted tool-source setting is only a
+        // fallback for legacy values.
+        let toolSource = SDKToolSourceSetting.effective()
         let sessionKey = context.sessionId.uuidString
         lastSessionKey = sessionKey
 

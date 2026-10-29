@@ -1,12 +1,17 @@
 import SwiftUI
 
-// MARK: - ExtensionsHomeView: the Extensions sidebar destination
+// MARK: - ExtensionsHomeView: the Extensions destination
 //
-// NavigationSplitView over the section list, reusing the app's native
-// macOS split-view pattern. Each section renders real manager state;
-// the Xcode section additionally runs a real buffer command (sort
-// lines) against an editable demo buffer, so the adapter is exercised
-// in the UI, not just described in docs.
+// Opened from the code-editor toolbar (WorkspaceView), not from the
+// sidebar anymore. NavigationSplitView over the section list, reusing
+// the app's native macOS split-view pattern. Each section renders real
+// manager state; the Xcode section additionally runs a real buffer
+// command (sort lines) against an editable demo buffer, so the adapter
+// is exercised in the UI, not just described in docs.
+//
+// Freeze guard: the manager's first load is async (ensureReady), so
+// this view shows a spinner until it completes instead of blocking
+// the main thread on disk work during its first frame.
 
 public struct ExtensionsHomeView: View {
     @StateObject private var viewModel = ExtV2HomeViewModel()
@@ -17,6 +22,20 @@ public struct ExtensionsHomeView: View {
     public init() {}
 
     public var body: some View {
+        Group {
+            if !manager.isReady {
+                ProgressView("Loading extensions…")
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else {
+                splitView
+            }
+        }
+        .task {
+            await manager.ensureReady()
+        }
+    }
+
+    private var splitView: some View {
         NavigationSplitView {
             // Plain buttons, not a List selection binding: the sidebar
             // is a small fixed set, and this keeps selection state in

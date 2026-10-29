@@ -165,14 +165,18 @@ provider.
 
 ## Providers and settings
 
-Assist Settings → **SDK Providers** (after the OpenRouter & OpenCode
-section): per-provider runtime status (runtime found, SDK installed +
-version, or missing with an actionable error), Install / Repair /
-Refresh-status / Stop-bridge buttons, and the **Tool Source** picker
-bound to `assist.toolSource` (default `swiftcode`). Provider identity
-(`assist.selectedProvider`), model selection
+Assist Settings (since 2026-10-29) has no shared **SDK Providers**
+card: each provider's card carries its own runtime row — per-provider
+runtime status (runtime found, SDK installed + version, or missing
+with an actionable error), Install / Repair / Refresh-status /
+Stop-bridge buttons. The standalone **Tool Source** picker is gone
+too: the tool source is now derived from the Assist Toolkit picker
+(System → SwiftCode tools; Provider → the toolset of the provider
+picked in Assist System). The persisted `assist.toolSource` key is
+still read as a fallback for previously saved choices.
+Provider identity (`assist.selectedProvider`), model selection
 (`selectedAssistModelID`), and credentials keep their existing keys;
-changing the tool source never changes provider, model, system prompt,
+changing the toolkit never changes provider, model, system prompt,
 or credentials.
 
 The previous OpenRouter & OpenCode section (key status, connection
@@ -370,7 +374,7 @@ part of this commit.)
 Edited: `Backend/Assist/AssistAgentSession.swift` (SDK branch +
 cancellation + transcript keys), `Views/Assist/AssistMainView.swift`
 (SDK panel in `AssistChatBubble`),
-`Views/Settings/AssistSettingsView.swift` (SDK Providers section),
+`Views/Settings/AssistSettingsView.swift` (per-provider SDK runtime rows),
 `Backend/Assist/AssistRuntimeTestSuite.swift` (SDK tests),
 `SwiftCode.xcodeproj/project.pbxproj` (all new Swift files as target
 sources; both `.mjs` bridges as bundle resources).
@@ -442,7 +446,9 @@ OpenCode (bridge + provider):
 - Event stream ending without idle reported partial text as
   success. Fixed: stream-end-without-idle is now an error.
 - Managed server needs the `opencode` CLI, which the SDK install
-  does not provide. Fixed: fail-fast distinct CLI-missing error.
+  does not provide. Since 2026-10-29 this is auto-healed instead:
+  `OpenCodeClient.ensureServer()` locates or installs the binary
+  automatically (see Assist-OpenCode-OpenRouter-Providers.md).
 - v2 permission events answered on the v1 endpoint (and labelled
   "unknown"). Fixed: v2 branch via
   `client.v2.session.permission.reply`, tool name from `action`.

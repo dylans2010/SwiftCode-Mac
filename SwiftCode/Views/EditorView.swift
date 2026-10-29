@@ -1,9 +1,10 @@
 import SwiftUI
 
-/// Posted by full-pane special editors (swiftcode.json only, since
-/// Localizable.xcstrings moved in-pane like Entitlements) so the
-/// workspace can hide every sidebar and toolbar while they are
-/// on screen, then restore them when the user leaves. userInfo: ["active": Bool].
+/// Legacy takeover signal, retained so existing observers compile.
+/// No current editor posts it anymore: swiftcode.json now renders
+/// in-pane like Localizable.xcstrings (tabs, jump bar, and workspace
+/// chrome stay put), so nothing ever hides the workspace while a
+/// manifest is on screen. userInfo: ["active": Bool].
 public extension Notification.Name {
     static let specialEditorActive = Notification.Name("com.swiftcode.specialEditorActive")
 }
@@ -78,12 +79,12 @@ struct EditorView: View {
                     Text("Select a file from the navigator to start editing.")
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
-            } else if isSwiftCodeJSON, let url = viewModel.activeDocument?.url {
-                // Section: full-pane manifest editor (no tab bar, no
-                // mode switcher, no sidebars — the view itself hides
-                // workspace chrome via .specialEditorActive).
-                SwiftCodeJSONView(fileURL: url)
             } else {
+                // In-pane for every file kind, including
+                // swiftcode.json: tabs, jump bar, and workspace
+                // chrome stay put, exactly like the Localizable
+                // (.xcstrings) view. The manifest editor never
+                // takes over the code editor anymore.
                 VStack(spacing: 0) {
                     // Section 1: open-document tabs.
                     EditorTabBarView(viewModel: viewModel)
@@ -175,6 +176,11 @@ struct EditorView: View {
             // workspace chrome stay put. Raw mode falls through to
             // the plain text editor below.
             LocalizingAppNewView(fileURL: url)
+        } else if isSwiftCodeJSON, let url = viewModel.activeDocument?.url {
+            // In-pane, like .xcstrings above: the decoded manifest
+            // form renders inside the editor pane, under the tabs
+            // and jump bar. It never hides sidebars or the toolbar.
+            SwiftCodeJSONView(fileURL: url)
         } else if isMarkdown, let url = viewModel.activeDocument?.url {
             MarkdownFileView(viewModel: viewModel, fileURL: url)
         } else {

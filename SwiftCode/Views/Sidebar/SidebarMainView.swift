@@ -8,7 +8,10 @@ enum MainSidebarItem: String, CaseIterable, Identifiable {
     case agent = "bubble.left.and.exclamationmark.bubble.right.fill"
     case workflows = "square.stack.3d.down.right"
     case terminal = "terminal"
-    case extensions = "puzzlepiece"
+    // No extensions case: Extensions no longer lives in the
+    // workspace sidebar. It opens from the code-editor toolbar
+    // (WorkspaceView, next to the Assist button) as its own sheet,
+    // so it gets full width instead of a squeezed sidebar column.
 
     var id: String { rawValue }
 
@@ -21,7 +24,6 @@ enum MainSidebarItem: String, CaseIterable, Identifiable {
         case .agent: return "AI Agent"
         case .workflows: return "Workflows"
         case .terminal: return "Terminal"
-        case .extensions: return "Extensions"
         }
     }
 }
@@ -99,8 +101,6 @@ struct SidebarMainView: View {
                         GitHubWorkflowsSidebarView()
                     case .terminal:
                         TerminalView()
-                    case .extensions:
-                        ExtensionsHomeView()
                     }
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)

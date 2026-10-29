@@ -551,7 +551,6 @@ struct AssistSettingsView: View {
     @State private var isValidatingOpenRouter = false
     @State private var openCodeServerURL = OpenCodeConfiguration.load().serverURL.absoluteString
     @State private var openCodeAgentName = OpenCodeConfiguration.load().agentName
-    @State private var openCodeManagedServer = OpenCodeConfiguration.load().managedServerEnabled
     @State private var openCodeStatus: String? = nil
     @State private var isCheckingOpenCode = false
     @State private var openCodeModels: [OpenCodeModel] = []
@@ -572,11 +571,14 @@ struct AssistSettingsView: View {
     @State private var hermesStatus: String? = nil
     @State private var hermesError: String? = nil
     @State private var isCheckingHermes = false
+    @State private var hermesModels: [HermesProvider.HermesDiscoveredModel] = []
+    @State private var isFetchingHermesModels = false
+    @State private var hermesFetchError: String? = nil
 
-    // SDK Providers (Workstream D) state. The SDK runtimes are real
-    // JS processes managed by SDKRuntimeManager; this state only ever
-    // holds status strings and versions — never credentials.
-    @State private var sdkToolSource = SDKToolSourceSetting.load()
+    // SDK runtime state, shown inside each provider's own card (the
+    // old shared "SDK Providers" card is gone). The runtimes are
+    // real JS processes managed by SDKRuntimeManager; this state
+    // only ever holds status strings and versions — never credentials.
     @State private var sdkStatuses: [SDKProvider: SDKRuntimeStatus] = [:]
     @State private var sdkInstallingProviders: Set<SDKProvider> = []
     @State private var sdkInstallErrors: [SDKProvider: String] = [:]
@@ -688,6 +690,31 @@ struct AssistSettingsView: View {
                                 .foregroundStyle(.secondary)
                         }
 
+                        Divider()
+                            .padding(.vertical, 2)
+
+                        Toggle(isOn: $settings.assistAutomaticallySwitchModels) {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("Automatically Switch Models")
+                                    .font(.system(size: 13, weight: .medium))
+                                Text("On: a failed model may be replaced by another model mid-turn. Off: Assist never switches models at all — it waits on (retries) the selected model and shows that wait in the activity status, with the model name and the error, until the turn succeeds or its retries run out.")
+                                    .font(.caption2)
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
+                        .toggleStyle(.switch)
+
+                        Toggle(isOn: $settings.assistUseProviderModels) {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("Use Provider Models")
+                                    .font(.system(size: 13, weight: .medium))
+                                Text("On: Assist may only use models fetched from the selected provider (see that provider's card below for its fetched list). It never uses any user-provided (custom) model while this is on — a turn with a custom model selected fails explicitly instead of substituting another model. Off: custom models are allowed again.")
+                                    .font(.caption2)
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
+                        .toggleStyle(.switch)
+
                         if settings.isMetaAssist {
                             Divider()
                                 .padding(.vertical, 2)
@@ -763,7 +790,11 @@ struct AssistSettingsView: View {
                 }
                 .groupBoxStyle(ModernGroupBoxStyle())
 
-                // Separate "Assist Configuration" Card
+                // Section 2 — "Assist Configuration" card:
+                // toolkit (System/Provider), routing, and cloud.
+                // Section 1 above is Assist System (provider +
+                // model-switching toggles); Section 3 below is the
+                // selected provider's own card.
                 GroupBox {
                     VStack(alignment: .leading, spacing: 14) {
                         HStack(spacing: 10) {
@@ -787,30 +818,32 @@ struct AssistSettingsView: View {
 
                         Divider()
 
-                        // 1. Assist Toolkit
+                        // 1. Assist Toolkit — the single switch for
+                        // whose toolset a session uses. System =
+                        // SwiftCode's native tools. Provider = the
+                        // toolset of the provider picked on the
+                        // Assist System card above (not a separate
+                        // Cloud toolkit; the old "Cloud" value is
+                        // migrated to "Provider" on load).
                         VStack(alignment: .leading, spacing: 6) {
                             HStack {
                                 Text("Assist Toolkit")
                                     .font(.system(size: 12, weight: .medium))
                                 Spacer()
-                                Text(settings.assistToolkit == "Cloud" ? "Cloud Tools (\(settings.activeCloudToolkitName))" : "SwiftCode Tools")
+                                Text(settings.isProviderToolkit ? "Provider Tools (\(settings.activeProviderToolkitName))" : "SwiftCode Tools")
                                     .font(.system(size: 10, weight: .semibold))
-                                    .foregroundStyle(settings.assistToolkit == "Cloud" ? .blue : .indigo)
+                                    .foregroundStyle(settings.isProviderToolkit ? .blue : .indigo)
                             }
 
                             Picker("Assist Toolkit", selection: $settings.assistToolkit) {
                                 Text("System (SwiftCode)").tag("System")
-                                Text("Cloud (\(settings.activeCloudToolkitName))").tag("Cloud")
+                                Text("Provider (\(settings.activeProviderToolkitName))").tag("Provider")
                             }
                             .pickerStyle(.segmented)
                             .controlSize(.small)
 
-                            Text(settings.assistToolkit == "Cloud"
-                                 ? (settings.isMetaAssist
-                                    ? "Cloud toolkit leverages Meta Muse SDK's built-in file manipulation, search, and execution tools."
-                                    : (settings.isGoogleCloudAssist
-                                       ? "Cloud toolkit leverages Google Antigravity SDK's built-in file manipulation, execution, and research tools."
-                                       : "Cloud toolkit leverages the official SDK's built-in tools."))
+                            Text(settings.isProviderToolkit
+                                 ? "Provider toolkit uses the \(settings.activeProviderToolkitName) toolset from the Assist System picked above — OpenRouter tools for OpenRouter, OpenCode tools for OpenCode, Hermes' own tools for Hermes, Muse SDK tools for Meta, Antigravity SDK tools for Google Cloud. Provider tools run under that provider's permissions, not SwiftCode's."
                                  : "System toolkit uses SwiftCode's native code editing, build diagnostics, and terminal tools.")
                                 .font(.system(size: 10))
                                 .foregroundStyle(.secondary)
@@ -855,13 +888,13 @@ struct AssistSettingsView: View {
                 }
                 .groupBoxStyle(ModernGroupBoxStyle())
 
-                // Provider cards are shown only for the Assist
-                // System picked above — never all at once. OpenRouter
-                // and OpenCode each get their own dedicated card;
-                // the SDK Providers card is their shared JS SDK
-                // runtime (it powers agent-mode sessions for both),
-                // so it appears for either of them. Hermes gets only
-                // its own card. See
+                // Section 3 — Provider cards. Only the card for the
+                // Assist System picked above is shown, never all at
+                // once. Each card is self-contained: its own
+                // connection controls, its own fetched-model list,
+                // and (for OpenRouter/OpenCode) its own SDK-runtime
+                // Install/Repair row. Hermes has no JS SDK runtime,
+                // so its card has Check installation instead. See
                 // Docs/Assist-OpenCode-OpenRouter-Providers.md and
                 // Docs/Assist-Hermes-Provider.md.
                 if settings.isOpenRouterAssist {
@@ -869,9 +902,6 @@ struct AssistSettingsView: View {
                 }
                 if settings.isOpenCodeAssist {
                     openCodeProvidersSection
-                }
-                if settings.isOpenRouterAssist || settings.isOpenCodeAssist {
-                    sdkProvidersSection
                 }
                 if settings.isHermesAssist {
                     hermesProvidersSection
@@ -2318,12 +2348,11 @@ struct AssistSettingsView: View {
         }
         let agent = openCodeAgentName.trimmingCharacters(in: .whitespacesAndNewlines)
         config.agentName = agent.isEmpty ? OpenCodeConfiguration.defaultAgentName : agent
-        config.managedServerEnabled = openCodeManagedServer
+        // The server is auto-managed for loopback URLs, so saving
+        // never stops a running managed server — the old "managed
+        // off → stop" branch is gone with the toggle.
         config.save()
         openCodeStatus = "OpenCode settings saved."
-        if !openCodeManagedServer {
-            Task { await OpenCodeClient.shared.stopManagedServer() }
-        }
     }
 
     // MARK: - OpenRouter Provider Section (shown only when OpenRouter is the selected Assist System)
@@ -2471,6 +2500,13 @@ struct AssistSettingsView: View {
                                 .foregroundStyle(.secondary)
                         }
                     }
+                    if settings.assistUseProviderModels {
+                        Text("Use Provider Models is on: only the fetched OpenRouter models listed above may be used. User-provided models are blocked while this is on.")
+                            .font(.system(size: 10))
+                            .foregroundStyle(.orange)
+                    }
+                    Divider()
+                    sdkRuntimeRow(for: .openRouter)
                 }
 
             }
@@ -2516,7 +2552,10 @@ struct AssistSettingsView: View {
                                 .foregroundStyle(.green)
                         }
                     }
-                    Text("Agent-mode sessions use the OpenCode SDK runtime (see SDK Providers below), not this section's legacy HTTP path: SwiftCode sends its own system prompt and the selected model; with SwiftCode tools the model returns JSON tool requests that SwiftCode validates, permission-checks, and executes with its own tools. The deny-all `swiftcode` agent definition applies to those SwiftCode-tool sessions. OpenCode model credentials stay in OpenCode's own configuration and are never stored by SwiftCode. Managed mode requires the `opencode` CLI in addition to the SDK package — installing the SDK alone is not enough.")
+                    Text("SwiftCode sends its own system prompt and the selected model; with SwiftCode tools the model returns JSON tool requests that SwiftCode validates, permission-checks, and executes with its own tools. OpenCode model credentials stay in OpenCode's own configuration and are never stored by SwiftCode.")
+                        .font(.system(size: 10))
+                        .foregroundStyle(.secondary)
+                    Text("Server is managed automatically (loopback only): if no server is reachable, SwiftCode starts one, finds the `opencode` binary in the well-known install locations, or installs it via npm/bun — and writes the deny-all `swiftcode` agent definition if it is missing. You never need to start `opencode serve` by hand or flip a toggle.")
                         .font(.system(size: 10))
                         .foregroundStyle(.secondary)
                     HStack {
@@ -2535,16 +2574,6 @@ struct AssistSettingsView: View {
                             .textFieldStyle(.roundedBorder)
                             .font(.system(.caption, design: .monospaced))
                     }
-                    Toggle(isOn: $openCodeManagedServer) {
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text("Managed server (opt-in)")
-                                .font(.system(size: 12, weight: .medium))
-                            Text("Start `opencode serve` on 127.0.0.1 if no server is reachable. Off by default: SwiftCode then only connects to a server you already run.")
-                                .font(.caption2)
-                                .foregroundStyle(.secondary)
-                        }
-                    }
-                    .toggleStyle(.switch)
                     HStack {
                         Button("Save OpenCode settings") {
                             saveOpenCodeConfiguration()
@@ -2629,15 +2658,13 @@ struct AssistSettingsView: View {
                             }
                         }
                     }
-                    Text("Required server setup: create the `swiftcode` agent on the server with every tool permission denied, so OpenCode acts as a pure model behind SwiftCode's tool loop instead of running its own tools. Save this definition as `.opencode/agent/swiftcode.md` in the project (or `~/.config/opencode/agent/swiftcode.md` globally), then start the server with `opencode serve --hostname 127.0.0.1 --port 4096`.")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                    Text(OpenCodeConfiguration.swiftcodeAgentDefinition)
-                        .font(.system(.caption, design: .monospaced))
-                        .textSelection(.enabled)
-                        .padding(8)
-                        .background(Color.primary.opacity(0.05))
-                        .cornerRadius(6)
+                    if settings.assistUseProviderModels {
+                        Text("Use Provider Models is on: only the fetched models listed above (plus a provider/model you enter here) may be used. User-provided models are blocked while this is on.")
+                            .font(.system(size: 10))
+                            .foregroundStyle(.orange)
+                    }
+                    Divider()
+                    sdkRuntimeRow(for: .openCode)
                 }
             }
             .padding(14)
@@ -2645,164 +2672,79 @@ struct AssistSettingsView: View {
         .groupBoxStyle(ModernGroupBoxStyle())
     }
 
-    // MARK: - SDK Providers Section (Workstream D)
+    // MARK: - Per-provider SDK runtime row
 
-    private var sdkProvidersSection: some View {
-        GroupBox {
-            VStack(alignment: .leading, spacing: 14) {
-                HStack(spacing: 10) {
-                    ZStack {
-                        RoundedRectangle(cornerRadius: 8)
-                            .fill(Color.teal.opacity(0.14))
-                            .frame(width: 32, height: 32)
-                        Image(systemName: "terminal")
-                            .font(.system(size: 14, weight: .bold))
-                            .foregroundStyle(Color.teal)
-                    }
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text("SDK Providers")
-                            .font(.system(size: 14, weight: .semibold))
-                        Text("Real OpenCode / OpenRouter SDK runtimes, hosted in a JS process SwiftCode installs and supervises. These replace the previous native-HTTP clients for SDK-backed sessions.")
-                            .font(.caption2)
-                            .foregroundStyle(.secondary)
-                    }
-                }
-
-                Divider()
-
-                // Tool source is independent of provider and model:
-                // changing it never changes either one.
-                VStack(alignment: .leading, spacing: 6) {
-                    HStack {
-                        Text("Tool source")
-                            .font(.system(size: 12, weight: .medium))
-                        Spacer()
-                        Picker("", selection: $sdkToolSource) {
-                            ForEach(SDKToolSourceSetting.allCases, id: \.self) { source in
-                                Text(source.displayName).tag(source)
-                            }
-                        }
-                        .pickerStyle(.menu)
-                        .frame(width: 200)
-                        .accessibilityLabel("Tool source")
-                        .onChange(of: sdkToolSource) { _, newValue in
-                            newValue.save()
-                        }
-                    }
-                    Text(sdkToolSource.explanation)
-                        .font(.system(size: 10))
-                        .foregroundStyle(.secondary)
-                    // Settings-time cross-validation: previously an
-                    // incompatible tool source + model combination was
-                    // discovered only as a terminal run error. The run
-                    // still fails explicitly if this warning is missed;
-                    // this text only surfaces it earlier.
-                    if sdkToolSource == .openrouter && isOpenCodeModelSelected {
-                        Text("Warning: OpenRouter tools are not supported for the currently selected OpenCode model. Change the tool source or the model before running, or the run will fail with an explicit error.")
-                            .font(.system(size: 10))
-                            .foregroundStyle(.orange)
-                    } else if sdkToolSource == .opencode && !isOpenCodeModelSelected {
-                        Text("Warning: OpenCode tools are not supported for the currently selected model (not an OpenCode model). Change the tool source or the model before running, or the run will fail with an explicit error.")
-                            .font(.system(size: 10))
-                            .foregroundStyle(.orange)
-                    }
-                    Text("SDK tool panels are session-only: tool events live in memory for the current conversation and are not persisted with saved conversations.")
-                        .font(.system(size: 10))
-                        .foregroundStyle(.secondary)
-                }
-
-                Divider()
-
-                ForEach(SDKProvider.allCases, id: \.self) { provider in
-                    VStack(alignment: .leading, spacing: 6) {
-                        HStack {
-                            Text(provider.displayName)
-                                .font(.system(size: 12, weight: .medium))
-                            Spacer()
-                            if sdkStatuses[provider]?.isBridgeRunning == true {
-                                Text("Bridge running")
-                                    .font(.system(size: 10, weight: .semibold))
-                                    .foregroundStyle(.green)
-                            }
-                        }
-                        Text(sdkStatuses[provider]?.summary ?? "Status unknown — use Refresh status.")
-                            .font(.system(size: 10))
-                            .foregroundStyle(.secondary)
-                        Text("\(provider.packageName)@\(provider.pinnedVersion) pinned. Runtime directory: \(SDKRuntimeManager.runtimeDirectory(for: provider)?.path ?? "unavailable"). Deleting that directory uninstalls the runtime; Install recreates it.")
-                            .font(.system(size: 10))
-                            .foregroundStyle(.secondary)
-                        HStack {
-                            if sdkInstallingProviders.contains(provider) {
-                                ProgressView()
-                                    .controlSize(.small)
-                                Text("Installing…")
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
-                            } else {
-                                Button("Install") { sdkInstall(provider: provider, force: false) }
-                                    .buttonStyle(.bordered)
-                                    .controlSize(.small)
-                                Button("Repair") { sdkInstall(provider: provider, force: true) }
-                                    .buttonStyle(.bordered)
-                                    .controlSize(.small)
-                                if sdkStatuses[provider]?.isBridgeRunning == true {
-                                    Button("Stop bridge") {
-                                        Task {
-                                            await SDKRuntimeManager.shared.terminateBridge(provider: provider)
-                                            await refreshSDKStatuses()
-                                        }
-                                    }
-                                    .buttonStyle(.bordered)
-                                    .controlSize(.small)
-                                }
-                            }
-                            Spacer()
-                            Button("Refresh status") {
-                                Task { await refreshSDKStatuses() }
-                            }
-                            .buttonStyle(.bordered)
-                            .controlSize(.small)
-                            .disabled(sdkInstallingProviders.contains(provider))
-                        }
-                        if let error = sdkInstallErrors[provider] {
-                            Text(error)
-                                .font(.system(size: 10))
-                                .foregroundStyle(.red)
-                        } else if let notice = sdkInstallNotices[provider] {
-                            Text(notice)
-                                .font(.system(size: 10))
-                                .foregroundStyle(.green)
-                        }
-                    }
-                    Divider()
-                }
-
-                // OpenCode server settings, bound to the SAME state as
-                // the OpenRouter & OpenCode section above — editing
-                // here edits the same value, saved with the same
-                // saver. No second copy of these settings exists.
-                VStack(alignment: .leading, spacing: 6) {
-                    Text("OpenCode server (shared with the section above)")
-                        .font(.system(size: 12, weight: .medium))
-                    TextField("http://127.0.0.1:4096", text: $openCodeServerURL)
-                        .textFieldStyle(.roundedBorder)
-                    TextField("swiftcode", text: $openCodeAgentName)
-                        .textFieldStyle(.roundedBorder)
-                    Button("Save OpenCode server settings") {
-                        saveOpenCodeConfiguration()
-                    }
-                    .buttonStyle(.bordered)
-                    .controlSize(.small)
+    /// The SDK-runtime Install/Repair/Stop/Refresh controls for one
+    /// provider, rendered inside that provider's own card (the old
+    /// shared "SDK Providers" card was removed; its standalone tool
+    /// source picker was removed with it — the Assist Toolkit
+    /// picker in Assist Configuration now derives the tool source).
+    /// Hermes has no JS SDK runtime, so its card has no such row.
+    private func sdkRuntimeRow(for provider: SDKProvider) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack {
+                Text("\(provider.displayName) SDK runtime")
+                    .font(.system(size: 12, weight: .medium))
+                Spacer()
+                if sdkStatuses[provider]?.isBridgeRunning == true {
+                    Text("Bridge running")
+                        .font(.system(size: 10, weight: .semibold))
+                        .foregroundStyle(.green)
                 }
             }
-            .padding(14)
+            Text(sdkStatuses[provider]?.summary ?? "Status unknown — use Refresh status.")
+                .font(.system(size: 10))
+                .foregroundStyle(.secondary)
+            Text("\(provider.packageName)@\(provider.pinnedVersion) pinned. Runtime directory: \(SDKRuntimeManager.runtimeDirectory(for: provider)?.path ?? "unavailable"). Deleting that directory uninstalls the runtime; Install recreates it.")
+                .font(.system(size: 10))
+                .foregroundStyle(.secondary)
+            HStack {
+                if sdkInstallingProviders.contains(provider) {
+                    ProgressView()
+                        .controlSize(.small)
+                    Text("Installing…")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                } else {
+                    Button("Install") { sdkInstall(provider: provider, force: false) }
+                        .buttonStyle(.bordered)
+                        .controlSize(.small)
+                    Button("Repair") { sdkInstall(provider: provider, force: true) }
+                        .buttonStyle(.bordered)
+                        .controlSize(.small)
+                    if sdkStatuses[provider]?.isBridgeRunning == true {
+                        Button("Stop bridge") {
+                            Task {
+                                await SDKRuntimeManager.shared.terminateBridge(provider: provider)
+                                await refreshSDKStatuses()
+                            }
+                        }
+                        .buttonStyle(.bordered)
+                        .controlSize(.small)
+                    }
+                }
+                Spacer()
+                Button("Refresh status") {
+                    Task { await refreshSDKStatuses() }
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.small)
+                .disabled(sdkInstallingProviders.contains(provider))
+            }
+            if let error = sdkInstallErrors[provider] {
+                Text(error)
+                    .font(.system(size: 10))
+                    .foregroundStyle(.red)
+            } else if let notice = sdkInstallNotices[provider] {
+                Text(notice)
+                    .font(.system(size: 10))
+                    .foregroundStyle(.green)
+            }
+            Text("SDK tool panels are session-only: tool events live in memory for the current conversation and are not persisted with saved conversations.")
+                .font(.system(size: 10))
+                .foregroundStyle(.secondary)
         }
-        .groupBoxStyle(ModernGroupBoxStyle())
         .onAppear {
-            // The picker state is initialised once at view creation;
-            // reload it here so an external change to
-            // assist.toolSource is reflected when the section appears.
-            sdkToolSource = SDKToolSourceSetting.load()
             Task { await refreshSDKStatuses() }
         }
     }
@@ -2969,21 +2911,67 @@ struct AssistSettingsView: View {
                 Divider()
 
                 VStack(alignment: .leading, spacing: 6) {
+                    Text("Provider models (fetched from Hermes)")
+                        .font(.system(size: 12, weight: .medium))
+                    Text("Hermes has no model-list command, so this reads Hermes' current model from `hermes model` and, when Hermes is OpenRouter-backed, expands to OpenRouter's live catalog (via SwiftCode's saved OpenRouter key). It never invents a catalog.")
+                        .font(.system(size: 10))
+                        .foregroundStyle(.secondary)
+                    HStack {
+                        Button(isFetchingHermesModels ? "Discovering…" : "Discover models") {
+                            isFetchingHermesModels = true
+                            hermesFetchError = nil
+                            Task {
+                                do {
+                                    hermesModels = try await HermesProvider.fetchModels()
+                                } catch {
+                                    hermesFetchError = error.localizedDescription
+                                }
+                                isFetchingHermesModels = false
+                            }
+                        }
+                        .buttonStyle(.bordered)
+                        .controlSize(.small)
+                        .disabled(isFetchingHermesModels)
+                        Spacer()
+                    }
+                    if let error = hermesFetchError {
+                        Text(error)
+                            .font(.caption)
+                            .foregroundStyle(.red)
+                    }
+                    ForEach(hermesModels) { model in
+                        HStack {
+                            Text(model.displayName)
+                                .font(.system(.caption, design: .monospaced))
+                            Spacer()
+                            if settings.selectedAssistModelID == model.storedID {
+                                Image(systemName: "checkmark.circle.fill")
+                                    .foregroundStyle(.green)
+                            } else {
+                                Button("Select") {
+                                    selectProviderModel(storedID: model.storedID, provider: .hermes)
+                                }
+                                .buttonStyle(.bordered)
+                                .controlSize(.small)
+                            }
+                        }
+                    }
+                    if settings.assistUseProviderModels {
+                        Text("Use Provider Models is on: only the fetched models listed above may be used. User-provided models are blocked while this is on.")
+                            .font(.system(size: 10))
+                            .foregroundStyle(.orange)
+                    }
+                }
+
+                Divider()
+
+                VStack(alignment: .leading, spacing: 6) {
                     Text("How Hermes runs in SwiftCode — read before first use")
                         .font(.system(size: 12, weight: .medium))
-                    Text("SwiftCode launches `hermes chat --oneshot --query-file … --format stream-json` in the project directory, one fresh run per task (sessions are never resumed across tasks). It never passes --yolo and never sets HERMES_YOLO_MODE: the scripted `hermes -z` path is deliberately not used, because it auto-approves and prints final text only, with no tool events.")
+                    Text("One fresh `hermes chat --oneshot --format stream-json` run per task (never resumed, never --yolo). Hermes runs its own tools — SwiftCode native tools do NOT execute in Hermes runs — under Hermes' own approvals, not SwiftCode's tool permissions. SwiftCode's system prompt is sent as the first part of the query (Hermes has no --system-prompt flag). Hermes keys live in ~/.hermes/.env; SwiftCode stores no Hermes key. Run `hermes setup` and `hermes model` in a terminal first, then Check installation above.")
                         .font(.system(size: 10))
                         .foregroundStyle(.secondary)
-                    Text("Tools: Hermes runs its own tools; SwiftCode native tools do NOT execute in Hermes runs, and no SwiftCode tool schemas are sent to Hermes. The tool panel under a Hermes message shows Hermes' own tool activity, observed from its stream-json output.")
-                        .font(.system(size: 10))
-                        .foregroundStyle(.secondary)
-                    Text("Approvals: in a single-query run Hermes applies its own approvals.single_query_mode (default: deny for dangerous commands). SwiftCode's tool permissions do not apply to Hermes tools. Only run Hermes in workspaces you trust, and narrow Toolsets above to remove terminal / code execution if you need a smaller surface.")
-                        .font(.system(size: 10))
-                        .foregroundStyle(.secondary)
-                    Text("Prompt: SwiftCode's assembled system prompt and System Asset instructions are sent as the first part of the query, because Hermes has no --system-prompt flag. Hermes' own SOUL.md and workspace rules still apply on top. SwiftCode never edits ~/.hermes configuration to force its prompt in.")
-                        .font(.system(size: 10))
-                        .foregroundStyle(.secondary)
-                    Text("Credentials: Hermes keys live in Hermes' own ~/.hermes/.env and config.yaml; SwiftCode stores no Hermes key. Install and authenticate first by running `hermes setup` and `hermes model` in a terminal, then use Check installation above. Selecting any other model restores that provider's execution; Hermes settings are kept but unused.")
+                    Text("Hermes has no JS SDK runtime, so there is no Install/Repair row here — Check installation is its equivalent.")
                         .font(.system(size: 10))
                         .foregroundStyle(.secondary)
                 }

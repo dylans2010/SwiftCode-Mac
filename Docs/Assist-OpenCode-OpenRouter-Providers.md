@@ -158,10 +158,11 @@ Configuration):
   tool-calling support). Selecting a model sets
   `selectedAssistModelID` and `assist.selectedProvider = OpenRouter`.
 - **OpenCode:** server URL (default `http://127.0.0.1:4096`), agent
-  name (default `swiftcode`), Managed server toggle (off by default),
-  Save, Check server, Discover models (live server catalog), manual
-  `provider/model` entry, and the required `swiftcode` agent
-  definition with install instructions. Selecting a model stores
+  name (default `swiftcode`), Save, Check server, Discover models
+  (live server catalog), manual `provider/model` entry, and the
+  OpenCode SDK-runtime Install/Repair row. There is no Managed
+  server toggle anymore: the server is auto-managed for loopback
+  URLs (see "Server setup" below). Selecting a model stores
   `opencode:provider/model` and sets
   `assist.selectedProvider = OpenCode`, and drops any cached OpenCode
   sessions so a new selection never resumes an old session.
@@ -169,16 +170,21 @@ Configuration):
   model id, or session: the model id is the routing key, OpenCode
   holds no SwiftCode key, and OpenCode sessions are reset on switch.
 
-## Server setup required for OpenCode (user action)
+## Server setup for OpenCode (automatic since 2026-10-29)
 
-1. Save the agent definition from Settings as
-   `.opencode/agent/swiftcode.md` in the project (or
-   `~/.config/opencode/agent/swiftcode.md` globally).
-2. Run `opencode serve --hostname 127.0.0.1 --port 4096`
-   (or enable Managed server in Settings, which starts the same
-   command from the `opencode` binary on PATH).
-3. Configure at least one model provider inside OpenCode itself;
-   SwiftCode never sees those credentials.
+No user action is required for a loopback URL. `OpenCodeClient.ensureServer()`
+auto-heals both old failure modes: a missing server is started
+(`opencode serve` on 127.0.0.1), a missing binary is located in the
+well-known install locations (Homebrew, npm-global, ~/.local/bin) or
+installed via npm/bun (`opencode-ai`), and the deny-all `swiftcode`
+agent definition is written to `~/.config/opencode/agent/swiftcode.md`
+when missing (never overwritten). The two old errors ("no server is
+running, start one yourself" and "no binary found, install it
+yourself") no longer exist in the codebase. Only a non-loopback URL
+is left alone, and only a total auto-heal failure surfaces, as one
+message describing what was tried. The user still configures at
+least one model provider inside OpenCode itself; SwiftCode never
+sees those credentials.
 
 If the `swiftcode` agent is missing, prompts fail with a specific
 agent-not-found error instead of running under the default agent.

@@ -8,7 +8,9 @@ import SwiftUI
 // after every mutation they re-read from here. A broken extension
 // cannot prevent launch: refreshInstalled() tolerates missing
 // directories and malformed records by marking them unavailable
-// instead of throwing, and stale staging is cleaned at init.
+// instead of throwing, and stale staging is cleaned in ensureReady()
+// (never in init, which must stay IO-free so opening Extensions
+// cannot freeze the app).
 
 @MainActor
 public final class ExtV2Manager: ObservableObject {
@@ -22,6 +24,11 @@ public final class ExtV2Manager: ObservableObject {
     @Published public private(set) var updates: [ExtV2UpdateInfo] = []
     @Published public private(set) var contributions: [String: ExtV2Contribution] = [:]
     @Published public var settings: ExtV2Storage.Settings
+    /// True once the first async load has finished. Opening the
+    /// Extensions view must never block the main thread on disk
+    /// work (see init / ensureReady), so views render a spinner
+    /// until this flips instead of freezing the app on first open.
+    @Published public private(set) var isReady = false
 
     public let storage: ExtV2Storage
     public let permissions: ExtV2PermissionManager
@@ -55,10 +62,31 @@ public final class ExtV2Manager: ObservableObject {
             guard let self else { return .null }
             return try await self.handleHostRequest(extensionId: extensionId, request: request)
         }
-        try? storage.ensureDirectories()
-        storage.cleanStaleStaging()
-        refreshInstalled()
+        // Freeze fix: init used to do disk work synchronously on the
+        // MainActor — creating directories, recursively deleting
+        // stale staging, and parsing every installed manifest — so
+        // the first view that touched ExtV2Manager.shared froze the
+        // whole app until that work finished, with no spinner and no
+        // way to cancel. Init now only wires objects (no IO); the
+        // disk work runs in ensureReady(), after the Extensions view
+        // has already rendered its loading state.
         ExtV2XcodeCommandRegistry.shared.register(ExtV2SortLinesCommand())
+    }
+
+    /// First-load path for the Extensions view. Calls after the
+    /// first load completes are no-ops; concurrent first calls
+    /// each do the same bounded work and publish the same result.
+    /// Directory creation and stale-staging cleanup run off the main
+    /// actor; the installed-record refresh then publishes on it.
+    public func ensureReady() async {
+        if isReady { return }
+        let storage = self.storage
+        await Task.detached {
+            try? storage.ensureDirectories()
+            storage.cleanStaleStaging()
+        }.value
+        refreshInstalled()
+        isReady = true
     }
 
     // MARK: Settings

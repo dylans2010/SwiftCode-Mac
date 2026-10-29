@@ -22,10 +22,15 @@ three distinct ecosystems:
   therefore carry the `ExtV2` prefix; there is no second lifecycle
   manager and no competing registry.
 - Sidebar: `MainSidebarItem` in `SwiftCode/Views/Sidebar/
-  SidebarMainView.swift` is the only exhaustive sidebar switch. The
-  Extensions v2 integration adds one case (`extensions`,
-  "puzzlepiece") and one switch arm rendering `ExtensionsHomeView`.
-  Nothing else in the sidebar was redesigned.
+  Extensions used to live in the Workspace sidebar
+  (`SidebarMainView` case `extensions`, "puzzlepiece"). Since the
+  2026-10-29 batch it opens from the code-editor toolbar instead
+  (puzzlepiece button next to Assist, presenting
+  `ExtensionsHomeView` as a sheet), because the sidebar column
+  squeezed its NavigationSplitView and the manager's synchronous
+  first-access disk IO froze the app on open. The manager now
+  loads asynchronously (`ExtV2Manager.ensureReady()`, with a
+  "Loading extensions…" spinner) and the sidebar case is gone.
 - Assist: `AssistToolRegistry` (`SwiftCode/Backend/Assist/
   AssistToolRegistry.swift`) is `@MainActor`, keeps the first
   registration on a duplicate id, and tools conform to `AssistTool`
@@ -47,7 +52,7 @@ three distinct ecosystems:
 - `SwiftCode/Views/Extensions v2/` — `ExtensionsHomeView`,
   `ExtensionRunView`, search, installed, details, permissions,
   settings, diagnostics, updates, row, view models.
-- Existing-file changes are limited to the sidebar case above and
+- Existing-file changes are limited to the toolbar button above and
   pbxproj registration. No other feature was modified.
 
 ## How it works
@@ -234,7 +239,7 @@ by assuming prior UI state.
 ## Mac checklist (for Dylan)
 
 1. Open `SwiftCode.xcodeproj`, build the SwiftCode target.
-2. Extensions sidebar item → Discover → search → install a small
+2. Editor-toolbar Extensions button → Discover → search → install a small
    Open VSX extension; confirm state, details, and diagnostics.
 3. Run view → activate → run a contributed command.
 4. Extensions > Diagnostics > Run self-tests → all pass.

@@ -5,9 +5,10 @@ import SwiftUI
 /// organized sections, edits in place, and writes the manifest back
 /// (unknown top-level fields are preserved by `SDKManifest`'s codec,
 /// so visual editing never destroys forward-compatible properties).
-/// Rendered full-pane by EditorView: no sidebar, no tab bar, no
-/// toolbar inside this view, and the workspace hides its chrome
-/// while this view is on screen.
+/// Rendered in-pane by EditorView, like the Localizable
+/// (.xcstrings) view: tabs, jump bar, sidebars, and the toolbar
+/// stay visible. This view never takes over the code editor and
+/// never posts .specialEditorActive.
 public struct SwiftCodeJSONView: View {
     public let fileURL: URL
 
@@ -52,10 +53,6 @@ public struct SwiftCodeJSONView: View {
         }
         .onAppear {
             load()
-            NotificationCenter.default.post(name: .specialEditorActive, object: nil, userInfo: ["active": true])
-        }
-        .onDisappear {
-            NotificationCenter.default.post(name: .specialEditorActive, object: nil, userInfo: ["active": false])
         }
     }
 

@@ -73,7 +73,7 @@ table of 0/1/2/130 does not apply to `chat` runs.)
 | Provider selection + routing | `AssistModelProvider.hermes`, `AssistProviderConfiguration.provider(for:)` |
 | Agent-mode branch | `AssistAgentSession.swift` Hermes branch (before the SDK branch and legacy validation) |
 | Tool panel | `SwiftCode/Views/Assist/HermesToolsUIView.swift` (provider `hermes`, source `.hermes`) |
-| Settings | `AssistSettingsView.swift` Hermes section (after SDK Providers) |
+| Settings | `AssistSettingsView.swift` Hermes card (shown only when Hermes is the selected Assist System) |
 | Tests | `SwiftCode/Backend/Assist/HermesProviderTests.swift`, wired into `AssistRuntimeTestSuite` |
 | Project membership | `SwiftCode.xcodeproj/project.pbxproj` (4 new files, app target Sources) |
 
@@ -229,3 +229,14 @@ cancellation, and it is corrected here.
   Hermes branch + cancel handling in `AssistAgentSession`. No
   OpenCode, OpenRouter, Foundation Models, or other provider logic
   was refactored.
+
+## Provider model fetching (2026-10-29)
+
+Hermes has no model-list command, so `HermesProvider.fetchModels()`
+reads the current model from `hermes model` (no arguments, parsed by
+`parseModelOutput`) and, when Hermes is OpenRouter-backed, expands to
+OpenRouter's live catalog via SwiftCode's saved OpenRouter key. The
+Hermes settings card's "Discover models" button lists exactly those
+models; when nothing parses, it throws an honest error instead of
+showing a fabricated catalog. Hermes has no JS SDK runtime, so its
+card has Check installation instead of an Install/Repair row.
