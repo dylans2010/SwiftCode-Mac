@@ -950,6 +950,10 @@
 		8D9E00020001000100000002 /* AgentPhaseCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8D9E00020001000100000001 /* AgentPhaseCoordinator.swift */; };
 		8D9E00020001000100000004 /* AgentNotesManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8D9E00020001000100000003 /* AgentNotesManager.swift */; };
 		8D9E00020001000100000006 /* AgentModelAdapter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8D9E00020001000100000005 /* AgentModelAdapter.swift */; };
+		AC0D000400000000000002 /* AssistProviderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC0D000400000000000001 /* AssistProviderTests.swift */; };
+		AC0D000300000000000002 /* OpenRouterAssistProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC0D000300000000000001 /* OpenRouterAssistProvider.swift */; };
+		AC0D000200000000000002 /* OpenCodeClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC0D000200000000000001 /* OpenCodeClient.swift */; };
+		AC0D000100000000000002 /* AssistProviderConfiguration.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC0D000100000000000001 /* AssistProviderConfiguration.swift */; };
 		8D9E00020001000100000008 /* AgentSkillResolver.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8D9E00020001000100000007 /* AgentSkillResolver.swift */; };
 		8D9E0002000100010000000A /* AgentRepositoryScanner.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8D9E00020001000100000009 /* AgentRepositoryScanner.swift */; };
 		8D9E0002000100010000000C /* AgentTerminalService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8D9E0002000100010000000B /* AgentTerminalService.swift */; };
@@ -3916,6 +3920,10 @@
 		8D9E00020001000100000001 /* AgentPhaseCoordinator.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = AgentPhaseCoordinator.swift; sourceTree = "<group>"; };
 		8D9E00020001000100000003 /* AgentNotesManager.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = AgentNotesManager.swift; sourceTree = "<group>"; };
 		8D9E00020001000100000005 /* AgentModelAdapter.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = AgentModelAdapter.swift; sourceTree = "<group>"; };
+		AC0D000400000000000001 /* AssistProviderTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssistProviderTests.swift; sourceTree = "<group>"; };
+		AC0D000300000000000001 /* OpenRouterAssistProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OpenRouterAssistProvider.swift; sourceTree = "<group>"; };
+		AC0D000200000000000001 /* OpenCodeClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OpenCodeClient.swift; sourceTree = "<group>"; };
+		AC0D000100000000000001 /* AssistProviderConfiguration.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssistProviderConfiguration.swift; sourceTree = "<group>"; };
 		8D9E00020001000100000007 /* AgentSkillResolver.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = AgentSkillResolver.swift; sourceTree = "<group>"; };
 		8D9E00020001000100000009 /* AgentRepositoryScanner.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = AgentRepositoryScanner.swift; sourceTree = "<group>"; };
 		8D9E0002000100010000000B /* AgentTerminalService.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = AgentTerminalService.swift; sourceTree = "<group>"; };
@@ -8307,6 +8315,10 @@
 				8D9E00020001000100000001 /* AgentPhaseCoordinator.swift */,
 				8D9E00020001000100000003 /* AgentNotesManager.swift */,
 				8D9E00020001000100000005 /* AgentModelAdapter.swift */,
+				AC0D000400000000000001 /* AssistProviderTests.swift */,
+				AC0D000300000000000001 /* OpenRouterAssistProvider.swift */,
+				AC0D000200000000000001 /* OpenCodeClient.swift */,
+				AC0D000100000000000001 /* AssistProviderConfiguration.swift */,
 				8D9E00020001000100000007 /* AgentSkillResolver.swift */,
 				8D9E00020001000100000009 /* AgentRepositoryScanner.swift */,
 				8D9E0002000100010000000B /* AgentTerminalService.swift */,
@@ -12002,6 +12014,10 @@
 				8D9E00020001000100000002 /* AgentPhaseCoordinator.swift in Sources */,
 				8D9E00020001000100000004 /* AgentNotesManager.swift in Sources */,
 				8D9E00020001000100000006 /* AgentModelAdapter.swift in Sources */,
+				AC0D000400000000000002 /* AssistProviderTests.swift in Sources */,
+				AC0D000300000000000002 /* OpenRouterAssistProvider.swift in Sources */,
+				AC0D000200000000000002 /* OpenCodeClient.swift in Sources */,
+				AC0D000100000000000002 /* AssistProviderConfiguration.swift in Sources */,
 				8D9E00020001000100000008 /* AgentSkillResolver.swift in Sources */,
 				8D9E0002000100010000000A /* AgentRepositoryScanner.swift in Sources */,
 				8D9E0002000100010000000C /* AgentTerminalService.swift in Sources */,

@@ -75,6 +75,22 @@ public final class AgentModelAdapter: Sendable {
 
     /// Canonical registry of known model specifications & capabilities
     public func specification(for modelId: String) -> ModelSpecification {
+        // OpenCode first: a stored `opencode:anthropic/claude-…` id would
+        // otherwise match the `claude`/`anthropic` branches below and be
+        // misreported (and misrouted) as a direct Anthropic model.
+        // Context is a conservative 128k default: the underlying OpenCode
+        // model's true limit varies, and specification() is synchronous
+        // so it cannot consult the server's catalog here.
+        if let openCode = OpenCodeModelID.parse(modelId) {
+            return ModelSpecification(
+                id: modelId,
+                displayName: openCode.displayName,
+                provider: .openCode,
+                contextWindowTokens: 128_000,
+                capabilities: .standardCloud
+            )
+        }
+
         let lower = modelId.lowercased()
 
         if lower.contains("claude") || lower.contains("anthropic") {
@@ -317,8 +333,29 @@ public final class AgentModelAdapter: Sendable {
     /// Streams each model delta to the Assist execution loop instead of waiting for a
     /// complete response. The agent response is still validated as one complete JSON
     /// object before any tool is allowed to execute.
-    public func streamQueryModel(prompt: String, modelId: String, attachments: [AIMessageAttachment]? = nil) async throws -> AsyncThrowingStream<String, Error> {
-        AsyncThrowingStream { continuation in
+    public func streamQueryModel(prompt: String, modelId: String, attachments: [AIMessageAttachment]? = nil, systemPrompt: String = "", directory: String? = nil) async throws -> AsyncThrowingStream<String, Error> {
+        // OpenCode seam. The caller (AssistAgentSession) passes SwiftCode's
+        // real system prompt and the workspace root; OpenCodeClient sends
+        // the system prompt in the prompt's `system` field and the turn
+        // prompt as a text part, names the `swiftcode` agent, and streams
+        // back text deltas. What comes back is parsed by the session
+        // exactly like any other provider's output: a JSON tool request is
+        // validated against the registry, permission-checked, executed by
+        // SwiftCode's tools, and its result is fed back on the next turn.
+        // OpenCode never executes tools on SwiftCode's behalf (its client
+        // fails a run closed if a tool part appears on the stream).
+        // `systemPrompt`/`directory` are intentionally ignored for other
+        // providers, preserving their existing behaviour byte for byte.
+        if let openCode = OpenCodeModelID.parse(modelId) {
+            return try await OpenCodeClient.shared.streamPrompt(
+                prompt: prompt,
+                systemPrompt: systemPrompt.isEmpty ? nil : systemPrompt,
+                model: OpenCodeModel(providerID: openCode.providerID, modelID: openCode.modelID),
+                directory: directory
+            )
+        }
+
+        return AsyncThrowingStream { continuation in
             let task = Task {
                 do {
                     try await LLMService.shared.streamChat(

@@ -352,7 +352,22 @@ public final class AssistAgentSession: Sendable {
         // Google OAuth session satisfies the Google provider.
         // N-3: use the async token accessor — the sync overload blocks up to
         // 8 s on a semaphore during refresh and never tries ambient ADC.
-        if selectedProvider != .offline && selectedProvider != .codex {
+        if OpenCodeModelID.isOpenCodeModelID(selectedModel) {
+            // OpenCode has no SwiftCode-managed API key: model credentials
+            // live in OpenCode's own configuration and SwiftCode only
+            // talks to the local server. Validate reachability instead of
+            // a key — and never fall through to the OpenRouter key check
+            // below (an `opencode:` id contains "/" and would otherwise
+            // be misclassified as an OpenRouter model).
+            do {
+                try await OpenCodeClient.shared.ensureServer()
+            } catch {
+                let errorMsg = "Session Validation Failed: \(error.localizedDescription)"
+                phaseCoordinator.failPhase("PHASE_01_INIT", error: errorMsg)
+                transition(to: .failed, reason: errorMsg)
+                throw NSError(domain: "AssistAgentSession", code: 503, userInfo: [NSLocalizedDescriptionKey: errorMsg])
+            }
+        } else if selectedProvider != .offline && selectedProvider != .codex {
             let key = LLMService.shared.retrieveAPIKey(for: selectedProvider)
             var googleOAuthOK = false
             if selectedProvider == .google {
@@ -753,7 +768,14 @@ public final class AssistAgentSession: Sendable {
             let responseStream = try await AgentModelAdapter.shared.streamQueryModel(
                 prompt: conversationPrompt,
                 modelId: activeModel,
-                attachments: activeAttachments
+                attachments: activeAttachments,
+                // Only the OpenCode branch uses these; other providers
+                // keep their existing behaviour (see AgentModelAdapter).
+                // The system prompt is the real asset prompt, not an
+                // OpenCode default, and the directory scopes the OpenCode
+                // session to this workspace.
+                systemPrompt: assetSystemPrompt,
+                directory: context.workspaceRoot.path
             )
             var response = ""
             var streamedToolId: String?

@@ -24,7 +24,7 @@ public final class _AssistCriticalValidationEngine: Sendable {
         // 2. Perform AI-based verification of the final state
         let providerRawValue = UserDefaults.standard.string(forKey: "assist.selectedProvider") ?? AssistModelProvider.openAI.rawValue
         let provider = AssistModelProvider(rawValue: providerRawValue) ?? .openAI
-        let apiKey = await APIKeyManager.shared.retrieveKey(service: provider.apiKeyProvider)
+        let apiKey = await provider.storedAPIKey()
 
         let prompt = """
         \(AssistAgenticPrompt.systemPrompt)

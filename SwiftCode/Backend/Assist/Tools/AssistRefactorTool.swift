@@ -34,7 +34,7 @@ public struct AssistRefactorTool: AssistTool {
             let content = try context.fileSystem.readFile(at: path)
 
             let provider = AssistModelProvider.openAI // Default for now
-            let apiKey = await APIKeyManager.shared.retrieveKey(service: provider.apiKeyProvider)
+            let apiKey = await provider.storedAPIKey()
 
             let prompt = """
             You are a refactoring engine. Apply the following refactoring action to the code.

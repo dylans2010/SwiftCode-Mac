@@ -62,7 +62,7 @@ public final class AssistAgent: ObservableObject {
         let modelID = await AssistModelManager.shared.selectedModelID
         let providerRawValue = UserDefaults.standard.string(forKey: "assist.selectedProvider") ?? AssistModelProvider.openAI.rawValue
         let provider = AssistModelProvider(rawValue: providerRawValue) ?? .openAI
-        let apiKey = APIKeyManager.shared.retrieveKey(service: provider.apiKeyProvider)
+        let apiKey = await provider.storedAPIKey()
 
         let assetSystemPrompt = (try? AssistManager.shared.getSystemPrompt()) ?? AssistAgenticPrompt.systemPrompt
         var prompt = "\(assetSystemPrompt)\n\n# TASK COMPLETED\nTask: \(intent)\nStatus: Completed.\n"

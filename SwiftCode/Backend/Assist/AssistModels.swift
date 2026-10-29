@@ -68,6 +68,7 @@ public enum AssistModelProvider: String, Codable, CaseIterable, Sendable {
     case meta = "Meta AI"
     case kimi = "Kimi"
     case openRouter = "OpenRouter"
+    case openCode = "OpenCode"
     case codex = "Codex"
 
     public static func from(llmProvider: LLMProvider) -> AssistModelProvider {
@@ -81,7 +82,12 @@ public enum AssistModelProvider: String, Codable, CaseIterable, Sendable {
         }
     }
 
-    var apiKeyProvider: APIKeyProvider {
+    /// The stored-key provider for this Assist provider, or nil when the
+    /// provider holds no SwiftCode-managed API key. OpenCode is nil: its
+    /// model credentials live in OpenCode's own configuration and the
+    /// server is local, so there is no key for SwiftCode to retrieve —
+    /// returning another provider's key here would mix credentials.
+    var apiKeyProvider: APIKeyProvider? {
         switch self {
         case .openAI: return .openai
         case .anthropic: return .anthropic
@@ -89,10 +95,27 @@ public enum AssistModelProvider: String, Codable, CaseIterable, Sendable {
         case .mistral: return .mistral
         case .meta, .kimi: return .openRouter
         case .openRouter: return .openRouter
+        case .openCode: return nil
         case .codex: return .openai
         }
     }
 
+    /// Stored key for this provider, or nil for OpenCode (no
+    /// SwiftCode-managed key exists for it). Single call site for the
+    /// legacy final-report paths so they cannot accidentally pick up
+    /// another provider's credential.
+    @MainActor
+    public func storedAPIKey() async -> String? {
+        guard let keyProvider = apiKeyProvider else { return nil }
+        return await APIKeyManager.shared.retrieveKey(service: keyProvider)
+    }
+
+    /// LLMService routing for providers that go through LLMService.
+    /// OpenCode does NOT go through LLMService (AgentModelAdapter routes
+    /// `opencode:` models to OpenCodeClient before LLMService is reached),
+    /// so this mapping is never consulted for it — and
+    /// AssistLLMService.generateResponse fails closed for .openCode
+    /// rather than silently sending an OpenCode model to OpenRouter.
     var llmProvider: LLMProvider {
         switch self {
         case .openAI: return .openai
@@ -100,6 +123,7 @@ public enum AssistModelProvider: String, Codable, CaseIterable, Sendable {
         case .gemini: return .google
         case .mistral: return .mistral
         case .meta, .kimi, .openRouter: return .openRouter
+        case .openCode: return .openRouter
         case .codex: return .codex
         }
     }
@@ -113,6 +137,7 @@ public enum AssistModelProvider: String, Codable, CaseIterable, Sendable {
         case .meta: return URL(string: "https://api.meta.ai/v1/chat/completions") // Example
         case .kimi: return URL(string: "https://api.moonshot.cn/v1/chat/completions")
         case .openRouter: return URL(string: "https://openrouter.ai/api/v1/chat/completions")
+        case .openCode: return OpenCodeConfiguration.load().serverURL
         case .codex: return URL(string: "http://localhost:3003/v1/chat/completions")
         }
     }
@@ -133,6 +158,17 @@ public struct AssistAIResponse: Sendable {
 public struct AssistLLMService {
     @MainActor
     public static func generateResponse(prompt: String, provider: AssistModelProvider, apiKey: String?, modelOverride: String? = nil) async -> AssistAIResponse {
+        // Fail closed for OpenCode: it must run through AgentModelAdapter
+        // -> OpenCodeClient, never through LLMService. Without this guard
+        // the llmProvider mapping above would silently route an OpenCode
+        // model to OpenRouter with an OpenRouter credential.
+        if provider == .openCode {
+            return AssistAIResponse(
+                content: "",
+                success: false,
+                error: "OpenCode models run through OpenCodeClient (see AgentModelAdapter), not LLMService. Select the model in Assist Settings and retry."
+            )
+        }
         do {
             // Standardize on the central LLMService which handles all model routing and logic.
             // We pass the prompt and let LLMService handle the details.

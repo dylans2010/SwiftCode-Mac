@@ -539,6 +539,26 @@ struct AssistSettingsView: View {
     @State private var isFetchingOpenRouterModels = false
     @State private var openRouterFetchError: String? = nil
 
+    // OpenRouter & OpenCode provider section state. OpenRouter's key is
+    // NOT entered here — it lives in the API Keys section below and in
+    // the Keychain; this section only tests and validates it.
+    @State private var providerOpenRouterModels: [OpenRouterModel] = []
+    @State private var isFetchingProviderOpenRouterModels = false
+    @State private var providerOpenRouterError: String? = nil
+    @State private var openRouterTestResult: String? = nil
+    @State private var isTestingOpenRouter = false
+    @State private var openRouterValidationResult: String? = nil
+    @State private var isValidatingOpenRouter = false
+    @State private var openCodeServerURL = OpenCodeConfiguration.load().serverURL.absoluteString
+    @State private var openCodeAgentName = OpenCodeConfiguration.load().agentName
+    @State private var openCodeManagedServer = OpenCodeConfiguration.load().managedServerEnabled
+    @State private var openCodeStatus: String? = nil
+    @State private var isCheckingOpenCode = false
+    @State private var openCodeModels: [OpenCodeModel] = []
+    @State private var isFetchingOpenCodeModels = false
+    @State private var openCodeFetchError: String? = nil
+    @State private var openCodeManualModel = ""
+
     // Custom Model configurations
     @State private var customEndpointsManager = CustomEndpointManager.shared
     @State private var selectedEndpoint: SavedCustomEndpoint? = nil
@@ -793,6 +813,13 @@ struct AssistSettingsView: View {
                     .padding(14)
                 }
                 .groupBoxStyle(ModernGroupBoxStyle())
+
+                // OpenRouter & OpenCode providers. Both run through the
+                // same Assist loop (system prompt, JSON tool protocol,
+                // registry validation, permissions, real tool execution);
+                // neither replaces it. See
+                // Docs/Assist-OpenCode-OpenRouter-Providers.md.
+                openRouterOpenCodeProvidersSection
 
                 // Reverse (native REA integration) — readiness, versions,
                 // capabilities, and runtime locations.
@@ -2196,12 +2223,347 @@ struct AssistSettingsView: View {
         .background(Color.purple.opacity(0.08), in: RoundedRectangle(cornerRadius: 6))
     }
 
-    @ViewBuilder
+    // MARK: - OpenRouter & OpenCode Providers Section
+
+    private var hasSavedOpenRouterKey: Bool {
+        if let key = KeychainService.shared.get(forKey: KeychainService.openRouterAPIKey), !key.isEmpty {
+            return true
+        }
+        return APIKeyManager.shared.retrieveKey(service: .openRouter)?.isEmpty == false
+    }
+
+    private var isOpenRouterModelSelected: Bool {
+        let id = settings.selectedAssistModelID
+        return !id.isEmpty && !OpenCodeModelID.isOpenCodeModelID(id) && id.contains("/")
+    }
+
+    private var isOpenCodeModelSelected: Bool {
+        OpenCodeModelID.isOpenCodeModelID(settings.selectedAssistModelID)
+    }
+
+    private func selectProviderModel(storedID: String, provider: AssistModelProvider) {
+        settings.selectedAssistModelID = storedID
+        AssistProviderSelection.persistedProvider = provider
+        if provider == .openCode {
+            // A new provider selection must never resume an OpenCode
+            // session cached under a previous selection.
+            Task { await OpenCodeClient.shared.resetAllSessions() }
+        }
+    }
+
+    private func saveOpenCodeConfiguration() {
+        var config = OpenCodeConfiguration.load()
+        if let url = URL(string: openCodeServerURL.trimmingCharacters(in: .whitespacesAndNewlines)),
+           let scheme = url.scheme?.lowercased(), (scheme == "http" || scheme == "https"), url.host != nil {
+            config.serverURL = url
+        } else {
+            openCodeStatus = "Server URL is not a valid http(s) URL; previous URL kept."
+            return
+        }
+        let agent = openCodeAgentName.trimmingCharacters(in: .whitespacesAndNewlines)
+        config.agentName = agent.isEmpty ? OpenCodeConfiguration.defaultAgentName : agent
+        config.managedServerEnabled = openCodeManagedServer
+        config.save()
+        openCodeStatus = "OpenCode settings saved."
+        if !openCodeManagedServer {
+            Task { await OpenCodeClient.shared.stopManagedServer() }
+        }
+    }
+
+    private var openRouterOpenCodeProvidersSection: some View {
+        GroupBox {
+            VStack(alignment: .leading, spacing: 14) {
+                HStack(spacing: 10) {
+                    ZStack {
+                        RoundedRectangle(cornerRadius: 8)
+                            .fill(Color.purple.opacity(0.14))
+                            .frame(width: 32, height: 32)
+                        Image(systemName: "cpu")
+                            .font(.system(size: 14, weight: .bold))
+                            .foregroundStyle(Color.purple)
+                    }
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("OpenRouter & OpenCode")
+                            .font(.system(size: 14, weight: .semibold))
+                        Text("Model providers for the same Assist loop — SwiftCode keeps its system prompt, tools, and permissions.")
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                    }
+                }
+
+                Divider()
+
+                // MARK: OpenRouter
+                VStack(alignment: .leading, spacing: 6) {
+                    HStack {
+                        Text("OpenRouter")
+                            .font(.system(size: 12, weight: .medium))
+                        Spacer()
+                        if isOpenRouterModelSelected {
+                            Text("Active")
+                                .font(.system(size: 10, weight: .semibold))
+                                .foregroundStyle(.green)
+                        }
+                    }
+                    Text("Runs over OpenRouter's OpenAI-compatible API with your saved key (managed in API Keys below). Selecting a model below makes OpenRouter the provider for new Assist requests; it never substitutes another model.")
+                        .font(.system(size: 10))
+                        .foregroundStyle(.secondary)
+                    HStack {
+                        Text(hasSavedOpenRouterKey ? "API key saved" : "No API key saved")
+                            .font(.caption)
+                            .foregroundStyle(hasSavedOpenRouterKey ? .green : .orange)
+                        Spacer()
+                        Button(isTestingOpenRouter ? "Testing…" : "Test connection") {
+                            isTestingOpenRouter = true
+                            openRouterTestResult = nil
+                            Task {
+                                do {
+                                    openRouterTestResult = try await OpenRouterAssistProvider.testConnection()
+                                } catch {
+                                    openRouterTestResult = error.localizedDescription
+                                }
+                                isTestingOpenRouter = false
+                            }
+                        }
+                        .buttonStyle(.bordered)
+                        .controlSize(.small)
+                        .disabled(isTestingOpenRouter)
+                    }
+                    if let result = openRouterTestResult {
+                        Text(result)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                    HStack {
+                        Button(isFetchingProviderOpenRouterModels ? "Discovering…" : "Discover models") {
+                            isFetchingProviderOpenRouterModels = true
+                            providerOpenRouterError = nil
+                            Task {
+                                do {
+                                    providerOpenRouterModels = try await OpenRouterAssistProvider.fetchModels()
+                                } catch {
+                                    providerOpenRouterError = error.localizedDescription
+                                }
+                                isFetchingProviderOpenRouterModels = false
+                            }
+                        }
+                        .buttonStyle(.bordered)
+                        .controlSize(.small)
+                        .disabled(isFetchingProviderOpenRouterModels)
+                        Button(isValidatingOpenRouter ? "Validating…" : "Validate selected model") {
+                            isValidatingOpenRouter = true
+                            openRouterValidationResult = nil
+                            Task {
+                                do {
+                                    let support = try await OpenRouterAssistProvider.validateModel(settings.selectedAssistModelID)
+                                    switch support {
+                                    case .supports:
+                                        openRouterValidationResult = "“\(settings.selectedAssistModelID)” exists on OpenRouter and advertises native tool calling."
+                                    case .doesNotSupport:
+                                        openRouterValidationResult = "“\(settings.selectedAssistModelID)” exists on OpenRouter but does not advertise native tool calling. Assist still works through its JSON tool protocol; no model was substituted."
+                                    case .unknown:
+                                        openRouterValidationResult = "“\(settings.selectedAssistModelID)” exists on OpenRouter. Native tool-calling support is not advertised in its catalog entry; Assist still works through its JSON tool protocol."
+                                    }
+                                } catch {
+                                    openRouterValidationResult = error.localizedDescription
+                                }
+                                isValidatingOpenRouter = false
+                            }
+                        }
+                        .buttonStyle(.bordered)
+                        .controlSize(.small)
+                        .disabled(isValidatingOpenRouter || settings.selectedAssistModelID.isEmpty)
+                    }
+                    if let error = providerOpenRouterError {
+                        Text(error)
+                            .font(.caption)
+                            .foregroundStyle(.red)
+                    }
+                    if let result = openRouterValidationResult {
+                        Text(result)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                    if !providerOpenRouterModels.isEmpty {
+                        ForEach(providerOpenRouterModels.prefix(50)) { model in
+                            HStack {
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text(model.name)
+                                        .font(.system(size: 12, weight: .medium))
+                                    Text(model.id)
+                                        .font(.system(.caption, design: .monospaced))
+                                        .foregroundStyle(.secondary)
+                                }
+                                Spacer()
+                                if settings.selectedAssistModelID == model.id {
+                                    Image(systemName: "checkmark.circle.fill")
+                                        .foregroundStyle(.green)
+                                } else {
+                                    Button("Select") {
+                                        selectProviderModel(storedID: model.id, provider: .openRouter)
+                                    }
+                                    .buttonStyle(.bordered)
+                                    .controlSize(.small)
+                                }
+                            }
+                        }
+                        if providerOpenRouterModels.count > 50 {
+                            Text("Showing the first 50 discovered models. Use the Available Models list below to browse all of them.")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                }
+
+                Divider()
+
+                // MARK: OpenCode
+                VStack(alignment: .leading, spacing: 6) {
+                    HStack {
+                        Text("OpenCode")
+                            .font(.system(size: 12, weight: .medium))
+                        Spacer()
+                        if isOpenCodeModelSelected {
+                            Text("Active")
+                                .font(.system(size: 10, weight: .semibold))
+                                .foregroundStyle(.green)
+                        }
+                    }
+                    Text("Connects to a local OpenCode server over HTTP — no JS runtime is bundled and no OpenCode SDK is imported. SwiftCode sends its own system prompt and the selected model; the model returns JSON tool requests that SwiftCode validates, permission-checks, and executes with its own tools. OpenCode model credentials stay in OpenCode's own configuration and are never stored by SwiftCode.")
+                        .font(.system(size: 10))
+                        .foregroundStyle(.secondary)
+                    HStack {
+                        Text("Server URL")
+                            .font(.caption)
+                            .frame(width: 70, alignment: .leading)
+                        TextField("http://127.0.0.1:4096", text: $openCodeServerURL)
+                            .textFieldStyle(.roundedBorder)
+                            .font(.system(.caption, design: .monospaced))
+                    }
+                    HStack {
+                        Text("Agent")
+                            .font(.caption)
+                            .frame(width: 70, alignment: .leading)
+                        TextField("swiftcode", text: $openCodeAgentName)
+                            .textFieldStyle(.roundedBorder)
+                            .font(.system(.caption, design: .monospaced))
+                    }
+                    Toggle(isOn: $openCodeManagedServer) {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("Managed server (opt-in)")
+                                .font(.system(size: 12, weight: .medium))
+                            Text("Start `opencode serve` on 127.0.0.1 if no server is reachable. Off by default: SwiftCode then only connects to a server you already run.")
+                                .font(.caption2)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                    .toggleStyle(.switch)
+                    HStack {
+                        Button("Save OpenCode settings") {
+                            saveOpenCodeConfiguration()
+                        }
+                        .buttonStyle(.bordered)
+                        .controlSize(.small)
+                        Button(isCheckingOpenCode ? "Checking…" : "Check server") {
+                            isCheckingOpenCode = true
+                            openCodeStatus = nil
+                            Task {
+                                do {
+                                    try await OpenCodeClient.shared.ensureServer()
+                                    openCodeStatus = "OpenCode server is reachable at \(OpenCodeConfiguration.load().serverURL.absoluteString)."
+                                } catch {
+                                    openCodeStatus = error.localizedDescription
+                                }
+                                isCheckingOpenCode = false
+                            }
+                        }
+                        .buttonStyle(.bordered)
+                        .controlSize(.small)
+                        .disabled(isCheckingOpenCode)
+                        Button(isFetchingOpenCodeModels ? "Discovering…" : "Discover models") {
+                            isFetchingOpenCodeModels = true
+                            openCodeFetchError = nil
+                            Task {
+                                do {
+                                    openCodeModels = try await OpenCodeClient.shared.fetchModels()
+                                } catch {
+                                    openCodeFetchError = error.localizedDescription
+                                }
+                                isFetchingOpenCodeModels = false
+                            }
+                        }
+                        .buttonStyle(.bordered)
+                        .controlSize(.small)
+                        .disabled(isFetchingOpenCodeModels)
+                    }
+                    if let status = openCodeStatus {
+                        Text(status)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                    if let error = openCodeFetchError {
+                        Text(error)
+                            .font(.caption)
+                            .foregroundStyle(.red)
+                    }
+                    HStack {
+                        TextField("provider/model (e.g. anthropic/claude-sonnet-4-5)", text: $openCodeManualModel)
+                            .textFieldStyle(.roundedBorder)
+                            .font(.system(.caption, design: .monospaced))
+                        Button("Select") {
+                            let trimmed = openCodeManualModel.trimmingCharacters(in: .whitespacesAndNewlines)
+                            guard trimmed.contains("/"), !trimmed.hasPrefix("opencode:") else {
+                                openCodeFetchError = "Enter an OpenCode model as provider/model (without the opencode: prefix)."
+                                return
+                            }
+                            openCodeFetchError = nil
+                            selectProviderModel(storedID: "opencode:\(trimmed)", provider: .openCode)
+                        }
+                        .buttonStyle(.bordered)
+                        .controlSize(.small)
+                        .disabled(openCodeManualModel.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                    }
+                    if !openCodeModels.isEmpty {
+                        ForEach(openCodeModels) { model in
+                            HStack {
+                                Text(model.displayName)
+                                    .font(.system(.caption, design: .monospaced))
+                                Spacer()
+                                if settings.selectedAssistModelID == model.storedID {
+                                    Image(systemName: "checkmark.circle.fill")
+                                        .foregroundStyle(.green)
+                                } else {
+                                    Button("Select") {
+                                        selectProviderModel(storedID: model.storedID, provider: .openCode)
+                                    }
+                                    .buttonStyle(.bordered)
+                                    .controlSize(.small)
+                                }
+                            }
+                        }
+                    }
+                    Text("Required server setup: create the `swiftcode` agent on the server with every tool permission denied, so OpenCode acts as a pure model behind SwiftCode's tool loop instead of running its own tools. Save this definition as `.opencode/agent/swiftcode.md` in the project (or `~/.config/opencode/agent/swiftcode.md` globally), then start the server with `opencode serve --hostname 127.0.0.1 --port 4096`.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    Text(OpenCodeConfiguration.swiftcodeAgentDefinition)
+                        .font(.system(.caption, design: .monospaced))
+                        .textSelection(.enabled)
+                        .padding(8)
+                        .background(Color.primary.opacity(0.05))
+                        .cornerRadius(6)
+                }
+            }
+            .padding(14)
+        }
+        .groupBoxStyle(ModernGroupBoxStyle())
+    }
+
     // MARK: - SwiftCode Cloud Model Section
 
     /// The whole "Use SwiftCode's Cloud Model" settings block. Extracted from
     /// the settings body: the quota text's interpolation plus the ternary in
     /// foregroundStyle exceeded the type-checker's budget inline.
+    @ViewBuilder
     private var swiftCodeCloudSection: some View {
         // Hoisted so the Toggle label stays a trivial expression.
         let cloudRemaining = SCCloudModelClient.shared.remainingRequestsToday
