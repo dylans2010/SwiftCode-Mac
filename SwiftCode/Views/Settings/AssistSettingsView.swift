@@ -2444,7 +2444,7 @@ struct AssistSettingsView: View {
                                 .foregroundStyle(.green)
                         }
                     }
-                    Text("Connects to a local OpenCode server over HTTP — no JS runtime is bundled and no OpenCode SDK is imported. SwiftCode sends its own system prompt and the selected model; the model returns JSON tool requests that SwiftCode validates, permission-checks, and executes with its own tools. OpenCode model credentials stay in OpenCode's own configuration and are never stored by SwiftCode.")
+                    Text("Agent-mode sessions use the OpenCode SDK runtime (see SDK Providers below), not this section's legacy HTTP path: SwiftCode sends its own system prompt and the selected model; with SwiftCode tools the model returns JSON tool requests that SwiftCode validates, permission-checks, and executes with its own tools. The deny-all `swiftcode` agent definition applies to those SwiftCode-tool sessions. OpenCode model credentials stay in OpenCode's own configuration and are never stored by SwiftCode. Managed mode requires the `opencode` CLI in addition to the SDK package — installing the SDK alone is not enough.")
                         .font(.system(size: 10))
                         .foregroundStyle(.secondary)
                     HStack {
@@ -2612,6 +2612,7 @@ struct AssistSettingsView: View {
                         }
                         .pickerStyle(.menu)
                         .frame(width: 200)
+                        .accessibilityLabel("Tool source")
                         .onChange(of: sdkToolSource) { _, newValue in
                             newValue.save()
                         }
@@ -2619,7 +2620,21 @@ struct AssistSettingsView: View {
                     Text(sdkToolSource.explanation)
                         .font(.system(size: 10))
                         .foregroundStyle(.secondary)
-                    Text("Combined is enabled because the shared bridge protocol defines it and both SDKs report their own tool events. Provider tools in a combined session run under the provider runtime's permissions, not SwiftCode's — see the explanation above.")
+                    // Settings-time cross-validation: previously an
+                    // incompatible tool source + model combination was
+                    // discovered only as a terminal run error. The run
+                    // still fails explicitly if this warning is missed;
+                    // this text only surfaces it earlier.
+                    if sdkToolSource == .openrouter && isOpenCodeModelSelected {
+                        Text("Warning: OpenRouter tools are not supported for the currently selected OpenCode model. Change the tool source or the model before running, or the run will fail with an explicit error.")
+                            .font(.system(size: 10))
+                            .foregroundStyle(.orange)
+                    } else if sdkToolSource == .opencode && !isOpenCodeModelSelected {
+                        Text("Warning: OpenCode tools are not supported for the currently selected model (not an OpenCode model). Change the tool source or the model before running, or the run will fail with an explicit error.")
+                            .font(.system(size: 10))
+                            .foregroundStyle(.orange)
+                    }
+                    Text("SDK tool panels are session-only: tool events live in memory for the current conversation and are not persisted with saved conversations.")
                         .font(.system(size: 10))
                         .foregroundStyle(.secondary)
                 }
@@ -2712,6 +2727,10 @@ struct AssistSettingsView: View {
         }
         .groupBoxStyle(ModernGroupBoxStyle())
         .onAppear {
+            // The picker state is initialised once at view creation;
+            // reload it here so an external change to
+            // assist.toolSource is reflected when the section appears.
+            sdkToolSource = SDKToolSourceSetting.load()
             Task { await refreshSDKStatuses() }
         }
     }
@@ -2722,6 +2741,11 @@ struct AssistSettingsView: View {
 
     private func sdkInstall(provider: SDKProvider, force: Bool) {
         guard !sdkInstallingProviders.contains(provider) else { return }
+        // With force: false and an already-correct install,
+        // ensureInstalled returns the existing status without
+        // reinstalling — capture that fact now so the notice below
+        // does not claim a fresh install happened.
+        let wasAlreadyInstalled = sdkStatuses[provider]?.isInstalled == true && !force
         sdkInstallingProviders.insert(provider)
         sdkInstallErrors[provider] = nil
         sdkInstallNotices[provider] = nil
@@ -2729,7 +2753,9 @@ struct AssistSettingsView: View {
             do {
                 let status = try await SDKRuntimeManager.shared.ensureInstalled(for: provider, force: force)
                 sdkStatuses[provider] = status
-                sdkInstallNotices[provider] = "Installed \(provider.packageName) \(status.installedVersion ?? "")"
+                sdkInstallNotices[provider] = wasAlreadyInstalled
+                    ? "Already installed and verified: \(provider.packageName) \(status.installedVersion ?? "")"
+                    : "Installed \(provider.packageName) \(status.installedVersion ?? "")"
             } catch {
                 sdkInstallErrors[provider] = error.localizedDescription
                 await refreshSDKStatuses()

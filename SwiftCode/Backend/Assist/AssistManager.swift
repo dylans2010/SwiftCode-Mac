@@ -186,6 +186,14 @@ public final class AssistManager: ObservableObject {
     /// Task-specific instructions are retrieved separately per request via
     /// `SystemIndexService.retrieve(for:)` and injected by the request
     /// pipeline — this baseline is what every request carries.
+    /// Drops the cached baseline prompt so the next getSystemPrompt()
+    /// re-reads the current System Assets. The cache was previously
+    /// never invalidated, so in-session asset updates never reached
+    /// a later run within one app lifetime.
+    public func invalidateSystemPromptCache() {
+        cachedSystemPrompt = nil
+    }
+
     public func getSystemPrompt() throws -> String {
         if let cached = cachedSystemPrompt {
             return cached
@@ -1033,6 +1041,10 @@ public final class AssistManager: ObservableObject {
         }
 
         messages.removeAll()
+        // SDK tool panels live in the in-memory store, not on the
+        // messages, so clearing the transcript alone left stale rows
+        // to render under the next unrelated SDK message.
+        SDKToolEventStore.shared.resetAll()
         requestMetricsByMessageID.removeAll()
         modelContext = []
         contextPressure = nil

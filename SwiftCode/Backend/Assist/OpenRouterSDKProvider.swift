@@ -99,8 +99,11 @@ public struct OpenRouterSDKToolDefinition: Sendable {
 }
 
 /// Run bounds. Defaults match the bridge defaults: at most 25 model
-/// steps, at most $2.00 of model cost, 120s per tool call, 90s per
-/// model request, and a final text turn after a stop condition fires.
+/// steps, a $2.00 maxCost STOP CONDITION (not a spending ceiling: the
+/// SDK stops the loop after the step reaching it, then — with
+/// allowFinalResponse — makes one final turn, so spend can exceed
+/// $2.00), 120s per tool call, 90s per model request, and a final
+/// text turn after a stop condition fires.
 public struct OpenRouterSDKRunConfig: Sendable {
     public let maxSteps: Int
     public let maxCost: Double
@@ -338,12 +341,14 @@ public actor OpenRouterSDKProvider {
         // SDK imports resolve. Anything else first (an error line, EOF,
         // or 30 seconds of silence) is a failed connection — never a
         // successful one. Ready does NOT mean authenticated (see header).
-        let ready = try await waitForReady(iterator: iterator)
+        let ready = try await waitForReady(iterator: iterator, bridge: bridge)
         guard ready else {
+            let tail = bridge.stderrTail.trimmingCharacters(in: .whitespacesAndNewlines)
             cleanup(bridge: bridge)
             throw OpenRouterSDKProviderError.bridgeNotReady(
                 "OpenRouter SDK bridge did not report ready within 30 seconds. "
                 + "Check that Node.js and the SDK runtime are installed (Assist Settings → SDK runtime), then try again."
+                + (tail.isEmpty ? "" : " Bridge stderr: \(tail)")
             )
         }
 
@@ -458,6 +463,7 @@ public actor OpenRouterSDKProvider {
 
     private func cleanup(bridge: SDKBridgeSession) {
         bridge.standardOutput.fileHandleForReading.readabilityHandler = nil
+        bridge.standardError?.fileHandleForReading.readabilityHandler = nil
         lineContinuation?.finish()
         lineContinuation = nil
         // The bridge exits on stdin EOF; close our write end so it can
@@ -474,7 +480,7 @@ public actor OpenRouterSDKProvider {
     /// The iterator is taken by value: ready lines are consumed from
     /// the stream's shared storage, and the run loop below ignores any
     /// stray "ready" line anyway, so either consumption outcome is safe.
-    private func waitForReady(iterator: AsyncStream<String>.Iterator) async throws -> Bool {
+    private func waitForReady(iterator: AsyncStream<String>.Iterator, bridge: SDKBridgeSession) async throws -> Bool {
         var iterator = iterator
         return try await withThrowingTaskGroup(of: Bool.self) { group in
             group.addTask {
@@ -484,7 +490,15 @@ public actor OpenRouterSDKProvider {
                           let type = json["type"] as? String else {
                         continue
                     }
-                    if type == "ready" { return true }
+                    if type == "ready" {
+                        let version = json["sdkVersion"] as? String ?? ""
+                        guard version == SDKProvider.openRouter.pinnedVersion else {
+                            throw OpenRouterSDKProviderError.bridgeFailed(
+                                "OpenRouter bridge reported SDK version \"\(version)\", expected \(SDKProvider.openRouter.pinnedVersion). " +
+                                "Reinstall the SDK runtime in Assist Settings → SDK Providers.")
+                        }
+                        return true
+                    }
                     if type == "error" {
                         throw OpenRouterSDKProviderError.bridgeFailed(
                             json["message"] as? String ?? "OpenRouter bridge failed before ready.")
@@ -496,6 +510,12 @@ public actor OpenRouterSDKProvider {
             }
             group.addTask {
                 try await Task.sleep(nanoseconds: 30_000_000_000)
+                // Terminate, don't just return: AsyncStream next() is
+                // not cancellation-aware, so returning alone would
+                // leave the group waiting on the suspended consumer.
+                // The bridge's termination handler finishes the line
+                // continuation, unblocking it.
+                bridge.terminate()
                 return false
             }
             let first = try await group.next() ?? false

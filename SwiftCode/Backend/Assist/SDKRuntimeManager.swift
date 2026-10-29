@@ -111,7 +111,7 @@ public enum SDKToolSourceSetting: String, CaseIterable, Sendable {
         case .swiftcode:
             return "Only SwiftCode Assist tools. Every call is validated, permission-checked, and executed by SwiftCode's dispatcher."
         case .openrouter:
-            return "Only tools defined by the OpenRouter Agent SDK. SwiftCode does not execute these; it observes their events."
+            return "Only host tools executed through the OpenRouter Agent SDK (fetch_url and current_datetime). These are SwiftCode-authored JS host tools, not OpenRouter's own server tools; SwiftCode does not execute them, it observes their events."
         case .opencode:
             return "Only tools from the OpenCode runtime. SwiftCode does not execute these; it observes their events."
         case .combined:
@@ -215,7 +215,13 @@ public enum SDKRuntimeError: Error, LocalizedError, Sendable {
         case .bridgeScriptNotUnderRuntimeDirectory(let url):
             return "Bridge script \(url.path) is not under the SDK runtime directory, so ESM package imports would not resolve. Place it with writeBridgeScript."
         case .startupTimeout(let provider):
-            return "\(provider.displayName) bridge did not report ready within the timeout. See the bridge log in Assist Settings."
+            // No bridge log is rendered in Settings (installLog(for:)
+            // and lastBridgeExitCode have no Settings callers), so the
+            // old text pointed at UI that does not exist. Session
+            // bridges now surface their stderr tail in the run error
+            // instead; manager-bridge failures surface via
+            // startupFailed with the captured detail.
+            return "\(provider.displayName) bridge did not report ready within the timeout. Check that the SDK runtime is installed and the provider is reachable, then try again."
         case .startupFailed(let provider, let detail):
             return "\(provider.displayName) bridge failed to start: \(detail)"
         case .bridgeCrashed(let provider, let exitCode, let detail):

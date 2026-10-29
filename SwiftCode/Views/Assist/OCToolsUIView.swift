@@ -135,6 +135,14 @@ private struct OCToolCallRow: View {
         return String(describing: value)
     }
 
+    private func sourceLabel(for source: SDKToolSource) -> String {
+        switch source {
+        case .swiftcode: return "SwiftCode"
+        case .openrouter: return "OpenRouter"
+        case .opencode: return "OpenCode"
+        }
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             Button {
@@ -154,6 +162,18 @@ private struct OCToolCallRow: View {
                         .font(.system(size: 12, weight: .semibold, design: .rounded))
                         .foregroundStyle(Color.primary)
                         .lineLimit(1)
+
+                    // Per-row source badge: the header says "OpenCode
+                    // Tools" for the whole panel, but a combined run
+                    // also renders SwiftCode-source rows here. Without
+                    // the badge a SwiftCode row was indistinguishable
+                    // from a provider row.
+                    Text(sourceLabel(for: event.source))
+                        .font(.system(size: 9, weight: .semibold, design: .rounded))
+                        .foregroundStyle(.secondary)
+                        .padding(.horizontal, 5)
+                        .padding(.vertical, 2)
+                        .background(Color.secondary.opacity(0.10), in: Capsule())
 
                     HStack(spacing: 3) {
                         Text(event.state.displayLabel)
@@ -295,13 +315,17 @@ private struct OCToolCallRow: View {
 
                     if event.state == .failed || event.state == .cancelled {
                         VStack(alignment: .leading, spacing: 4) {
-                            Text("Error")
+                            // Cancelled is not an error: the old code
+                            // rendered both under an "Error" heading
+                            // in red, so a user-initiated cancel
+                            // looked like a tool failure.
+                            Text(event.state == .cancelled ? "Cancelled" : "Error")
                                 .font(.system(size: 10, weight: .semibold, design: .rounded))
-                                .foregroundStyle(Color.red)
+                                .foregroundStyle(event.state == .cancelled ? Color.secondary : Color.red)
 
                             Text(event.safeError ?? "Tool did not complete.")
                                 .font(.system(size: 11, design: .monospaced))
-                                .foregroundStyle(Color.red.opacity(0.85))
+                                .foregroundStyle(event.state == .cancelled ? Color.secondary : Color.red.opacity(0.85))
                                 .textSelection(.enabled)
                                 .frame(maxWidth: .infinity, alignment: .leading)
                                 .padding(8)
@@ -321,7 +345,8 @@ private struct OCToolCallRow: View {
         case .requested: return .secondary
         case .running: return .orange
         case .completed: return .green
-        case .failed, .cancelled: return .red
+        case .failed: return .red
+        case .cancelled: return .secondary
         }
     }
 

@@ -78,11 +78,18 @@ public final class SDKBridgeSession: @unchecked Sendable {
     public let process: Process
     public let standardInput: Pipe
     public let standardOutput: Pipe
+    public let standardError: Pipe?
+    /// Last stderr bytes from the bridge, capped by the launcher.
+    /// Session bridges previously sent stderr to /dev/null, so a
+    /// bridge that died on import surfaced only a generic not-ready
+    /// error; providers can now include this tail in failure text.
+    public var stderrTail = ""
 
-    public init(process: Process, standardInput: Pipe, standardOutput: Pipe) {
+    public init(process: Process, standardInput: Pipe, standardOutput: Pipe, standardError: Pipe? = nil) {
         self.process = process
         self.standardInput = standardInput
         self.standardOutput = standardOutput
+        self.standardError = standardError
     }
 
     public func writeLine(_ line: String) {
@@ -106,32 +113,65 @@ public protocol SDKBridgeLaunching: Sendable {
     func launchBridge(provider: String, scriptPath: String, arguments: [String]) async throws -> SDKBridgeSession
 }
 
-/// Minimal Foundation launcher. Resolves `node` through /usr/bin/env
-/// (PATH lookup, no shell string), confines the child to the bridge's
-/// directory, and passes only PATH/HOME/TMPDIR — never the parent's
-/// full environment, which could carry unrelated secrets.
+/// Minimal Foundation launcher. Resolves `node` through
+/// SDKRuntimeManager.detectRuntime() (PATH plus well-known install
+/// locations, e.g. Homebrew) when it finds a node binary — the old
+/// /usr/bin/env fallback alone could not see a Homebrew node from a
+/// Finder-launched app, even though Settings reported a runtime as
+/// available — and falls back to /usr/bin/env node otherwise. It
+/// confines the child to the bridge's directory and passes only
+/// PATH/HOME/TMPDIR — never the parent's full environment, which
+/// could carry unrelated secrets. Bridge stderr is drained into a
+/// capped tail on the session (never /dev/null, never unbounded):
+/// an undrained pipe can deadlock a chatty bridge, and a discarded
+/// one hides import failures behind a generic not-ready error.
 public struct FoundationProcessBridgeLauncher: SDKBridgeLaunching, Sendable {
     public init() {}
 
     public func launchBridge(provider: String, scriptPath: String, arguments: [String]) async throws -> SDKBridgeSession {
         let process = Process()
-        process.executableURL = URL(fileURLWithPath: "/usr/bin/env")
-        process.arguments = ["node", scriptPath] + arguments
+        var nodePath: String?
+        if let detected = SDKRuntimeManager.detectRuntime(), detected.kind == .node {
+            nodePath = detected.path
+        }
+        if let nodePath {
+            process.executableURL = URL(fileURLWithPath: nodePath)
+            process.arguments = [scriptPath] + arguments
+        } else {
+            process.executableURL = URL(fileURLWithPath: "/usr/bin/env")
+            process.arguments = ["node", scriptPath] + arguments
+        }
         process.currentDirectoryURL = URL(fileURLWithPath: scriptPath).deletingLastPathComponent()
         var environment: [String: String] = [:]
         let parent = ProcessInfo.processInfo.environment
-        if let path = parent["PATH"] { environment["PATH"] = path }
+        var pathValue = parent["PATH"] ?? ""
+        if let nodePath {
+            let binDir = (nodePath as NSString).deletingLastPathComponent
+            pathValue = pathValue.isEmpty ? binDir : "\(binDir):\(pathValue)"
+        }
+        if !pathValue.isEmpty { environment["PATH"] = pathValue }
         if let home = parent["HOME"] { environment["HOME"] = home }
         if let tmp = parent["TMPDIR"] { environment["TMPDIR"] = tmp }
         environment["NODE_NO_WARNINGS"] = "1"
         process.environment = environment
         let stdin = Pipe()
         let stdout = Pipe()
+        let stderr = Pipe()
         process.standardInput = stdin
         process.standardOutput = stdout
-        process.standardError = FileHandle.nullDevice
+        process.standardError = stderr
         try process.run()
-        return SDKBridgeSession(process: process, standardInput: stdin, standardOutput: stdout)
+        let session = SDKBridgeSession(process: process, standardInput: stdin, standardOutput: stdout, standardError: stderr)
+        stderr.fileHandleForReading.readabilityHandler = { handle in
+            let data = handle.availableData
+            guard !data.isEmpty,
+                  let text = String(data: data, encoding: .utf8) else { return }
+            session.stderrTail += text
+            if session.stderrTail.count > 8192 {
+                session.stderrTail = String(session.stderrTail.suffix(8192))
+            }
+        }
+        return session
     }
 }
 
@@ -326,12 +366,14 @@ public actor OpenCodeSDKProvider {
         // SDK import resolves AND global.health() passes. Anything else
         // first (an error line, EOF, or 30 seconds of silence) is a
         // failed connection — never a successful one.
-        let ready = try await waitForReady(iterator: iterator)
+        let ready = try await waitForReady(iterator: iterator, bridge: bridge)
         guard ready else {
             bridge.terminate()
+            let tail = bridge.stderrTail.trimmingCharacters(in: .whitespacesAndNewlines)
             throw OpenCodeSDKProviderError.bridgeNotReady(
                 "OpenCode SDK bridge did not report ready within 30 seconds. " +
-                "Check that the SDK runtime is installed and the server is reachable, then try again."
+                "Check that the SDK runtime is installed and the server is reachable, then try again." +
+                (tail.isEmpty ? "" : " Bridge stderr: \(tail)")
             )
         }
 
@@ -340,6 +382,12 @@ public actor OpenCodeSDKProvider {
         // fails the run loudly instead of reaching the bridge as text).
         var runPayload: [String: Any] = [
             "type": "run",
+            // A real per-run id (the OpenRouter provider already sends
+            // one). The old payload sent none, so the bridge defaulted
+            // requestId to "run" and SwiftCode tool call ids repeated
+            // verbatim across runs (swiftcode-run-1, -2, …), which the
+            // store merges by toolCallId — run N overwrote run 1's rows.
+            "requestId": UUID().uuidString,
             "provider": "opencode",
             "model": request.model,
             "systemPrompt": request.systemPrompt,
@@ -471,6 +519,7 @@ public actor OpenCodeSDKProvider {
 
     private func cleanup(bridge: SDKBridgeSession) {
         bridge.standardOutput.fileHandleForReading.readabilityHandler = nil
+        bridge.standardError?.fileHandleForReading.readabilityHandler = nil
         lineContinuation?.finish()
         lineContinuation = nil
         // The bridge exits on stdin EOF; close our write end so it can
@@ -487,7 +536,18 @@ public actor OpenCodeSDKProvider {
     /// The iterator is taken by value: ready lines are consumed from the
     /// stream's shared storage, and the run loop below ignores any
     /// stray "ready" line anyway, so either consumption outcome is safe.
-    private func waitForReady(iterator: AsyncStream<String>.Iterator) async throws -> Bool {
+    ///
+    /// Timeout fix: the old task-group race never actually timed out
+    /// for a live-but-silent bridge, because AsyncStream's next() is
+    /// not cancellation-aware — the group scope waited for the
+    /// suspended consumer even after the sleep task won. The timeout
+    /// task now terminates the bridge; its termination handler
+    /// finishes the line continuation, which unblocks the consumer.
+    /// A ready line whose sdkVersion differs from the pinned version
+    /// is also rejected here (the session path previously accepted
+    /// any ready line; the runner's disk check is the primary gate,
+    /// this is defence in depth).
+    private func waitForReady(iterator: AsyncStream<String>.Iterator, bridge: SDKBridgeSession) async throws -> Bool {
         var iterator = iterator
         return try await withThrowingTaskGroup(of: Bool.self) { group in
             group.addTask {
@@ -497,7 +557,15 @@ public actor OpenCodeSDKProvider {
                           let type = json["type"] as? String else {
                         continue
                     }
-                    if type == "ready" { return true }
+                    if type == "ready" {
+                        let version = json["sdkVersion"] as? String ?? ""
+                        guard version == SDKProvider.openCode.pinnedVersion else {
+                            throw OpenCodeSDKProviderError.bridgeFailed(
+                                "OpenCode bridge reported SDK version \"\(version)\", expected \(SDKProvider.openCode.pinnedVersion). " +
+                                "Reinstall the SDK runtime in Assist Settings → SDK Providers.")
+                        }
+                        return true
+                    }
                     if type == "error" {
                         throw OpenCodeSDKProviderError.bridgeFailed(
                             json["message"] as? String ?? "OpenCode bridge failed before ready.")
@@ -509,6 +577,7 @@ public actor OpenCodeSDKProvider {
             }
             group.addTask {
                 try await Task.sleep(nanoseconds: 30_000_000_000)
+                bridge.terminate()
                 return false
             }
             let first = try await group.next() ?? false

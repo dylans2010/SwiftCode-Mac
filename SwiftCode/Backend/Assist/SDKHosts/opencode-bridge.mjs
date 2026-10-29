@@ -98,7 +98,8 @@
 import * as readline from "node:readline";
 import * as fs from "node:fs";
 import * as path from "node:path";
-import { fileURLToPath } from "node:url";
+import { spawnSync } from "node:child_process";
+import { fileURLToPath, pathToFileURL } from "node:url";
 
 const PROVIDER = "opencode";
 const MAX_TOOL_ROUNDS = 25;
@@ -189,8 +190,17 @@ async function validateAgainstCatalog(client, providerID, modelID) {
         `Configure it in OpenCode (opencode.json / provider auth) or select a different model.`,
     );
   }
-  const models = provider.models ?? provider.Models ?? [];
-  if (Array.isArray(models) && models.length > 0) {
+  const modelsRaw = provider.models ?? provider.Models ?? [];
+  // The v2 catalog carries models as an OBJECT map {[id]: Model}
+  // (types.gen.d.ts), not an array. The old code required an array,
+  // so model validation silently never ran for the real catalog.
+  const models = Array.isArray(modelsRaw)
+    ? modelsRaw
+    : (modelsRaw && typeof modelsRaw === "object"
+      ? Object.entries(modelsRaw).map(([key, value]) =>
+          (value && typeof value === "object" ? { ...value, id: value.id ?? key } : value))
+      : []);
+  if (models.length > 0) {
     const found = models.some((m) => {
       if (typeof m === "string") return m === modelID;
       return m?.id === modelID || m?.modelID === modelID || m?.name === modelID;
@@ -207,8 +217,18 @@ async function validateAgainstCatalog(client, providerID, modelID) {
   // as a run error rather than a guessed substitution.
 }
 
+/**
+ * Map a v2 ToolState to a bridge tool-event state. The v2 ToolState is
+ * an OBJECT {status, input, output?, error?, time} (types.gen.d.ts
+ * ToolStatePending/Running/Completed/Error), NOT a string: the old
+ * switch on the object always fell through to "pending", so every
+ * OpenCode tool row stayed Pending forever and the terminal detail
+ * fetch never ran. Unknown statuses map to "failed", never to a
+ * permanent "pending" — an unknown terminal state must be visible.
+ */
 function toolStateFromSDK(state) {
-  switch (state) {
+  const status = typeof state === "string" ? state : state?.status;
+  switch (status) {
     case "pending":
       return "pending";
     case "running":
@@ -218,8 +238,34 @@ function toolStateFromSDK(state) {
     case "error":
       return "failed";
     default:
-      return "pending";
+      return "failed";
   }
+}
+
+/** Convert a v2 ToolState.time value (epoch ms, or seconds) to ISO. */
+function toolTimeToISO(value) {
+  if (typeof value !== "number" || !Number.isFinite(value) || value <= 0) return "";
+  const ms = value > 1e11 ? value : value * 1000;
+  const date = new Date(ms);
+  return Number.isNaN(date.getTime()) ? "" : date.toISOString();
+}
+
+/**
+ * Redact credential-shaped values from tool-event text. The bridge
+ * holds no SwiftCode key, but provider-tool arguments/results can
+ * contain file contents, env dumps, or server output with secrets.
+ * Only tool_event display text is redacted — tool_call arguments are
+ * never touched (Swift needs the real arguments to execute).
+ */
+function redactToolText(text) {
+  if (typeof text !== "string" || text.length === 0) return text;
+  let out = text;
+  out = out.replace(/Bearer\s+[A-Za-z0-9._-]+/gi, "Bearer [redacted]");
+  out = out.replace(
+    /(["']?(?:password|passwd|token|secret|api[_-]?key|access[_-]?key|private[_-]?key)["']?\s*[:=]\s*["']?)[^"',\s}]+/gi,
+    "$1[redacted]",
+  );
+  return out;
 }
 
 /** Walk a session.messages payload for the part with the given id. */
@@ -307,6 +353,12 @@ async function main() {
   let client = null;
   let managedServer = null;
   let shuttingDown = false;
+  // Set by handleRun while a turn is live, so a SIGTERM during
+  // generation can abort the server session instead of leaving an
+  // external server generating/executing after the user cancelled.
+  // A holder object (not a reassigned binding) so handleRun, which
+  // receives it as an argument, can update the same cell.
+  const activeSessionHolder = { current: null };
 
   async function shutdown(exitCode) {
     if (shuttingDown) return;
@@ -321,8 +373,23 @@ async function main() {
     }
     process.exit(exitCode);
   }
-  process.on("SIGTERM", () => void shutdown(0));
-  process.on("SIGINT", () => void shutdown(0));
+  async function shutdownWithAbort(exitCode) {
+    if (shuttingDown) return;
+    const activeSession = activeSessionHolder.current;
+    if (activeSession && client) {
+      try {
+        await Promise.race([
+          client.session.abort(activeSession),
+          new Promise((resolve) => setTimeout(resolve, 400)),
+        ]);
+      } catch {
+        // Best-effort only; shutdown proceeds regardless.
+      }
+    }
+    await shutdown(exitCode);
+  }
+  process.on("SIGTERM", () => void shutdownWithAbort(0));
+  process.on("SIGINT", () => void shutdownWithAbort(0));
 
   // --- Connect / start, then health-check BEFORE printing ready. ---
   try {
@@ -331,6 +398,18 @@ async function main() {
         throw new Error(
           `Refusing to start a managed OpenCode server for non-loopback URL "${serverURL}". ` +
             `Managed servers are loopback-only; connect to your own server instead.`,
+        );
+      }
+      // The SDK package itself ships NO `opencode` binary: its server
+      // launcher spawns `opencode serve`. Installing only the SDK
+      // therefore makes managed mode fail with a generic unhealthy
+      // error. Fail fast with the real prerequisite instead.
+      const cliCheck = spawnSync("opencode", ["--version"], { encoding: "utf8" });
+      if (cliCheck.error || cliCheck.status !== 0) {
+        throw new Error(
+          `Managed OpenCode server cannot start: the "opencode" CLI is not installed or not on PATH ` +
+            `(checked: opencode --version). Install the OpenCode CLI, or connect to an existing server ` +
+            `instead of managed mode. Installing the @opencode-ai/sdk package alone is not enough`,
         );
       }
       const url = new URL(serverURL);
@@ -393,7 +472,7 @@ async function main() {
       continue;
     }
     if (msg?.type === "run") {
-      const ok = await handleRun(client, lines, msg, managedServer !== null);
+      const ok = await handleRun(client, lines, msg, activeSessionHolder);
       if (!ok) {
         // Run-level failure is fatal to this bridge process: Swift
         // relaunches a fresh bridge per run, and a nonzero exit is the
@@ -417,7 +496,7 @@ async function main() {
  * false when a fatal error already printed an error line and the process
  * must exit nonzero (fatal() handles the exit; this only stops looping).
  */
-async function handleRun(client, lines, req, _isManaged) {
+async function handleRun(client, lines, req, activeSessionHolder) {
   const requestId = req.requestId ?? "run";
   try {
     if (req.provider && req.provider !== "opencode") {
@@ -454,13 +533,20 @@ async function handleRun(client, lines, req, _isManaged) {
     let toolsMap;
     if (req.toolSource === "swiftcode") {
       toolsMap = {};
+      // Fail CLOSED: if the tool list cannot be fetched, server tools
+      // cannot be proven disabled, so the run must not proceed on the
+      // deny-all agent alone (its disable-only map semantics would
+      // leave unlisted tools enabled in combined-like cases).
       try {
         const res = await client.tool.ids({ directory });
         const ids = res?.data ?? res;
         const list = Array.isArray(ids) ? ids : (ids?.ids ?? []);
         for (const id of list) if (typeof id === "string") toolsMap[id] = false;
       } catch (e) {
-        err(`tool.ids lookup failed, relying on deny-all agent alone: ${e?.message ?? e}`);
+        throw new Error(
+          `OpenCode tool gating failed: client.tool.ids() failed (${e?.message ?? e}). ` +
+            `SwiftCode will not run a swiftcode-tool session with server tools ungated.`,
+        );
       }
     } else if (req.toolSource === "combined") {
       toolsMap = {};
@@ -473,7 +559,10 @@ async function handleRun(client, lines, req, _isManaged) {
           if (typeof id === "string" && swiftNames.has(id)) toolsMap[id] = false;
         }
       } catch (e) {
-        err(`tool.ids lookup failed, collision disabling skipped: ${e?.message ?? e}`);
+        throw new Error(
+          `OpenCode tool gating failed: client.tool.ids() failed (${e?.message ?? e}). ` +
+            `SwiftCode will not run a combined session without collision disabling.`,
+        );
       }
     }
 
@@ -489,6 +578,7 @@ async function handleRun(client, lines, req, _isManaged) {
       sessionID = created?.data?.id ?? created?.id;
       if (!sessionID) throw new Error("OpenCode session.create returned no session id.");
     }
+    if (activeSessionHolder) activeSessionHolder.current = { sessionID, directory };
 
     // Event consumer: runs concurrently with promptAsync and feeds the
     // per-turn queue below. It never prints directly except permission
@@ -523,40 +613,73 @@ async function handleRun(client, lines, req, _isManaged) {
           const props = event?.properties ?? {};
           if (props.sessionID && props.sessionID !== sessionID) continue;
           // Permission gates: default deny, via the verified reply API.
+          // v1 and v2 are DIFFERENT endpoints with different payloads:
+          // v1 properties carry {permission, tool:{callID}} and reply
+          // via client.permission.reply({requestID}); v2 properties
+          // carry {id, action, resources} (no `permission`, no `tool`)
+          // and reply via client.v2.session.permission.reply
+          // ({sessionID, requestID: id}). Replying to a v2 request on
+          // the v1 endpoint never resolves it, so the turn stalls.
           if (event?.type === "permission.asked" || event?.type === "permission.v2.asked") {
+            const isV2 = event.type === "permission.v2.asked";
             const requestID = props.id ?? props.requestID;
             const toolInfo = props.tool;
+            const toolName = isV2
+              ? (props.action ?? "unknown")
+              : (props.permission ?? "unknown");
+            const toolCallId = toolInfo?.callID ?? requestID
+              ?? `perm-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+            let replyError = null;
             try {
-              if (requestID) await client.permission.reply({ requestID, reply: "reject" });
-              else throw new Error("permission event carried no request id");
-            } catch (replyError) {
-              // Fallback to the older respond shape; if that fails too,
-              // the denial is still reported — the run must not proceed
-              // past the gate silently.
-              try {
-                await client.permission.respond({
+              if (!requestID) throw new Error("permission event carried no request id");
+              if (isV2) {
+                await client.v2.session.permission.reply({
                   sessionID,
-                  permissionID: requestID,
-                  response: "reject",
+                  requestID,
+                  reply: "reject",
                 });
-              } catch {
-                err(`permission reply failed: ${replyError?.message ?? replyError}`);
+              } else {
+                await client.permission.reply({ requestID, reply: "reject" });
+              }
+            } catch (e) {
+              replyError = e;
+              // v1 only: fallback to the older respond shape. Never
+              // fall back from v2 to v1 — that reply cannot resolve a
+              // v2 request and would hide the failure.
+              if (!isV2) {
+                try {
+                  await client.permission.respond({
+                    sessionID,
+                    permissionID: requestID,
+                    response: "reject",
+                  });
+                  replyError = null;
+                } catch {
+                  // Keep the original reply error below.
+                }
               }
             }
+            if (replyError) {
+              err(`permission reply failed: ${replyError?.message ?? replyError}`);
+            }
+            const resourceText = Array.isArray(props.resources) && props.resources.length > 0
+              ? ` (${props.resources.join(", ")})`
+              : "";
             pushEvent({
               type: "tool_event",
               event: {
                 provider: PROVIDER,
                 sessionId: sessionID,
-                toolCallId: toolInfo?.callID ?? requestID ?? "",
-                toolName: props.permission ?? "unknown",
+                toolCallId,
+                toolName,
                 source: "opencode",
                 state: "failed",
                 arguments: "",
                 result: "",
                 error:
-                  `Permission denied by SwiftCode policy: the OpenCode server asked for "${props.permission ?? "unknown"}" ` +
-                  `and SwiftCode denied it. Provider-managed tools are never auto-approved.`,
+                  `Permission denied by SwiftCode policy: the OpenCode server asked for "${toolName}"${resourceText} ` +
+                  `and SwiftCode denied it. Provider-managed tools are never auto-approved.` +
+                  (replyError ? ` (The denial reply itself failed: ${replyError?.message ?? replyError}.)` : ""),
                 startedAt: "",
                 completedAt: "",
               },
@@ -584,7 +707,12 @@ async function handleRun(client, lines, req, _isManaged) {
     let finalText = "";
     for (;;) {
       const systemForTurn = swiftcodeSystemPrompt(req, swiftcodeTools);
-      await client.session.promptAsync({
+      // throwOnError: true — the SDK default returns HTTP errors in
+      // result.error instead of throwing, and the old code discarded
+      // the return value entirely, so a rejected prompt (unknown
+      // model, auth, server error) hung waiting for an idle that
+      // never arrives. Now a rejected prompt fails the run loudly.
+      const promptResult = await client.session.promptAsync({
         sessionID,
         directory,
         model: { providerID, modelID },
@@ -592,7 +720,11 @@ async function handleRun(client, lines, req, _isManaged) {
         ...(toolsMap ? { tools: toolsMap } : {}),
         system: systemForTurn,
         parts: [{ type: "text", text: promptText }],
-      });
+      }, { throwOnError: true });
+      if (promptResult?.error) {
+        const detail = promptResult.error?.data?.message ?? promptResult.error?.message ?? JSON.stringify(promptResult.error);
+        throw new Error(`OpenCode rejected the prompt: ${detail}`);
+      }
 
       // Drain events until this turn goes idle (or errors / aborts).
       let turnText = "";
@@ -601,7 +733,16 @@ async function handleRun(client, lines, req, _isManaged) {
       for (;;) {
         const event = await nextEvent();
         if (event === null) {
+          // Stream ended without idle/error: the turn did NOT finish.
+          // Reporting partial text as success here was a bug — the
+          // old code broke out and emitted `done` with partial text.
           if (eventTaskError) turnError = eventTaskError;
+          else {
+            turnError = new Error(
+              "OpenCode event stream ended before the turn completed (no session.idle). " +
+                "The run did not finish; the partial text is not a completed answer.",
+            );
+          }
           break;
         }
         if (event.type === "session.idle") {
@@ -620,7 +761,17 @@ async function handleRun(client, lines, req, _isManaged) {
           const delta = event.properties?.delta;
           if (typeof delta === "string" && delta.length > 0) {
             turnText += delta;
-            out({ type: "text", delta });
+            // SwiftCode-tool runs: BUFFER, do not stream yet. The
+            // turn text may be a JSON tool request or a
+            // {"finalResponse": ...} envelope, and streaming it
+            // verbatim leaked that JSON into the transcript (Swift
+            // accumulates deltas). At turn end the envelope is
+            // unwrapped and only the real answer is emitted.
+            // Opencode-only runs have no JSON protocol, so they
+            // stream immediately as before.
+            if (req.toolSource !== "swiftcode" && req.toolSource !== "combined") {
+              out({ type: "text", delta });
+            }
           }
           continue;
         }
@@ -630,23 +781,37 @@ async function handleRun(client, lines, req, _isManaged) {
             const state = toolStateFromSDK(part.state);
             const prior = toolParts.get(part.id);
             toolParts.set(part.id, part);
-            // Fill arguments/result best-effort on terminal states:
-            // the event's ToolPart is minimal, the full part (with
-            // state.input / state.output) lives in session.messages.
-            let args = "";
+            // The event's ToolPart already carries the full state:
+            // state.input (arguments), state.output (completed
+            // result), state.error (failed reason), state.time
+            // (start/end). Use it directly. The old session.messages
+            // fetch is kept only as a fallback when the state carries
+            // no result/error on a terminal state.
+            const st = part.state && typeof part.state === "object" ? part.state : {};
+            let args = st.input ? JSON.stringify(st.input) : "";
             let result = "";
-            if (state === "completed" || state === "failed") {
+            let toolError = "";
+            if (state === "completed" && st.output !== undefined) {
+              result = typeof st.output === "string" ? st.output : JSON.stringify(st.output);
+            } else if (state === "failed") {
+              toolError = typeof st.error === "string" ? st.error
+                : `OpenCode tool "${part.tool}" failed (see server logs for detail).`;
+            }
+            if ((state === "completed" || state === "failed") && result === "" && toolError === "") {
               try {
                 const msgs = await client.session.messages({ sessionID, directory });
                 const full = findPart(msgs?.data ?? msgs, part.id);
-                const st = full?.state;
-                if (st?.input) args = JSON.stringify(st.input);
-                if (st?.output !== undefined) result = typeof st.output === "string" ? st.output : JSON.stringify(st.output);
-                else if (st?.result !== undefined) result = typeof st.result === "string" ? st.result : JSON.stringify(st.result);
+                const fst = full?.state;
+                if (fst?.input) args = JSON.stringify(fst.input);
+                if (fst?.output !== undefined) result = typeof fst.output === "string" ? fst.output : JSON.stringify(fst.output);
+                else if (fst?.result !== undefined) result = typeof fst.result === "string" ? fst.result : JSON.stringify(fst.result);
               } catch (e) {
                 err(`tool detail fetch failed for part ${part.id}: ${e?.message ?? e}`);
               }
             }
+            const startedAt = toolTimeToISO(st.time?.start) || (prior ? "" : "");
+            const completedAt = (state === "completed" || state === "failed")
+              ? toolTimeToISO(st.time?.end) : "";
             out({
               type: "tool_event",
               event: {
@@ -656,11 +821,11 @@ async function handleRun(client, lines, req, _isManaged) {
                 toolName: part.tool,
                 source: "opencode",
                 state,
-                arguments: args,
-                result,
-                error: state === "failed" ? `OpenCode tool "${part.tool}" failed (see server logs for detail).` : "",
-                startedAt: prior ? "" : "",
-                completedAt: "",
+                arguments: redactToolText(args),
+                result: redactToolText(result),
+                error: redactToolText(toolError),
+                startedAt,
+                completedAt,
               },
             });
           }
@@ -671,11 +836,22 @@ async function handleRun(client, lines, req, _isManaged) {
         // renders; they are consumed and ignored, never surfaced raw.
       }
       if (turnError) throw turnError;
-      finalText = turnText;
 
       // SwiftCode-tool turns: parse the model's JSON tool request.
       if (req.toolSource === "swiftcode" || req.toolSource === "combined") {
         const parsed = extractJSONToolRequest(turnText);
+        if (parsed && typeof parsed.finalResponse === "string") {
+          // Unwrap the envelope: only the answer text reaches Swift.
+          // (It was buffered, not streamed, so no JSON leaked.)
+          finalText = parsed.finalResponse;
+          out({ type: "text", delta: parsed.finalResponse });
+        } else if (!parsed || typeof parsed.toolId !== "string") {
+          // Plain prose turn: emit the buffered text now.
+          finalText = turnText;
+          if (turnText.length > 0) out({ type: "text", delta: turnText });
+        } else {
+          finalText = turnText;
+        }
         if (parsed && typeof parsed.toolId === "string") {
           if (++toolRounds > MAX_TOOL_ROUNDS) {
             throw new Error(
@@ -731,9 +907,11 @@ async function handleRun(client, lines, req, _isManaged) {
       } catch {}
     }
     await eventTask.catch(() => {});
+    if (activeSessionHolder) activeSessionHolder.current = null;
     out({ type: "done", finalText });
     return true;
   } catch (e) {
+    if (activeSessionHolder) activeSessionHolder.current = null;
     out({ type: "error", message: `${e?.message ?? e}` });
     return false;
   }
@@ -825,4 +1003,18 @@ async function waitForToolResult(lines, callId) {
   }
 }
 
-await main();
+// Run main() only when executed directly, not when imported by
+// sdk-bridge-tests.mjs: the pure helpers below are unit-tested by
+// import, and an unconditional main() would try to connect to a
+// server (and exit the test process) on import.
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+  await main();
+}
+
+export {
+  toolStateFromSDK,
+  toolTimeToISO,
+  redactToolText,
+  parseModelID,
+  extractJSONToolRequest,
+};

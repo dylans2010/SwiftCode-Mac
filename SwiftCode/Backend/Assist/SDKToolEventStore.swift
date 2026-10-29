@@ -41,12 +41,44 @@ public final class SDKToolEventStore {
     /// order is first-seen order and never changes on merge.
     public func apply(_ event: SDKToolEvent) {
         var rows = eventsBySession[event.sessionId, default: []]
-        if let index = rows.firstIndex(where: { $0.toolCallId == event.toolCallId }) {
+        // Merge key is toolCallId + source: in combined mode a
+        // SwiftCode tool and a provider tool could share an id, and
+        // merging on id alone would fuse two different calls.
+        if let index = rows.firstIndex(where: { $0.toolCallId == event.toolCallId && $0.source == event.source }) {
             rows[index] = rows[index].updating(with: event)
         } else {
             rows.append(event)
         }
         eventsBySession[event.sessionId] = rows
+    }
+
+    /// Marks every non-terminal row in a session as cancelled.
+    /// Cancellation previously left in-flight rows in `running`
+    /// forever (OpenCode emitted no cancelled event; OpenRouter
+    /// emitted `failed`), so a cancelled run looked either stuck or
+    /// like a tool failure. Callers invoke this when a run is
+    /// cancelled; bridge-side cancelled events, when they arrive,
+    /// merge into the same rows.
+    public func cancelNonTerminal(sessionId: String) {
+        guard var rows = eventsBySession[sessionId] else { return }
+        for index in rows.indices {
+            switch rows[index].state {
+            case .requested, .running:
+                rows[index] = rows[index].updating(with: SDKToolEvent(
+                    provider: rows[index].provider,
+                    sessionId: sessionId,
+                    toolCallId: rows[index].toolCallId,
+                    toolName: rows[index].toolName,
+                    source: rows[index].source,
+                    state: .cancelled,
+                    arguments: rows[index].arguments,
+                    error: "Cancelled"
+                ))
+            case .completed, .failed, .cancelled:
+                break
+            }
+        }
+        eventsBySession[sessionId] = rows
     }
 
     /// Snapshot of one session's rows, in first-seen order. Empty when

@@ -128,11 +128,19 @@ public final class AssistSDKSessionRunner {
         }
     }
 
+    private var lastSessionKey: String?
+
     public func cancel() async {
         await activeOpenCode?.cancel()
         await activeOpenRouter?.cancel()
         activeOpenCode = nil
         activeOpenRouter = nil
+        // Cancellation must reach a terminal UI state: mark every
+        // non-terminal row for this run cancelled, so a cancelled run
+        // never leaves rows stuck in Running or misreports as Failed.
+        if let sessionKey = lastSessionKey {
+            SDKToolEventStore.shared.cancelNonTerminal(sessionId: sessionKey)
+        }
     }
 
     /// Runs one SDK session and returns the model's final text. Tool
@@ -143,11 +151,34 @@ public final class AssistSDKSessionRunner {
         objective: String,
         context: AssistContext
     ) async throws -> String {
-        let systemPrompt = try AssistManager.shared.getSystemPrompt()
-        let history = Self.historyItems()
+        // Fresh baseline on every SDK run (the old cached prompt was
+        // never invalidated, so in-session System Asset updates never
+        // reached a later run), plus the same per-task retrieved
+        // instructions the legacy agent path injects — SDK runs
+        // previously got the baseline only, missing task sections,
+        // and the doc claim that updated assets reach the next run
+        // was false within one app lifetime.
+        AssistManager.shared.invalidateSystemPromptCache()
+        let baselinePrompt = try AssistManager.shared.getSystemPrompt()
+        let instructionQuery = InstructionQueryContext(
+            userText: objective,
+            taskCategory: SystemIndexService.classifyCategory(for: objective),
+            stage: .preparation,
+            modelID: AssistModelManager.shared.selectedModelID,
+            maxTokens: 4000,
+            excludingChunkIDs: AssistManager.shared.activeRetrievalLedger?.retrievedChunkIDs ?? []
+        )
+        let instructionRetrieval = await SystemIndexService.shared.retrieve(for: instructionQuery)
+        AssistManager.shared.recordRetrieval(instructionRetrieval)
+        let retrievedBlock = instructionRetrieval.formattedForPrompt()
+        let systemPrompt = retrievedBlock.isEmpty
+            ? baselinePrompt
+            : "\(baselinePrompt)\n\n\(retrievedBlock)"
+        let history = Self.historyItems(objective: objective)
         let tools = Self.toolDefinitions()
         let toolSource = SDKToolSourceSetting.load()
         let sessionKey = context.sessionId.uuidString
+        lastSessionKey = sessionKey
 
         switch kind {
         case .openCode:
@@ -232,12 +263,26 @@ public final class AssistSDKSessionRunner {
             throw SDKSessionRunnerError.runtimeNotInstalled(provider: provider, expected: provider.pinnedVersion)
         }
         let installedURL = bridgeDir.appendingPathComponent(fileName)
-        if FileManager.default.fileExists(atPath: installedURL.path) {
-            return installedURL.path
-        }
         let resourceName = (fileName as NSString).deletingPathExtension
-        guard let bundleURL = Bundle.main.url(forResource: resourceName, withExtension: "mjs"),
-              let contents = try? String(contentsOf: bundleURL, encoding: .utf8) else {
+        let bundleContents = Bundle.main.url(forResource: resourceName, withExtension: "mjs")
+            .flatMap { try? String(contentsOf: $0, encoding: .utf8) }
+        // Refresh on mismatch: the old code returned the installed
+        // copy whenever it existed, so app updates to a bridge script
+        // never propagated until the user deleted the runtime
+        // directory. Compare against the bundled copy when one is
+        // available; when it is not, a missing file is an error but
+        // an existing installed file is still usable.
+        if FileManager.default.fileExists(atPath: installedURL.path) {
+            if let bundleContents,
+               let installedContents = try? String(contentsOf: installedURL, encoding: .utf8),
+               installedContents == bundleContents {
+                return installedURL.path
+            }
+            if bundleContents == nil {
+                return installedURL.path
+            }
+        }
+        guard let contents = bundleContents else {
             throw SDKSessionRunnerError.bridgeScriptMissing(provider: provider, fileName: fileName)
         }
         let written = try SDKRuntimeManager.shared.writeBridgeScript(for: provider, fileName: fileName, contents: contents)
@@ -261,15 +306,36 @@ public final class AssistSDKSessionRunner {
     /// skipped: the system prompt already carries SwiftCode's
     /// instructions, and re-injecting transcript system rows would
     /// duplicate them.
-    private static func historyItems() -> [HistoryItem] {
-        AssistManager.shared.messages.suffix(20).compactMap { message in
+    ///
+    /// Two transcript rows are also removed, because the bridges
+    /// append the current user turn themselves: (1) the current
+    /// objective, already present as a user message, and (2) the
+    /// "I'll inspect…" placeholder assistant message posted by
+    /// AssistAgentSession.start before the SDK branch runs. Without
+    /// this, a run's input read `user(objective), assistant("I'll
+    /// inspect…"), user(objective)` — a duplicated objective with a
+    /// placeholder turn in the middle.
+    private static func historyItems(objective: String) -> [HistoryItem] {
+        var items = AssistManager.shared.messages.suffix(20).compactMap { message -> HistoryItem? in
             guard message.noticeLevel == nil, !message.content.isEmpty else { return nil }
             switch message.role {
-            case .assistant: return HistoryItem(role: "assistant", text: message.content)
+            case .assistant:
+                // Placeholder posted at session start, not a real turn.
+                if message.content.contains("identify the relevant files before making any changes") {
+                    return nil
+                }
+                return HistoryItem(role: "assistant", text: message.content)
             case .user: return HistoryItem(role: "user", text: message.content)
             case .system: return nil
             }
         }
+        // Drop a trailing user item equal to the objective: the
+        // bridge appends userText as the final turn, so keeping it
+        // here would send the objective twice.
+        if let last = items.last, last.role == "user", last.text == objective {
+            items.removeLast()
+        }
+        return items
     }
 
     /// Every registered, non-disabled tool schema. Disabled tools are

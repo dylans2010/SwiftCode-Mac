@@ -5,6 +5,15 @@ in-app test run, or live provider session has been executed in the
 Linux environment used for this work (no Swift/Xcode toolchain there).
 See "Not verified — Mac checklist" at the end.
 
+Audit (2026-10-29): an independent audit of both providers (three
+parallel workstreams: OpenCode, OpenRouter, Settings/UI) found both
+providers PARTIALLY FUNCTIONAL — real SDKs, structurally sound
+SwiftCode ownership, but with real defects. The fixes in "Audit
+2026-10-29 — defects found and fixed" below were applied and are
+covered by new tests where a test exists; the remaining gaps are
+listed honestly in the Mac checklist. Do not describe either
+provider as fully verified until the Mac checklist is done.
+
 This document supersedes the transport approach in
 `Docs/Assist-OpenCode-OpenRouter-Providers.md` (native Swift HTTP
 clients). The HTTP clients (`OpenCodeClient`, `OpenRouterClient`) are
@@ -23,7 +32,14 @@ path is selected.
   `callModel(client, {model, input, instructions, tools, stopWhen,
   allowFinalResponse, signal})` owns the multi-turn loop; `tool()` takes
   a Zod v4 `inputSchema` and an `execute` callback; stop conditions
-  include `stepCountIs`, `maxCost`, `maxTokensUsed`.
+  include `stepCountIs`, `maxCost`, `maxTokensUsed`. Audit note: the
+  current docs show the method form `client.callModel({...})`, but
+  the pinned 0.11.0 `.d.ts` defines BOTH forms and the method
+  delegates to the standalone function — the bridge's standalone
+  form is verified against `esm/inner-loop/call-model.d.ts`, not an
+  invented API. `maxCost` is a stop condition, not a spending
+  ceiling: the SDK stops after the step reaching it and then makes
+  one final turn (allowFinalResponse), so spend can exceed $2.00.
 - Do NOT install `@openrouter/sdk` for agent work: the agent toolkit
   moved to `@openrouter/agent` (see the official migration doc). The
   agent package bundles its own OpenRouter client.
@@ -123,7 +139,22 @@ provider.
   terminates the bridge after a grace period.
 - Bridge scripts ship as bundle resources (`.mjs` in the Resources
   build phase, following the `ReverseBridge.mjs` precedent) and are
-  copied into the runtime `bridge/` directory on first use.
+  copied into the runtime `bridge/` directory on first use. The
+  runner now refreshes the installed copy when it differs from the
+  bundled copy (previously an installed copy was returned forever,
+  so bridge updates never propagated). Session bridges resolve
+  `node` via `SDKRuntimeManager.detectRuntime()` (PATH + Homebrew
+  etc.) instead of PATH-only `/usr/bin/env`, and drain stderr into
+  a capped tail surfaced on ready failures instead of /dev/null.
+  Ready lines whose `sdkVersion` differs from the pinned version
+  are rejected, and the 30 s ready timeout now terminates the
+  bridge (the old task-group race never fired for a silent bridge,
+  because AsyncStream `next()` is not cancellation-aware).
+- Managed OpenCode servers require the `opencode` CLI in addition
+  to the SDK package: the SDK ships no binary and its server
+  launcher spawns `opencode serve`. The bridge now fails fast with
+  a distinct "OpenCode CLI is not installed" error instead of a
+  generic unhealthy-server error; Settings copy says the same.
 - Known split of responsibilities: `SDKRuntimeManager.launchBridge`
   (manager-owned bridges, used by Settings Stop) and the providers'
   `FoundationProcessBridgeLauncher` (session bridges) are two launch
@@ -166,8 +197,16 @@ The runner passes `AssistManager.getSystemPrompt()` verbatim:
   `input` items; unknown roles map to `user`.
 
 No provider default prompt is ever substituted, and no prompt is
-hardcoded into a bridge file. Updated assets reach the next run
-through the established loading mechanism.
+hardcoded into a bridge file. The runner now invalidates the
+baseline-prompt cache on every SDK run (it was previously never
+invalidated, so in-session asset updates never reached a later
+run) and, like the legacy agent path, retrieves per-task
+instructions (`SystemIndexService.retrieve`, 4000 tokens, recorded
+in the request ledger) and appends them to the baseline. History
+sent to a bridge excludes the current objective (the bridge appends
+it as the final turn) and the "I'll inspect…" placeholder assistant
+message, so a run's input no longer reads
+`user(objective), assistant("I'll inspect…"), user(objective)`.
 
 ## Tool ecosystems and tool-source selection
 
@@ -194,11 +233,35 @@ provider tools run under the provider runtime's permissions.
   IP blocking including DNS-resolution checks, 15 s timeout, 200 KB
   cap, no credentials forwarded, binary content not returned) and
   `current_datetime`. Neither touches the filesystem or shell.
+  The "OpenRouter tools" label previously overstated this: these
+  are SwiftCode-authored host tools executed through the Agent SDK,
+  not OpenRouter's own server tools — Settings copy now says so.
+  Host-tool safety fixes in the audit: DNS checks use
+  `node:dns/promises` (the callback API threw for every hostname,
+  so `fetch_url` failed for all DNS names), every resolved address
+  is checked (not just the first), IPv4-mapped IPv6 is recognised
+  in both dotted and URL-normalised hex form, and bracketed IPv6
+  hostnames are stripped before classification. A residual
+  DNS-rebinding TOCTOU (check-time vs fetch-time resolution)
+  remains and is documented in the bridge.
 - **OpenCode tools**: the server's built-in tools, executed by the
   server. Permission requests are default-deny: the bridge replies
   `reject` via the verified permission API and emits a failed
   tool event with an explicit permission-denied error. Nothing is
-  auto-approved.
+  auto-approved. v1 and v2 permission events use different
+  endpoints: v2 (`{id, action, resources}`) replies via
+  `client.v2.session.permission.reply({sessionID, requestID: id})`
+  — the old v1-only reply never resolved a v2 request. Tool parts
+  carry `state` as an object `{status, input, output?, error?,
+  time}`; the bridge now maps `state.status` and reads arguments/
+  results/timestamps from it (the old string switch mapped every
+  tool to Pending forever). SwiftCode-tool turns buffer their text
+  and unwrap `{"finalResponse": …}` instead of leaking the JSON
+  envelope into the transcript. `promptAsync` now uses
+  `throwOnError: true` and checks `result.error`, and a stream
+  ending without `session.idle` is an error, not a partial success.
+  `tool.ids` failures now fail closed in swiftcode/combined modes
+  instead of proceeding ungated.
 - **Unsupported combinations are explicit errors, not fallbacks**:
   `openrouter` tools for OpenCode, `opencode` tools for OpenRouter.
 - **Isolation**: every event carries `source` (swiftcode/openrouter/
@@ -238,7 +301,17 @@ not SwiftCode's; that is why the picker warns about combined mode.
   exactly the SDK run's transcript message (keyed by
   `AssistAgentSession.sdkMessageId` + `sdkSessionId`/`sdkSessionKind`,
   reading a snapshot from `SDKToolEventStore`). No sample data: an
-  empty snapshot renders nothing.
+  empty snapshot renders nothing. Rows now carry a per-row source
+  badge (SwiftCode / OpenRouter / OpenCode) so combined-mode rows
+  are distinguishable, and cancelled rows render under a
+  "Cancelled" heading instead of "Error". Cancellation marks all
+  non-terminal rows cancelled in the store (previously OpenCode
+  rows stayed Running forever and OpenRouter rows reported Failed).
+  Tool events are session-only: they are not persisted with saved
+  conversations, and Clear Chat now resets the store (previously
+  stale rows could render under the next unrelated SDK message).
+  Panels are still keyed to the latest SDK run only — earlier runs'
+  panels are not retained per message (see Mac checklist).
 - `SDKToolEvent` decoding note: timestamps are ISO 8601 on the wire;
   bridge-side Swift decoding must use `.iso8601` (the struct itself
   sets no strategy).
@@ -349,3 +422,143 @@ sources; both `.mjs` bridges as bundle resources).
 7. App termination with an active session bridge (manager `shutdown`
    wiring at app termination is still to be called from the app
    lifecycle; session cancellation already terminates session bridges).
+
+## Audit 2026-10-29 — defects found and fixed
+
+Verdict before fixes: both providers PARTIALLY FUNCTIONAL. The
+integrations genuinely use the real SDKs (not chat-completion
+wrappers), and SwiftCode ownership of model, prompt, assets, and
+default tools is structurally sound. The defects below were real,
+not cosmetic, and are fixed in this commit unless listed under
+"still open" in the Mac checklist.
+
+OpenCode (bridge + provider):
+- Tool-state mapping: `part.state` is an object, not a string — every
+  server tool stayed Pending with no arguments/results. Fixed to
+  map `state.status` and read input/output/error/time from it.
+- `promptAsync` errors swallowed (SDK default `throwOnError:
+  false`, return value discarded) → a rejected prompt hung waiting
+  for idle. Fixed with `throwOnError: true` + `result.error` check.
+- Event stream ending without idle reported partial text as
+  success. Fixed: stream-end-without-idle is now an error.
+- Managed server needs the `opencode` CLI, which the SDK install
+  does not provide. Fixed: fail-fast distinct CLI-missing error.
+- v2 permission events answered on the v1 endpoint (and labelled
+  "unknown"). Fixed: v2 branch via
+  `client.v2.session.permission.reply`, tool name from `action`.
+- Catalog model validation never ran: v2 models are an object map,
+  not an array. Fixed to check map entries.
+- `tool.ids` failure failed open. Fixed: fail closed in
+  swiftcode/combined modes.
+- `{"finalResponse": …}` was posted verbatim as JSON (and tool-
+  request JSON streamed into the transcript). Fixed: SwiftCode-tool
+  turns buffer text and unwrap the envelope at turn end.
+- Tool-event text was unredacted for OpenCode. Fixed: bridge-side
+  redaction (Bearer tokens, sensitive key/value pairs) for
+  tool_event display text only — tool_call arguments untouched.
+- OpenCode runs sent no `requestId`, so the bridge defaulted to
+  "run" and SwiftCode tool call ids repeated across runs, merging
+  over earlier rows in the store. Fixed: Swift sends a UUID.
+- Cancellation during generation never aborted an external server
+  session. Fixed: SIGTERM handler aborts the active session
+  (best-effort, 400 ms race) before exit. Note: the event-drain
+  itself does not yet race the cancel queue (see checklist).
+
+OpenRouter (bridge + provider):
+- `callModel` form: verified NOT a defect. Standalone
+  `callModel(client, …)` is in the pinned 0.11.0 `.d.ts`; the
+  docs' method form delegates to it.
+- Session launcher resolved `node` via inherited PATH only, while
+  Settings detection also checks Homebrew etc. Fixed: shared
+  launcher now uses `detectRuntime()` for node (shared by both
+  providers).
+- Ready timeout never fired for a silent bridge (AsyncStream
+  `next()` is not cancellation-aware). Fixed: timeout terminates
+  the bridge, whose termination handler unblocks the consumer.
+  Applied to both providers, plus ready `sdkVersion` checks.
+- Current objective duplicated in model input (history + userText,
+  with the placeholder assistant message between). Fixed in the
+  runner (history excludes the objective and the placeholder).
+- SDK runs got the baseline prompt only, and the baseline cache was
+  never invalidated. Fixed: per-task retrieval (4000 tokens,
+  ledger-recorded) + cache invalidation per SDK run.
+- `fetch_url` SSRF gaps: callback-API DNS (threw for every
+  hostname), single-address check, unrecognised mapped IPv6,
+  bracketed IPv6 hostnames bypassing classification. All fixed;
+  residual DNS-rebinding TOCTOU documented in the bridge.
+- `maxCost` copy overstated as a ceiling; host-tool label
+  overstated as OpenRouter's own tools. Both reworded.
+- Combined-mode rename could still collide with a native tool
+  literally named `openrouter_<name>`. Fixed: fail loudly.
+- Tool-event correlation keyed on name+args collapsed identical
+  calls and could orphan stream/execute rows. Fixed: SDK call id
+  is the primary correlation key, name+args only a fallback.
+- Cancelled tools reported as Failed. Fixed: bridge emits
+  `cancelled` for cancel rejections; views render Cancelled
+  distinctly from Error.
+- Zod-internals check (`_zod.def.type`) replaced with input-schema
+  shape checks.
+- Fatal handler printed a raw stack to stderr. Fixed: message only.
+
+Settings / UI (shared):
+- Tool events accumulated across runs/conversations and stale
+  rows leaked after Clear Chat. Partially fixed: per-run UUID
+  request ids (OpenCode), Clear Chat resets the store, runner
+  cancel marks non-terminal rows cancelled, store merge key now
+  includes source. Per-message panel retention is still open.
+- Settings status proved install only, not bridge-ready, and its
+  timeout text pointed at a log UI that does not exist. Fixed:
+  text corrected; a real "Validate runtime" button is still open.
+- No Settings-time warning for incompatible tool source + model.
+  Fixed: inline warning in the SDK section (run still fails
+  explicitly if missed).
+- Legacy OpenCode section copy contradicted the SDK path. Fixed.
+- Install notice claimed a fresh install on a no-op. Fixed:
+  "Already installed and verified" when it was already installed.
+- Tool-source picker state was initialised once and never
+  reloaded; picker had no accessibility label. Fixed.
+- SDK tool panels are session-only (not persisted). Documented in
+  Settings and here, not silently implied otherwise.
+
+Tests added:
+- `SDKHosts/sdk-bridge-tests.mjs` (committed; run from a directory
+  with the pinned packages installed — see its header): OpenCode
+  tool-state/timestamp/redaction/model-id/finalResponse cases,
+  OpenRouter schema/host-tool/IP-gate cases. Run 2026-10-29 in
+  /tmp with `@opencode-ai/sdk@1.19.5` + `@openrouter/agent@0.11.0`:
+  all assertions passed. Process contracts run the same day:
+  OpenRouter bridge prints `ready` with sdkVersion 0.11.0;
+  OpenCode bridge against an unreachable server exits 1 with no
+  ready; managed mode without the CLI exits 1 with the distinct
+  CLI-missing error.
+- `SDKProviderTests`: positive OpenRouter persisted-provider
+  routing, merge edge cases (terminal→different terminal,
+  same-state nil-result refresh, source-isolated merge), and
+  cancelNonTerminal behaviour.
+- Swift tests were NOT run here (no Xcode toolchain in this
+  environment) — they are item 2 of the Mac checklist, as before.
+
+## Not verified — Mac checklist for Dylan (updated)
+
+Items 1–7 from the previous checklist still stand, plus:
+8. Per-message tool panels: earlier SDK runs' OR/OC panels are
+   still not retained (single-slot sdkMessageId). Decide whether
+   to attach event snapshots to messages or accept latest-only.
+9. OpenCode event-drain vs cancel queue: cancellation during
+   generation now aborts via SIGTERM, but the drain loop does not
+   itself race cancel lines — verify cancel-mid-generation against
+   a real external server.
+10. Combined-mode live behaviour: deny-all `swiftcode` agent +
+    tools-map interaction, and whether non-colliding built-ins
+    actually run under it.
+11. Settings "Validate runtime" (bridge ready + key check) and a
+    rendered bridge/install log, if those are wanted — the current
+    status is install status, and the timeout text no longer
+    pretends otherwise.
+12. OpenCode turn timeout: a prompt that neither idles nor errors
+    still has no turn-level timeout (prompt rejection and
+    stream-end are now errors, but a hung server turn is not).
+13. App termination with an active session bridge (manager
+    `shutdown` wiring at app termination is still to be called
+    from the app lifecycle; session cancellation already
+    terminates session bridges).

@@ -132,7 +132,7 @@
 // Zod schemas use looseObject (unknown keys preserved) precisely so
 // parsed arguments and execute params stay identical for that key.
 
-import * as dns from "node:dns";
+import * as dns from "node:dns/promises";
 import * as net from "node:net";
 import { createRequire } from "node:module";
 import * as readline from "node:readline";
@@ -243,14 +243,14 @@ export function jsonSchemaToZod(schema) {
 export function toolInputSchema(parameters) {
   if (!isPlainObject(parameters)) return z.looseObject({});
   // parameters is itself the object schema for the tool's arguments.
-  const converted = jsonSchemaToZod(parameters);
-  // jsonSchemaToZod returns a looseObject for object schemas; anything
-  // else (e.g. a bare non-object schema) cannot be a tool input schema.
-  if (converted && converted._zod && converted._zod.def
-      && converted._zod.def.type === "object") {
-    return converted;
-  }
-  return z.looseObject({});
+  // Object-ness is decided from the INPUT schema (type === "object"
+  // or a properties map), not from Zod internals: the old code read
+  // converted._zod.def.type, a private field that can shift with a
+  // Zod upgrade and break schema conversion silently.
+  const isObjectSchema = parameters.type === "object"
+    || isPlainObject(parameters.properties);
+  if (!isObjectSchema) return z.looseObject({});
+  return jsonSchemaToZod(parameters);
 }
 
 function sanitizeModelToolName(name) {
@@ -263,8 +263,25 @@ function sanitizeModelToolName(name) {
 // Neither touches the filesystem, the shell, or any credential.
 // ---------------------------------------------------------------------------
 
-function isPrivateIp(ip) {
+export function isPrivateIp(ip) {
   if (!ip) return false;
+  // IPv4-mapped IPv6 (e.g. ::ffff:127.0.0.1) is still that IPv4 address:
+  // the old v6 branch did not recognise it as private.
+  const lower0 = String(ip).toLowerCase();
+  if (lower0.startsWith("::ffff:")) {
+    const mapped = lower0.slice("::ffff:".length);
+    if (net.isIP(mapped) === 4) return isPrivateIp(mapped);
+    // URL normalises ::ffff:10.0.0.5 to ::ffff:a00:5 (hex groups), so
+    // the dotted form above never appears from a parsed URL hostname.
+    // Decode the two hex groups back to the IPv4 address and recheck.
+    const hexMatch = mapped.match(/^([0-9a-f]{1,4}):([0-9a-f]{1,4})$/);
+    if (hexMatch) {
+      const hi = parseInt(hexMatch[1], 16);
+      const lo = parseInt(hexMatch[2], 16);
+      const dotted = `${hi >> 8}.${hi & 0xff}.${lo >> 8}.${lo & 0xff}`;
+      return isPrivateIp(dotted);
+    }
+  }
   if (net.isIP(ip) === 4) {
     const [a, b] = ip.split(".").map(Number);
     if (a === 10) return true;
@@ -283,7 +300,7 @@ function isPrivateIp(ip) {
   return false;
 }
 
-async function assertPublicUrl(rawUrl) {
+export async function assertPublicUrl(rawUrl) {
   let url;
   try {
     url = new URL(rawUrl);
@@ -293,7 +310,10 @@ async function assertPublicUrl(rawUrl) {
   if (url.protocol !== "http:" && url.protocol !== "https:") {
     throw new Error(`fetch_url: only http/https are allowed, got ${url.protocol}`);
   }
-  const host = url.hostname;
+  // URL keeps IPv6 hostnames bracketed ("[::1]"); strip them before
+  // any IP classification, or net.isIP never matches and the check
+  // falls through to DNS (which fails and returns the URL unchecked).
+  const host = url.hostname.replace(/^\[|\]$/g, "");
   if (host === "localhost" || host.endsWith(".localhost")) {
     throw new Error("fetch_url: localhost targets are blocked");
   }
@@ -301,9 +321,17 @@ async function assertPublicUrl(rawUrl) {
     if (isPrivateIp(host)) throw new Error(`fetch_url: private IP targets are blocked (${host})`);
     return url;
   }
-  const resolved = await dns.lookup(host).catch(() => null);
-  if (resolved && isPrivateIp(resolved.address)) {
-    throw new Error(`fetch_url: ${host} resolves to a private IP and is blocked`);
+  // Check EVERY resolved address: the old code checked only the first,
+  // while fetch() could re-resolve to a different (private) address.
+  // A residual DNS-rebinding TOCTOU remains (resolution at check time
+  // vs fetch time) — documented, not eliminated, by this check.
+  const resolvedAll = await dns.lookup(host, { all: true }).catch(() => null);
+  if (resolvedAll) {
+    for (const entry of resolvedAll) {
+      if (isPrivateIp(entry.address)) {
+        throw new Error(`fetch_url: ${host} resolves to a private IP and is blocked`);
+      }
+    }
   }
   return url;
 }
@@ -615,6 +643,15 @@ async function main() {
       const swiftcodeNames = new Set(swiftcodeTools.map((t) => t.modelName));
 
       const requestedByKey = new Map(); // name + args JSON -> { id, modelName }
+      const requestedById = new Map(); // SDK call id -> row id
+      // Two identical calls in one turn (same tool, same args) must
+      // NOT collapse to one row. The name+args key alone cannot tell
+      // them apart, so the SDK's own call id is the primary key:
+      // execute() passes context.callId and the stream consumer
+      // registers call.id. A call whose stream event and execute()
+      // arrive in either order still merges to exactly one row,
+      // because both paths check the id map first; the name+args
+      // map is only a fallback for calls whose SDK id is unknown.
       const emitToolEvent = (fields) => out({
         type: "tool_event",
         event: {
@@ -623,12 +660,21 @@ async function main() {
           ...fields,
         },
       });
-      const ensureRequested = (modelName, displayName, source, args) => {
+      const ensureRequested = (modelName, displayName, source, args, preferredId) => {
+        if (typeof preferredId === "string" && preferredId.length > 0
+            && requestedById.has(preferredId)) {
+          return requestedById.get(preferredId);
+        }
         const key = `${modelName}\n${stableStringify(args)}`;
         const existing = requestedByKey.get(key);
-        if (existing) return existing.id;
-        const id = `tc_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
-        requestedByKey.set(key, { id, modelName });
+        if (existing && !(typeof preferredId === "string" && preferredId.length > 0)) return existing.id;
+        const id = (typeof preferredId === "string" && preferredId.length > 0)
+          ? preferredId
+          : `tc_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
+        if (typeof preferredId === "string" && preferredId.length > 0) {
+          requestedById.set(preferredId, id);
+        }
+        if (!requestedByKey.has(key)) requestedByKey.set(key, { id, modelName });
         void emitToolEvent({
           toolCallId: id,
           toolName: displayName,
@@ -639,11 +685,15 @@ async function main() {
         });
         return id;
       };
+      const isCancelledError = (error) => {
+        const message = error?.message || String(error || "");
+        return cancelled || /cancelled by Swift/i.test(message);
+      };
 
       const makeBridgedExecute = (modelName, displayName) => {
         return async (params, context) => {
           const args = params && typeof params === "object" ? params : {};
-          const id = ensureRequested(modelName, displayName, "swiftcode", args);
+          const id = ensureRequested(modelName, displayName, "swiftcode", args, context?.callId);
           // If the stream consumer already registered this call, the id
           // above is the stream's id; otherwise it is the execute
           // context's call id (or a generated one) — either way exactly
@@ -688,13 +738,16 @@ async function main() {
               },
             });
           }).catch(async (error) => {
+            // A user-initiated cancel is NOT a tool failure: the old
+            // code emitted "failed", so the UI showed a cancelled
+            // tool under an Error heading.
             await emitToolEvent({
               toolCallId: id,
               toolName: displayName,
               source: "swiftcode",
-              state: "failed",
+              state: isCancelledError(error) ? "cancelled" : "failed",
               arguments: args,
-              error: redact(error.message || String(error), secrets),
+              error: isCancelledError(error) ? "Cancelled" : redact(error.message || String(error), secrets),
               completedAt: new Date().toISOString(),
             });
             throw error; // SDK surfaces this as a tool error to the model.
@@ -731,6 +784,18 @@ async function main() {
             // silently and never allowed to shadow the native tool.
             modelName = `openrouter_${modelName}`;
             displayName = modelName;
+            // The renamed name must itself not collide with a
+            // SwiftCode tool (e.g. a native tool literally named
+            // "openrouter_fetch_url"): that would reintroduce the
+            // ambiguity the rename exists to prevent. Fail loudly.
+            if (swiftcodeNames.has(modelName)) {
+              await fail(
+                `Tool name collision: a SwiftCode tool is already named "${modelName}", ` +
+                  `so the OpenRouter host tool cannot be renamed to it in combined mode. ` +
+                  `Rename the SwiftCode tool; no silent merge is performed.`,
+              );
+              return;
+            }
           }
           const originalExecute = host.execute;
           sdkTools.push(tool({
@@ -740,7 +805,7 @@ async function main() {
             timeoutMs: toolTimeoutMs,
             execute: async (params, context) => {
               const args = params && typeof params === "object" ? params : {};
-              const id = ensureRequested(modelName, displayName, "openrouter", args);
+              const id = ensureRequested(modelName, displayName, "openrouter", args, context?.callId);
               await emitToolEvent({
                 toolCallId: id,
                 toolName: displayName,
@@ -766,9 +831,9 @@ async function main() {
                   toolCallId: id,
                   toolName: displayName,
                   source: "openrouter",
-                  state: "failed",
+                  state: isCancelledError(error) ? "cancelled" : "failed",
                   arguments: args,
-                  error: redact(error.message || String(error), secrets),
+                  error: isCancelledError(error) ? "Cancelled" : redact(error.message || String(error), secrets),
                   completedAt: new Date().toISOString(),
                 });
                 throw error;
@@ -823,11 +888,21 @@ async function main() {
           if (!call || typeof call.name !== "string") continue;
           const args = call.arguments && typeof call.arguments === "object"
             ? call.arguments : {};
-          const key = `${call.name}\n${stableStringify(args)}`;
-          if (requestedByKey.has(key)) continue; // execute() already owns it
+          // Identity is the SDK call id, not name+args: two identical
+          // calls (same tool, same args) have different ids and must
+          // produce two rows. execute() already owning this id is the
+          // only skip case.
+          if (typeof call.id === "string" && call.id.length > 0
+              && requestedById.has(call.id)) continue;
           const displayName = swiftcodeByModelName.get(call.name) || call.name;
           const source = swiftcodeByModelName.has(call.name) ? "swiftcode" : "openrouter";
-          requestedByKey.set(key, { id: call.id, modelName: call.name });
+          if (typeof call.id === "string" && call.id.length > 0) {
+            requestedById.set(call.id, call.id);
+          }
+          const key = `${call.name}\n${stableStringify(args)}`;
+          if (!requestedByKey.has(key)) {
+            requestedByKey.set(key, { id: call.id, modelName: call.name });
+          }
           await emitToolEvent({
             toolCallId: call.id,
             toolName: displayName,
@@ -936,9 +1011,12 @@ async function main() {
   });
 }
 
-if (import.meta.url === pathToFileURL(process.argv[1]).href) {
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   main().catch((error) => {
-    process.stderr.write(`openrouter-bridge fatal: ${error && error.stack ? error.stack : error}\n`);
+    // Message only, never a raw stack: a stack could carry the run
+    // payload or key-adjacent frames, and the manager path tails
+    // stderr into Settings diagnostics.
+    process.stderr.write(`openrouter-bridge fatal: ${error?.message ?? error}\n`);
     process.exit(1);
   });
 }
