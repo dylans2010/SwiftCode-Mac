@@ -415,7 +415,7 @@ public actor OpenCodeClient {
             )
         }
 
-        return AsyncThrowingStream { continuation in
+        return AsyncThrowingStream { [bytes, sessionID] continuation in
             let task = Task {
                 do {
                     for try await line in bytes.lines {

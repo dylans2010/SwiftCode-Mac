@@ -185,7 +185,7 @@ public final class AssistSDKSessionRunner {
             guard let openCodeSource = Self.openCodeToolSource(for: toolSource) else {
                 throw SDKSessionRunnerError.unsupportedToolSource(provider: "OpenCode", source: toolSource.rawValue)
             }
-            let scriptPath = try Self.ensureBridgeScript(provider: .openCode, fileName: "opencode-bridge.mjs")
+            let scriptPath = try await Self.ensureBridgeScript(provider: .openCode, fileName: "opencode-bridge.mjs")
             let provider = OpenCodeSDKProvider(scriptPath: scriptPath)
             activeOpenCode = provider
             defer { activeOpenCode = nil }
@@ -217,7 +217,7 @@ public final class AssistSDKSessionRunner {
             guard let openRouterSource = Self.openRouterToolSource(for: toolSource) else {
                 throw SDKSessionRunnerError.unsupportedToolSource(provider: "OpenRouter", source: toolSource.rawValue)
             }
-            let scriptPath = try Self.ensureBridgeScript(provider: .openRouter, fileName: "openrouter-bridge.mjs")
+            let scriptPath = try await Self.ensureBridgeScript(provider: .openRouter, fileName: "openrouter-bridge.mjs")
             let provider = OpenRouterSDKProvider(scriptPath: scriptPath)
             activeOpenRouter = provider
             defer { activeOpenRouter = nil }
@@ -254,7 +254,7 @@ public final class AssistSDKSessionRunner {
     /// Install state is revalidated from disk on every call — never
     /// trusted from a previous launch — and nothing is installed
     /// implicitly here: installation happens explicitly in Settings.
-    private static func ensureBridgeScript(provider: SDKProvider, fileName: String) throws -> String {
+    private static func ensureBridgeScript(provider: SDKProvider, fileName: String) async throws -> String {
         let installed = SDKRuntimeManager.installedVersion(for: provider)
         guard installed == provider.pinnedVersion else {
             throw SDKSessionRunnerError.runtimeNotInstalled(provider: provider, expected: provider.pinnedVersion)
@@ -285,7 +285,7 @@ public final class AssistSDKSessionRunner {
         guard let contents = bundleContents else {
             throw SDKSessionRunnerError.bridgeScriptMissing(provider: provider, fileName: fileName)
         }
-        let written = try SDKRuntimeManager.shared.writeBridgeScript(for: provider, fileName: fileName, contents: contents)
+        let written = try await SDKRuntimeManager.shared.writeBridgeScript(for: provider, fileName: fileName, contents: contents)
         return written.path
     }
 

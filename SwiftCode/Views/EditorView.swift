@@ -114,28 +114,30 @@ struct EditorView: View {
 
     /// Xcode-style jump bar: file name, containing folder, dirty dot.
     private var editorJumpBar: some View {
-        HStack(spacing: 8) {
-            if let doc = viewModel.activeDocument {
-                Text(doc.url.lastPathComponent)
-                    .font(.system(size: 12, weight: .semibold))
-                    .lineLimit(1)
-                Text(doc.url.deletingLastPathComponent().lastPathComponent)
-                    .font(.system(size: 11))
-                    .foregroundStyle(.secondary)
-                    .lineLimit(1)
-                if doc.isDirty {
-                    Circle()
-                        .fill(Color.orange)
-                        .frame(width: 7, height: 7)
-                        .help("Unsaved changes")
+        VStack(spacing: 0) {
+            HStack(spacing: 8) {
+                if let doc = viewModel.activeDocument {
+                    Text(doc.url.lastPathComponent)
+                        .font(.system(size: 12, weight: .semibold))
+                        .lineLimit(1)
+                    Text(doc.url.deletingLastPathComponent().lastPathComponent)
+                        .font(.system(size: 11))
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                    if doc.isDirty {
+                        Circle()
+                            .fill(Color.orange)
+                            .frame(width: 7, height: 7)
+                            .help("Unsaved changes")
+                    }
                 }
+                Spacer()
             }
-            Spacer()
+            .padding(.horizontal, 16)
+            .padding(.vertical, 6)
+            .background(VisualEffectView(material: .headerView, blendingMode: .withinWindow))
+            Divider()
         }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 6)
-        .background(VisualEffectView(material: .headerView, blendingMode: .withinWindow))
-        Divider()
     }
 
     private var editorModeBar: some View {

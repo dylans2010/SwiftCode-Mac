@@ -123,7 +123,7 @@ public final class TasksAIPlanner: ObservableObject {
         let modelID = AssistModelManager.shared.selectedModelID
         let providerRawValue = UserDefaults.standard.string(forKey: "assist.selectedProvider") ?? AssistModelProvider.openAI.rawValue
         let provider = AssistModelProvider(rawValue: providerRawValue) ?? .openAI
-        let apiKey = provider.storedAPIKey()
+        let apiKey = await provider.storedAPIKey()
 
         let response = await AssistLLMService.generateResponse(
             prompt: prompt,

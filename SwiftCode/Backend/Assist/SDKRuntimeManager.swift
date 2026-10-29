@@ -600,7 +600,7 @@ public actor SDKRuntimeManager {
         provider: SDKProvider,
         scriptURL: URL,
         extraEnvironment: [String: String] = [:],
-        readyTimeout: TimeInterval = Self.readyTimeout
+        readyTimeout: TimeInterval = SDKRuntimeManager.readyTimeout
     ) async throws -> BridgeInfo {
         guard let detected = Self.detectRuntime() else {
             throw SDKRuntimeError.runtimeMissing
@@ -860,7 +860,7 @@ public actor SDKRuntimeManager {
     /// Terminates one bridge: SIGTERM, a grace wait, then SIGKILL if
     /// still alive. Only ever targets the PID this manager started.
     /// Safe to call for a provider with no bridge (no-op).
-    public func terminateBridge(provider: SDKProvider, grace: TimeInterval = Self.terminationGrace) async {
+    public func terminateBridge(provider: SDKProvider, grace: TimeInterval = SDKRuntimeManager.terminationGrace) async {
         guard var state = bridges[provider] else { return }
         state.shutdownRequested = true
         bridges[provider] = state
@@ -1000,5 +1000,28 @@ public actor SDKRuntimeManager {
         if log.count > 500 { log.removeFirst(log.count - 500) }
         installLogs[provider] = log
         progress?(line)
+    }
+}
+
+
+final class BufferWrapper: @unchecked Sendable {
+    private var buffer = Data()
+    private let lock = NSLock()
+
+    func append(_ data: Data) {
+        lock.lock()
+        defer { lock.unlock() }
+        buffer.append(data)
+    }
+
+    func popLine() -> Data? {
+        lock.lock()
+        defer { lock.unlock() }
+        if let newlineIndex = buffer.firstIndex(of: 0x0A) {
+            let line = buffer[..<newlineIndex]
+            buffer.removeSubrange(...newlineIndex)
+            return line
+        }
+        return nil
     }
 }

@@ -317,16 +317,14 @@ public actor OpenRouterSDKProvider {
         // Stream stdout lines into an AsyncStream via readabilityHandler.
         let (lineStream, lineContinuation) = AsyncStream<String>.makeStream()
         self.lineContinuation = lineContinuation
-        var buffer = Data()
+        let buffer = BufferWrapper()
         let outputHandle = bridge.standardOutput.fileHandleForReading
         outputHandle.readabilityHandler = { handle in
             let chunk = handle.availableData
             guard !chunk.isEmpty else { return }
             buffer.append(chunk)
-            while let newline = buffer.firstIndex(of: 0x0A) {
-                let lineData = buffer[..<newline]
-                buffer.removeSubrange(...newline)
-                if let line = String(data: lineData, encoding: .utf8), !line.isEmpty {
+            while let newline = buffer.popLine() {
+                if let line = String(data: newline, encoding: .utf8), !line.isEmpty {
                     lineContinuation.yield(line)
                 }
             }

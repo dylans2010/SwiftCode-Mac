@@ -342,16 +342,14 @@ public actor OpenCodeSDKProvider {
         // Stream stdout lines into an AsyncStream via readabilityHandler.
         let (lineStream, lineContinuation) = AsyncStream<String>.makeStream()
         self.lineContinuation = lineContinuation
-        var buffer = Data()
+        let buffer = BufferWrapper()
         let outputHandle = bridge.standardOutput.fileHandleForReading
         outputHandle.readabilityHandler = { handle in
             let chunk = handle.availableData
             guard !chunk.isEmpty else { return }
             buffer.append(chunk)
-            while let newline = buffer.firstIndex(of: 0x0A) {
-                let lineData = buffer[..<newline]
-                buffer.removeSubrange(...newline)
-                if let line = String(data: lineData, encoding: .utf8), !line.isEmpty {
+            while let newline = buffer.popLine() {
+                if let line = String(data: newline, encoding: .utf8), !line.isEmpty {
                     lineContinuation.yield(line)
                 }
             }
@@ -359,14 +357,11 @@ public actor OpenCodeSDKProvider {
         bridge.process.terminationHandler = { [weak self] _ in
             Task { await self?.handleTermination() }
         }
-        // Keep the iterator alive for the run loop below.
-        var iterator = lineStream.makeAsyncIterator()
-
         // Readiness: the bridge prints {"type":"ready"} only after the
         // SDK import resolves AND global.health() passes. Anything else
         // first (an error line, EOF, or 30 seconds of silence) is a
         // failed connection — never a successful one.
-        let ready = try await waitForReady(iterator: iterator, bridge: bridge)
+        let ready = try await waitForReady(stream: lineStream, bridge: bridge)
         guard ready else {
             bridge.terminate()
             let tail = bridge.stderrTail.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -417,7 +412,7 @@ public actor OpenCodeSDKProvider {
         bridge.writeLine(runLine)
 
         // Consume bridge lines until done/error/process exit.
-        while let line = await iterator.next() {
+        for try await line in lineStream {
             guard let data = line.data(using: .utf8),
                   let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
                   let type = json["type"] as? String else {
@@ -547,8 +542,8 @@ public actor OpenCodeSDKProvider {
     /// is also rejected here (the session path previously accepted
     /// any ready line; the runner's disk check is the primary gate,
     /// this is defence in depth).
-    private func waitForReady(iterator: AsyncStream<String>.Iterator, bridge: SDKBridgeSession) async throws -> Bool {
-        var iterator = iterator
+    private func waitForReady(stream: AsyncStream<String>, bridge: SDKBridgeSession) async throws -> Bool {
+        let iterator = stream.makeAsyncIterator()
         return try await withThrowingTaskGroup(of: Bool.self) { group in
             group.addTask {
                 while let line = await iterator.next() {
