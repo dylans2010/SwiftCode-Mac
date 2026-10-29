@@ -1696,6 +1696,8 @@
 		CE101004E34BBDA370490001 /* InfoPlistEditor.swift in Sources */ = {isa = PBXBuildFile; fileRef = CE101003E34BBDA370490001 /* InfoPlistEditor.swift */; };
 		CE101006E34BBDA370490001 /* EntitlementsEditorManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = CE101005E34BBDA370490001 /* EntitlementsEditorManager.swift */; };
 		CE101008E34BBDA370490001 /* InfoPlistView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CE101007E34BBDA370490001 /* InfoPlistView.swift */; };
+		1EC05A633AFD4FA2B84F6ACF /* SwiftCodeJSONView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B5FC502E425147288365DEE4 /* SwiftCodeJSONView.swift */; };
+		C0E24CBCF49142D381A50BAD /* LocalizingAppNewView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1832123828824E0DBB98ECCB /* LocalizingAppNewView.swift */; };
 		BA09005C9AB0FC4926513534 /* InfoPlistSections.swift in Sources */ = {isa = PBXBuildFile; fileRef = 11B0F27A9F13DC5ACEE1F51C /* InfoPlistSections.swift */; };
 		CE10100AE34BBDA370490001 /* EntitlementsEditorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CE101009E34BBDA370490001 /* EntitlementsEditorView.swift */; };
 		26A2FA8882FBD03116ADBA38 /* EntitlementsEditorCatalog.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6B7C92A620C8C974E68693DE /* EntitlementsEditorCatalog.swift */; };
@@ -2971,6 +2973,7 @@
 		vf8Ufnixnzx98JfszV2AlPpw /* SDKSecurityContracts.swift in Sources */ = {isa = PBXBuildFile; fileRef = HKI3CsxfHWHGq43C0obeSqck /* SDKSecurityContracts.swift */; };
 		E0F0DE898FCC18F9BE015DFC /* AssistNavigationRouter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 41532A174254639C0FD6F47F /* AssistNavigationRouter.swift */; };
 		4421FA9C87A37F6A569B70D3 /* AssistLocalizeAppTool.swift in Sources */ = {isa = PBXBuildFile; fileRef = B9914CCF657AA096C482ABEF /* AssistLocalizeAppTool.swift */; };
+		9BBA8DFA0FDB4653963790C3 /* LocalizingAppService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 256A9E4575B0446C8C248E4B /* LocalizingAppService.swift */; };
 		A42468F34B2F33B109AA1B07 /* AssistArtboardListTool.swift in Sources */ = {isa = PBXBuildFile; fileRef = C3E927895A025E48FC03B758 /* AssistArtboardListTool.swift */; };
 		336030CB24988130B1D64C79 /* AssistArtboardGetTool.swift in Sources */ = {isa = PBXBuildFile; fileRef = 46C542F9912141207FD4A252 /* AssistArtboardGetTool.swift */; };
 		32DF47E140EAFEC13990611B /* AssistArtboardCreateTool.swift in Sources */ = {isa = PBXBuildFile; fileRef = 978DA3B6FB230AEB081BFE91 /* AssistArtboardCreateTool.swift */; };
@@ -4656,6 +4659,8 @@
 		CE101003E34BBDA370490001 /* InfoPlistEditor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InfoPlistEditor.swift; sourceTree = "<group>"; };
 		CE101005E34BBDA370490001 /* EntitlementsEditorManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EntitlementsEditorManager.swift; sourceTree = "<group>"; };
 		CE101007E34BBDA370490001 /* InfoPlistView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InfoPlistView.swift; sourceTree = "<group>"; };
+		B5FC502E425147288365DEE4 /* SwiftCodeJSONView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SwiftCodeJSONView.swift; sourceTree = "<group>"; };
+		1832123828824E0DBB98ECCB /* LocalizingAppNewView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalizingAppNewView.swift; sourceTree = "<group>"; };
 		11B0F27A9F13DC5ACEE1F51C /* InfoPlistSections.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InfoPlistSections.swift; sourceTree = "<group>"; };
 		CE101009E34BBDA370490001 /* EntitlementsEditorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EntitlementsEditorView.swift; sourceTree = "<group>"; };
 		6B7C92A620C8C974E68693DE /* EntitlementsEditorCatalog.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EntitlementsEditorCatalog.swift; sourceTree = "<group>"; };
@@ -5945,6 +5950,7 @@
 		x8YuGALvCUjh1T3rP6BpwaEI /* SDKExtensionManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SDKExtensionManager.swift; sourceTree = "<group>"; };
 		41532A174254639C0FD6F47F /* AssistNavigationRouter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssistNavigationRouter.swift; sourceTree = "<group>"; };
 		B9914CCF657AA096C482ABEF /* AssistLocalizeAppTool.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssistLocalizeAppTool.swift; sourceTree = "<group>"; };
+		256A9E4575B0446C8C248E4B /* LocalizingAppService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalizingAppService.swift; sourceTree = "<group>"; };
 		C3E927895A025E48FC03B758 /* AssistArtboardListTool.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssistArtboardListTool.swift; sourceTree = "<group>"; };
 		46C542F9912141207FD4A252 /* AssistArtboardGetTool.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssistArtboardGetTool.swift; sourceTree = "<group>"; };
 		978DA3B6FB230AEB081BFE91 /* AssistArtboardCreateTool.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AssistArtboardCreateTool.swift; sourceTree = "<group>"; };
@@ -6402,6 +6408,7 @@
 				C0DE00010000000000000061 /* AssistXcodeToolchainInfoTool.swift */,
 				C0DE00010000000000000062 /* AssistXctestDiscoveryTool.swift */,
 				C0DE00010000000000000064 /* AssistSystemTool.swift */,				B9914CCF657AA096C482ABEF /* AssistLocalizeAppTool.swift */,
+				256A9E4575B0446C8C248E4B /* LocalizingAppService.swift */,
 				C3E927895A025E48FC03B758 /* AssistArtboardListTool.swift */,
 				46C542F9912141207FD4A252 /* AssistArtboardGetTool.swift */,
 				978DA3B6FB230AEB081BFE91 /* AssistArtboardCreateTool.swift */,
@@ -9627,6 +9634,8 @@
 				CE101009E34BBDA370490001 /* EntitlementsEditorView.swift */,
 				6B7C92A620C8C974E68693DE /* EntitlementsEditorCatalog.swift */,
 				CE101007E34BBDA370490001 /* InfoPlistView.swift */,
+				B5FC502E425147288365DEE4 /* SwiftCodeJSONView.swift */,
+				1832123828824E0DBB98ECCB /* LocalizingAppNewView.swift */,
 				11B0F27A9F13DC5ACEE1F51C /* InfoPlistSections.swift */,
 				2AEB32651A4E4F7B561D7B81 /* SymbolOutlineView.swift */,
 				46A5954FB1CB8C571A915115 /* SymbolNavigatorView.swift */,
@@ -13121,6 +13130,8 @@
 				CE10100AE34BBDA370490001 /* EntitlementsEditorView.swift in Sources */,
 				26A2FA8882FBD03116ADBA38 /* EntitlementsEditorCatalog.swift in Sources */,
 				CE101008E34BBDA370490001 /* InfoPlistView.swift in Sources */,
+				1EC05A633AFD4FA2B84F6ACF /* SwiftCodeJSONView.swift in Sources */,
+				C0E24CBCF49142D381A50BAD /* LocalizingAppNewView.swift in Sources */,
 				BA09005C9AB0FC4926513534 /* InfoPlistSections.swift in Sources */,
 				BC72448004FB03F6440094C2 /* SymbolOutlineView.swift in Sources */,
 				5123DBD7E22E4869FB68CEED /* CodeEditorManagementView.swift in Sources */,
@@ -13976,6 +13987,7 @@
 				C0DE00020000000000000063 /* AssistArtifactsView.swift in Sources */,
 				C0DE00020000000000000064 /* AssistSystemTool.swift in Sources */,				E0F0DE898FCC18F9BE015DFC /* AssistNavigationRouter.swift in Sources */,
 				4421FA9C87A37F6A569B70D3 /* AssistLocalizeAppTool.swift in Sources */,
+				9BBA8DFA0FDB4653963790C3 /* LocalizingAppService.swift in Sources */,
 				A42468F34B2F33B109AA1B07 /* AssistArtboardListTool.swift in Sources */,
 				336030CB24988130B1D64C79 /* AssistArtboardGetTool.swift in Sources */,
 				32DF47E140EAFEC13990611B /* AssistArtboardCreateTool.swift in Sources */,

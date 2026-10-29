@@ -67,19 +67,9 @@ public struct SwiftCodeWelcomeView: View {
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
 
-            // Custom Window Close Button (Matching Screenshot Top-Left Traffic Light)
-            VStack {
-                HStack {
-                    WelcomeCloseButton {
-                        closeWelcomeWindow()
-                    }
-                    .padding(.leading, 13)
-                    .padding(.top, 13)
-                    Spacer()
-                }
-                Spacer()
-            }
-
+            // No top bar: the welcome view has no header strip at all.
+            // The native close button (restored in applyWelcomeWindowStyle)
+            // is the only window control; there is no custom top overlay.
             // Loading / Error Overlay
             loadingOverlay
         }
@@ -154,10 +144,10 @@ public struct SwiftCodeWelcomeView: View {
                 .ignoresSafeArea()
 
             VStack(spacing: 0) {
-                Spacer().frame(height: 52)
-
+                // No top spacer: content starts at the very top of the view.
                 // App Icon centered in a squircle with shadow
                 appIconView
+                    .padding(.top, 12)
 
                 // Title: "SwiftCode"
                 Text("SwiftCode")
@@ -384,14 +374,6 @@ public struct SwiftCodeWelcomeView: View {
         showError = true
     }
 
-    private func closeWelcomeWindow() {
-        if let window = windowHolder.window ?? NSApp.keyWindow ?? NSApplication.shared.windows.first(where: { $0.isVisible && !($0 is NSPanel) }) {
-            window.performClose(nil)
-        } else {
-            NSApplication.shared.terminate(nil)
-        }
-    }
-
     // MARK: - Window Configuration (Strict Screenshot Parity)
 
     private func applyWelcomeWindowStyle(to window: NSWindow) {
@@ -428,10 +410,12 @@ public struct SwiftCodeWelcomeView: View {
         window.showsResizeIndicator = false
         window.collectionBehavior = []
 
-        // Permanently hide all standard window buttons so custom controls can be used
+        // No custom top bar, so the native close button stays visible as
+        // the only window control; minimize/zoom stay hidden (the welcome
+        // window is fixed-size and never fullscreen).
         window.standardWindowButton(.miniaturizeButton)?.isHidden = true
         window.standardWindowButton(.zoomButton)?.isHidden = true
-        window.standardWindowButton(.closeButton)?.isHidden = true
+        window.standardWindowButton(.closeButton)?.isHidden = false
 
         let currentContentSize = window.contentLayoutRect.size
         if abs(currentContentSize.width - fixedSize.width) > 2 || abs(currentContentSize.height - fixedSize.height) > 2 {
@@ -535,60 +519,6 @@ public struct SwiftCodeWelcomeView: View {
 
 // MARK: - Typealias for seamless compatibility
 public typealias WelcomeView = SwiftCodeWelcomeView
-
-// MARK: - Custom Traffic Light Close Button
-
-struct WelcomeCloseButton: View {
-    let action: () -> Void
-
-    @State private var isHovering = false
-    @State private var isPressed = false
-
-    var body: some View {
-        Button(action: action) {
-            ZStack {
-                // Outer circle with macOS traffic-light red gradient
-                Circle()
-                    .fill(
-                        LinearGradient(
-                            colors: [
-                                Color(red: 1.0, green: 0.38, blue: 0.35),
-                                Color(red: 0.93, green: 0.24, blue: 0.22)
-                            ],
-                            startPoint: .top,
-                            endPoint: .bottom
-                        )
-                    )
-                    .overlay(
-                        Circle()
-                            .strokeBorder(Color.black.opacity(0.28), lineWidth: 0.5)
-                    )
-                    .overlay(
-                        Circle()
-                            .strokeBorder(Color.white.opacity(0.25), lineWidth: 0.5)
-                            .padding(0.5)
-                    )
-
-                // Inner cross icon visible on hover (matching macOS traffic light)
-                if isHovering {
-                    Image(systemName: "xmark")
-                        .font(.system(size: 7.5, weight: .bold))
-                        .foregroundStyle(Color.black.opacity(0.65))
-                }
-            }
-            .frame(width: 13, height: 13)
-            .shadow(color: Color.black.opacity(0.35), radius: 1, x: 0, y: 0.5)
-            .opacity(isPressed ? 0.75 : 1.0)
-            .contentShape(Circle())
-        }
-        .buttonStyle(.plain)
-        .onHover { hovering in
-            withAnimation(.easeInOut(duration: 0.12)) {
-                isHovering = hovering
-            }
-        }
-    }
-}
 
 // MARK: - Pill Button Component (Dark Rounded Pill Matching Screenshot)
 

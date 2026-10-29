@@ -29,6 +29,13 @@ struct WorkspaceView: View {
 
     // Collapsible App Details Sidebar Panel
     @State private var showAppDetailsSidebar = false
+
+    // Full-pane special editors (swiftcode.json, Localizable.xcstrings)
+    // hide every sidebar and the toolbar while active, then restore
+    // exactly what was visible before. Driven by EditorView's
+    // .specialEditorActive notification.
+    @State private var specialEditorActive = false
+    @State private var stashedChrome: (fileNavigator: Bool, artboard: Bool, agent: Bool, appDetails: Bool, infoProj: Bool)?
     // Collapsible SwiftCode Project Archive Info Sidebar
     @State private var showInfoProjSidebar = false
     @AppStorage("com.swiftcode.workspace.appDetailsSidebarWidth") private var appDetailsSidebarWidth = 320.0
@@ -224,59 +231,63 @@ struct WorkspaceView: View {
         )
         .environment(viewModel)
         .toolbar {
-            ToolbarItemGroup(placement: .primaryAction) {
-                Button {
-                    sessionStore.closeProject()
-                } label: {
-                    Label("Close Project", systemImage: "xmark.square")
-                }
-                .help("Close current project")
+            // No toolbar at all while a full-pane special editor is
+            // active (swiftcode.json / Localizable.xcstrings).
+            if !specialEditorActive {
+                ToolbarItemGroup(placement: .primaryAction) {
+                    Button {
+                        sessionStore.closeProject()
+                    } label: {
+                        Label("Close Project", systemImage: "xmark.square")
+                    }
+                    .help("Close current project")
 
-                Button {
-                    withAnimation(.spring()) {
-                        showFileNavigator.toggle()
-                        if let session = sessionStore.activeSession {
-                            session.showFileNavigator = showFileNavigator
-                            sessionStore.saveSession(session)
+                    Button {
+                        withAnimation(.spring()) {
+                            showFileNavigator.toggle()
+                            if let session = sessionStore.activeSession {
+                                session.showFileNavigator = showFileNavigator
+                                sessionStore.saveSession(session)
+                            }
                         }
+                    } label: {
+                        Label(showFileNavigator ? "Hide Files" : "Show Files", systemImage: "sidebar.left")
                     }
-                } label: {
-                    Label(showFileNavigator ? "Hide Files" : "Show Files", systemImage: "sidebar.left")
-                }
-                .help(showFileNavigator ? "Hide File Navigator" : "Show File Navigator")
+                    .help(showFileNavigator ? "Hide File Navigator" : "Show File Navigator")
 
-                Button {
-                    activeSheet = .buildStatus
-                } label: {
-                    Label("Build Status", systemImage: "gauge.with.needle")
-                }
-                .help("Open Build Status")
+                    Button {
+                        activeSheet = .buildStatus
+                    } label: {
+                        Label("Build Status", systemImage: "gauge.with.needle")
+                    }
+                    .help("Open Build Status")
 
-                Button {
-                    withAnimation(.spring()) {
-                        showArtboardSimulator.toggle()
-                        if let session = sessionStore.activeSession {
-                            session.showArtboardSimulator = showArtboardSimulator
-                            sessionStore.saveSession(session)
+                    Button {
+                        withAnimation(.spring()) {
+                            showArtboardSimulator.toggle()
+                            if let session = sessionStore.activeSession {
+                                session.showArtboardSimulator = showArtboardSimulator
+                                sessionStore.saveSession(session)
+                            }
                         }
+                    } label: {
+                        Image(systemName: "macwindow.on.rectangle")
+                            .foregroundColor(showArtboardSimulator ? .accentColor : .secondary)
                     }
-                } label: {
-                    Image(systemName: "macwindow.on.rectangle")
-                        .foregroundColor(showArtboardSimulator ? .accentColor : .secondary)
-                }
-                .help("Toggle Artboard Simulator")
+                    .help("Toggle Artboard Simulator")
 
-                Button {
-                    withAnimation(.spring()) {
-                        showAgentInspector.toggle()
+                    Button {
+                        withAnimation(.spring()) {
+                            showAgentInspector.toggle()
+                        }
+                    } label: {
+                        Image(systemName: "sparkles")
+                            .foregroundColor(showAgentInspector ? .accentColor : .secondary)
                     }
-                } label: {
-                    Image(systemName: "sparkles")
-                        .foregroundColor(showAgentInspector ? .accentColor : .secondary)
-                }
-                .help("Toggle AI Agent Inspector")
+                    .help("Toggle AI Agent Inspector")
 
-                BuildToolbarView(viewModel: viewModel.build, projectURL: viewModel.projectURL, editorViewModel: viewModel.editor)
+                    BuildToolbarView(viewModel: viewModel.build, projectURL: viewModel.projectURL, editorViewModel: viewModel.editor)
+                }
             }
         }
         .sheet(item: $activeSheet) { destination in
@@ -326,6 +337,30 @@ struct WorkspaceView: View {
                     await viewModel.editor.openFile(url: url)
                 }
             }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .specialEditorActive)) { notification in
+            let active = notification.userInfo?["active"] as? Bool ?? false
+            if active, !specialEditorActive, stashedChrome == nil {
+                // Stash exactly what was visible, then hide everything.
+                stashedChrome = (showFileNavigator, showArtboardSimulator, showAgentInspector, showAppDetailsSidebar, showInfoProjSidebar)
+                withAnimation(.spring()) {
+                    showFileNavigator = false
+                    showArtboardSimulator = false
+                    showAgentInspector = false
+                    showAppDetailsSidebar = false
+                    showInfoProjSidebar = false
+                }
+            } else if !active, specialEditorActive, let stashed = stashedChrome {
+                withAnimation(.spring()) {
+                    showFileNavigator = stashed.fileNavigator
+                    showArtboardSimulator = stashed.artboard
+                    showAgentInspector = stashed.agent
+                    showAppDetailsSidebar = stashed.appDetails
+                    showInfoProjSidebar = stashed.infoProj
+                }
+                stashedChrome = nil
+            }
+            specialEditorActive = active
         }
         .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("com.swiftcode.openArtboardSimulator"))) { notification in
             withAnimation(.spring()) {

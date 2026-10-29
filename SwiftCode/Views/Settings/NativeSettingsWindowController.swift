@@ -11,7 +11,7 @@ import AppKit
 // MARK: - Native Safari Settings Window Controller
 
 @MainActor
-public final class NativeSettingsWindowController: NSWindowController, NSToolbarDelegate, NSWindowDelegate {
+public final class NativeSettingsWindowController: NSWindowController, NSWindowDelegate {
     public static let shared = NativeSettingsWindowController()
 
     public var selectedCategory: SettingsCategory {
@@ -40,19 +40,18 @@ public final class NativeSettingsWindowController: NSWindowController, NSToolbar
             defer: false
         )
 
-        window.minSize = NSSize(width: 740, height: 480)
+        window.minSize = NSSize(width: 880, height: 480)
         window.maxSize = NSSize(width: 10000, height: 10000)
         window.setContentSize(NSSize(width: NativeSettingsLayout.width, height: NativeSettingsLayout.height))
         window.setFrameAutosaveName("NativeSafariSettingsWindow")
         window.title = SettingsCategory.general.title
         window.titleVisibility = .visible
         window.titlebarAppearsTransparent = false
-        window.toolbarStyle = .unified
         window.titlebarSeparatorStyle = .line
         window.isOpaque = true
         window.backgroundColor = .windowBackgroundColor
         window.isReleasedWhenClosed = false
-        window.collectionBehavior = [.fullScreenPrimary, .managed]
+        window.collectionBehavior = [.managed]
 
         // Explicitly ensure standard window buttons are enabled and not hidden
         window.standardWindowButton(.closeButton)?.isHidden = false
@@ -64,7 +63,9 @@ public final class NativeSettingsWindowController: NSWindowController, NSToolbar
         super.init(window: window)
         window.delegate = self
 
-        setupToolbar(for: window)
+        // No NSToolbar: the centered in-content tab bar in
+        // NativeSettingsContainerView shows every category at once.
+        window.toolbar = nil
 
         // Single persistent contentViewController hosting NativeSettingsContainerView
         // reacting to NativeSettingsState.shared so the window frame never collapses
@@ -90,20 +91,6 @@ public final class NativeSettingsWindowController: NSWindowController, NSToolbar
         fatalError("init(coder:) has not been implemented")
     }
 
-    // MARK: - Toolbar Setup
-
-    private func setupToolbar(for window: NSWindow) {
-        let toolbar = NSToolbar(identifier: "NativeSafariSettingsToolbar")
-        toolbar.delegate = self
-        toolbar.displayMode = .iconAndLabel
-        toolbar.allowsUserCustomization = false
-        toolbar.autosavesConfiguration = false
-        toolbar.selectedItemIdentifier = selectedCategory.toolbarIdentifier
-        window.toolbar = toolbar
-        window.titlebarSeparatorStyle = .line
-        window.titlebarAppearsTransparent = false
-    }
-
     // MARK: - Category UI Updating
 
     private func updateCategoryUI() {
@@ -112,12 +99,7 @@ public final class NativeSettingsWindowController: NSWindowController, NSToolbar
         // Centered window title displaying the selected category name
         window.title = selectedCategory.title
 
-        // Update toolbar selection highlight to match category
-        if window.toolbar?.selectedItemIdentifier != selectedCategory.toolbarIdentifier {
-            window.toolbar?.selectedItemIdentifier = selectedCategory.toolbarIdentifier
-        }
-
-        // Do not reset window.setContentSize to fixed dimensions here to preserve user resizing and full-screen state
+        // Do not reset window.setContentSize to fixed dimensions here to preserve user resizing (this window never enters fullscreen)
     }
 
     // MARK: - Public Window Management Methods
@@ -140,7 +122,7 @@ public final class NativeSettingsWindowController: NSWindowController, NSToolbar
         window.backgroundColor = .windowBackgroundColor
         window.titlebarAppearsTransparent = false
         window.titlebarSeparatorStyle = .line
-        window.collectionBehavior = [.fullScreenPrimary, .managed]
+        window.collectionBehavior = [.managed]
         window.standardWindowButton(.closeButton)?.isHidden = false
         window.standardWindowButton(.miniaturizeButton)?.isHidden = false
         window.standardWindowButton(.zoomButton)?.isHidden = false
@@ -171,54 +153,6 @@ public final class NativeSettingsWindowController: NSWindowController, NSToolbar
     public func closeWindow() {
         guard let window = self.window, window.isVisible else { return }
         window.orderOut(nil)
-    }
-
-    // MARK: - NSToolbarDelegate
-
-    public func toolbarDefaultItemIdentifiers(_ toolbar: NSToolbar) -> [NSToolbarItem.Identifier] {
-        SettingsCategory.allCases.map { $0.toolbarIdentifier }
-    }
-
-    public func toolbarAllowedItemIdentifiers(_ toolbar: NSToolbar) -> [NSToolbarItem.Identifier] {
-        SettingsCategory.allCases.map { $0.toolbarIdentifier }
-    }
-
-    public func toolbarSelectableItemIdentifiers(_ toolbar: NSToolbar) -> [NSToolbarItem.Identifier] {
-        SettingsCategory.allCases.map { $0.toolbarIdentifier }
-    }
-
-    public func toolbar(
-        _ toolbar: NSToolbar,
-        itemForItemIdentifier itemIdentifier: NSToolbarItem.Identifier,
-        willBeInsertedIntoToolbar flag: Bool
-    ) -> NSToolbarItem? {
-        guard let category = SettingsCategory.allCases.first(where: { $0.toolbarIdentifier == itemIdentifier }) else {
-            return nil
-        }
-
-        let item = NSToolbarItem(itemIdentifier: itemIdentifier)
-        item.label = category.title
-        item.paletteLabel = category.title
-        item.toolTip = category.title
-        item.image = NSImage(systemSymbolName: category.icon, accessibilityDescription: category.title)
-        item.target = self
-        item.action = #selector(categoryToolbarItemClicked(_:))
-        return item
-    }
-
-    @objc private func categoryToolbarItemClicked(_ sender: Any) {
-        let identifier: NSToolbarItem.Identifier?
-        if let item = sender as? NSToolbarItem {
-            identifier = item.itemIdentifier
-        } else if let toolbar = window?.toolbar, let selected = toolbar.selectedItemIdentifier {
-            identifier = selected
-        } else {
-            identifier = nil
-        }
-        guard let validIdentifier = identifier else { return }
-        if let category = SettingsCategory.allCases.first(where: { $0.toolbarIdentifier == validIdentifier }) {
-            self.selectedCategory = category
-        }
     }
 
     // MARK: - NSWindowDelegate

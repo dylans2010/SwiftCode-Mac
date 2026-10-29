@@ -50,15 +50,14 @@ public enum SettingsCategory: String, CaseIterable, Identifiable, Sendable {
         }
     }
 
-    public var toolbarIdentifier: NSToolbarItem.Identifier {
-        NSToolbarItem.Identifier("com.swiftcode.settings.\(rawValue)")
-    }
 }
 
 // MARK: - 0. NativeSettingsLayout & State
 
 public enum NativeSettingsLayout {
-    public static let width: CGFloat = 820
+    // Wide enough for the centered tab bar to show all 11 categories
+    // at once (no NSToolbar overflow ">>" menu, no scrolling).
+    public static let width: CGFloat = 940
     public static let height: CGFloat = 640
 }
 
@@ -86,7 +85,21 @@ public struct NativeSettingsContainerView: View {
 
     public var body: some View {
         VStack(spacing: 0) {
-            // Crisp, non-see-through header bar directly under toolbar with native border divider
+            // Centered tab bar (replaces the old NSToolbar tabs, which
+            // overflowed into a ">>" menu and pushed items to the right):
+            // every category is always visible, centered as one row.
+            SettingsCategoryTabBar(selected: $state.selectedCategory)
+                .padding(.top, 10)
+                .padding(.bottom, 6)
+                .background(Color(nsColor: .windowBackgroundColor))
+                .overlay(
+                    Rectangle()
+                        .frame(height: 1)
+                        .foregroundStyle(Color(nsColor: .separatorColor)),
+                    alignment: .bottom
+                )
+
+            // Crisp, non-see-through header bar directly under the tab bar with native border divider
             HStack(spacing: 10) {
                 Image(systemName: state.selectedCategory.icon)
                     .font(.system(size: 15, weight: .semibold))
@@ -137,10 +150,55 @@ public struct NativeSettingsContainerView: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .clipped()
         }
-        .frame(minWidth: 740, maxWidth: .infinity, minHeight: 480, maxHeight: .infinity)
+        .frame(minWidth: 880, maxWidth: .infinity, minHeight: 480, maxHeight: .infinity)
         .background(Color(nsColor: .windowBackgroundColor))
         .clipped()
         .environmentObject(settings)
+    }
+}
+
+// MARK: - Centered settings tab bar
+
+/// Every settings category as one centered row of compact icon+label
+/// buttons. No overflow menu, no scrolling, nothing pushed to the
+/// right: the row is centered in the window and sized so all 11
+/// categories fit at the 940 pt window width.
+public struct SettingsCategoryTabBar: View {
+    @Binding var selected: SettingsCategory
+
+    public init(selected: Binding<SettingsCategory>) {
+        self._selected = selected
+    }
+
+    public var body: some View {
+        HStack(spacing: 2) {
+            Spacer(minLength: 0)
+            ForEach(SettingsCategory.allCases) { category in
+                Button {
+                    selected = category
+                } label: {
+                    VStack(spacing: 3) {
+                        Image(systemName: category.icon)
+                            .font(.system(size: 15, weight: .semibold))
+                        Text(category.title)
+                            .font(.system(size: 10, weight: .medium))
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.85)
+                    }
+                    .foregroundStyle(selected == category ? Color.accentColor : .secondary)
+                    .frame(width: 78, height: 44)
+                    .background(
+                        RoundedRectangle(cornerRadius: 8, style: .continuous)
+                            .fill(selected == category ? Color.accentColor.opacity(0.14) : Color.clear)
+                    )
+                    .contentShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+                }
+                .buttonStyle(.plain)
+                .help(category.title)
+            }
+            Spacer(minLength: 0)
+        }
+        .padding(.horizontal, 12)
     }
 }
 
