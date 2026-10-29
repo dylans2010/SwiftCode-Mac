@@ -8,6 +8,7 @@ enum MainSidebarItem: String, CaseIterable, Identifiable {
     case agent = "bubble.left.and.exclamationmark.bubble.right.fill"
     case workflows = "square.stack.3d.down.right"
     case terminal = "terminal"
+    case extensions = "puzzlepiece"
 
     var id: String { rawValue }
 
@@ -20,6 +21,7 @@ enum MainSidebarItem: String, CaseIterable, Identifiable {
         case .agent: return "AI Agent"
         case .workflows: return "Workflows"
         case .terminal: return "Terminal"
+        case .extensions: return "Extensions"
         }
     }
 }
@@ -97,6 +99,8 @@ struct SidebarMainView: View {
                         GitHubWorkflowsSidebarView()
                     case .terminal:
                         TerminalView()
+                    case .extensions:
+                        ExtensionsHomeView()
                     }
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)

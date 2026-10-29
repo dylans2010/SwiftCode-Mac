@@ -2987,6 +2987,40 @@
 		003FE369B5B4051729C396B7 /* AssistArtboardCompileTool.swift in Sources */ = {isa = PBXBuildFile; fileRef = 150DBC6BF8D60F8A2C1484E0 /* AssistArtboardCompileTool.swift */; };
 		FBA8513F14429503C5F8DF9D /* AssistArtboardRunAppTool.swift in Sources */ = {isa = PBXBuildFile; fileRef = 026D4A916B32D9B81882195B /* AssistArtboardRunAppTool.swift */; };
 		8E61998C3C10929681A5E3AE /* AssistFixArtboardsTool.swift in Sources */ = {isa = PBXBuildFile; fileRef = EB958921B99973874665A1A7 /* AssistFixArtboardsTool.swift */; };
+		94C0743107EAF8FC433DA9B6 /* ExtV2AssistBridge.swift in Sources */ = {isa = PBXBuildFile; fileRef = 66E60044B29A566B0605808F /* ExtV2AssistBridge.swift */; };
+		8C1ABBBFD811D31383C7CBAE /* ExtV2Compatibility.swift in Sources */ = {isa = PBXBuildFile; fileRef = 88EA593F9D44318B65C1B5A4 /* ExtV2Compatibility.swift */; };
+		63ECD9D20585DB2EDE9FC8F3 /* ExtV2Manager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 60C264FC3FEF0382DF2710FD /* ExtV2Manager.swift */; };
+		D4E857A3A2CB2991027E787B /* ExtV2Models.swift in Sources */ = {isa = PBXBuildFile; fileRef = E4EB323815404516FD87FAB3 /* ExtV2Models.swift */; };
+		B0B87627DE11846885D46956 /* ExtV2DependencyResolver.swift in Sources */ = {isa = PBXBuildFile; fileRef = 664F149A1ED96F3D93C42E78 /* ExtV2DependencyResolver.swift */; };
+		0C678C6E85C1757A096CD423 /* ExtV2Diagnostics.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4764A7395B32CA74804C9FD3 /* ExtV2Diagnostics.swift */; };
+		EA9941313F41CE07CEEF24BE /* ExtV2EditorBridge.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F46C19CCAF8F19BA5A369B8 /* ExtV2EditorBridge.swift */; };
+		4D91BF8A35F1400969C1E97E /* ExtV2RPC.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1FEC01E66C8BE69695CAD2C /* ExtV2RPC.swift */; };
+		527F5B8BAED9661671FB6D42 /* ExtV2LanguageClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 46CE63C634C4D673486E47B7 /* ExtV2LanguageClient.swift */; };
+		CCEAEF6C63A12713AC93C33E /* ExtV2ManifestParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = CFD0EFF1C2FA4D54F1192361 /* ExtV2ManifestParser.swift */; };
+		365A87F27549EE78B9A89C8B /* ExtV2NativeSDK.swift in Sources */ = {isa = PBXBuildFile; fileRef = C73285474A14A69CB421636E /* ExtV2NativeSDK.swift */; };
+		52B0B0DC465D41899F7A7320 /* ExtV2SamplePlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F9D60CD895E70DAD153AEBE /* ExtV2SamplePlugin.swift */; };
+		A596B0DCFCA14A4AF663AE20 /* ExtV2PackageService.swift in Sources */ = {isa = PBXBuildFile; fileRef = FD4CFC5F9719A26A3029FF9D /* ExtV2PackageService.swift */; };
+		C202E9931C882E59D2661FA5 /* ExtV2PermissionManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1C699A2844919A26ED1C1FA5 /* ExtV2PermissionManager.swift */; };
+		37FF3D4570EB796002E3802A /* ExtV2RegistryClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 061257C97CED643EBE2A9A7E /* ExtV2RegistryClient.swift */; };
+		1C10ED5044FBD8E8DF99F8AD /* ExtV2ResourceLimits.swift in Sources */ = {isa = PBXBuildFile; fileRef = 72B5DF6710BB5309AC693A83 /* ExtV2ResourceLimits.swift */; };
+		34FF22D6E2D8879B074D05D6 /* ExtV2HostManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = B70B56A4CC08175CFA6FA795 /* ExtV2HostManager.swift */; };
+		0E934E89886A55557F5DC533 /* ExtV2HostScript.swift in Sources */ = {isa = PBXBuildFile; fileRef = CA82699137281EB5A30B8F25 /* ExtV2HostScript.swift */; };
+		678F1F2C550D7715C4DE7CA4 /* ExtV2Storage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 66A134D05D35DA0626860B1B /* ExtV2Storage.swift */; };
+		35E19F5011326E58229EEA30 /* ExtV2TestSuite.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9B2B5BBF2E6430D02A6A60F9 /* ExtV2TestSuite.swift */; };
+		A60DBAD2C5522C8EA0292B08 /* ExtV2VSCodeAPI.swift in Sources */ = {isa = PBXBuildFile; fileRef = 25301E1A5253D0A333C3CFC4 /* ExtV2VSCodeAPI.swift */; };
+		4A13033FC34DFDAA9F0A0A33 /* ExtV2WorkspaceBridge.swift in Sources */ = {isa = PBXBuildFile; fileRef = C5BFA511830AA89520D41C36 /* ExtV2WorkspaceBridge.swift */; };
+		D480A667AF1C8F39586682F5 /* ExtV2XcodeCompatibility.swift in Sources */ = {isa = PBXBuildFile; fileRef = 19BFFA2F283E55E9E3F23F35 /* ExtV2XcodeCompatibility.swift */; };
+		571EAF2B2DB2707BA7F36A5E /* ExtensionDetailsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5A1C6E4D1A4CFB77A60E866F /* ExtensionDetailsView.swift */; };
+		FAB0C03501C688A81B2D1788 /* ExtensionDiagnosticsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 018CCE9DAD430B6CB4BED576 /* ExtensionDiagnosticsView.swift */; };
+		BE255C4B70F2AE2CB4D41106 /* ExtensionPermissionsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4A2B69E678A9C73FD48DB1D8 /* ExtensionPermissionsView.swift */; };
+		F367624864C3FD97BAD14FBD /* ExtensionRunView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D692FAA3E1993459B3CF4A73 /* ExtensionRunView.swift */; };
+		3A8CEBF2A0E8E7F4C15965DA /* ExtensionSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 365027C4022D551F34965A58 /* ExtensionSettingsView.swift */; };
+		5D5B1930B0764212FE58FF94 /* ExtensionSidebarRow.swift in Sources */ = {isa = PBXBuildFile; fileRef = 17C430A80439A256E9CB03DA /* ExtensionSidebarRow.swift */; };
+		D8AA68B6E7552E3722BE7376 /* ExtensionUpdatesView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 533BC50DD39771EDEBEC6CB3 /* ExtensionUpdatesView.swift */; };
+		F5A8BADACD62E6B5E2B25243 /* ExtensionViewModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6FA239D58B106BA3B75E817B /* ExtensionViewModels.swift */; };
+		121649468D5570E2E16208FF /* ExtensionsHomeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2280919871E27934AE2E4A27 /* ExtensionsHomeView.swift */; };
+		40117BB3518EC7DB8FA220DD /* ExtensionsInstalledView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8D58D560B7BDA8186A00C3B8 /* ExtensionsInstalledView.swift */; };
+		8E31DE943A0130E6EF528022 /* ExtensionsSearchView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F15CB6A173340350C1FEC56D /* ExtensionsSearchView.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -5973,6 +6007,40 @@
 		UPDAPPSERVICEREF00000001 /* AppUpdateService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppUpdateService.swift; sourceTree = "<group>"; };
 		UPDAPPTESTSREF0000000001 /* AppUpdateSupportTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppUpdateSupportTests.swift; sourceTree = "<group>"; };
 		UPDUPDATEWINREF000000001 /* UpdateWindowView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UpdateWindowView.swift; sourceTree = "<group>"; };
+		66E60044B29A566B0605808F /* ExtV2AssistBridge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExtV2AssistBridge.swift; sourceTree = "<group>"; };
+		88EA593F9D44318B65C1B5A4 /* ExtV2Compatibility.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExtV2Compatibility.swift; sourceTree = "<group>"; };
+		60C264FC3FEF0382DF2710FD /* ExtV2Manager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExtV2Manager.swift; sourceTree = "<group>"; };
+		E4EB323815404516FD87FAB3 /* ExtV2Models.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExtV2Models.swift; sourceTree = "<group>"; };
+		664F149A1ED96F3D93C42E78 /* ExtV2DependencyResolver.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExtV2DependencyResolver.swift; sourceTree = "<group>"; };
+		4764A7395B32CA74804C9FD3 /* ExtV2Diagnostics.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExtV2Diagnostics.swift; sourceTree = "<group>"; };
+		1F46C19CCAF8F19BA5A369B8 /* ExtV2EditorBridge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExtV2EditorBridge.swift; sourceTree = "<group>"; };
+		A1FEC01E66C8BE69695CAD2C /* ExtV2RPC.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExtV2RPC.swift; sourceTree = "<group>"; };
+		46CE63C634C4D673486E47B7 /* ExtV2LanguageClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExtV2LanguageClient.swift; sourceTree = "<group>"; };
+		CFD0EFF1C2FA4D54F1192361 /* ExtV2ManifestParser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExtV2ManifestParser.swift; sourceTree = "<group>"; };
+		C73285474A14A69CB421636E /* ExtV2NativeSDK.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExtV2NativeSDK.swift; sourceTree = "<group>"; };
+		1F9D60CD895E70DAD153AEBE /* ExtV2SamplePlugin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExtV2SamplePlugin.swift; sourceTree = "<group>"; };
+		FD4CFC5F9719A26A3029FF9D /* ExtV2PackageService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExtV2PackageService.swift; sourceTree = "<group>"; };
+		1C699A2844919A26ED1C1FA5 /* ExtV2PermissionManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExtV2PermissionManager.swift; sourceTree = "<group>"; };
+		061257C97CED643EBE2A9A7E /* ExtV2RegistryClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExtV2RegistryClient.swift; sourceTree = "<group>"; };
+		72B5DF6710BB5309AC693A83 /* ExtV2ResourceLimits.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExtV2ResourceLimits.swift; sourceTree = "<group>"; };
+		B70B56A4CC08175CFA6FA795 /* ExtV2HostManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExtV2HostManager.swift; sourceTree = "<group>"; };
+		CA82699137281EB5A30B8F25 /* ExtV2HostScript.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExtV2HostScript.swift; sourceTree = "<group>"; };
+		66A134D05D35DA0626860B1B /* ExtV2Storage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExtV2Storage.swift; sourceTree = "<group>"; };
+		9B2B5BBF2E6430D02A6A60F9 /* ExtV2TestSuite.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExtV2TestSuite.swift; sourceTree = "<group>"; };
+		25301E1A5253D0A333C3CFC4 /* ExtV2VSCodeAPI.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExtV2VSCodeAPI.swift; sourceTree = "<group>"; };
+		C5BFA511830AA89520D41C36 /* ExtV2WorkspaceBridge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExtV2WorkspaceBridge.swift; sourceTree = "<group>"; };
+		19BFFA2F283E55E9E3F23F35 /* ExtV2XcodeCompatibility.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExtV2XcodeCompatibility.swift; sourceTree = "<group>"; };
+		5A1C6E4D1A4CFB77A60E866F /* ExtensionDetailsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExtensionDetailsView.swift; sourceTree = "<group>"; };
+		018CCE9DAD430B6CB4BED576 /* ExtensionDiagnosticsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExtensionDiagnosticsView.swift; sourceTree = "<group>"; };
+		4A2B69E678A9C73FD48DB1D8 /* ExtensionPermissionsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExtensionPermissionsView.swift; sourceTree = "<group>"; };
+		D692FAA3E1993459B3CF4A73 /* ExtensionRunView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExtensionRunView.swift; sourceTree = "<group>"; };
+		365027C4022D551F34965A58 /* ExtensionSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExtensionSettingsView.swift; sourceTree = "<group>"; };
+		17C430A80439A256E9CB03DA /* ExtensionSidebarRow.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExtensionSidebarRow.swift; sourceTree = "<group>"; };
+		533BC50DD39771EDEBEC6CB3 /* ExtensionUpdatesView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExtensionUpdatesView.swift; sourceTree = "<group>"; };
+		6FA239D58B106BA3B75E817B /* ExtensionViewModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExtensionViewModels.swift; sourceTree = "<group>"; };
+		2280919871E27934AE2E4A27 /* ExtensionsHomeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExtensionsHomeView.swift; sourceTree = "<group>"; };
+		8D58D560B7BDA8186A00C3B8 /* ExtensionsInstalledView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExtensionsInstalledView.swift; sourceTree = "<group>"; };
+		F15CB6A173340350C1FEC56D /* ExtensionsSearchView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExtensionsSearchView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -6024,6 +6092,7 @@
 				DF6B1A5F79682983F71C7E7E /* AI */,
 				E063E218D13ACDDD0B728F8D /* Git */,
 				FD1B005835C75052E48A0BA2 /* Persistence */,
+				2ABF64069FC0CEE054F72743 /* Extensions v2 */,
 			);
 			path = Backend;
 			sourceTree = "<group>";
@@ -10731,6 +10800,7 @@
 				B0010001B0010001B0010003 /* ExportProjView.swift */,
 				B0010001B0010001B0010004 /* ImportProjView.swift */,
 				0A09F57B6FA4FAA6CFE8E044 /* AdvancedTools */,
+				9A788273977FBD46C445FDFD /* Extensions v2 */,
 			);
 			path = Views;
 			sourceTree = "<group>";
@@ -10921,6 +10991,206 @@
 				UPDAPPTESTSREF0000000001 /* AppUpdateSupportTests.swift */,
 			);
 			path = Updates;
+			sourceTree = "<group>";
+		};
+		D6762D94D2578544AD31D108 /* Assist */ = {
+			isa = PBXGroup;
+			children = (
+				66E60044B29A566B0605808F /* ExtV2AssistBridge.swift */,
+			);
+			path = Assist;
+			sourceTree = "<group>";
+		};
+		FF6A55BC9E4C14523A55F3A4 /* Core */ = {
+			isa = PBXGroup;
+			children = (
+				88EA593F9D44318B65C1B5A4 /* ExtV2Compatibility.swift */,
+				60C264FC3FEF0382DF2710FD /* ExtV2Manager.swift */,
+				E4EB323815404516FD87FAB3 /* ExtV2Models.swift */,
+			);
+			path = Core;
+			sourceTree = "<group>";
+		};
+		A848361E5B526681DB850EDE /* Dependencies */ = {
+			isa = PBXGroup;
+			children = (
+				664F149A1ED96F3D93C42E78 /* ExtV2DependencyResolver.swift */,
+			);
+			path = Dependencies;
+			sourceTree = "<group>";
+		};
+		F8620FD30C0C4144CDF818DA /* Diagnostics */ = {
+			isa = PBXGroup;
+			children = (
+				4764A7395B32CA74804C9FD3 /* ExtV2Diagnostics.swift */,
+			);
+			path = Diagnostics;
+			sourceTree = "<group>";
+		};
+		B0926C6E8379F650DE98EE5D /* Editor */ = {
+			isa = PBXGroup;
+			children = (
+				1F46C19CCAF8F19BA5A369B8 /* ExtV2EditorBridge.swift */,
+			);
+			path = Editor;
+			sourceTree = "<group>";
+		};
+		CB4EC903D9B27471598C8E9B /* IPC */ = {
+			isa = PBXGroup;
+			children = (
+				A1FEC01E66C8BE69695CAD2C /* ExtV2RPC.swift */,
+			);
+			path = IPC;
+			sourceTree = "<group>";
+		};
+		3592142C36D41C38D90328DF /* LanguageServices */ = {
+			isa = PBXGroup;
+			children = (
+				46CE63C634C4D673486E47B7 /* ExtV2LanguageClient.swift */,
+			);
+			path = LanguageServices;
+			sourceTree = "<group>";
+		};
+		749C6936FB4609FDCF2A4ABF /* Manifests */ = {
+			isa = PBXGroup;
+			children = (
+				CFD0EFF1C2FA4D54F1192361 /* ExtV2ManifestParser.swift */,
+			);
+			path = Manifests;
+			sourceTree = "<group>";
+		};
+		374911BE9B43F9D1D2BB6CF3 /* NativeSDK */ = {
+			isa = PBXGroup;
+			children = (
+				C73285474A14A69CB421636E /* ExtV2NativeSDK.swift */,
+				1F9D60CD895E70DAD153AEBE /* ExtV2SamplePlugin.swift */,
+			);
+			path = NativeSDK;
+			sourceTree = "<group>";
+		};
+		2DB00C9162FEF0564143D53B /* Packages */ = {
+			isa = PBXGroup;
+			children = (
+				FD4CFC5F9719A26A3029FF9D /* ExtV2PackageService.swift */,
+			);
+			path = Packages;
+			sourceTree = "<group>";
+		};
+		0AEC09251AF34FD8350834BC /* Permissions */ = {
+			isa = PBXGroup;
+			children = (
+				1C699A2844919A26ED1C1FA5 /* ExtV2PermissionManager.swift */,
+			);
+			path = Permissions;
+			sourceTree = "<group>";
+		};
+		471D30C94031DB2A53E74DC8 /* Registry */ = {
+			isa = PBXGroup;
+			children = (
+				061257C97CED643EBE2A9A7E /* ExtV2RegistryClient.swift */,
+			);
+			path = Registry;
+			sourceTree = "<group>";
+		};
+		AA8104BD800AFF3EA3C7163E /* Resources */ = {
+			isa = PBXGroup;
+			children = (
+				72B5DF6710BB5309AC693A83 /* ExtV2ResourceLimits.swift */,
+			);
+			path = Resources;
+			sourceTree = "<group>";
+		};
+		46666A6A902F426A770CC6A7 /* Runtime */ = {
+			isa = PBXGroup;
+			children = (
+				B70B56A4CC08175CFA6FA795 /* ExtV2HostManager.swift */,
+				CA82699137281EB5A30B8F25 /* ExtV2HostScript.swift */,
+			);
+			path = Runtime;
+			sourceTree = "<group>";
+		};
+		A967ECA42CF063862BDD9050 /* Storage */ = {
+			isa = PBXGroup;
+			children = (
+				66A134D05D35DA0626860B1B /* ExtV2Storage.swift */,
+			);
+			path = Storage;
+			sourceTree = "<group>";
+		};
+		FB0E1660CFF7EB90BE84F898 /* Tests */ = {
+			isa = PBXGroup;
+			children = (
+				9B2B5BBF2E6430D02A6A60F9 /* ExtV2TestSuite.swift */,
+			);
+			path = Tests;
+			sourceTree = "<group>";
+		};
+		5701A607806CBAD0045C0FAA /* VSCodeCompatibility */ = {
+			isa = PBXGroup;
+			children = (
+				25301E1A5253D0A333C3CFC4 /* ExtV2VSCodeAPI.swift */,
+			);
+			path = VSCodeCompatibility;
+			sourceTree = "<group>";
+		};
+		B98DBC5E631320630ADFF39D /* Workspace */ = {
+			isa = PBXGroup;
+			children = (
+				C5BFA511830AA89520D41C36 /* ExtV2WorkspaceBridge.swift */,
+			);
+			path = Workspace;
+			sourceTree = "<group>";
+		};
+		2CB6C6E63BF1A53EE1DCB429 /* XcodeCompatibility */ = {
+			isa = PBXGroup;
+			children = (
+				19BFFA2F283E55E9E3F23F35 /* ExtV2XcodeCompatibility.swift */,
+			);
+			path = XcodeCompatibility;
+			sourceTree = "<group>";
+		};
+		2ABF64069FC0CEE054F72743 /* Extensions v2 */ = {
+			isa = PBXGroup;
+			children = (
+				D6762D94D2578544AD31D108 /* Assist */,
+				FF6A55BC9E4C14523A55F3A4 /* Core */,
+				A848361E5B526681DB850EDE /* Dependencies */,
+				F8620FD30C0C4144CDF818DA /* Diagnostics */,
+				B0926C6E8379F650DE98EE5D /* Editor */,
+				CB4EC903D9B27471598C8E9B /* IPC */,
+				3592142C36D41C38D90328DF /* LanguageServices */,
+				749C6936FB4609FDCF2A4ABF /* Manifests */,
+				374911BE9B43F9D1D2BB6CF3 /* NativeSDK */,
+				2DB00C9162FEF0564143D53B /* Packages */,
+				0AEC09251AF34FD8350834BC /* Permissions */,
+				471D30C94031DB2A53E74DC8 /* Registry */,
+				AA8104BD800AFF3EA3C7163E /* Resources */,
+				46666A6A902F426A770CC6A7 /* Runtime */,
+				A967ECA42CF063862BDD9050 /* Storage */,
+				FB0E1660CFF7EB90BE84F898 /* Tests */,
+				5701A607806CBAD0045C0FAA /* VSCodeCompatibility */,
+				B98DBC5E631320630ADFF39D /* Workspace */,
+				2CB6C6E63BF1A53EE1DCB429 /* XcodeCompatibility */,
+			);
+			path = "Extensions v2";
+			sourceTree = "<group>";
+		};
+		9A788273977FBD46C445FDFD /* Extensions v2 */ = {
+			isa = PBXGroup;
+			children = (
+				5A1C6E4D1A4CFB77A60E866F /* ExtensionDetailsView.swift */,
+				018CCE9DAD430B6CB4BED576 /* ExtensionDiagnosticsView.swift */,
+				4A2B69E678A9C73FD48DB1D8 /* ExtensionPermissionsView.swift */,
+				D692FAA3E1993459B3CF4A73 /* ExtensionRunView.swift */,
+				365027C4022D551F34965A58 /* ExtensionSettingsView.swift */,
+				17C430A80439A256E9CB03DA /* ExtensionSidebarRow.swift */,
+				533BC50DD39771EDEBEC6CB3 /* ExtensionUpdatesView.swift */,
+				6FA239D58B106BA3B75E817B /* ExtensionViewModels.swift */,
+				2280919871E27934AE2E4A27 /* ExtensionsHomeView.swift */,
+				8D58D560B7BDA8186A00C3B8 /* ExtensionsInstalledView.swift */,
+				F15CB6A173340350C1FEC56D /* ExtensionsSearchView.swift */,
+			);
+			path = "Extensions v2";
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -14023,6 +14293,40 @@
 				360C2306F1D407AD2532A9BF /* AssistGitHubRepoTool.swift in Sources */,
 				4E9DD909AEDADE0A58EB7241 /* AssistDocsGitHubToolsTestSuite.swift in Sources */,
 				0B22501F7C955DC9FF8F5995 /* ToolCallMap.swift in Sources */,
+				94C0743107EAF8FC433DA9B6 /* ExtV2AssistBridge.swift in Sources */,
+				8C1ABBBFD811D31383C7CBAE /* ExtV2Compatibility.swift in Sources */,
+				63ECD9D20585DB2EDE9FC8F3 /* ExtV2Manager.swift in Sources */,
+				D4E857A3A2CB2991027E787B /* ExtV2Models.swift in Sources */,
+				B0B87627DE11846885D46956 /* ExtV2DependencyResolver.swift in Sources */,
+				0C678C6E85C1757A096CD423 /* ExtV2Diagnostics.swift in Sources */,
+				EA9941313F41CE07CEEF24BE /* ExtV2EditorBridge.swift in Sources */,
+				4D91BF8A35F1400969C1E97E /* ExtV2RPC.swift in Sources */,
+				527F5B8BAED9661671FB6D42 /* ExtV2LanguageClient.swift in Sources */,
+				CCEAEF6C63A12713AC93C33E /* ExtV2ManifestParser.swift in Sources */,
+				365A87F27549EE78B9A89C8B /* ExtV2NativeSDK.swift in Sources */,
+				52B0B0DC465D41899F7A7320 /* ExtV2SamplePlugin.swift in Sources */,
+				A596B0DCFCA14A4AF663AE20 /* ExtV2PackageService.swift in Sources */,
+				C202E9931C882E59D2661FA5 /* ExtV2PermissionManager.swift in Sources */,
+				37FF3D4570EB796002E3802A /* ExtV2RegistryClient.swift in Sources */,
+				1C10ED5044FBD8E8DF99F8AD /* ExtV2ResourceLimits.swift in Sources */,
+				34FF22D6E2D8879B074D05D6 /* ExtV2HostManager.swift in Sources */,
+				0E934E89886A55557F5DC533 /* ExtV2HostScript.swift in Sources */,
+				678F1F2C550D7715C4DE7CA4 /* ExtV2Storage.swift in Sources */,
+				35E19F5011326E58229EEA30 /* ExtV2TestSuite.swift in Sources */,
+				A60DBAD2C5522C8EA0292B08 /* ExtV2VSCodeAPI.swift in Sources */,
+				4A13033FC34DFDAA9F0A0A33 /* ExtV2WorkspaceBridge.swift in Sources */,
+				D480A667AF1C8F39586682F5 /* ExtV2XcodeCompatibility.swift in Sources */,
+				571EAF2B2DB2707BA7F36A5E /* ExtensionDetailsView.swift in Sources */,
+				FAB0C03501C688A81B2D1788 /* ExtensionDiagnosticsView.swift in Sources */,
+				BE255C4B70F2AE2CB4D41106 /* ExtensionPermissionsView.swift in Sources */,
+				F367624864C3FD97BAD14FBD /* ExtensionRunView.swift in Sources */,
+				3A8CEBF2A0E8E7F4C15965DA /* ExtensionSettingsView.swift in Sources */,
+				5D5B1930B0764212FE58FF94 /* ExtensionSidebarRow.swift in Sources */,
+				D8AA68B6E7552E3722BE7376 /* ExtensionUpdatesView.swift in Sources */,
+				F5A8BADACD62E6B5E2B25243 /* ExtensionViewModels.swift in Sources */,
+				121649468D5570E2E16208FF /* ExtensionsHomeView.swift in Sources */,
+				40117BB3518EC7DB8FA220DD /* ExtensionsInstalledView.swift in Sources */,
+				8E31DE943A0130E6EF528022 /* ExtensionsSearchView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
