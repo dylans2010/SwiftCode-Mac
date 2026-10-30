@@ -813,7 +813,6 @@ class ModelAdapterServer:
                     if "thinkingConfig" not in gen_cfg:
                         gen_cfg["thinkingConfig"] = {"thinkingLevel": inferred_thinking_level}
                     out_body = json.dumps(payload_json).encode("utf-8")
-                    forward_headers["Content-Length"] = str(len(out_body))
                 except Exception:
                     out_body = body
 
@@ -872,6 +871,9 @@ class ModelAdapterServer:
             or "https://cloudcode-pa.googleapis.com/v1internal/openai"
         )
         gateway_url = self._normalize_target_url(target.base_url, default_gateway)
+        # Drop any Content-Length left over from the Gemini request: httpx sets it for the
+        # JSON body sent here, and a stale value makes h11 reject the request.
+        forward_headers = {k: v for k, v in forward_headers.items() if k.lower() != "content-length"}
         resp = await client.post(gateway_url, headers=forward_headers, json=openai_payload, timeout=120.0)
         if resp.status_code >= 400:
             writer.write(

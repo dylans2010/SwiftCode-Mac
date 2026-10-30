@@ -1014,7 +1014,11 @@ public struct AssistMainView: View {
                 }
 
                 Button {
-                    showCustomModelPicker.toggle()
+                    if [AssistModelProvider.openCode, .openRouter, .hermes].contains(AssistProviderSelection.persistedProvider) {
+                        showSDKModelProviderList = true
+                    } else {
+                        showCustomModelPicker.toggle()
+                    }
                 } label: {
                     Image(systemName: "cpu")
                         .font(.caption)
