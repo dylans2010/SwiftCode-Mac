@@ -54,7 +54,6 @@ struct SwiftCodeApp: App {
                     }
                 }
             )
-            .ignoresSafeArea()
             .onAppear {
                 DispatchQueue.main.async {
                     if let window = NSApplication.shared.windows.first(where: { $0.isVisible && !($0 is NSPanel) }) {
@@ -67,7 +66,8 @@ struct SwiftCodeApp: App {
                             window.titlebarAppearsTransparent = true
                             window.titlebarSeparatorStyle = .none
                             window.toolbar?.displayMode = .iconOnly
-                            window.styleMask.insert([.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView])
+                            window.styleMask.insert([.titled, .closable, .miniaturizable, .resizable])
+                            window.styleMask.remove(.fullSizeContentView)
                             window.collectionBehavior.insert(.fullScreenPrimary)
                             window.minSize = NSSize(width: 900, height: 600)
                             window.maxSize = NSSize(width: 10000, height: 10000)
@@ -97,6 +97,7 @@ struct SwiftCodeApp: App {
                             window.titlebarAppearsTransparent = true
                             window.titlebarSeparatorStyle = .none
                             window.toolbar = nil
+                            window.styleMask.insert([.titled, .fullSizeContentView])
                             window.standardWindowButton(.closeButton)?.isHidden = true
                             window.standardWindowButton(.miniaturizeButton)?.isHidden = true
                             window.standardWindowButton(.zoomButton)?.isHidden = true
@@ -119,7 +120,8 @@ struct SwiftCodeApp: App {
                             window.titlebarAppearsTransparent = true
                             window.titlebarSeparatorStyle = .none
                             window.toolbar?.displayMode = .iconOnly
-                            window.styleMask.insert([.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView])
+                            window.styleMask.insert([.titled, .closable, .miniaturizable, .resizable])
+                            window.styleMask.remove(.fullSizeContentView)
                             window.collectionBehavior.insert(.fullScreenPrimary)
                             window.minSize = NSSize(width: 900, height: 600)
                             window.maxSize = NSSize(width: 10000, height: 10000)
@@ -152,6 +154,7 @@ struct SwiftCodeApp: App {
                             window.titlebarAppearsTransparent = true
                             window.titlebarSeparatorStyle = .none
                             window.toolbar = nil
+                            window.styleMask.insert([.titled, .fullSizeContentView])
                             window.standardWindowButton(.closeButton)?.isHidden = true
                             window.standardWindowButton(.miniaturizeButton)?.isHidden = true
                             window.standardWindowButton(.zoomButton)?.isHidden = true
@@ -246,7 +249,6 @@ struct SwiftCodeApp: App {
                 }
             }
         }
-        .windowStyle(.hiddenTitleBar)
         .windowResizability(.contentSize)
         .commands {
             AppCommands()
@@ -343,7 +345,8 @@ private struct WorkspaceHostView: View {
         window.titlebarSeparatorStyle = .none
         window.toolbar?.displayMode = .iconOnly
 
-        window.styleMask.insert([.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView])
+        window.styleMask.insert([.titled, .closable, .miniaturizable, .resizable])
+        window.styleMask.remove(.fullSizeContentView)
         window.collectionBehavior.insert(.fullScreenPrimary)
         window.minSize = NSSize(width: 900, height: 600)
         window.maxSize = NSSize(width: 10000, height: 10000)
