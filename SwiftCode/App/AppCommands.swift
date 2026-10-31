@@ -340,6 +340,12 @@ private struct EditorViewHelpCommands: Commands {
                     ]
                 )
             }
+
+            Divider()
+
+            Button("Customize Toolbar...") {
+                NSApp.sendAction(#selector(NSToolbar.runCustomizationPalette(_:)), to: nil, from: nil)
+            }
         }
 
         CommandGroup(replacing: .help) {

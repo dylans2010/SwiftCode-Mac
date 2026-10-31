@@ -206,6 +206,14 @@ struct BuildToolbarView: View {
                     Label("Project Information", systemImage: "info.circle")
                 }
             }
+
+            Section("Toolbar") {
+                Button {
+                    NSApp.sendAction(#selector(NSToolbar.runCustomizationPalette(_:)), to: nil, from: nil)
+                } label: {
+                    Label("Customize Toolbar...", systemImage: "slider.horizontal.3")
+                }
+            }
         } label: {
             Label("Actions", systemImage: "swift")
                 .foregroundColor(.orange)
@@ -216,150 +224,144 @@ struct BuildToolbarView: View {
 
     var body: some View {
         @Bindable var buildManager = self.buildManager
-        HStack {
-            Spacer()
+        HStack(spacing: 12) {
+            Button {
+                NotificationCenter.default.post(
+                    name: .toolbarToolActivated,
+                    object: nil,
+                    userInfo: ["toolID": "main_tools"]
+                )
+            } label: {
+                Label("Tools Hub", systemImage: "wrench.and.screwdriver.fill")
+            }
+            .buttonStyle(.bordered)
+            .help("Open Workspace Tools Hub")
 
-            HStack(spacing: 12) {
+            Button {
+                NotificationCenter.default.post(
+                    name: NSNotification.Name("com.swiftcode.toggleAppDetailsSidebar"),
+                    object: nil
+                )
+            } label: {
+                Label("App Details", systemImage: "info.circle.fill")
+            }
+            .buttonStyle(.bordered)
+            .help("Toggle App Details Sidebar")
+
+            if isProjectArchiveImported() {
                 Button {
                     NotificationCenter.default.post(
-                        name: .toolbarToolActivated,
-                        object: nil,
-                        userInfo: ["toolID": "main_tools"]
-                    )
-                } label: {
-                    Label("Tools Hub", systemImage: "wrench.and.screwdriver.fill")
-                }
-                .buttonStyle(.bordered)
-                .help("Open Workspace Tools Hub")
-
-                Button {
-                    NotificationCenter.default.post(
-                        name: NSNotification.Name("com.swiftcode.toggleAppDetailsSidebar"),
+                        name: NSNotification.Name("com.swiftcode.toggleInfoProjSidebar"),
                         object: nil
                     )
                 } label: {
-                    Label("App Details", systemImage: "info.circle.fill")
+                    Label("Archive Info", systemImage: "archivebox.circle.fill")
+                        .foregroundColor(.pink)
                 }
                 .buttonStyle(.bordered)
-                .help("Toggle App Details Sidebar")
-
-                if isProjectArchiveImported() {
-                    Button {
-                        NotificationCenter.default.post(
-                            name: NSNotification.Name("com.swiftcode.toggleInfoProjSidebar"),
-                            object: nil
-                        )
-                    } label: {
-                        Label("Archive Info", systemImage: "archivebox.circle.fill")
-                            .foregroundColor(.pink)
-                    }
-                    .buttonStyle(.bordered)
-                    .help("View SwiftCode Project Archive metadata")
-                }
-
-                if let activeDoc = editorViewModel.activeDocument, activeDoc.url.pathExtension.lowercased() == "swift", hasLivePreviewComment(content: activeDoc.content) {
-                    Button {
-                        Task {
-                            // 1. Save current editor contents immediately
-                            await editorViewModel.saveActiveDocument()
-
-                            // 2. Launch Visual UI Builder immediately
-                            NotificationCenter.default.post(
-                                name: .toolbarToolActivated,
-                                object: nil,
-                                userInfo: ["toolID": "visual_ui_builder"]
-                            )
-
-                            // 3. Focus the Default Artboard
-                            if let visDoc = DocumentCoordinator.shared.visualUIDocument {
-                                if let defaultArtboard = visDoc.scene.artboards.first(where: { $0.name == "Default" }) {
-                                    visDoc.scene.activeArtboardID = defaultArtboard.id
-                                }
-                            }
-
-                            // 4. Start a brand-new preview session
-                            let (preparedCode, _) = SwiftViewDetector.prepareSourceCode(activeDoc.content, filename: activeDoc.url.path)
-                            await PreviewManager.shared.startFreshLivePreviewSession(
-                                sourcePath: activeDoc.url.path,
-                                sourceCode: preparedCode
-                            )
-                        }
-                    } label: {
-                        Label("Live Preview", systemImage: "play.desktopcomputer")
-                            .foregroundColor(.purple)
-                    }
-                    .buttonStyle(.bordered)
-                    .help("Launch Live Viewport for the active Swift document")
-                }
-
-                // ESSENTIAL ACTIONS: Scheme selector
-                if !buildManager.discoveredSchemes.isEmpty {
-                    Picker("Scheme", selection: $buildManager.selectedScheme) {
-                        ForEach(buildManager.discoveredSchemes, id: \.self) { scheme in
-                            Text(scheme).tag(scheme as String?)
-                        }
-                    }
-                    .pickerStyle(.menu)
-                    .frame(width: 130)
-                    .labelsHidden()
-                    .help("Select Build Scheme")
-                    .accessibilityLabel("Build Scheme Selector")
-                }
-
-                openSwiftFilesMenu
-                swiftActionsMenu
-
-                // Pinned & Optional Tools: Only show options that are explicitly pinned (enabled)
-                HStack(spacing: 8) {
-                    ForEach(toolbarManager.enabledTools) { tool in
-                        ToolbarToolView(tool: tool, toolbarManager: toolbarManager, buildManager: buildManager)
-                    }
-                }
-                .animation(.spring(), value: toolbarManager.enabledTools)
-
-                Divider()
-                    .frame(height: 16)
-
-                // ESSENTIAL ACTIONS: Build & Stop Buttons
-                HStack(spacing: 8) {
-                    Button(action: {
-                        Task {
-                            // Automatically open XcodeBuildLogView
-                            NotificationCenter.default.post(
-                                name: .toolbarToolActivated,
-                                object: nil,
-                                userInfo: ["toolID": "xcode_build_logs"]
-                            )
-                            // Trigger build in background
-                            await buildManager.runBuild(projectURL: projectURL)
-                        }
-                    }) {
-                        Label("Build", systemImage: "play.fill")
-                            .foregroundStyle(.green)
-                    }
-                    .disabled(buildManager.isBuilding)
-                    .help("Run Xcodebuild on active project")
-                    .accessibilityLabel("Start Build")
-
-                    Button(action: {
-                        buildManager.cancelBuild()
-                    }) {
-                        Label("Stop", systemImage: "stop.fill")
-                            .foregroundStyle(.red)
-                    }
-                    .disabled(!buildManager.isBuilding)
-                    .help("Stop active Xcodebuild run")
-                    .accessibilityLabel("Stop Build")
-                }
-
-                if buildManager.isBuilding {
-                    ProgressView()
-                        .controlSize(.small)
-                        .accessibilityLabel("Building in progress")
-                }
+                .help("View SwiftCode Project Archive metadata")
             }
 
-            Spacer()
+            if let activeDoc = editorViewModel.activeDocument, activeDoc.url.pathExtension.lowercased() == "swift", hasLivePreviewComment(content: activeDoc.content) {
+                Button {
+                    Task {
+                        // 1. Save current editor contents immediately
+                        await editorViewModel.saveActiveDocument()
+
+                        // 2. Launch Visual UI Builder immediately
+                        NotificationCenter.default.post(
+                            name: .toolbarToolActivated,
+                            object: nil,
+                            userInfo: ["toolID": "visual_ui_builder"]
+                        )
+
+                        // 3. Focus the Default Artboard
+                        if let visDoc = DocumentCoordinator.shared.visualUIDocument {
+                            if let defaultArtboard = visDoc.scene.artboards.first(where: { $0.name == "Default" }) {
+                                visDoc.scene.activeArtboardID = defaultArtboard.id
+                            }
+                        }
+
+                        // 4. Start a brand-new preview session
+                        let (preparedCode, _) = SwiftViewDetector.prepareSourceCode(activeDoc.content, filename: activeDoc.url.path)
+                        await PreviewManager.shared.startFreshLivePreviewSession(
+                            sourcePath: activeDoc.url.path,
+                            sourceCode: preparedCode
+                        )
+                    }
+                } label: {
+                    Label("Live Preview", systemImage: "play.desktopcomputer")
+                        .foregroundColor(.purple)
+                }
+                .buttonStyle(.bordered)
+                .help("Launch Live Viewport for the active Swift document")
+            }
+
+            // ESSENTIAL ACTIONS: Scheme selector
+            if !buildManager.discoveredSchemes.isEmpty {
+                Picker("Scheme", selection: $buildManager.selectedScheme) {
+                    ForEach(buildManager.discoveredSchemes, id: \.self) { scheme in
+                        Text(scheme).tag(scheme as String?)
+                    }
+                }
+                .pickerStyle(.menu)
+                .frame(width: 130)
+                .labelsHidden()
+                .help("Select Build Scheme")
+                .accessibilityLabel("Build Scheme Selector")
+            }
+
+            openSwiftFilesMenu
+            swiftActionsMenu
+
+            // Pinned & Optional Tools: Only show options that are explicitly pinned (enabled)
+            HStack(spacing: 8) {
+                ForEach(toolbarManager.enabledTools) { tool in
+                    ToolbarToolView(tool: tool, toolbarManager: toolbarManager, buildManager: buildManager)
+                }
+            }
+            .animation(.spring(), value: toolbarManager.enabledTools)
+
+            Divider()
+                .frame(height: 16)
+
+            // ESSENTIAL ACTIONS: Build & Stop Buttons
+            HStack(spacing: 8) {
+                Button(action: {
+                    Task {
+                        // Automatically open XcodeBuildLogView
+                        NotificationCenter.default.post(
+                            name: .toolbarToolActivated,
+                            object: nil,
+                            userInfo: ["toolID": "xcode_build_logs"]
+                        )
+                        // Trigger build in background
+                        await buildManager.runBuild(projectURL: projectURL)
+                    }
+                }) {
+                    Label("Build", systemImage: "play.fill")
+                        .foregroundStyle(.green)
+                }
+                .disabled(buildManager.isBuilding)
+                .help("Run Xcodebuild on active project")
+                .accessibilityLabel("Start Build")
+
+                Button(action: {
+                    buildManager.cancelBuild()
+                }) {
+                    Label("Stop", systemImage: "stop.fill")
+                        .foregroundStyle(.red)
+                }
+                .disabled(!buildManager.isBuilding)
+                .help("Stop active Xcodebuild run")
+                .accessibilityLabel("Stop Build")
+            }
+
+            if buildManager.isBuilding {
+                ProgressView()
+                    .controlSize(.small)
+                    .accessibilityLabel("Building in progress")
+            }
         }
         .onAppear {
             buildManager.discoverSchemes(at: projectURL)

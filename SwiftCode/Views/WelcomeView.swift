@@ -61,11 +61,13 @@ public struct SwiftCodeWelcomeView: View {
                 // Left Column: App Branding & Quick Actions
                 leftPane
                     .frame(width: 470)
+                    .frame(maxHeight: .infinity)
 
                 // Right Column: Recent Projects List (no divider line so it never shows)
                 rightPane
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
 
             // No top bar, ever: the native titlebar buttons are all
             // hidden in applyWelcomeWindowStyle, and this custom
@@ -96,6 +98,7 @@ public struct SwiftCodeWelcomeView: View {
             loadingOverlay
         }
         .frame(width: 800, height: 480)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
         .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
         .background(Color.clear)
         .preferredColorScheme(.dark)
@@ -162,8 +165,8 @@ public struct SwiftCodeWelcomeView: View {
 
     private var leftPane: some View {
         ZStack {
-            VisualEffectView(material: .sidebar, blendingMode: .behindWindow)
-                .overlay(Color.black.opacity(0.12))
+            VisualEffectView(material: .underWindowBackground, blendingMode: .behindWindow)
+                .overlay(Color.black.opacity(0.03))
                 .ignoresSafeArea()
 
             VStack(spacing: 0) {
@@ -215,7 +218,9 @@ public struct SwiftCodeWelcomeView: View {
 
                 Spacer(minLength: 24)
             }
+            .frame(maxHeight: .infinity)
         }
+        .frame(maxHeight: .infinity)
     }
 
     @ViewBuilder
@@ -255,7 +260,7 @@ public struct SwiftCodeWelcomeView: View {
             // Translucent frosted glass diffusion layer
             Rectangle()
                 .fill(.ultraThinMaterial)
-                .opacity(0.28)
+                .opacity(0.08)
                 .ignoresSafeArea()
 
             // Subtle luminous highlight gradient overlay for Apple glass depth
@@ -425,6 +430,8 @@ public struct SwiftCodeWelcomeView: View {
 
         window.isOpaque = false
         window.backgroundColor = .clear
+        window.contentView?.wantsLayer = true
+        window.contentView?.layer?.backgroundColor = NSColor.clear.cgColor
         window.hasShadow = true
         window.title = ""
         window.titleVisibility = .hidden
@@ -458,10 +465,16 @@ public struct SwiftCodeWelcomeView: View {
             titlebarView.isHidden = true
         }
 
-        let currentContentSize = window.contentLayoutRect.size
-        if abs(currentContentSize.width - fixedSize.width) > 2 || abs(currentContentSize.height - fixedSize.height) > 2 {
-            window.setContentSize(fixedSize)
+        let currentFrame = window.frame
+        if abs(currentFrame.width - fixedSize.width) > 1 || abs(currentFrame.height - fixedSize.height) > 1 {
+            let adjustedOrigin = NSPoint(
+                x: currentFrame.origin.x,
+                y: currentFrame.origin.y + (currentFrame.height - fixedSize.height)
+            )
+            window.setFrame(NSRect(origin: adjustedOrigin, size: fixedSize), display: true, animate: false)
             window.center()
+        } else {
+            window.setFrame(NSRect(origin: currentFrame.origin, size: fixedSize), display: true, animate: false)
         }
     }
 

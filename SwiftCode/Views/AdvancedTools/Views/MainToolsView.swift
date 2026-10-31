@@ -1,15 +1,5 @@
 import SwiftUI
 
-struct WorkspaceHubTool: Identifiable, Hashable {
-    let id: String
-    let name: String
-    let description: String
-    let iconName: String
-    let colorHex: String
-    let category: String
-    let destination: String
-}
-
 // MARK: - Sidebar Selection
 
 private enum ToolsSidebarSelection: Hashable {
@@ -37,37 +27,9 @@ public struct MainToolsView: View {
     private let gridSpacing: CGFloat = 14
     private let contentPadding: CGFloat = 20
 
-    // Static baseline definition of all tools migrated from WorkspaceView, including DocumentationBrowser
-    private let allAvailableTools: [WorkspaceHubTool] = [
-        WorkspaceHubTool(id: "terminal", name: "Terminal Console", description: "Open local shells, run background commands, manage SSH nodes, and configure terminal themes.", iconName: "terminal.fill", colorHex: "#5AC8FA", category: "Utilities", destination: "terminal"),
-        WorkspaceHubTool(id: "build_settings", name: "Xcode Build Settings", description: "Manage optimization levels, target SDKs, and build parameters.", iconName: "gearshape.2.fill", colorHex: "#34C759", category: "Build & Deploy", destination: "xcodeBuildSettings"),
-        WorkspaceHubTool(id: "build_logs", name: "Xcode Build Logs", description: "Stream compile warnings, errors, and live build output.", iconName: "doc.text.fill", colorHex: "#FF9500", category: "Build & Deploy", destination: "xcodeBuildLogs"),
-        WorkspaceHubTool(id: "ipa_builder", name: "IPA Packaging Suite", description: "Pack built iOS apps into IPA containers from SwiftCode without Xcode UI.", iconName: "shippingbox.fill", colorHex: "#AF52DE", category: "Build & Deploy", destination: "ipaBuild"),
-        WorkspaceHubTool(id: "deployments", name: "Deployments Console", description: "Trigger production deployments to Netlify, Vercel, and GitHub Pages.", iconName: "cloud.fill", colorHex: "#5AC8FA", category: "Build & Deploy", destination: "deployments"),
-        WorkspaceHubTool(id: "dependency_manager", name: "Dependency Manager", description: "Search, import, and manage local or remote Swift packages.", iconName: "puzzlepiece.extension.fill", colorHex: "#007AFF", category: "Utilities", destination: "dependencyManager"),
-        WorkspaceHubTool(id: "source_control", name: "Source Control", description: "Inspect Git history, commits, stashes, merges, and conflicts.", iconName: "square.stack.3d.down.right.fill", colorHex: "#4CD964", category: "Git & CI", destination: "sourceControl"),
-        WorkspaceHubTool(id: "ci_build", name: "CI Visual Workflows", description: "Create and monitor GitHub Actions workflow runners visually.", iconName: "play.circle.fill", colorHex: "#5856D6", category: "Git & CI", destination: "ciBuild"),
-        WorkspaceHubTool(id: "simulator_main", name: "Simulator & Previews", description: "Simulate devices, manage simulators, and inspect preview screens.", iconName: "iphone", colorHex: "#FF2D55", category: "Utilities", destination: "simulatorMain"),
-        WorkspaceHubTool(id: "personal_documentation", name: "Personal Documentation", description: "Access personal markdown wikis, notes, and local code references.", iconName: "book.fill", colorHex: "#A2845E", category: "Utilities", destination: "personalDocumentation"),
-        WorkspaceHubTool(id: "visual_ui_builder", name: "Visual UI Builder", description: "Build modern Apple user interfaces visually for SwiftUI, AppKit, UIKit, visionOS, WidgetKit, and watchOS.", iconName: "paintpalette.fill", colorHex: "#FF2D55", category: "Utilities", destination: "visualUIBuilder"),
-        WorkspaceHubTool(id: "dev_tools", name: "Developer Utility Bundle", description: "JSON formatters, base64 encoders, regex checkers, and JWT tools.", iconName: "wrench.and.screwdriver.fill", colorHex: "#FF3B30", category: "Utilities", destination: "devTools"),
-        WorkspaceHubTool(id: "collaboration", name: "Live Collaboration", description: "Coordinate real-time coding sessions with team members.", iconName: "person.2.fill", colorHex: "#34C759", category: "Utilities", destination: "collaboration"),
-        WorkspaceHubTool(id: "sf_symbols", name: "SF Symbols Browser", description: "Search and copy native SF Symbol identifiers.", iconName: "sparkles", colorHex: "#FFCC00", category: "Utilities", destination: "sfSymbolsBrowser"),
-        WorkspaceHubTool(id: "extension_marketplace", name: "Extension Marketplace", description: "Browse and install community tools, themes, and extensions.", iconName: "bag.fill", colorHex: "#AF52DE", category: "Utilities", destination: "extensionMarketplace"),
-        WorkspaceHubTool(id: "crash_log_analyzer", name: "Crash Log Analyzer", description: "Analyze production crash logs and trace symbolic memory leaks.", iconName: "doc.richtext.fill", colorHex: "#FF3B30", category: "Utilities", destination: "crashLogAnalyzer"),
-        WorkspaceHubTool(id: "project_dependency_graph", name: "Project Dependency Graph", description: "Render internal project file import mapping and graphs.", iconName: "network", colorHex: "#007AFF", category: "Utilities", destination: "projectDependencyGraph"),
-        WorkspaceHubTool(id: "workspace_profiles", name: "Workspace Profiles", description: "Create, edit, duplicate, and switch between workspace setting profiles.", iconName: "person.crop.square.fill.and.at.rectangle.fill", colorHex: "#34C759", category: "Utilities", destination: "workspaceProfiles"),
-        WorkspaceHubTool(id: "snippets_library", name: "Snippets Library", description: "Store, tag, categorize, and quickly insert code snippet templates.", iconName: "curlybraces", colorHex: "#FF9500", category: "Utilities", destination: "snippetsLibrary"),
-        WorkspaceHubTool(id: "documentation_browser", name: "Documentation Browser", description: "Full featured windowed multi-pane documentation browser and visual reference workspace.", iconName: "doc.text.magnifyingglass", colorHex: "#007AFF", category: "Utilities", destination: "documentationBrowser"),
-        WorkspaceHubTool(id: "search_documentation", name: "Search Documentation", description: "Search project documentation, DocSymbols, project notes, API documentation, and other indexed resources.", iconName: "magnifyingglass", colorHex: "#AF52DE", category: "Utilities", destination: "searchDocumentation"),
-        WorkspaceHubTool(id: "database_explorer", name: "Database Explorer", description: "Visually design, manage, connect, inspect, query, generate, and synchronize databases.", iconName: "cylinder.split.1x2.fill", colorHex: "#34C759", category: "Utilities", destination: "databaseExplorer"),
-        WorkspaceHubTool(id: "project_inspector", name: "Project Inspector", description: "Recursive directory scanner, live modules analysis, and AI layer refactoring reviews.", iconName: "square.text.square", colorHex: "#FF9500", category: "Utilities", destination: "projectInspector"),
-        WorkspaceHubTool(id: "localization_manager", name: "Localization Manager", description: "Multi-pane string catalogs and .xcstrings editor with layout previews & validation checks.", iconName: "text.book.closed.fill", colorHex: "#007AFF", category: "Utilities", destination: "localizationManager"),
-        WorkspaceHubTool(id: "licenses_add", name: "Licenses", description: "Quickly add open source license templates directly to your project codebase.", iconName: "doc.text.fill", colorHex: "#FF9500", category: "Utilities", destination: "licensesAdd"),
-        WorkspaceHubTool(id: "coding_dictionary", name: "Coding Dictionary", description: "AI-powered coding dictionary & reference companion that searches terminology, concepts, APIs, syntax, and patterns.", iconName: "book.pages.fill", colorHex: "#AF52DE", category: "Utilities", destination: "codingDictionary"),
-        WorkspaceHubTool(id: "device_connect", name: "Device Connect", description: "Native Apple device deployment, runtime, monitoring, diagnostics, and device management platform.", iconName: "play.circle.fill", colorHex: "#34C759", category: "Build & Deploy", destination: "deviceConnect"),
-        WorkspaceHubTool(id: "virtualization", name: "Virtualization", description: "Create development environments, run Linux machines, restore snapshots, and manage isolated workspaces with real telemetry.", iconName: "cpu.fill", colorHex: "#007AFF", category: "Utilities", destination: "virtualization")
-    ]
+    private var allAvailableTools: [WorkspaceHubTool] {
+        SwiftCodeToolbarDelegate.allAvailableTools
+    }
 
     private var filteredCategories: [String] {
         categoryOrder.filter { !hiddenCategories.contains($0) }
@@ -246,6 +208,7 @@ public struct MainToolsView: View {
         case "Build & Deploy": return "hammer.fill"
         case "Git & CI": return "arrow.triangle.branch"
         case "Utilities": return "wrench.and.screwdriver.fill"
+        case "Search & Navigation": return "magnifyingglass"
         default: return "gearshape.fill"
         }
     }
@@ -255,7 +218,8 @@ public struct MainToolsView: View {
         case "Build & Deploy": return .orange
         case "Git & CI": return .green
         case "Utilities": return .blue
-        default: return .purple
+        case "Search & Navigation": return .purple
+        default: return .indigo
         }
     }
 

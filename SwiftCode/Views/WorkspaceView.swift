@@ -273,7 +273,7 @@ struct WorkspaceView: View {
             // No toolbar at all while a full-pane special editor is
             // active (swiftcode.json).
             if !specialEditorActive {
-                ToolbarItemGroup(placement: .primaryAction) {
+                ToolbarItemGroup(placement: .navigation) {
                     Button {
                         sessionStore.closeProject()
                     } label: {
@@ -293,6 +293,14 @@ struct WorkspaceView: View {
                         Label(showFileNavigator ? "Hide Files" : "Show Files", systemImage: "sidebar.left")
                     }
                     .help(showFileNavigator ? "Hide File Navigator" : "Show File Navigator")
+                }
+
+                ToolbarItem(placement: .principal) {
+                    Spacer()
+                }
+
+                ToolbarItemGroup(placement: .primaryAction) {
+                    BuildToolbarView(viewModel: viewModel.build, projectURL: viewModel.projectURL, editorViewModel: viewModel.editor)
 
                     Button {
                         activeSheet = .buildStatus
@@ -334,8 +342,6 @@ struct WorkspaceView: View {
                             .foregroundColor(showExtensionsSidebar ? .accentColor : .secondary)
                     }
                     .help("Toggle Extensions")
-
-                    BuildToolbarView(viewModel: viewModel.build, projectURL: viewModel.projectURL, editorViewModel: viewModel.editor)
                 }
             }
         }
@@ -368,6 +374,14 @@ struct WorkspaceView: View {
                         showAgentInspector = true
                         if let session = sessionStore.activeSession {
                             session.showAgentInspector = true
+                            sessionStore.saveSession(session)
+                        }
+                    }
+                } else if toolId == "file_navigator" || toolId == "fileNavigator" {
+                    withAnimation(.spring()) {
+                        showFileNavigator.toggle()
+                        if let session = sessionStore.activeSession {
+                            session.showFileNavigator = showFileNavigator
                             sessionStore.saveSession(session)
                         }
                     }

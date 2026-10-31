@@ -66,6 +66,7 @@ struct SwiftCodeApp: App {
                             window.titleVisibility = .hidden
                             window.titlebarAppearsTransparent = true
                             window.titlebarSeparatorStyle = .none
+                            window.toolbar?.displayMode = .iconOnly
                             window.styleMask.insert([.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView])
                             window.collectionBehavior.insert(.fullScreenPrimary)
                             window.minSize = NSSize(width: 900, height: 600)
@@ -82,6 +83,15 @@ struct SwiftCodeApp: App {
                         } else {
                             window.isOpaque = false
                             window.backgroundColor = .clear
+                            window.contentView?.wantsLayer = true
+                            window.contentView?.layer?.backgroundColor = NSColor.clear.cgColor
+                            let fixedSize = NSSize(width: 800, height: 480)
+                            window.minSize = fixedSize
+                            window.maxSize = fixedSize
+                            if abs(window.frame.width - fixedSize.width) > 1 || abs(window.frame.height - fixedSize.height) > 1 {
+                                window.setFrame(NSRect(origin: window.frame.origin, size: fixedSize), display: true, animate: false)
+                                window.center()
+                            }
                             window.title = ""
                             window.titleVisibility = .hidden
                             window.titlebarAppearsTransparent = true
@@ -108,6 +118,7 @@ struct SwiftCodeApp: App {
                             window.titleVisibility = .hidden
                             window.titlebarAppearsTransparent = true
                             window.titlebarSeparatorStyle = .none
+                            window.toolbar?.displayMode = .iconOnly
                             window.styleMask.insert([.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView])
                             window.collectionBehavior.insert(.fullScreenPrimary)
                             window.minSize = NSSize(width: 900, height: 600)
@@ -127,6 +138,15 @@ struct SwiftCodeApp: App {
                             }
                             window.isOpaque = false
                             window.backgroundColor = .clear
+                            window.contentView?.wantsLayer = true
+                            window.contentView?.layer?.backgroundColor = NSColor.clear.cgColor
+                            let fixedSize = NSSize(width: 800, height: 480)
+                            window.minSize = fixedSize
+                            window.maxSize = fixedSize
+                            if abs(window.frame.width - fixedSize.width) > 1 || abs(window.frame.height - fixedSize.height) > 1 {
+                                window.setFrame(NSRect(origin: window.frame.origin, size: fixedSize), display: true, animate: false)
+                                window.center()
+                            }
                             window.title = ""
                             window.titleVisibility = .hidden
                             window.titlebarAppearsTransparent = true
@@ -321,6 +341,14 @@ private struct WorkspaceHostView: View {
         window.titleVisibility = .hidden
         window.titlebarAppearsTransparent = true
         window.titlebarSeparatorStyle = .none
+        if let toolbar = window.toolbar {
+            toolbar.displayMode = .iconOnly
+            toolbar.allowsUserCustomization = true
+            toolbar.autosavesConfiguration = true
+            if toolbar.delegate == nil {
+                toolbar.delegate = SwiftCodeToolbarDelegate.shared
+            }
+        }
 
         window.styleMask.insert([.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView])
         window.collectionBehavior.insert(.fullScreenPrimary)

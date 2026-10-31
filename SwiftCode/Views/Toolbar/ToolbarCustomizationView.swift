@@ -9,6 +9,37 @@ struct ToolbarCustomizationView: View {
     var body: some View {
         NavigationStack {
             List {
+                // Native macOS NSToolbar Palette Quick Trigger
+                Section {
+                    Button {
+                        dismiss()
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
+                            NSApp.sendAction(#selector(NSToolbar.runCustomizationPalette(_:)), to: nil, from: nil)
+                        }
+                    } label: {
+                        HStack(spacing: 12) {
+                            Image(systemName: "macwindow.badge.plus")
+                                .foregroundStyle(.blue)
+                                .frame(width: 24)
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text("Open Native macOS Toolbar Palette")
+                                    .font(.subheadline.bold())
+                                    .foregroundStyle(.primary)
+                                Text("Drag & drop items directly using the macOS native sheet")
+                                    .font(.caption2)
+                                    .foregroundStyle(.secondary)
+                            }
+                            Spacer()
+                            Image(systemName: "arrow.up.right.square")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                    .buttonStyle(.plain)
+                } header: {
+                    Text("Native Customizer")
+                }
+
                 // Extensions quick access
                 Section {
                     Button {

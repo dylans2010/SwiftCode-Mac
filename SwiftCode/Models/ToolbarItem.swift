@@ -1,4 +1,5 @@
 import Foundation
+import AppKit
 
 // MARK: - Toolbar Item
 
@@ -157,4 +158,138 @@ final class ToolbarManager: ObservableObject {
 extension Notification.Name {
     static let toolbarToolActivated = Notification.Name("com.swiftcode.toolbarToolActivated")
     static let showProjectTemplatesOnOpen = Notification.Name("com.swiftcode.showProjectTemplatesOnOpen")
+}
+
+// MARK: - Native macOS Toolbar Customization Delegate
+
+public struct WorkspaceHubTool: Identifiable, Hashable, Sendable {
+    public let id: String
+    public let name: String
+    public let description: String
+    public let iconName: String
+    public let colorHex: String
+    public let category: String
+    public let destination: String
+
+    public init(id: String, name: String, description: String, iconName: String, colorHex: String, category: String, destination: String) {
+        self.id = id
+        self.name = name
+        self.description = description
+        self.iconName = iconName
+        self.colorHex = colorHex
+        self.category = category
+        self.destination = destination
+    }
+}
+
+@MainActor
+public final class SwiftCodeToolbarDelegate: NSObject, NSToolbarDelegate {
+    public static let shared = SwiftCodeToolbarDelegate()
+
+    public static let itemPrefix = "com.swiftcode.toolbar."
+
+    // All available tools from MainToolsView and comprehensive search tools
+    public static let allAvailableTools: [WorkspaceHubTool] = [
+        WorkspaceHubTool(id: "terminal", name: "Terminal Console", description: "Open local shells, run background commands, manage SSH nodes, and configure terminal themes.", iconName: "terminal.fill", colorHex: "#5AC8FA", category: "Utilities", destination: "terminal"),
+        WorkspaceHubTool(id: "build_settings", name: "Xcode Build Settings", description: "Manage optimization levels, target SDKs, and build parameters.", iconName: "gearshape.2.fill", colorHex: "#34C759", category: "Build & Deploy", destination: "xcodeBuildSettings"),
+        WorkspaceHubTool(id: "build_logs", name: "Xcode Build Logs", description: "Stream compile warnings, errors, and live build output.", iconName: "doc.text.fill", colorHex: "#FF9500", category: "Build & Deploy", destination: "xcodeBuildLogs"),
+        WorkspaceHubTool(id: "ipa_builder", name: "IPA Packaging Suite", description: "Pack built iOS apps into IPA containers from SwiftCode without Xcode UI.", iconName: "shippingbox.fill", colorHex: "#AF52DE", category: "Build & Deploy", destination: "ipaBuild"),
+        WorkspaceHubTool(id: "deployments", name: "Deployments Console", description: "Trigger production deployments to Netlify, Vercel, and GitHub Pages.", iconName: "cloud.fill", colorHex: "#5AC8FA", category: "Build & Deploy", destination: "deployments"),
+        WorkspaceHubTool(id: "dependency_manager", name: "Dependency Manager", description: "Search, import, and manage local or remote Swift packages.", iconName: "puzzlepiece.extension.fill", colorHex: "#007AFF", category: "Utilities", destination: "dependencyManager"),
+        WorkspaceHubTool(id: "source_control", name: "Source Control", description: "Inspect Git history, commits, stashes, merges, and conflicts.", iconName: "square.stack.3d.down.right.fill", colorHex: "#4CD964", category: "Git & CI", destination: "sourceControl"),
+        WorkspaceHubTool(id: "ci_build", name: "CI Visual Workflows", description: "Create and monitor GitHub Actions workflow runners visually.", iconName: "play.circle.fill", colorHex: "#5856D6", category: "Git & CI", destination: "ciBuild"),
+        WorkspaceHubTool(id: "simulator_main", name: "Simulator & Previews", description: "Simulate devices, manage simulators, and inspect preview screens.", iconName: "iphone", colorHex: "#FF2D55", category: "Utilities", destination: "simulatorMain"),
+        WorkspaceHubTool(id: "personal_documentation", name: "Personal Documentation", description: "Access personal markdown wikis, notes, and local code references.", iconName: "book.fill", colorHex: "#A2845E", category: "Utilities", destination: "personalDocumentation"),
+        WorkspaceHubTool(id: "visual_ui_builder", name: "Visual UI Builder", description: "Build modern Apple user interfaces visually for SwiftUI, AppKit, UIKit, visionOS, WidgetKit, and watchOS.", iconName: "paintpalette.fill", colorHex: "#FF2D55", category: "Utilities", destination: "visualUIBuilder"),
+        WorkspaceHubTool(id: "dev_tools", name: "Developer Utility Bundle", description: "JSON formatters, base64 encoders, regex checkers, and JWT tools.", iconName: "wrench.and.screwdriver.fill", colorHex: "#FF3B30", category: "Utilities", destination: "devTools"),
+        WorkspaceHubTool(id: "collaboration", name: "Live Collaboration", description: "Coordinate real-time coding sessions with team members.", iconName: "person.2.fill", colorHex: "#34C759", category: "Utilities", destination: "collaboration"),
+        WorkspaceHubTool(id: "sf_symbols", name: "SF Symbols Browser", description: "Search and copy native SF Symbol identifiers.", iconName: "sparkles", colorHex: "#FFCC00", category: "Utilities", destination: "sfSymbolsBrowser"),
+        WorkspaceHubTool(id: "extension_marketplace", name: "Extension Marketplace", description: "Browse and install community tools, themes, and extensions.", iconName: "bag.fill", colorHex: "#AF52DE", category: "Utilities", destination: "extensionMarketplace"),
+        WorkspaceHubTool(id: "crash_log_analyzer", name: "Crash Log Analyzer", description: "Analyze production crash logs and trace symbolic memory leaks.", iconName: "doc.richtext.fill", colorHex: "#FF3B30", category: "Utilities", destination: "crashLogAnalyzer"),
+        WorkspaceHubTool(id: "project_dependency_graph", name: "Project Dependency Graph", description: "Render internal project file import mapping and graphs.", iconName: "network", colorHex: "#007AFF", category: "Utilities", destination: "projectDependencyGraph"),
+        WorkspaceHubTool(id: "workspace_profiles", name: "Workspace Profiles", description: "Create, edit, duplicate, and switch between workspace setting profiles.", iconName: "person.crop.square.fill.and.at.rectangle.fill", colorHex: "#34C759", category: "Utilities", destination: "workspaceProfiles"),
+        WorkspaceHubTool(id: "snippets_library", name: "Snippets Library", description: "Store, tag, categorize, and quickly insert code snippet templates.", iconName: "curlybraces", colorHex: "#FF9500", category: "Utilities", destination: "snippetsLibrary"),
+        WorkspaceHubTool(id: "documentation_browser", name: "Documentation Browser", description: "Full featured windowed multi-pane documentation browser and visual reference workspace.", iconName: "doc.text.magnifyingglass", colorHex: "#007AFF", category: "Utilities", destination: "documentationBrowser"),
+        WorkspaceHubTool(id: "search_documentation", name: "Search Documentation", description: "Search project documentation, DocSymbols, project notes, API documentation, and other indexed resources.", iconName: "magnifyingglass", colorHex: "#AF52DE", category: "Utilities", destination: "searchDocumentation"),
+        WorkspaceHubTool(id: "database_explorer", name: "Database Explorer", description: "Visually design, manage, connect, inspect, query, generate, and synchronize databases.", iconName: "cylinder.split.1x2.fill", colorHex: "#34C759", category: "Utilities", destination: "databaseExplorer"),
+        WorkspaceHubTool(id: "project_inspector", name: "Project Inspector", description: "Recursive directory scanner, live modules analysis, and AI layer refactoring reviews.", iconName: "square.text.square", colorHex: "#FF9500", category: "Utilities", destination: "projectInspector"),
+        WorkspaceHubTool(id: "localization_manager", name: "Localization Manager", description: "Multi-pane string catalogs and .xcstrings editor with layout previews & validation checks.", iconName: "text.book.closed.fill", colorHex: "#007AFF", category: "Utilities", destination: "localizationManager"),
+        WorkspaceHubTool(id: "licenses_add", name: "Licenses", description: "Quickly add open source license templates directly to your project codebase.", iconName: "doc.text.fill", colorHex: "#FF9500", category: "Utilities", destination: "licensesAdd"),
+        WorkspaceHubTool(id: "coding_dictionary", name: "Coding Dictionary", description: "AI-powered coding dictionary & reference companion that searches terminology, concepts, APIs, syntax, and patterns.", iconName: "book.pages.fill", colorHex: "#AF52DE", category: "Utilities", destination: "codingDictionary"),
+        WorkspaceHubTool(id: "device_connect", name: "Device Connect", description: "Native Apple device deployment, runtime, monitoring, diagnostics, and device management platform.", iconName: "play.circle.fill", colorHex: "#34C759", category: "Build & Deploy", destination: "deviceConnect"),
+        WorkspaceHubTool(id: "virtualization", name: "Virtualization", description: "Create development environments, run Linux machines, restore snapshots, and manage isolated workspaces with real telemetry.", iconName: "cpu.fill", colorHex: "#007AFF", category: "Utilities", destination: "virtualization"),
+        WorkspaceHubTool(id: "code_search", name: "Code Search", description: "Search and replace code, keys, and values across entire project codebase.", iconName: "magnifyingglass", colorHex: "#007AFF", category: "Search & Navigation", destination: "codeSearch"),
+        WorkspaceHubTool(id: "symbol_navigator", name: "Symbol Navigator", description: "Navigate and filter symbols, functions, and structs in active file.", iconName: "list.bullet.indent", colorHex: "#AF52DE", category: "Search & Navigation", destination: "symbolNavigator"),
+        WorkspaceHubTool(id: "go_to_line", name: "Go to Line", description: "Jump directly to specific line number in current code file.", iconName: "arrow.right.to.line", colorHex: "#34C759", category: "Search & Navigation", destination: "goToLine"),
+        WorkspaceHubTool(id: "file_navigator", name: "File Navigator", description: "Toggle workspace file tree navigator panel.", iconName: "sidebar.left", colorHex: "#007AFF", category: "Search & Navigation", destination: "fileNavigator")
+    ]
+
+    public static func identifier(for tool: WorkspaceHubTool) -> NSToolbarItem.Identifier {
+        NSToolbarItem.Identifier("\(itemPrefix)\(tool.id)")
+    }
+
+    public static func tool(for identifier: NSToolbarItem.Identifier) -> WorkspaceHubTool? {
+        let raw = identifier.rawValue
+        if raw.hasPrefix(itemPrefix) {
+            let toolId = String(raw.dropFirst(itemPrefix.count))
+            return allAvailableTools.first(where: { $0.id == toolId || $0.destination == toolId })
+        }
+        return allAvailableTools.first(where: { $0.id == raw || $0.destination == raw })
+    }
+
+    public func toolbar(
+        _ toolbar: NSToolbar,
+        itemForItemIdentifier itemIdentifier: NSToolbarItem.Identifier,
+        willBeInsertedIntoToolbar flag: Bool
+    ) -> NSToolbarItem? {
+        guard let tool = Self.tool(for: itemIdentifier) else { return nil }
+
+        let item = NSToolbarItem(itemIdentifier: itemIdentifier)
+        item.label = tool.name
+        item.paletteLabel = tool.name
+        item.toolTip = tool.description
+        if let img = NSImage(systemSymbolName: tool.iconName, accessibilityDescription: tool.name) {
+            item.image = img
+        } else {
+            item.image = NSImage(systemSymbolName: "hammer.fill", accessibilityDescription: tool.name)
+        }
+        item.target = self
+        item.action = #selector(handleToolbarAction(_:))
+        return item
+    }
+
+    public func toolbarDefaultItemIdentifiers(_ toolbar: NSToolbar) -> [NSToolbarItem.Identifier] {
+        var defaults: [NSToolbarItem.Identifier] = []
+        if let codeSearch = Self.allAvailableTools.first(where: { $0.id == "code_search" }) {
+            defaults.append(Self.identifier(for: codeSearch))
+        }
+        if let searchDocs = Self.allAvailableTools.first(where: { $0.id == "search_documentation" }) {
+            defaults.append(Self.identifier(for: searchDocs))
+        }
+        if let symbolNav = Self.allAvailableTools.first(where: { $0.id == "symbol_navigator" }) {
+            defaults.append(Self.identifier(for: symbolNav))
+        }
+        if let terminal = Self.allAvailableTools.first(where: { $0.id == "terminal" }) {
+            defaults.append(Self.identifier(for: terminal))
+        }
+        defaults.append(.flexibleSpace)
+        return defaults
+    }
+
+    public func toolbarAllowedItemIdentifiers(_ toolbar: NSToolbar) -> [NSToolbarItem.Identifier] {
+        var allowed: [NSToolbarItem.Identifier] = Self.allAvailableTools.map { Self.identifier(for: $0) }
+        allowed.append(contentsOf: [.space, .flexibleSpace])
+        return allowed
+    }
+
+    @objc private func handleToolbarAction(_ sender: NSToolbarItem) {
+        if let tool = Self.tool(for: sender.itemIdentifier) {
+            let targetID = tool.destination.isEmpty ? tool.id : tool.destination
+            NotificationCenter.default.post(
+                name: .toolbarToolActivated,
+                object: nil,
+                userInfo: ["toolID": targetID]
+            )
+        }
+    }
 }

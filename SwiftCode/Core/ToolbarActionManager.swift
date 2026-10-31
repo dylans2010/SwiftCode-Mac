@@ -237,10 +237,14 @@ final class ToolbarActionManager {
             return .testsSidebar
         case "workflow_editor":
             return .workflowEditor
-        case "xcode_build_settings":
+        case "build_settings", "xcode_build_settings", "xcodeBuildSettings":
             return .xcodeBuildSettings
-        case "xcode_build_logs":
+        case "build_logs", "xcode_build_logs", "xcodeBuildLogs":
             return .xcodeBuildLogs
+        case "ipa_builder", "ipaBuild":
+            return .ipaBuild
+        case "sf_symbols", "sf_symbols_browser", "sfSymbolsBrowser":
+            return .sfSymbolsBrowser
         case "apple_developer_account":
             return .appleDeveloperAccount
 
