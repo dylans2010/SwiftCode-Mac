@@ -341,14 +341,7 @@ private struct WorkspaceHostView: View {
         window.titleVisibility = .hidden
         window.titlebarAppearsTransparent = true
         window.titlebarSeparatorStyle = .none
-        if let toolbar = window.toolbar {
-            toolbar.displayMode = .iconOnly
-            toolbar.allowsUserCustomization = true
-            toolbar.autosavesConfiguration = true
-            if toolbar.delegate == nil {
-                toolbar.delegate = SwiftCodeToolbarDelegate.shared
-            }
-        }
+        window.toolbar?.displayMode = .iconOnly
 
         window.styleMask.insert([.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView])
         window.collectionBehavior.insert(.fullScreenPrimary)

@@ -269,46 +269,66 @@ struct WorkspaceView: View {
             .frame(width: 0, height: 0)
         )
         .environment(viewModel)
-        .toolbar {
+        .toolbar(id: "com.swiftcode.workspaceToolbar") {
             // No toolbar at all while a full-pane special editor is
             // active (swiftcode.json).
             if !specialEditorActive {
-                ToolbarItemGroup(placement: .navigation) {
-                    Button {
-                        sessionStore.closeProject()
-                    } label: {
-                        Label("Close Project", systemImage: "xmark.square")
-                    }
-                    .help("Close current project")
-
-                    Button {
-                        withAnimation(.spring()) {
-                            showFileNavigator.toggle()
-                            if let session = sessionStore.activeSession {
-                                session.showFileNavigator = showFileNavigator
-                                sessionStore.saveSession(session)
-                            }
+                ToolbarItem(id: "navigationGroup", placement: .navigation) {
+                    HStack(spacing: 6) {
+                        Button {
+                            sessionStore.closeProject()
+                        } label: {
+                            Label("Close Project", systemImage: "xmark.square")
                         }
-                    } label: {
-                        Label(showFileNavigator ? "Hide Files" : "Show Files", systemImage: "sidebar.left")
-                    }
-                    .help(showFileNavigator ? "Hide File Navigator" : "Show File Navigator")
-                }
+                        .help("Close current project")
 
-                ToolbarItem(placement: .principal) {
+                        Button {
+                            withAnimation(.spring()) {
+                                showFileNavigator.toggle()
+                                if let session = sessionStore.activeSession {
+                                    session.showFileNavigator = showFileNavigator
+                                    sessionStore.saveSession(session)
+                                }
+                            }
+                        } label: {
+                            Label(showFileNavigator ? "Hide Files" : "Show Files", systemImage: "sidebar.left")
+                        }
+                        .help(showFileNavigator ? "Hide File Navigator" : "Show File Navigator")
+                    }
+                }
+                .customizationBehavior(.disabled)
+
+                ToolbarItem(id: "notchSpacer", placement: .principal) {
                     Spacer()
                 }
+                .customizationBehavior(.disabled)
 
-                ToolbarItemGroup(placement: .primaryAction) {
+                ToolbarItem(id: "buildControls", placement: .primaryAction) {
                     BuildToolbarView(viewModel: viewModel.build, projectURL: viewModel.projectURL, editorViewModel: viewModel.editor)
+                }
+                .customizationBehavior(.disabled)
 
+                ForEach(SwiftCodeToolbarDelegate.allAvailableTools) { tool in
+                    ToolbarItem(id: tool.id, placement: .primaryAction, showsByDefault: isDefaultWorkspaceTool(tool.id)) {
+                        Button {
+                            triggerWorkspaceTool(tool)
+                        } label: {
+                            Label(tool.name, systemImage: tool.iconName)
+                        }
+                        .help(tool.description)
+                    }
+                }
+
+                ToolbarItem(id: "buildStatus", placement: .primaryAction, showsByDefault: false) {
                     Button {
                         activeSheet = .buildStatus
                     } label: {
                         Label("Build Status", systemImage: "gauge.with.needle")
                     }
                     .help("Open Build Status")
+                }
 
+                ToolbarItem(id: "artboardSimulator", placement: .primaryAction, showsByDefault: true) {
                     Button {
                         withAnimation(.spring()) {
                             showArtboardSimulator.toggle()
@@ -322,7 +342,9 @@ struct WorkspaceView: View {
                             .foregroundColor(showArtboardSimulator ? .accentColor : .secondary)
                     }
                     .help("Toggle Artboard Simulator")
+                }
 
+                ToolbarItem(id: "agentInspector", placement: .primaryAction, showsByDefault: true) {
                     Button {
                         withAnimation(.spring()) {
                             showAgentInspector.toggle()
@@ -332,7 +354,9 @@ struct WorkspaceView: View {
                             .foregroundColor(showAgentInspector ? .accentColor : .secondary)
                     }
                     .help("Toggle AI Agent Inspector")
+                }
 
+                ToolbarItem(id: "extensionsSidebar", placement: .primaryAction, showsByDefault: true) {
                     Button {
                         withAnimation(.spring()) {
                             showExtensionsSidebar.toggle()
@@ -796,6 +820,30 @@ jobs:
             Task {
                 await viewModel.editor.openFile(url: dummyURL)
             }
+        }
+    }
+
+    private func isDefaultWorkspaceTool(_ id: String) -> Bool {
+        switch id {
+        case "code_search", "search_documentation", "symbol_navigator":
+            return true
+        default:
+            return false
+        }
+    }
+
+    private func triggerWorkspaceTool(_ tool: WorkspaceHubTool) {
+        let toolId = tool.destination.isEmpty ? tool.id : tool.destination
+        if toolId == "file_navigator" || toolId == "fileNavigator" {
+            withAnimation(.spring()) {
+                showFileNavigator.toggle()
+                if let session = sessionStore.activeSession {
+                    session.showFileNavigator = showFileNavigator
+                    sessionStore.saveSession(session)
+                }
+            }
+        } else if let destination = ToolbarActionManager.shared.destination(for: toolId) {
+            activeSheet = destination
         }
     }
 }
