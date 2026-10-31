@@ -99,6 +99,7 @@ public struct SwiftCodeWelcomeView: View {
         .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
         .background(Color.clear)
         .preferredColorScheme(.dark)
+        .ignoresSafeArea()
         .sheet(isPresented: $showingNewProjectSheet) {
             NewProjectSheetView(viewModel: welcomeVM, initialMode: sheetInitialMode)
                 .id(sheetInitialMode)
@@ -453,6 +454,9 @@ public struct SwiftCodeWelcomeView: View {
         window.standardWindowButton(.miniaturizeButton)?.isHidden = true
         window.standardWindowButton(.zoomButton)?.isHidden = true
         window.standardWindowButton(.closeButton)?.isHidden = true
+        if let titlebarView = window.standardWindowButton(.closeButton)?.superview {
+            titlebarView.isHidden = true
+        }
 
         let currentContentSize = window.contentLayoutRect.size
         if abs(currentContentSize.width - fixedSize.width) > 2 || abs(currentContentSize.height - fixedSize.height) > 2 {
@@ -473,6 +477,9 @@ public struct SwiftCodeWelcomeView: View {
         window.titlebarSeparatorStyle = .none
         window.styleMask.insert([.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView])
         window.collectionBehavior.insert(.fullScreenPrimary)
+        if let titlebarView = window.standardWindowButton(.closeButton)?.superview {
+            titlebarView.isHidden = false
+        }
         window.standardWindowButton(.miniaturizeButton)?.isHidden = false
         window.standardWindowButton(.zoomButton)?.isHidden = false
         window.standardWindowButton(.closeButton)?.isHidden = false

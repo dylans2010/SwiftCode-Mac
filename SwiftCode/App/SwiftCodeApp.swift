@@ -50,10 +50,11 @@ struct SwiftCodeApp: App {
                             .id(activeProject.id)
                     } else {
                         SwiftCodeWelcomeView()
-                            .navigationTitle("")
+                            .ignoresSafeArea()
                     }
                 }
             )
+            .ignoresSafeArea()
             .onAppear {
                 DispatchQueue.main.async {
                     if let window = NSApplication.shared.windows.first(where: { $0.isVisible && !($0 is NSPanel) }) {
@@ -69,11 +70,28 @@ struct SwiftCodeApp: App {
                             window.collectionBehavior.insert(.fullScreenPrimary)
                             window.minSize = NSSize(width: 900, height: 600)
                             window.maxSize = NSSize(width: 10000, height: 10000)
+                            if let titlebarView = window.standardWindowButton(.closeButton)?.superview {
+                                titlebarView.isHidden = false
+                            }
                             window.standardWindowButton(.closeButton)?.isHidden = false
                             window.standardWindowButton(.miniaturizeButton)?.isHidden = false
                             window.standardWindowButton(.zoomButton)?.isHidden = false
                             if !window.styleMask.contains(.fullScreen) {
                                 window.toggleFullScreen(nil)
+                            }
+                        } else {
+                            window.isOpaque = false
+                            window.backgroundColor = .clear
+                            window.title = ""
+                            window.titleVisibility = .hidden
+                            window.titlebarAppearsTransparent = true
+                            window.titlebarSeparatorStyle = .none
+                            window.toolbar = nil
+                            window.standardWindowButton(.closeButton)?.isHidden = true
+                            window.standardWindowButton(.miniaturizeButton)?.isHidden = true
+                            window.standardWindowButton(.zoomButton)?.isHidden = true
+                            if let titlebarView = window.standardWindowButton(.closeButton)?.superview {
+                                titlebarView.isHidden = true
                             }
                         }
                     }
@@ -94,6 +112,9 @@ struct SwiftCodeApp: App {
                             window.collectionBehavior.insert(.fullScreenPrimary)
                             window.minSize = NSSize(width: 900, height: 600)
                             window.maxSize = NSSize(width: 10000, height: 10000)
+                            if let titlebarView = window.standardWindowButton(.closeButton)?.superview {
+                                titlebarView.isHidden = false
+                            }
                             window.standardWindowButton(.closeButton)?.isHidden = false
                             window.standardWindowButton(.miniaturizeButton)?.isHidden = false
                             window.standardWindowButton(.zoomButton)?.isHidden = false
@@ -103,6 +124,19 @@ struct SwiftCodeApp: App {
                         } else {
                             if window.styleMask.contains(.fullScreen) {
                                 window.toggleFullScreen(nil)
+                            }
+                            window.isOpaque = false
+                            window.backgroundColor = .clear
+                            window.title = ""
+                            window.titleVisibility = .hidden
+                            window.titlebarAppearsTransparent = true
+                            window.titlebarSeparatorStyle = .none
+                            window.toolbar = nil
+                            window.standardWindowButton(.closeButton)?.isHidden = true
+                            window.standardWindowButton(.miniaturizeButton)?.isHidden = true
+                            window.standardWindowButton(.zoomButton)?.isHidden = true
+                            if let titlebarView = window.standardWindowButton(.closeButton)?.superview {
+                                titlebarView.isHidden = true
                             }
                         }
                     }
@@ -192,6 +226,7 @@ struct SwiftCodeApp: App {
                 }
             }
         }
+        .windowStyle(.hiddenTitleBar)
         .windowResizability(.contentSize)
         .commands {
             AppCommands()
@@ -292,6 +327,9 @@ private struct WorkspaceHostView: View {
         window.minSize = NSSize(width: 900, height: 600)
         window.maxSize = NSSize(width: 10000, height: 10000)
 
+        if let titlebarView = window.standardWindowButton(.closeButton)?.superview {
+            titlebarView.isHidden = false
+        }
         window.standardWindowButton(.closeButton)?.isHidden = false
         window.standardWindowButton(.miniaturizeButton)?.isHidden = false
         window.standardWindowButton(.zoomButton)?.isHidden = false
