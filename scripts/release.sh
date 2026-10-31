@@ -645,4 +645,3 @@ log_info "Step 12: Verifying remote release..."
 gh release view "$TAG_NAME"
 
 log_ok "Release $TAG_NAME published and verified successfully!"
-EOF
