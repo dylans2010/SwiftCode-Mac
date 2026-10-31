@@ -14,7 +14,7 @@ struct ToolbarCustomizationView: View {
                     Button {
                         dismiss()
                         DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
-                            NSApp.sendAction(#selector(NSToolbar.runCustomizationPalette(_:)), to: nil, from: nil)
+                            SwiftCodeToolbarDelegate.presentCustomizationPalette()
                         }
                     } label: {
                         HStack(spacing: 12) {

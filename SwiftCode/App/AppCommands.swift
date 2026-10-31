@@ -316,16 +316,12 @@ private struct EditorViewHelpCommands: Commands {
             .keyboardShortcut("{", modifiers: [.command, .shift])
         }
 
-        CommandMenu("View") {
-            Button("Zoom In") {
-                // Implementation would go here
-            }
-            .keyboardShortcut("+", modifiers: [.command])
+        CommandGroup(after: .toolbar) {
+            Divider()
 
-            Button("Zoom Out") {
-                // Implementation would go here
+            Button("Customize Toolbar...") {
+                SwiftCodeToolbarDelegate.presentCustomizationPalette()
             }
-            .keyboardShortcut("-", modifiers: [.command])
 
             Divider()
 
@@ -339,12 +335,6 @@ private struct EditorViewHelpCommands: Commands {
                         "filePath": ""
                     ]
                 )
-            }
-
-            Divider()
-
-            Button("Customize Toolbar...") {
-                NSApp.sendAction(#selector(NSToolbar.runCustomizationPalette(_:)), to: nil, from: nil)
             }
         }
 

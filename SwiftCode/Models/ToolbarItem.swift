@@ -292,4 +292,20 @@ public final class SwiftCodeToolbarDelegate: NSObject, NSToolbarDelegate {
             )
         }
     }
+
+    public static func presentCustomizationPalette() {
+        let window = NSApp.keyWindow
+            ?? NSApp.mainWindow
+            ?? NSApplication.shared.windows.first(where: { $0.isVisible && $0.toolbar != nil && !($0 is NSPanel) })
+
+        if let toolbar = window?.toolbar {
+            toolbar.runCustomizationPalette(nil)
+        } else {
+            NotificationCenter.default.post(
+                name: .toolbarToolActivated,
+                object: nil,
+                userInfo: ["toolID": "toolbarCustomization"]
+            )
+        }
+    }
 }

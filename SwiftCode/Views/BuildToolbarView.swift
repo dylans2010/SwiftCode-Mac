@@ -209,7 +209,7 @@ struct BuildToolbarView: View {
 
             Section("Toolbar") {
                 Button {
-                    NSApp.sendAction(#selector(NSToolbar.runCustomizationPalette(_:)), to: nil, from: nil)
+                    SwiftCodeToolbarDelegate.presentCustomizationPalette()
                 } label: {
                     Label("Customize Toolbar...", systemImage: "slider.horizontal.3")
                 }

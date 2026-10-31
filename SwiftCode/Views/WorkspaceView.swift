@@ -637,6 +637,7 @@ struct WorkspaceView: View {
                 case .codeRefactoring: CodeRefactoringView()
                 case .errorDiagnostics: ErrorDiagnosticsView()
                 case .codeIntelligence: CodeIntelligenceView()
+                case .toolbarCustomization: ToolbarCustomizationView()
                 case .workspaceProfiles:
                     WorkspaceProfilesView()
                         .frame(minWidth: 880, maxWidth: 960, minHeight: 520, maxHeight: 600)
