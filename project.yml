@@ -1,0 +1,156 @@
+name: SwiftCode
+options:
+  bundleIdPrefix: com.dylans2010
+  deploymentTarget:
+    macOS: "15.0"
+  createIntermediateGroups: true
+  xcodeVersion: "16.0"
+
+packages:
+  SwiftCode:
+    path: swiftcode
+  storekit:
+    path: frameworks/storekit
+
+settings:
+  base:
+    SWIFT_VERSION: "6.0"
+    MACOSX_DEPLOYMENT_TARGET: "15.0"
+    MARKETING_VERSION: "1.0.0-beta.2"
+    CURRENT_PROJECT_VERSION: "1"
+    DEVELOPMENT_TEAM: ""
+    CODE_SIGN_STYLE: Manual
+    CODE_SIGN_IDENTITY: "-"
+    CODE_SIGNING_REQUIRED: "NO"
+    CODE_SIGNING_ALLOWED: "NO"
+
+configs:
+  Debug: debug
+  Release: release
+
+targets:
+  SwiftCode-IDE:
+    type: application
+    platform: macOS
+    deploymentTarget: "15.0"
+    sources:
+      - path: swiftcode/Sources/swiftcode-ide
+        excludes:
+          - "**/.build/**"
+    dependencies:
+      - package: SwiftCode
+        product: SwiftCodeRelease
+      - package: SwiftCode
+        product: SwiftCodeIDEShell
+      - package: SwiftCode
+        product: SwiftCodeIDECore
+      - package: SwiftCode
+        product: SwiftCodeSyntax
+      - package: SwiftCode
+        product: SwiftCodeBuild
+      - package: SwiftCode
+        product: SwiftCodeEditorKit
+      - package: SwiftCode
+        product: SwiftCodeCompletion
+      - package: SwiftCode
+        product: SwiftCodeAssistant
+      - package: SwiftCode
+        product: SwiftCodePreviews
+      - package: SwiftCode
+        product: SwiftCodeExtensions
+      - package: SwiftCode
+        product: SwiftCodeSDK
+      - package: SwiftCode
+        product: SwiftCodeSDKStudio
+      - package: SwiftCode
+        product: SwiftCodePaywall
+      - package: SwiftCode
+        product: SwiftCodeCloud
+      - package: SwiftCode
+        product: SwiftCodeGitHub
+      - package: SwiftCode
+        product: SwiftCodeUI
+      - package: storekit
+        product: StoreKitConfiguration
+    settings:
+      base:
+        PRODUCT_NAME: SwiftCode
+        PRODUCT_BUNDLE_IDENTIFIER: com.dylans2010.SwiftCode-Mac
+        INFOPLIST_FILE: packaging/macos/Info.plist.in
+        LD_RUNPATH_SEARCH_PATHS: "$(inherited) @executable_path/../Frameworks"
+        ENABLE_HARDENED_RUNTIME: "NO"
+    scheme:
+      testTargets:
+        - SwiftCode-Tests
+
+  SwiftCode-CLI:
+    type: tool
+    platform: macOS
+    deploymentTarget: "15.0"
+    sources:
+      - path: swiftcode/Sources/swiftcode
+        excludes:
+          - "**/.build/**"
+    dependencies:
+      - package: SwiftCode
+        product: SwiftCodeBuild
+      - package: SwiftCode
+        product: SwiftCodeProject
+      - package: SwiftCode
+        product: SwiftCodeWorkspace
+      - package: SwiftCode
+        product: SwiftCodeSubprocess
+      - package: SwiftCode
+        product: SwiftCodeMCP
+    settings:
+      base:
+        PRODUCT_NAME: swiftcode
+        PRODUCT_BUNDLE_IDENTIFIER: com.dylans2010.swiftcode-cli
+
+  SwiftCode-Tests:
+    type: bundle.unit-test
+    platform: macOS
+    deploymentTarget: "15.0"
+    sources:
+      - path: swiftcode/Tests
+        excludes:
+          - "**/.build/**"
+    dependencies:
+      - package: SwiftCode
+        product: SwiftCodePlist
+      - package: SwiftCode
+        product: SwiftCodeProject
+      - package: SwiftCode
+        product: SwiftCodeWorkspace
+      - package: SwiftCode
+        product: SwiftCodeSettings
+      - package: SwiftCode
+        product: SwiftCodeBuild
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.dylans2010.SwiftCode-Tests
+
+schemes:
+  SwiftCode:
+    build:
+      targets:
+        SwiftCode-IDE: all
+    run:
+      config: Debug
+    test:
+      config: Debug
+      targets:
+        - SwiftCode-Tests
+    profile:
+      config: Release
+    archive:
+      config: Release
+
+  SwiftCode-CLI:
+    build:
+      targets:
+        SwiftCode-CLI: all
+    run:
+      config: Debug
+    archive:
+      config: Release
