@@ -1390,6 +1390,1460 @@ target must exist. See `assist-file-tools.md` §8.
 fact: both open Finder windows. Ycode must add `openWorld: true` and
 fail on non-macOS. See §1.3 and §24–§25.
 
+## Wave 2 — file-writing tools
+
+This part of the catalogue covers the 24 Wave 2 tools: the
+file-writing family ported from SwiftCode Legacy Assist into Ycode
+in Wave 2. The Wave 1 conventions in §1 apply, extended by §27
+below. The companion spec `assist-file-writing-tools.md` covers
+the behaviour shared by these tools, and
+`assist-approval-model.md` covers how their writes are gated.
+
+Scope: exactly these 24 tools, verified live from the Legacy
+registry. No other tool is in scope for Wave 2, and no tool may be
+invented, renamed, or merged with another — except `file_write`,
+which already exists in Ycode and is aligned, not duplicated (see
+§28).
+
+| ID | Title |
+|---|---|
+| `file_write` | Write File |
+| `file_create` | Create File |
+| `file_append` | Append to File |
+| `file_delete` | Delete File |
+| `file_move` | Move File |
+| `file_copy` | Copy File |
+| `file_rename` | Rename File |
+| `dir_create` | Create Directory |
+| `dir_delete` | Delete Directory |
+| `code_generate` | Generate File |
+| `code_format` | Format Code |
+| `code_insert` | Insert Code Block |
+| `code_multi_edit` | Multi-file Edit |
+| `code_refactor` | Refactor |
+| `code_replace` | Replace in File |
+| `regex_replace_in_files` | Regex Replace in Files |
+| `plist_edit` | Edit Plist |
+| `format_json_file` | Format and Validate JSON File |
+| `csv_to_json` | Convert CSV to JSON |
+| `json_to_csv` | Convert JSON to CSV |
+| `plist_to_json` | Convert Plist to JSON |
+| `json_to_plist` | Convert JSON to Plist |
+| `batch_rename_files` | Batch Rename Files |
+| `generate_file_checksum` | Generate File Cryptographic Checksum |
+
+**The 24th tool.** The subsystem map (§2.1) says this family is
+24 tools but its printed list names only 23. The 24th is
+`file_create`: the registry registers `AssistCreateFileTool()` at
+line 75, and the tool declares `id = "file_create"`
+(`Tools/AssistCreateFileTool.swift:4`, capability
+`fileModification`, risk `safeMutation`). The list above is the
+23 named tools plus `file_create`.
+
+**The read-only tool in this wave.** `generate_file_checksum`
+declares capability `fileReading` and risk `safeRead` and only
+computes hashes (SHA-256 / SHA-512 / SHA-1 / MD5) — it writes
+nothing. It stays in this wave because the map assigned it here,
+but it is specified as a read-only tool (`writes: false`), and
+its family classification is corrected here: it is a
+file-reading / diagnostics tool, not a file-writing tool. See
+§27.4 and §51.
+
+## 27. Wave 2 conventions (extending §1)
+
+### 27.1 Result envelope — Wave 2 additions
+
+§1.1 applies unchanged, with two Wave 2 notes:
+
+- `filesChanged` (list of workspace-relative paths) is non-empty
+  for the tools that change files and report it. Four Wave 2
+  tools change files but return **no** `filesChanged` in Legacy
+  (`file_append`, `file_move`, `file_copy`, `code_generate`) and
+  one returns none in any outcome (`regex_replace_in_files`);
+  the port preserves that (see the per-tool sections), it does
+  not "fix" it.
+- `diff` (optional string): `file_write`, `file_create`, and
+  `code_replace` set it (and also copy the diff into
+  `data["diff"]`). No other Wave 2 tool sets it. Legacy-only
+  envelope fields (`duration`, `suggestedNextActions`,
+  `beforeContent`, `afterContent`) have no Ycode equivalent and
+  are dropped; see `assist-file-writing-tools.md` §8.4.
+
+### 27.2 Risk → annotations for Wave 2
+
+§1.3 applies unchanged:
+
+| Legacy `riskLevel` | Ycode `MCPToolAnnotations` | `writes` |
+|---|---|---|
+| `safeRead` | `readOnly: true, idempotent: true` | `false` |
+| `safeMutation` | `readOnly: false, idempotent: true` | `true` |
+| `potentiallyDestructive` | `readOnly: false, destructive: true` | `true` |
+
+`writes: true` applies to exactly 23 tools in this wave — every
+tool below except `generate_file_checksum`. The two
+`potentiallyDestructive` tools are `file_delete` and
+`dir_delete`; every other writing tool is `safeMutation`.
+
+### 27.3 Gate per tool
+
+Every `writes: true` tool is gated by `MCPServer.run()` and its
+handler-side shape — see `assist-approval-model.md` §6 for the
+full table. In short: text writes go through `commit()`;
+copy/move/rename/delete/directory/binary-plist operations use an
+explicit `MCPChange` + `guard await call.approve(change)` before
+touching disk; multi-file tools approve one file at a time, in
+order, stopping at the first refusal; dry-run calls
+(`regex_replace_in_files`, `batch_rename_files` with
+`dryRun: true`) request no approval but are still refused in
+`readOnly` mode because the tool is registered `writes: true`.
+
+### 27.4 The checksum correction
+
+`generate_file_checksum` is catalogued with the Wave 2 tools
+because the subsystem map assigned it to this family, but its
+Legacy declaration is `capability: fileReading`, `riskLevel:
+safeRead`, `isReadOnly: true`. It therefore takes the `safeRead`
+row of the §1.3 table (`readOnly: true, idempotent: true`,
+`writes: false`), runs in `readOnly` server mode, and never calls
+`approve()` or `commit()`. Its presence here corrects the map's
+family assignment; a future re-organisation of the catalogue may
+move it with the read tools without changing its specification.
+
+### 27.5 Aliases — accepted, but never canonical
+
+The Legacy registry resolves these aliases to the canonical IDs
+in this wave. The Ycode port must accept them at `tools/call`
+time (through `MCPServer.toolAliases`, as Wave 1 did for
+`read_file`); the canonical ID is what is registered, listed,
+and returned in metadata:
+
+- `write_file` → `file_write`
+- `create_file` → `file_create`
+- `delete_file` → `file_delete`
+- `move_file` → `file_move`
+- `copy_file` → `file_copy`
+- `rename_file` → `file_rename`
+- `create_directory`, `make_directory`, `directory_create` → `dir_create`
+- `delete_directory`, `remove_directory`, `directory_delete` → `dir_delete`
+- `edit_file`, `replace_in_file` → `code_replace`
+- `insert_code_block`, `insert_code` → `code_insert`
+- `regex_replace` → `regex_replace_in_files`
+
+No registry alias exists for `file_append`, `code_generate`,
+`code_format`, `code_multi_edit`, `code_refactor`,
+`format_json_file`, `csv_to_json`, `json_to_csv`,
+`plist_to_json`, `json_to_plist`, `batch_rename_files`,
+`plist_edit`, or `generate_file_checksum`. In particular, the
+registry alias `plist` points at `plist_editor`, a different
+tool — it is **not** an alias for `plist_edit` — and
+`checksum_verifier` points at `file_checksum_verifier`, a
+different tool — it is **not** an alias for
+`generate_file_checksum`. Do not add either mapping.
+
+Per-tool parameter-name aliases (e.g. `file_write` accepting
+`filePath`) are documented per tool under "Accepted aliases"
+where they exist. They are leniency in parsing, not part of the
+schema — as in §1.7.
+
+### 27.6 `file_write` collision — align, do not duplicate
+
+Ycode already has a `file_write` in `YcodeTools+Content.swift`
+(`workspace` / `path` / `content`; returns `path` / `created` /
+`lineCount`; writes through `commit()`). The Wave 1 precedent
+for the `file_read` collision was to **align** the existing
+Ycode tool with Legacy behaviour (the Ycode `file_read` gained
+Legacy's `lines` object while keeping its own `startLine` /
+`lineCount` / 8 MB behaviour), not to register a duplicate. The
+same applies here: there is exactly one `file_write`
+registration, the existing one, aligned as specified in §28. No
+second `file_write` is specified or registered.
+
+## 28. `file_write` — Write File (aligned with Ycode's existing tool)
+
+- **Description (verbatim):** "Writes or overwrites a file with
+  the specified content, generating unified diffs."
+- **Capability:** `fileModification`. **Risk:** `safeMutation`.
+  **Required permission:** `fileSystem`. **Read-only:** no.
+  **Write.** **MCP annotations:** `readOnly: false,
+  idempotent: true`. **`writes`:** `true`.
+
+```json
+{
+  "type": "object",
+  "description": "Writes or overwrites a file with the specified content.",
+  "properties": {
+    "path": {
+      "type": "string",
+      "description": "The relative path to write the file within the project workspace."
+    },
+    "content": {
+      "type": "string",
+      "description": "The complete content to write into the file."
+    }
+  },
+  "required": ["path", "content"]
+}
+```
+
+**Output (success).** Message:
+`Created new file: <path> (<N> lines)` when the file did not
+exist, `Updated existing file: <path> (<N> lines)` when it did,
+where `<N>` counts `content` split on newlines (a trailing
+newline counts as an extra empty line). Structured data keys
+(all strings):
+
+| Key | Value |
+|---|---|
+| `diff` | Unified diff (Myers, 3 context lines) from the original content to the new content. |
+| `path` | The path as given (workspace-relative). |
+| `is_new` | `"true"` when the file did not exist before the call, `"false"` otherwise. |
+
+`filesChanged` is `[<path>]`, and the `diff` field of the result
+is the same unified diff.
+
+**Accepted aliases:** `path` may also be given as `filePath`
+or `file_path`; `content` may also be given as `fileContent`,
+`file_content`, or `code`. The canonical alias `write_file`
+resolves to this tool; see §27.5.
+
+**Alignment note (Ycode's existing `file_write` vs Legacy).**
+The single registration is Ycode's, in
+`YcodeTools+Content.swift`; align it to Legacy as follows, and
+register nothing else under this ID:
+
+- Input: keep Ycode's `workspace` parameter (Ycode convention;
+  every Ycode tool takes it) and its required `[path,
+  content]`. Add Legacy's parameter aliases above, which Ycode
+  does not currently accept.
+- Description: adopt Legacy's verbatim description above; Ycode's
+  current description ("Creates a file or replaces its whole
+  contents…") is replaced, not kept alongside.
+- Annotations: Ycode currently registers this tool with
+  `readOnly: false, destructive: true`. Legacy declares
+  `safeMutation`, which maps (§27.2) to `readOnly: false,
+  idempotent: true` — **not** destructive. Change the
+  annotations to match; a whole-file overwrite is a safe
+  mutation in Legacy's classification, and only
+  `potentiallyDestructive` tools get `destructive: true`.
+- Output: adopt Legacy's message forms above (Ycode currently
+  returns `Created <rel>.` / `Wrote <rel>.`). Keep Ycode's data
+  keys `created` (boolean, same meaning as Legacy's `is_new`)
+  and `lineCount`, and add Legacy's `diff` and `is_new` keys.
+  The line counts agree: Ycode's
+  `content.split(separator: "\n", omittingEmptySubsequences:
+  false).count` and Legacy's
+  `content.components(separatedBy: .newlines).count` give the
+  same number for the same content. Keep `filesChanged`
+  behaviour (Ycode's `commit()` already notifies the session).
+- Behaviour deltas that are **not** aligned (deliberate
+  deviations, see `assist-approval-model.md` §7.4): Legacy
+  auto-registers a new file in the `.pbxproj`
+  (`XcodeProjWriter.addFileReference`) and streams the edit
+  through `LiveDiffStreamer`; Ycode does neither. Legacy's
+  `suggestedNextActions: ["project_build"]` (duplicated for
+  `.swift` files) has no Ycode equivalent and is dropped.
+- Path handling: Legacy's inline `..` check (§2.4 of
+  `assist-file-writing-tools.md`) and the session-aware resolver
+  already match what Ycode's `resolve` + `commit()` do, except
+  the `/tmp/swiftcode/scripts` carve-out, which Ycode does not
+  keep (see `assist-approval-model.md` §7.2).
+
+## 29. `file_create` — Create File
+
+- **Description (verbatim):** "Creates a new file with full
+  content and intermediate directories when needed."
+- **Capability:** `fileModification`. **Risk:** `safeMutation`.
+  **Required permission:** `fileSystem`. **Read-only:** no.
+  **Write.** **MCP annotations:** `readOnly: false,
+  idempotent: true`. **`writes`:** `true`.
+
+```json
+{
+  "type": "object",
+  "description": "Creates a new file with full content, creating intermediate directories when needed.",
+  "properties": {
+    "path": {
+      "type": "string",
+      "description": "Workspace-relative path of the file to create. Must be non-blank."
+    },
+    "content": {
+      "type": "string",
+      "description": "File body. Default: \"\"."
+    },
+    "overwrite": {
+      "type": "boolean",
+      "description": "Must be true to replace an existing file. Default: false."
+    }
+  },
+  "required": ["path"]
+}
+```
+
+**Output (success).** Message:
+`Created file at <path> (<N> lines)`, where `<N>` counts
+`content` split on newlines (same counting as `file_write`).
+Structured data keys (all strings):
+
+| Key | Value |
+|---|---|
+| `path` | The path as given (workspace-relative). |
+| `bytes` | UTF-8 byte count of `content`. |
+| `diff` | Unified diff from empty to `content`. |
+| `is_new` | Always `"true"` — even when `overwrite: true` replaced an existing file (Legacy quirk; see `assist-file-writing-tools.md` §4.4). |
+
+`filesChanged` is `[<path>]`, and the `diff` field of the result
+is the same unified diff.
+
+**Accepted aliases:** none at the parameter level. The canonical
+alias `create_file` resolves to this tool; see §27.5.
+
+**Notes.** `content` defaults to `""` when absent; `overwrite`
+defaults to `false`. An existing file with `overwrite` false
+fails with
+`File already exists at <path>. Set overwrite=true to replace it.`
+(code `invalidInput`). Missing parent directories are created.
+See `assist-file-writing-tools.md` §4.3–§4.4 and §5.1.
+
+## 30. `file_append` — Append to File
+
+- **Description (verbatim):** "Appends content to the end of a
+  file."
+- **Capability:** `fileModification`. **Risk:** `safeMutation`.
+  **Required permission:** `fileSystem`. **Read-only:** no.
+  **Write.** **MCP annotations:** `readOnly: false,
+  idempotent: true`. **`writes`:** `true`.
+
+```json
+{
+  "type": "object",
+  "description": "Appends content to the end of an existing file.",
+  "properties": {
+    "path": {
+      "type": "string",
+      "description": "Workspace-relative path of the existing file to append to. The file must already exist."
+    },
+    "content": {
+      "type": "string",
+      "description": "Text content to append to the end of the file."
+    }
+  },
+  "required": ["path", "content"]
+}
+```
+
+**Output (success).** Message:
+`Successfully appended to file: <path>`. No structured data,
+no `filesChanged` — even though the file changed (Legacy quirk;
+see `assist-file-writing-tools.md` §5.1).
+
+**Accepted aliases:** none.
+
+**Notes.** The file must already exist; a missing file fails.
+The append is a read-modify-write of the whole file
+(`original + content`), verbatim, with no newline added or
+normalised. See `assist-file-writing-tools.md` §5.1.
+
+## 31. `file_delete` — Delete File
+
+- **Description (verbatim):** "Deletes a file at the specified
+  path."
+- **Capability:** `fileModification`. **Risk:**
+  `potentiallyDestructive`. **Required permission:**
+  `fileSystem`. **Read-only:** no. **Write — destructive,
+  permanent.** **MCP annotations:** `readOnly: false,
+  destructive: true`. **`writes`:** `true`.
+
+```json
+{
+  "type": "object",
+  "description": "Deletes a file. Destructive and irreversible.",
+  "properties": {
+    "path": {
+      "type": "string",
+      "description": "Workspace-relative path of the file to delete."
+    }
+  },
+  "required": ["path"]
+}
+```
+
+**Output (success).** Message:
+`Successfully deleted file: <path>`. Structured data keys (all
+strings):
+
+| Key | Value |
+|---|---|
+| `path` | The path as given (workspace-relative). |
+
+`filesChanged` is `[<path>]`.
+
+**Accepted aliases:** none at the parameter level. The canonical
+alias `delete_file` resolves to this tool; see §27.5.
+
+**Notes.** There is **no** `confirm` parameter — do not invent
+one (see `assist-approval-model.md` §5.3). A missing file is a
+failure (`No file at <path> — nothing to delete.`, code
+`notFound`), not a silent success. Deletion is permanent: no
+trash, no backup, no undo. The Ycode port must refuse a
+directory passed to this tool (Legacy's filesystem layer would
+recursively remove it); see `assist-file-writing-tools.md`
+§5.2. Gate: explicit approval per deletion, in every mode that
+lets the tool run; see `assist-approval-model.md` §5–§6.
+
+## 32. `file_move` — Move File
+
+- **Description (verbatim):** "Moves a file from source to
+  destination path."
+- **Capability:** `fileModification`. **Risk:** `safeMutation`.
+  **Required permission:** `fileSystem`. **Read-only:** no.
+  **Write.** **MCP annotations:** `readOnly: false,
+  idempotent: true`. **`writes`:** `true`.
+
+```json
+{
+  "type": "object",
+  "description": "Moves a file from a source path to a destination path.",
+  "properties": {
+    "source": {
+      "type": "string",
+      "description": "Workspace-relative path of the existing file to move."
+    },
+    "destination": {
+      "type": "string",
+      "description": "Workspace-relative destination path."
+    }
+  },
+  "required": ["source", "destination"]
+}
+```
+
+**Output (success).** Message:
+`Successfully moved file from <source> to <destination>`. No
+structured data, no `filesChanged`.
+
+**Accepted aliases:** none. The canonical alias `move_file`
+resolves to this tool; see §27.5.
+
+**Notes.** The destination must not already exist (the move
+refuses rather than overwriting, and never deletes the
+destination first). The destination's parent must already exist.
+Cross-directory moves are allowed, and the move works for
+directories as well as files despite the name. Gate: explicit
+`MCPChange` + approval before the move; see
+`assist-approval-model.md` §6.2. See
+`assist-file-writing-tools.md` §5.2.
+
+## 33. `file_copy` — Copy File
+
+- **Description (verbatim):** "Copies a file from source to
+  destination path."
+- **Capability:** `fileModification`. **Risk:** `safeMutation`.
+  **Required permission:** `fileSystem`. **Read-only:** no.
+  **Write.** **MCP annotations:** `readOnly: false,
+  idempotent: true`. **`writes`:** `true`.
+
+```json
+{
+  "type": "object",
+  "description": "Copies a file from a source path to a destination path.",
+  "properties": {
+    "source": {
+      "type": "string",
+      "description": "Workspace-relative path of the existing file to copy."
+    },
+    "destination": {
+      "type": "string",
+      "description": "Workspace-relative destination path."
+    }
+  },
+  "required": ["source", "destination"]
+}
+```
+
+**Output (success).** Message:
+`Successfully copied file from <source> to <destination>`. No
+structured data, no `filesChanged`.
+
+**Accepted aliases:** none. The canonical alias `copy_file`
+resolves to this tool; see §27.5.
+
+**Notes.** Same destination rules as `file_move`: the
+destination must not already exist, its parent must already
+exist, cross-directory copies are allowed, directories copy
+like files. The copy is a byte copy, not atomic. Gate: explicit
+`MCPChange` + approval before the copy; see
+`assist-approval-model.md` §6.2. See
+`assist-file-writing-tools.md` §4.1 and §5.2.
+
+## 34. `file_rename` — Rename File
+
+- **Description (verbatim):** "Renames a file at the specified
+  path."
+- **Capability:** `fileModification`. **Risk:** `safeMutation`.
+  **Required permission:** `fileSystem`. **Read-only:** no.
+  **Write.** **MCP annotations:** `readOnly: false,
+  idempotent: true`. **`writes`:** `true`.
+
+```json
+{
+  "type": "object",
+  "description": "Renames a file within its current directory.",
+  "properties": {
+    "oldPath": {
+      "type": "string",
+      "description": "Workspace-relative path of the existing file."
+    },
+    "newName": {
+      "type": "string",
+      "description": "New file name (a single path component, not a path) within the same directory."
+    }
+  },
+  "required": ["oldPath", "newName"]
+}
+```
+
+**Output (success).** Message:
+`Successfully renamed file to: <newName>`. Structured data keys
+(all strings):
+
+| Key | Value |
+|---|---|
+| `path` | The new path (same directory as the old path). |
+
+`filesChanged` is `[<newPath>]`.
+
+**Accepted aliases:** none. The canonical alias `rename_file`
+resolves to this tool; see §27.5.
+
+**Notes.** `newName` must be a single path component (no `/`,
+no `..`, no NUL, not empty, not `"."`); renaming to the current
+name fails as a no-op. The destination must not already exist.
+Gate: explicit `MCPChange` + approval before the rename; see
+`assist-approval-model.md` §6.2. See
+`assist-file-writing-tools.md` §5.2.
+
+## 35. `dir_create` — Create Directory
+
+- **Description (verbatim):** "Creates a new directory at the
+  specified path."
+- **Capability:** `fileModification`. **Risk:** `safeMutation`.
+  **Required permission:** `fileSystem`. **Read-only:** no.
+  **Write.** **MCP annotations:** `readOnly: false,
+  idempotent: true`. **`writes`:** `true`.
+
+```json
+{
+  "type": "object",
+  "description": "Creates a new directory, including any missing parent directories.",
+  "properties": {
+    "path": {
+      "type": "string",
+      "description": "Workspace-relative path of the directory to create."
+    }
+  },
+  "required": ["path"]
+}
+```
+
+**Output (success).** Message:
+`Successfully created directory: <path>`. Structured data keys
+(all strings):
+
+| Key | Value |
+|---|---|
+| `path` | The path as given (workspace-relative). |
+
+`filesChanged` is `[<path>]`.
+
+**Accepted aliases:** none. The canonical aliases
+`create_directory`, `make_directory`, and `directory_create`
+resolve to this tool; see §27.5.
+
+**Notes.** Missing parents are created. Succeeds silently when
+the directory already exists. Gate: explicit `MCPChange` +
+approval before creating; see `assist-approval-model.md` §6.2.
+
+## 36. `dir_delete` — Delete Directory
+
+- **Description (verbatim):** "Deletes a directory and all its
+  contents."
+- **Capability:** `fileModification`. **Risk:**
+  `potentiallyDestructive`. **Required permission:**
+  `fileSystem`. **Read-only:** no. **Write — destructive,
+  permanent, recursive.** **MCP annotations:** `readOnly: false,
+  destructive: true`. **`writes`:** `true`.
+
+```json
+{
+  "type": "object",
+  "description": "Deletes a directory and all of its contents. Destructive and irreversible.",
+  "properties": {
+    "path": {
+      "type": "string",
+      "description": "Workspace-relative path of the directory to delete."
+    }
+  },
+  "required": ["path"]
+}
+```
+
+**Output (success).** Message:
+`Successfully deleted directory: <path>`. Structured data keys
+(all strings):
+
+| Key | Value |
+|---|---|
+| `path` | The path as given (workspace-relative). |
+
+`filesChanged` is `[<path>]`.
+
+**Accepted aliases:** none at the parameter level. The canonical
+aliases `delete_directory`, `remove_directory`, and
+`directory_delete` resolve to this tool; see §27.5.
+
+**Notes.** There is **no** `confirm` parameter — do not invent
+one (see `assist-approval-model.md` §5.3). A missing directory
+is a failure, not a silent success. The workspace root itself
+cannot be deleted. Deletion is recursive and permanent: no
+trash, no backup, no undo. Gate: explicit approval per deletion,
+in every mode that lets the tool run; see
+`assist-approval-model.md` §5–§6.
+
+## 37. `code_generate` — Generate File
+
+- **Description (verbatim):** "Generates a new file with
+  boilerplate or specific logic."
+- **Capability:** `fileModification`. **Risk:** `safeMutation`.
+  **Required permission:** `fileSystem`. **Read-only:** no.
+  **Write.** **MCP annotations:** `readOnly: false,
+  idempotent: true`. **`writes`:** `true`.
+
+```json
+{
+  "type": "object",
+  "description": "Generates a new file from a built-in template. Refuses to overwrite existing files.",
+  "properties": {
+    "path": {
+      "type": "string",
+      "description": "Workspace-relative target path. Must not already exist."
+    },
+    "template": {
+      "type": "string",
+      "description": "One of: swift_struct, swift_class, swiftui_view, test (case-insensitive)."
+    },
+    "module": {
+      "type": "string",
+      "description": "Module name used only by the test template for @testable import. Defaults to the user's project name."
+    }
+  },
+  "required": ["path", "template"]
+}
+```
+
+**Output (success).** Message:
+`Generated file <path> using template '<template>'`.
+Structured data keys (all strings):
+
+| Key | Value |
+|---|---|
+| `path` | The path as given (workspace-relative). |
+
+No `filesChanged`, no `diff`.
+
+**Accepted aliases:** none.
+
+**Notes.** Four built-in string templates only (see
+`assist-file-writing-tools.md` §5.4 for their exact contents):
+`swift_struct`, `swift_class`, `swiftui_view`, `test`
+(case-insensitive). An existing target file fails, with no
+overwrite option. An unknown template fails — never a success
+that writes a comment-only file. The `test` template
+deliberately fails until a real assertion replaces it. Gate:
+`commit()`; see `assist-approval-model.md` §6.1.
+
+## 38. `code_format` — Format Code
+
+- **Description (verbatim):** "Formats the code according to
+  project style guidelines."
+- **Capability:** `fileModification`. **Risk:** `safeMutation`.
+  **Required permission:** `fileSystem`. **Read-only:** no.
+  **Write.** **MCP annotations:** `readOnly: false,
+  idempotent: true`. **`writes`:** `true`.
+
+```json
+{
+  "type": "object",
+  "description": "Formats code files with basic normalization (indentation, trailing whitespace, blank lines).",
+  "properties": {
+    "path": {
+      "type": "string",
+      "description": "Workspace-relative file or directory to format. Default: \".\"."
+    }
+  },
+  "required": []
+}
+```
+
+**Output (success).** Message:
+`Code formatting completed at <path>`. Structured data keys
+(all strings):
+
+| Key | Value |
+|---|---|
+| `formatted_files` | Count of files actually rewritten. |
+
+**Accepted aliases:** none.
+
+**Notes.** No formatter binary is invoked: the implementation
+is a fixed local normaliser (tabs → 4 spaces, trailing
+whitespace stripped, blank runs collapsed to one, trailing
+newline added), despite the description's mention of "project
+style guidelines". `path` defaults to `"."` (the workspace
+root). A directory formats its recursive `swift` / `m` / `h` /
+`c` / `cpp` / `js` / `ts` / `py` files up to 300,000 bytes;
+hidden files and undecodable files are skipped; only changed
+files are written (and therefore only those go through
+approval). An escaping path is silently clamped to the workspace
+root, never an error (see `assist-file-writing-tools.md` §2.5).
+Gate: one `commit()` per changed file; see
+`assist-approval-model.md` §6.1 and §6.3.
+
+## 39. `code_insert` — Insert Code Block
+
+- **Description (verbatim):** "Inserts a block of code at a
+  specific line or before/after a symbol."
+- **Capability:** `fileModification`. **Risk:** `safeMutation`.
+  **Required permission:** `fileSystem`. **Read-only:** no.
+  **Write.** **MCP annotations:** `readOnly: false,
+  idempotent: true`. **`writes`:** `true`.
+
+```json
+{
+  "type": "object",
+  "description": "Inserts a block of code at a line number or before/after a symbol pattern. Pattern misses are failures, never silent no-ops.",
+  "properties": {
+    "path": {
+      "type": "string",
+      "description": "Workspace-relative path of the file to modify."
+    },
+    "code": {
+      "type": "string",
+      "description": "Code block to insert."
+    },
+    "mode": {
+      "type": "string",
+      "description": "One of 'line', 'before', or 'after'. Default: \"line\". Unknown modes are rejected."
+    },
+    "line": {
+      "type": "integer",
+      "description": "1-based line number for 'line' mode. Appends past end of file. Default: 1."
+    },
+    "pattern": {
+      "type": "string",
+      "description": "Anchor text for 'before'/'after' modes. Required in those modes."
+    }
+  },
+  "required": ["path", "code"]
+}
+```
+
+**Output (success).** Message:
+`Code block inserted into <path>`. Structured data keys (all
+strings):
+
+| Key | Value |
+|---|---|
+| `path` | The path as given (workspace-relative). |
+
+`filesChanged` is `[<path>]`.
+
+**Accepted aliases:** none at the parameter level. The canonical
+aliases `insert_code_block` and `insert_code` resolve to this
+tool; see §27.5.
+
+**Notes.** `mode` defaults to `line` (lowercased before
+matching); `line` defaults to 1 and appends when past the end of
+file; `pattern` is plain substring matching against the file's
+first occurrence — a miss is a failure, never a silent no-op.
+Mode / pattern / line are validated before the file is touched.
+Gate: `commit()`; see `assist-approval-model.md` §6.1. See
+`assist-file-writing-tools.md` §5.3.
+
+## 40. `code_multi_edit` — Multi-file Edit
+
+- **Description (verbatim):** "Applies edits across multiple
+  files simultaneously."
+- **Capability:** `fileModification`. **Risk:** `safeMutation`.
+  **Required permission:** `fileSystem`. **Read-only:** no.
+  **Write.** **MCP annotations:** `readOnly: false,
+  idempotent: true`. **`writes`:** `true`.
+
+```json
+{
+  "type": "object",
+  "description": "Applies edits across multiple files. Not atomic: earlier edits persist if a later one fails; the failure names which edits were already applied. Each edit requires a non-empty 'path'. Search/replace edits require a non-empty 'search' (an empty search would corrupt the file).",
+  "properties": {
+    "edits": {
+      "type": "array",
+      "description": "Array of edit objects. Each object requires a non-empty 'path', plus either 'content' (full-file replacement) or 'search' + 'replace'."
+    }
+  },
+  "required": ["edits"]
+}
+```
+
+**Output (success).** Message:
+`Multi-file edit completed for <N> files`. Structured data keys
+(all strings):
+
+| Key | Value |
+|---|---|
+| `files` | The updated paths, comma-joined. |
+
+`filesChanged` is the updated paths (as a list).
+
+**Accepted aliases:** none.
+
+**Notes.** Each edit is either a full-file replacement (`path`
++ `content`) or a search/replace (`path` + `search` +
+`replace`, where `replace` defaults to `""`). All edits are
+validated before any is applied; once application starts the
+tool is **not atomic** — a failure names the edits already
+applied, which stay applied. Search/replace is literal
+substring replacement of all occurrences. An empty `edits`
+array succeeds with `0 files`. Gate: one `commit()` per file,
+in order, stopping at the first refusal; see
+`assist-approval-model.md` §6.1 and §6.3. See
+`assist-file-writing-tools.md` §5.3.
+
+## 41. `code_refactor` — Refactor
+
+- **Description (verbatim):** "Performs code refactoring (e.g.,
+  extract method, rename variable) intelligently."
+- **Capability:** `fileModification`. **Risk:** `safeMutation`.
+  **Required permission:** `fileSystem`. **Read-only:** no.
+  **Write.** **MCP annotations:** `readOnly: false,
+  idempotent: true`. **`writes`:** `true`.
+
+```json
+{
+  "type": "object",
+  "description": "Performs an LLM-driven refactoring of a file. Requires an OpenAI API key.",
+  "properties": {
+    "path": {
+      "type": "string",
+      "description": "Workspace-relative path of the file to refactor."
+    },
+    "action": {
+      "type": "string",
+      "description": "Natural-language description of the refactoring to perform."
+    }
+  },
+  "required": ["path", "action"]
+}
+```
+
+**Output (success).** Message:
+`Refactoring '<action>' applied to <path>`. No structured data,
+no `filesChanged`.
+
+**Accepted aliases:** none.
+
+**Notes.** This tool is **LLM-driven**, not a local transform:
+Legacy sends the whole file plus the natural-language action to
+an LLM (hardcoded OpenAI provider, stored API key), strips
+Markdown fences from the response, and writes the result back
+as the file's new content. There is no AST and no verification
+that the result parses. The Ycode port must route the LLM call
+through the host assistant or register the tool as unavailable
+with a clear error — it must not substitute a regex/template
+"refactor", and must not hardcode an OpenAI key path. See
+`assist-file-writing-tools.md` §5.4. Gate: `commit()`; see
+`assist-approval-model.md` §6.1.
+
+## 42. `code_replace` — Replace in File
+
+- **Description (verbatim):** "Replaces a specific targeted code
+  snippet within an existing file, ensuring exact match and
+  providing unified diffs."
+- **Capability:** `fileModification`. **Risk:** `safeMutation`.
+  **Required permission:** `fileSystem`. **Read-only:** no.
+  **Write.** **MCP annotations:** `readOnly: false,
+  idempotent: true`. **`writes`:** `true`.
+
+```json
+{
+  "type": "object",
+  "description": "Replaces occurrences of a targeted code block with a replacement.",
+  "properties": {
+    "path": {
+      "type": "string",
+      "description": "The relative path to the file to modify."
+    },
+    "target": {
+      "type": "string",
+      "description": "The exact existing text snippet to find and replace."
+    },
+    "replacement": {
+      "type": "string",
+      "description": "The new text snippet to insert in place of the target."
+    },
+    "allowMultiple": {
+      "type": "boolean",
+      "description": "Whether to replace multiple occurrences if found (default false)."
+    }
+  },
+  "required": ["path", "target", "replacement"]
+}
+```
+
+**Output (success).** Message:
+`Successfully updated <path> with targeted replacement.\n\nUnified Diff:\n<diff>`
+— the unified diff is embedded in the message as well as in
+`data["diff"]`. Structured data keys (all strings):
+
+| Key | Value |
+|---|---|
+| `diff` | Unified diff (Myers, 3 context lines) from the original content to the modified content. |
+| `path` | The path as given (workspace-relative). |
+
+`filesChanged` is `[<path>]`, and the `diff` field of the result
+is the same unified diff.
+
+**Accepted aliases:** `path` may also be given as `filePath`,
+`file_path`, or `targetFile`; `target` may also be given as
+`targetContent`, `old_string`, `old_str`, or `find`;
+`replacement` may also be given as `replacementContent`,
+`new_string`, `new_str`, or `replace`; `allowMultiple` may also
+be given as `allow_multiple`. The canonical aliases `edit_file`
+and `replace_in_file` resolve to this tool; see §27.5.
+
+**Notes.** Matching is literal substring matching, not regex
+and not AST-aware. Zero occurrences and multiple occurrences
+(with `allowMultiple` false) are both failures — the file is
+written only after the replacement succeeds. Gate: `commit()`;
+see `assist-approval-model.md` §6.1. See
+`assist-file-writing-tools.md` §5.3.
+
+## 43. `regex_replace_in_files` — Regex Replace in Files
+
+- **Description (verbatim):** "Performs regular expression
+  search and replace across multiple workspace files with
+  dry-run support."
+- **Capability:** `fileModification`. **Risk:** `safeMutation`.
+  **Required permission:** `fileSystem`. **Read-only:** no.
+  **Write.** **MCP annotations:** `readOnly: false,
+  idempotent: true`. **`writes`:** `true`.
+
+```json
+{
+  "type": "object",
+  "description": "Regex search and replace across workspace files matching file extension or directory scope.",
+  "properties": {
+    "pattern": {
+      "type": "string",
+      "description": "Regular expression pattern to find."
+    },
+    "replacement": {
+      "type": "string",
+      "description": "Replacement string (supports $1, $2 capturing group templates)."
+    },
+    "fileExtension": {
+      "type": "string",
+      "description": "File extension filter (e.g. 'swift', 'json', 'md'). Defaults to 'swift'."
+    },
+    "dryRun": {
+      "type": "boolean",
+      "description": "If true, only reports changes without writing to disk. Defaults to false."
+    }
+  },
+  "required": ["pattern", "replacement"]
+}
+```
+
+**Output (success).** Message, when matches are found:
+`Successfully modified <N> file(s) with <T> total replacements:\n\n- \`<rel>\` (<M> matches)\n...`
+(listing at most 30 files; `<T>` counts all matches in all
+matched files). Dry run:
+`[DRY RUN] Would modify <N> file(s) with <T> total replacements:\n\n...`
+No matches:
+`` No matches found for pattern `<pattern>` in *.<ext> files. ``
+No structured data, no `filesChanged` in any outcome.
+
+**Accepted aliases:** none at the parameter level. The canonical
+alias `regex_replace` resolves to this tool; see §27.5.
+
+**Notes.** ICU regex (`NSRegularExpression`, no options,
+case-sensitive); `$1` / `$2` capture templates in the
+replacement. There is no scope parameter: the tool always
+enumerates the whole workspace root (hidden files and package
+descendants skipped; undecodable files silently skipped). A
+per-file write failure is swallowed — the file keeps its old
+content and still counts in the report. A dry run requests no
+approval but is still refused in `readOnly` mode (the tool is
+registered `writes: true`); see `assist-approval-model.md`
+§6.4. Gate otherwise: one `commit()` per matched file; see
+§6.1 and §6.3 there. See `assist-file-writing-tools.md` §5.5.
+
+## 44. `plist_edit` — Edit Plist
+
+- **Description (verbatim):** "Gets, sets, or deletes a key in
+  a plist file using PropertyListSerialization."
+- **Capability:** `fileModification`. **Risk:** `safeMutation`.
+  **Required permission:** `fileSystem`. **Read-only:** no.
+  **Write** (for `set` / `delete`; `get` reads only — but the
+  tool is registered `writes: true` because its `set` / `delete`
+  actions write, and the flag is static per tool). **MCP
+  annotations:** `readOnly: false, idempotent: true`.
+  **`writes`:** `true`.
+
+```json
+{
+  "type": "object",
+  "description": "Manages one key in a plist file.",
+  "properties": {
+    "path": {
+      "type": "string",
+      "description": "Workspace-relative path to the plist file (required)."
+    },
+    "action": {
+      "type": "string",
+      "description": "get, set, or delete. Default: get."
+    },
+    "key": {
+      "type": "string",
+      "description": "Plist key (required)."
+    },
+    "value": {
+      "type": "string",
+      "description": "String value for set action."
+    }
+  },
+  "required": ["path", "key"]
+}
+```
+
+**Output (success).** Messages and structured data keys (all
+strings), by action:
+
+| Action | Message | Data keys |
+|---|---|---|
+| `get` | `Key '<key>' = <rendered> in '<path>'.` | `key`, `value` (rendered value), `path` |
+| `set` | `Set key '<key>' in '<path>'.` | `key`, `value`, `path` |
+| `delete` | `Deleted key '<key>' from '<path>'.` | `key`, `path` |
+
+No `filesChanged` is returned for any action (the Legacy calls
+pass only data).
+
+**Accepted aliases:** none. The registry alias `plist` points
+at `plist_editor`, a different tool — it is **not** an alias
+for `plist_edit` (see §27.5).
+
+**Notes.** The plist must have a top-level dictionary. `set`
+always stores a string, whatever the previous type was, and the
+file is rewritten as XML even when it was binary. `set` and
+`delete` are verified by reading the file back. `get` renders
+non-string values as `true` / `false`, numbers,
+`array(<count>)`, or `dictionary(<count>)`. Gate: `commit()`
+for `set` / `delete`; a `get` call builds no change and asks
+nothing — but it is still refused in `readOnly` mode, because
+the tool is registered `writes: true` (static per tool; see
+`assist-approval-model.md` §6.4 for the same rule applied to
+dry runs). See `assist-file-writing-tools.md` §5.7.
+
+## 45. `format_json_file` — Format and Validate JSON File
+
+- **Description (verbatim):** "Validates and pretty-prints a
+  JSON file with consistent indentation and sorted keys."
+- **Capability:** `fileModification`. **Risk:** `safeMutation`.
+  **Required permission:** `fileSystem`. **Read-only:** no.
+  **Write.** **MCP annotations:** `readOnly: false,
+  idempotent: true`. **`writes`:** `true`.
+
+```json
+{
+  "type": "object",
+  "description": "Validates and pretty-prints a JSON file with consistent indentation and sorted keys.",
+  "properties": {
+    "path": {
+      "type": "string",
+      "description": "Workspace-relative path to the JSON file to format."
+    }
+  },
+  "required": ["path"]
+}
+```
+
+**Output (success).** Message:
+`` Successfully formatted and validated JSON file at `<path>` (<N> bytes). ``
+Structured data keys (all strings):
+
+| Key | Value |
+|---|---|
+| `path` | The path as given (workspace-relative). |
+| `formattedBytes` | Byte count of the formatted JSON data. |
+
+`filesChanged` is `[<path>]`.
+
+**Accepted aliases:** `path` may also be given as `filePath`.
+
+**Notes.** Rewrites the file **in place** (same path, no
+destination parameter). Top-level fragments are accepted. The
+file's extension is not checked. Gate: `commit()`; see
+`assist-approval-model.md` §6.1. See
+`assist-file-writing-tools.md` §5.8.
+
+## 46. `csv_to_json` — Convert CSV to JSON
+
+- **Description (verbatim):** "Parses a tabular CSV file and
+  converts records into a structured JSON array of objects."
+- **Capability:** `fileModification`. **Risk:** `safeMutation`.
+  **Required permission:** `fileSystem`. **Read-only:** no.
+  **Write.** **MCP annotations:** `readOnly: false,
+  idempotent: true`. **`writes`:** `true`.
+
+```json
+{
+  "type": "object",
+  "description": "Parses a tabular CSV file and converts records into a structured JSON array of objects.",
+  "properties": {
+    "path": {
+      "type": "string",
+      "description": "Workspace-relative path to the input CSV file."
+    },
+    "destination": {
+      "type": "string",
+      "description": "Optional workspace-relative destination path for .json file. Defaults to <path>.json."
+    },
+    "delimiter": {
+      "type": "string",
+      "description": "Delimiter character: ',' (default), '\t', or ';'."
+    }
+  },
+  "required": ["path"]
+}
+```
+
+**Output (success).** Message:
+`` Successfully converted CSV `<path>` to JSON at `<dest>` (<N> records parsed). ``
+Structured data keys (all strings):
+
+| Key | Value |
+|---|---|
+| `destination` | The destination path as given. |
+| `recordCount` | Number of records parsed. |
+
+`filesChanged` is `[<dest>]`.
+
+**Accepted aliases:** `path` may also be given as `csvPath`.
+
+**Notes.** Parsing is naive string splitting, not a CSV parser:
+no quote handling, missing columns become `""`, extra columns
+are dropped, all values are strings. The destination defaults
+to `<path>.json`; its parent directories are created if missing.
+Gate: `commit()`; see `assist-approval-model.md` §6.1. See
+`assist-file-writing-tools.md` §5.8.
+
+## 47. `json_to_csv` — Convert JSON to CSV
+
+- **Description (verbatim):** "Converts a JSON array of objects
+  into a standard CSV tabular file."
+- **Capability:** `fileModification`. **Risk:** `safeMutation`.
+  **Required permission:** `fileSystem`. **Read-only:** no.
+  **Write.** **MCP annotations:** `readOnly: false,
+  idempotent: true`. **`writes`:** `true`.
+
+```json
+{
+  "type": "object",
+  "description": "Converts a JSON array of objects into a standard CSV tabular file.",
+  "properties": {
+    "path": {
+      "type": "string",
+      "description": "Workspace-relative path to the input JSON file."
+    },
+    "destination": {
+      "type": "string",
+      "description": "Optional workspace-relative destination path for .csv file. Defaults to <path>.csv."
+    }
+  },
+  "required": ["path"]
+}
+```
+
+**Output (success).** Message:
+`` Successfully converted JSON `<path>` to CSV at `<dest>` (<R> rows, <C> columns). ``
+Structured data keys (all strings):
+
+| Key | Value |
+|---|---|
+| `destination` | The destination path as given. |
+| `rowCount` | Number of rows (objects). |
+| `columnCount` | Number of columns (headers). |
+
+`filesChanged` is `[<dest>]`.
+
+**Accepted aliases:** `path` may also be given as `jsonPath`.
+
+**Notes.** The JSON root must be a non-empty array of objects.
+Headers are the union of all keys, sorted alphabetically; every
+field is double-quoted with doubled quotes; nested values are
+stringified, not serialised as JSON. The destination defaults to
+`<path>.csv`; its parent directories are created if missing.
+Gate: `commit()`; see `assist-approval-model.md` §6.1. See
+`assist-file-writing-tools.md` §5.8.
+
+## 48. `plist_to_json` — Convert Plist to JSON
+
+- **Description (verbatim):** "Converts an Apple Property List
+  (.plist) file directly into formatted JSON format."
+- **Capability:** `fileModification`. **Risk:** `safeMutation`.
+  **Required permission:** `fileSystem`. **Read-only:** no.
+  **Write.** **MCP annotations:** `readOnly: false,
+  idempotent: true`. **`writes`:** `true`.
+
+```json
+{
+  "type": "object",
+  "description": "Converts an Apple Property List (.plist) file directly into formatted JSON format.",
+  "properties": {
+    "path": {
+      "type": "string",
+      "description": "Workspace-relative path to the .plist file."
+    },
+    "destination": {
+      "type": "string",
+      "description": "Optional workspace-relative destination path for .json file. Defaults to <path>.json."
+    }
+  },
+  "required": ["path"]
+}
+```
+
+**Output (success).** Message:
+`` Successfully converted Plist `<path>` to JSON at `<dest>` (<N> bytes). ``
+Structured data keys (all strings):
+
+| Key | Value |
+|---|---|
+| `destination` | The destination path as given. |
+| `size` | Byte count of the JSON data. |
+
+`filesChanged` is `[<dest>]`.
+
+**Accepted aliases:** `path` may also be given as `plistPath`.
+
+**Notes.** Any plist root type is accepted (unlike
+`plist_edit`, which requires a dictionary). A plist value with
+no JSON representation fails the conversion. The destination
+defaults to `<path>.json`; its parent directories are created
+if missing. Gate: `commit()`; see `assist-approval-model.md`
+§6.1. See `assist-file-writing-tools.md` §5.7.
+
+## 49. `json_to_plist` — Convert JSON to Plist
+
+- **Description (verbatim):** "Converts a JSON file into an
+  Apple Property List (.plist, XML or Binary format)."
+- **Capability:** `fileModification`. **Risk:** `safeMutation`.
+  **Required permission:** `fileSystem`. **Read-only:** no.
+  **Write.** **MCP annotations:** `readOnly: false,
+  idempotent: true`. **`writes`:** `true`.
+
+```json
+{
+  "type": "object",
+  "description": "Converts a JSON file into an Apple Property List (.plist, XML or Binary format).",
+  "properties": {
+    "path": {
+      "type": "string",
+      "description": "Workspace-relative path to the .json file."
+    },
+    "destination": {
+      "type": "string",
+      "description": "Optional workspace-relative destination path for .plist. Defaults to <path>.plist."
+    },
+    "binary": {
+      "type": "boolean",
+      "description": "Whether to encode as binary plist (default false: XML plist)."
+    }
+  },
+  "required": ["path"]
+}
+```
+
+**Output (success).** Message:
+`` Successfully converted JSON `<path>` to Plist (binary|xml) at `<dest>` (<N> bytes). ``
+Structured data keys (all strings):
+
+| Key | Value |
+|---|---|
+| `destination` | The destination path as given. |
+| `format` | `"binary"` or `"xml"`. |
+| `size` | Byte count of the plist data. |
+
+`filesChanged` is `[<dest>]`.
+
+**Accepted aliases:** `path` may also be given as `jsonPath`.
+
+**Notes.** XML is the default; `binary: true` selects binary
+plist. The destination defaults to `<path>.plist`; its parent
+directories are created if missing. Gate: `commit()` for XML
+(the proposed text is the plist XML); explicit `MCPChange` +
+approval for binary (the content cannot be shown as proposed
+text); see `assist-approval-model.md` §6.1–§6.2. See
+`assist-file-writing-tools.md` §5.7.
+
+## 50. `batch_rename_files` — Batch Rename Files
+
+- **Description (verbatim):** "Renames multiple files in a
+  directory matching a prefix, suffix, or substring pattern."
+- **Capability:** `fileModification`. **Risk:** `safeMutation`.
+  **Required permission:** `fileSystem`. **Read-only:** no.
+  **Write.** **MCP annotations:** `readOnly: false,
+  idempotent: true`. **`writes`:** `true`.
+
+```json
+{
+  "type": "object",
+  "description": "Renames multiple files in a directory matching a prefix, suffix, or substring pattern.",
+  "properties": {
+    "directory": {
+      "type": "string",
+      "description": "Workspace-relative directory containing the files to rename."
+    },
+    "search": {
+      "type": "string",
+      "description": "Target substring or pattern in filenames to replace."
+    },
+    "replacement": {
+      "type": "string",
+      "description": "String to replace the search target with."
+    },
+    "extension": {
+      "type": "string",
+      "description": "Optional file extension filter (e.g. 'swift', 'png')."
+    },
+    "dryRun": {
+      "type": "boolean",
+      "description": "If true, simulates the rename without modifying files. Default: false."
+    }
+  },
+  "required": ["directory", "search", "replacement"]
+}
+```
+
+**Output (success).** Messages, by outcome:
+
+- No matches:
+  `` No files in `<dir>` matched search pattern '<search>'. ``
+  Data keys (all strings): `renamedCount` = `"0"`.
+- Dry run:
+  `Dry run: <N> file(s) would be renamed in `<dir>`:\n  • <old> -> <new>\n...`
+  Data keys: `dryRun` = `"true"`, `matchCount` = `"<N>"`.
+- Renamed:
+  `Successfully batch-renamed <N> file(s) in `<dir>`:\n  • <old> -> <new>\n...`
+  Data keys: `renamedCount` = `"<N>"`. `filesChanged` is the
+  renamed files' new paths.
+
+**Accepted aliases:** `directory` may also be given as `path`.
+
+**Notes.** Immediate children only (not recursive), sorted by
+filename; `extension` is compared lowercased; matching is
+substring containment and replacement replaces all occurrences
+in the filename; directories among the children are renamed
+like files. No collision pre-check: a conflicting rename fails
+the batch partway through, leaving earlier renames applied. A
+dry run requests no approval but is still refused in `readOnly`
+mode (the tool is registered `writes: true`); see
+`assist-approval-model.md` §6.4. Gate otherwise: one explicit
+`MCPChange` + approval per rename; see §6.2–§6.3 there. See
+`assist-file-writing-tools.md` §5.9.
+
+## 51. `generate_file_checksum` — Generate File Cryptographic Checksum
+
+- **Description (verbatim):** "Computes SHA-256, SHA-512, SHA-1,
+  and MD5 cryptographic checksums of a file on disk."
+- **Capability:** `fileReading`. **Risk:** `safeRead`.
+  **Required permission:** `none`. **Read-only:** yes.
+  **MCP annotations:** `readOnly: true, idempotent: true`.
+  **`writes`:** `false`.
+
+```json
+{
+  "type": "object",
+  "description": "Computes SHA-256, SHA-512, SHA-1, and MD5 cryptographic checksums of a file on disk.",
+  "properties": {
+    "path": {
+      "type": "string",
+      "description": "Workspace-relative path to the file to hash."
+    }
+  },
+  "required": ["path"]
+}
+```
+
+**Output (success).** Message:
+```
+Checksums for <path> (<N> bytes):
+- SHA-256: <hex>
+- SHA-512: <hex>
+- SHA-1:   <hex>
+- MD5:     <hex>
+```
+(note the spacing: `SHA-1:` is followed by three spaces and
+`MD5:` by five, aligning the values). Structured data keys (all
+strings):
+
+| Key | Value |
+|---|---|
+| `path` | The path as given (workspace-relative). |
+| `sha256` | Lowercase hex SHA-256 digest. |
+| `sha512` | Lowercase hex SHA-512 digest. |
+| `sha1` | Lowercase hex SHA-1 digest. |
+| `md5` | Lowercase hex MD5 digest. |
+| `size` | Byte count of the file. |
+
+**Accepted aliases:** `path` may also be given as `filePath`.
+
+**Notes.** This tool writes nothing: it reads the file's bytes
+whole into memory and hashes them in-process (swift-crypto).
+All four hashes are always computed; there is no algorithm
+parameter. It runs in `readOnly` server mode. See §27.4 and
+`assist-file-writing-tools.md` §5.10.
+
+## 52. Summary: capability / risk / permission / writes (Wave 2)
+
+| ID | Capability | Risk | Permission | Read-only | `writes` |
+|---|---|---|---|---|---|
+| `file_write` | fileModification | safeMutation | fileSystem | **no** | **true** |
+| `file_create` | fileModification | safeMutation | fileSystem | **no** | **true** |
+| `file_append` | fileModification | safeMutation | fileSystem | **no** | **true** |
+| `file_delete` | fileModification | potentiallyDestructive | fileSystem | **no** | **true** |
+| `file_move` | fileModification | safeMutation | fileSystem | **no** | **true** |
+| `file_copy` | fileModification | safeMutation | fileSystem | **no** | **true** |
+| `file_rename` | fileModification | safeMutation | fileSystem | **no** | **true** |
+| `dir_create` | fileModification | safeMutation | fileSystem | **no** | **true** |
+| `dir_delete` | fileModification | potentiallyDestructive | fileSystem | **no** | **true** |
+| `code_generate` | fileModification | safeMutation | fileSystem | **no** | **true** |
+| `code_format` | fileModification | safeMutation | fileSystem | **no** | **true** |
+| `code_insert` | fileModification | safeMutation | fileSystem | **no** | **true** |
+| `code_multi_edit` | fileModification | safeMutation | fileSystem | **no** | **true** |
+| `code_refactor` | fileModification | safeMutation | fileSystem | **no** | **true** |
+| `code_replace` | fileModification | safeMutation | fileSystem | **no** | **true** |
+| `regex_replace_in_files` | fileModification | safeMutation | fileSystem | **no** | **true** |
+| `plist_edit` | fileModification | safeMutation | fileSystem | **no** | **true** |
+| `format_json_file` | fileModification | safeMutation | fileSystem | **no** | **true** |
+| `csv_to_json` | fileModification | safeMutation | fileSystem | **no** | **true** |
+| `json_to_csv` | fileModification | safeMutation | fileSystem | **no** | **true** |
+| `plist_to_json` | fileModification | safeMutation | fileSystem | **no** | **true** |
+| `json_to_plist` | fileModification | safeMutation | fileSystem | **no** | **true** |
+| `batch_rename_files` | fileModification | safeMutation | fileSystem | **no** | **true** |
+| `generate_file_checksum` | fileReading | safeRead | none | yes | false |
+
+23 tools write; 1 (`generate_file_checksum`) reads. The two
+`potentiallyDestructive` tools are `file_delete` and
+`dir_delete`.
+
 ## Evidence
 
 | Claim | Level | Source |
@@ -1405,3 +2859,9 @@ fail on non-macOS. See §1.3 and §24–§25.
 | Finder tools use `NSWorkspace` (`open`, `activateFileViewerSelecting`) with a `/usr/bin/open` fallback for open only | 1 | Legacy `Tools/AssistFinderTools.swift`, read directly |
 | Artifact store layout, name normalisation, kind inference, modes, truncation, protected `agent_notes.md` | 1 | Legacy `SwiftCode/Backend/Assist/AssistArtifactStore.swift`; `Tools/AssistToolSharedHelpers.swift` (`AssistArtifactNaming`) |
 | This spec describes behaviour only; no Legacy method bodies, decompiler text, or Apple code are reproduced in it | — | Spec author's conformance to this repo's `AGENTS.md` clean-room protocol (specs describe behaviour and formats only) |
+| Wave 2: all 24 IDs, titles, descriptions, capabilities, risk levels, and input schemas; `file_create` as the 24th tool (registry line 75, `AssistCreateFileTool.swift:4`) | 1 | Legacy `SwiftCode/Backend/Assist/AssistToolRegistry.swift` (register lines 68–77, 91–95, 202, 238, 310–316, 319); `Tools/AssistWriteFileTool.swift`, `AssistCreateFileTool.swift`, `AssistAppendFileTool.swift`, `AssistDeleteFileTool.swift`, `AssistMoveFileTool.swift`, `AssistCopyFileTool.swift`, `AssistRenameFileTool.swift`, `AssistCreateDirectoryTool.swift`, `AssistDeleteDirectoryTool.swift`, `AssistGenerateFileTool.swift`, `AssistFormatCodeTool.swift`, `AssistInsertCodeBlockTool.swift`, `AssistMultiFileEditTool.swift`, `AssistRefactorTool.swift`, `AssistReplaceInFileTool.swift`, `AssistRegexReplaceInFilesTool.swift`, `AssistPlistEditTool.swift`, `AssistDataMutationTools.swift`, `AssistDataInspectionTools.swift` (`AssistGenerateFileChecksumTool`), read directly |
+| Wave 2: `generate_file_checksum` is `fileReading` / `safeRead`, computes four hashes, writes nothing — family-classification correction | 1 | Legacy `Tools/AssistDataInspectionTools.swift` (`AssistGenerateFileChecksumTool`, lines 334–399), read directly |
+| Wave 2: registry aliases for this wave; `plist` → `plist_editor` and `checksum_verifier` → `file_checksum_verifier` are different tools, not aliases for `plist_edit` / `generate_file_checksum` | 1 | Legacy `SwiftCode/Backend/Assist/AssistToolRegistry.swift` alias table, read directly |
+| Wave 2: `file_write` alignment — Ycode's existing registration in `YcodeTools+Content.swift` (workspace/path/content, `path`/`created`/`lineCount`, `commit()`), its `destructive: true` annotation vs Legacy `safeMutation` | 1 | Ycode `ycode/Sources/YcodeMCP/YcodeTools+Content.swift` (`file_write` tool, `commit`, `writeFile`), read directly; Wave 1 `file_read` alignment precedent in `YcodeTools+Workspace.swift` (Legacy `lines` object added to the existing registration) |
+| Wave 2: output messages and structured data keys; `file_append` / `file_move` / `file_copy` return no data and no `filesChanged`; `code_generate` returns no `filesChanged`; `regex_replace_in_files` returns no data in any outcome | 1 | Each Legacy Wave 2 tool `execute()` listed above, read directly |
+| Wave 2: `file_delete` / `dir_delete` schemas contain only `path` (no `confirm` parameter) | 1 | Legacy `Tools/AssistDeleteFileTool.swift`, `Tools/AssistDeleteDirectoryTool.swift`, read directly |

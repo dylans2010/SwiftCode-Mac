@@ -51,10 +51,11 @@ extension YcodeMCPHost {
                 try await h.setString(call)
             },
             tool("file_write", "Write file",
-                 "Creates a file or replaces its whole contents. A write: refused when the server is read-only; in the IDE the user reviews it as a proposal first.",
+                 "Writes or overwrites a file with the specified content, generating unified diffs.",
                  input: Schema.object(["workspace": Schema.workspace, "path": Schema.string("Relative to the workspace folder."),
                                        "content": Schema.string("The file's complete new text.")], required: ["path", "content"]),
-                 output: Schema.output(["path": Schema.str, "created": Schema.bool, "lineCount": Schema.int]), annotations: write, writes: true) { h, call in
+                 output: Schema.output(["path": Schema.str, "created": Schema.bool, "lineCount": Schema.int, "is_new": Schema.bool]),
+                 annotations: MCPToolAnnotations(readOnly: false, idempotent: true), writes: true) { h, call in
                 try await h.writeFile(call)
             },
             tool("file_edit", "Edit file",
@@ -185,9 +186,17 @@ extension YcodeMCPHost {
         let rel = relative(url.path, in: s)
         try await commit(MCPChange(tool: call.name, path: url.path, relativePath: rel, original: original, proposed: content,
                                    summary: original == nil ? "Create \(rel)" : "Replace \(rel)"), call: call, session: s)
-        let lines = content.split(separator: "\n", omittingEmptySubsequences: false).count
-        return .structured(["path": .string(rel), "created": .bool(original == nil), "lineCount": .int(lines)],
-                           summary: original == nil ? "Created \(rel)." : "Wrote \(rel).")
+        // Legacy's line count: `components(separatedBy: .newlines)` — a
+        // trailing newline counts as one more line ("Hello\nWorld\n"
+        // is 3 lines), unlike `split(separator:)`. Messages are
+        // Legacy's `AssistWriteFileTool` forms; `is_new` is Legacy's
+        // data key (kept alongside Ycode's `created`/`lineCount`).
+        // No `diff` key: Ycode has no Myers diff engine (see
+        // `YcodeTools+FileWriting.swift` header).
+        let lines = content.components(separatedBy: .newlines).count
+        let created = original == nil
+        return .structured(["path": .string(rel), "created": .bool(created), "lineCount": .int(lines), "is_new": .bool(created)],
+                           summary: created ? "Created new file: \(rel) (\(lines) lines)" : "Updated existing file: \(rel) (\(lines) lines)")
     }
 
     func editFile(_ call: MCPToolCall) async throws -> MCPToolResult {

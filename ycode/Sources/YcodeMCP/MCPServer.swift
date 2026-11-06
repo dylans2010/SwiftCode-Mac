@@ -281,8 +281,31 @@ public final class MCPServer: @unchecked Sendable {
     /// The revision served statelessly (per-request `_meta`).
     /// Legacy tool-name aliases, resolved at `tools/call` time only and
     /// never shown by `tools/list` (Legacy's registry resolves them the
-    /// same way).
-    public static let toolAliases: [String: String] = ["read_file": "file_read"]
+    /// same way). Wave 1 added `read_file`; Wave 2 adds the
+    /// file-writing family (verified against Legacy's
+    /// `AssistToolRegistry` alias table). `plist` and
+    /// `checksum_verifier` are deliberately NOT here: they point at
+    /// `plist_editor` and `file_checksum_verifier`, different tools.
+    public static let toolAliases: [String: String] = [
+        "read_file": "file_read",
+        "write_file": "file_write",
+        "create_file": "file_create",
+        "delete_file": "file_delete",
+        "move_file": "file_move",
+        "copy_file": "file_copy",
+        "rename_file": "file_rename",
+        "create_directory": "dir_create",
+        "make_directory": "dir_create",
+        "directory_create": "dir_create",
+        "delete_directory": "dir_delete",
+        "remove_directory": "dir_delete",
+        "directory_delete": "dir_delete",
+        "edit_file": "code_replace",
+        "replace_in_file": "code_replace",
+        "insert_code_block": "code_insert",
+        "insert_code": "code_insert",
+        "regex_replace": "regex_replace_in_files",
+    ]
 
     public static let modernVersion = "2026-07-28"
     /// The initialize-based revisions served to older clients, newest first.

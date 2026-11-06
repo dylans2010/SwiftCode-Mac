@@ -116,7 +116,15 @@ import YcodeAssistant
         let expected = ["workspace_open", "workspace_describe", "file_list", "file_read", "search", "issues", "build_settings", "symbol_search",
                         "build", "test", "clean", "build_log", "run", "run_output", "stop", "simulator_list", "simulator_boot",
                         "simulator_launch_app", "simulator_shutdown", "simulator_screenshot", "simulator_logs", "preview_list", "preview_render",
-                        "strings_catalogs", "strings_list", "strings_set", "file_write", "file_edit", "complete"]
+                        "strings_catalogs", "strings_list", "strings_set", "file_write", "file_edit", "complete",
+                        "dir_read", "dir_pwd", "dir_cd", "dir_size_report", "file_metadata", "file_head_preview", "count_file_lines", "tree_view",
+                        "file_compare_diff", "file_checksum_verifier", "file_hash_verify", "file_type_breakdown", "find_duplicate_files",
+                        "empty_dirs_find", "executable_files_scan", "symlink_audit", "list_artifacts", "read_artifact", "create_artifact",
+                        "delete_artifact", "file_backup", "open_in_finder", "reveal_in_finder",
+                        "file_create", "file_append", "file_copy", "file_move", "file_rename", "file_delete", "dir_create", "dir_delete",
+                        "code_replace", "code_insert", "code_multi_edit", "code_refactor", "code_format", "code_generate", "format_json_file",
+                        "csv_to_json", "json_to_csv", "plist_to_json", "json_to_plist", "batch_rename_files", "generate_file_checksum",
+                        "plist_edit", "regex_replace_in_files"]
         #expect(tools.map(\.name) == expected)
         for t in tools {
             let l = t.listing
@@ -129,7 +137,12 @@ import YcodeAssistant
             if let o = l["outputSchema"] { #expect(o["type"] == "object", "\(t.name)") }
             #expect(l["annotations"]?["readOnlyHint"] == .bool(!t.writes && t.annotations.readOnly))
         }
-        #expect(Set(tools.filter(\.writes).map(\.name)) == ["strings_set", "file_write", "file_edit"])
+        #expect(Set(tools.filter(\.writes).map(\.name)) == ["strings_set", "file_write", "file_edit", "create_artifact", "delete_artifact",
+                                                           "file_backup", "file_create", "file_append", "file_copy", "file_move", "file_rename",
+                                                           "file_delete", "dir_create", "dir_delete", "code_replace", "code_insert",
+                                                           "code_multi_edit", "code_refactor", "code_format", "code_generate", "format_json_file",
+                                                           "csv_to_json", "json_to_csv", "plist_to_json", "json_to_plist", "batch_rename_files",
+                                                           "plist_edit", "regex_replace_in_files"])
     }
 }
 
