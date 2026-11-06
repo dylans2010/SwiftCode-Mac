@@ -111,7 +111,7 @@ public struct OperationsDashboardView: View {
             VStack(alignment: .leading, spacing: 4) {
                 Text("\(archive.projectName) \(archive.version) (\(archive.buildNumber))").font(.headline)
                 Text("\(archive.date, style: .date) · \(archive.configuration) · \(archive.commit)").font(.caption).foregroundStyle(.secondary)
-                Text("Binary: \(ByteCountFormatter.string(fromByteCount: archive.binarySize, countStyle: .file)) · Symbols: \(archive.symbolsAvailable ? "yes" : "no")").font(.caption).foregroundStyle(.secondary)
+                Text("Binary: \(archive.binarySize > 0 ? ByteCountFormatter.string(fromByteCount: archive.binarySize, countStyle: .file) : "Not recorded") · Symbols: \(archive.symbolsAvailable ? "yes" : "no")").font(.caption).foregroundStyle(.secondary)
                 if !archive.releaseNotes.isEmpty { Text(archive.releaseNotes).font(.caption) }
             }
             .padding(.vertical, 4)

@@ -596,7 +596,7 @@ struct StoreKitProductsView: View {
             for idx in 0..<session.activeConfig.products.count {
                 if session.activeConfig.products[idx].localizations.isEmpty {
                     session.activeConfig.products[idx].localizations = [
-                        SKLocalization(locale: "en_US", displayName: session.activeConfig.products[idx].referenceName, description: "Bulk generated description placeholder.")
+                        SKLocalization(locale: "en_US", displayName: session.activeConfig.products[idx].referenceName, description: "")
                     ]
                 }
             }
@@ -692,7 +692,7 @@ struct SmartProductGeneratorSheet: View {
                     productID: String(smartID),
                     referenceName: prompt,
                     type: "NonConsumable",
-                    localizations: [SKLocalization(locale: "en_US", displayName: prompt, description: "AI Synthesized description placeholder.")],
+                    localizations: [SKLocalization(locale: "en_US", displayName: prompt, description: "")],
                     price: 4.99
                 )
                 session.activeConfig.products.append(smartProduct)
@@ -893,10 +893,10 @@ struct StoreKitDiagnosticsView: View {
             guard let id = productID else { return }
             if let idx = session.activeConfig.products.firstIndex(where: { $0.productID == id }) {
                 session.activeConfig.products[idx].localizations = [
-                    SKLocalization(locale: "en_US", displayName: session.activeConfig.products[idx].referenceName, description: "Default generated description.")
+                    SKLocalization(locale: "en_US", displayName: session.activeConfig.products[idx].referenceName, description: "")
                 ]
             }
-            StoreKitSimulationService.shared.logActivity(category: "Validation", title: "Missing Localizations Fixed", message: "Generated fallback US English placeholder.")
+            StoreKitSimulationService.shared.logActivity(category: "Validation", title: "Missing Localizations Fixed", message: "Generated fallback US English localization.")
 
         case .fixNegativePrice:
             guard let id = productID else { return }
@@ -1071,7 +1071,7 @@ struct StoreKitAssetEditorView: View {
                 VStack(alignment: .leading, spacing: 4) {
                     Text("Asset & Media Manager")
                         .font(.system(size: 18, weight: .bold))
-                    Text("Validates promotional graphic templates and App Store screen assets automatically.")
+                    Text("Promotional graphics and App Store screen assets for this project.")
                         .font(.system(size: 11))
                         .foregroundColor(.secondary)
                 }
@@ -1101,16 +1101,6 @@ struct StoreKitAssetEditorView: View {
             }
             .padding(24)
         }
-        .onAppear {
-            scanMockAssets()
-        }
-    }
-
-    private func scanMockAssets() {
-        projectAssets = [
-            SKAsset(fileName: "premium_promotional_art.png", resolvedPath: "/home/sandbox/project/assets/premium_promotional_art.png", size: "1.2 MB", type: "Promo Art"),
-            SKAsset(fileName: "pro_upgrade_screenshot.png", resolvedPath: "/home/sandbox/project/assets/pro_upgrade_screenshot.png", size: "840 KB", type: "Screenshot Mock")
-        ]
     }
 }
 

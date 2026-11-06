@@ -5,6 +5,9 @@
 // Missing behaviour ported: exportArchive; ArchiveDetailView
 // Static port only — no Swift toolchain here; build verification pending on Dylan's Mac.
 import SwiftUI
+#if canImport(UniformTypeIdentifiers)
+import UniformTypeIdentifiers
+#endif
 
 struct ArchiveManagerView: View {
     @State private var am = ArchiveManager.shared
@@ -58,7 +61,7 @@ struct ArchiveManagerView: View {
                             VStack(alignment: .leading, spacing: 2) {
                                 Text(archive.projectName)
                                     .font(.headline)
-                                Text("v\(archive.version) (\(archive.buildNumber)) • \(formatSize(archive.binarySize))")
+                                Text("v\(archive.version) (\(archive.buildNumber)) • \(archive.binarySize > 0 ? formatSize(archive.binarySize) : "Size not recorded")")
                                     .font(.caption2)
                                     .foregroundStyle(.secondary)
                             }
@@ -105,6 +108,7 @@ struct ArchiveDetailView: View {
     @State private var isExporting = false
     @State private var showReleaseNotesSheet = false
     @State private var notesText = ""
+    @State private var exportError: String? = nil
 
     var body: some View {
         ScrollView {
@@ -136,7 +140,7 @@ struct ArchiveDetailView: View {
                     SCDetailRow(label: "Configuration", value: archive.configuration)
                     SCDetailRow(label: "Commit", value: archive.commit)
                     SCDetailRow(label: "Symbols", value: archive.symbolsAvailable ? "Included" : "None")
-                    SCDetailRow(label: "Size", value: formatSize(archive.binarySize))
+                    SCDetailRow(label: "Size", value: archive.binarySize > 0 ? formatSize(archive.binarySize) : "Not recorded")
                 }
 
                 if !archive.releaseNotes.isEmpty {
@@ -162,12 +166,18 @@ struct ArchiveDetailView: View {
                     } label: {
                         HStack {
                             Image(systemName: "square.and.arrow.up")
-                            Text(isExporting ? "Exporting..." : "Distribute / Export App")
+                            Text(isExporting ? "Exporting..." : "Export Archive Manifest")
                             Spacer()
                         }
                     }
                     .buttonStyle(.borderedProminent)
                     .disabled(isExporting)
+
+                    if let exportError {
+                        Text(exportError)
+                            .font(.caption)
+                            .foregroundStyle(.red)
+                    }
 
                     Button {
                         notesText = archive.releaseNotes
@@ -227,16 +237,28 @@ struct ArchiveDetailView: View {
         }
     }
 
+    /// Exports the archive's real record as a JSON manifest. The archive
+    /// carries metadata only (project, version, build, commit, notes) —
+    /// no app binary was ever captured for it — so the export is honestly
+    /// a manifest of that record, not a `.app` bundle.
     private func exportArchive() {
         isExporting = true
+        exportError = nil
         let panel = NSSavePanel()
-        panel.allowedContentTypes = [.application]
-        panel.nameFieldStringValue = "\(archive.projectName).app"
+        panel.allowedContentTypes = [.json]
+        panel.nameFieldStringValue = "\(archive.projectName)-\(archive.version).archive.json"
         panel.begin { response in
-            if response == .OK, let url = panel.url {
-                try? "App Binary Placeholder".write(to: url, atomically: true, encoding: .utf8)
+            defer { isExporting = false }
+            guard response == .OK, let url = panel.url else { return }
+            do {
+                let encoder = JSONEncoder()
+                encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+                encoder.dateEncodingStrategy = .iso8601
+                let data = try encoder.encode(archive)
+                try data.write(to: url, options: .atomic)
+            } catch {
+                exportError = "Export failed: \(error.localizedDescription)"
             }
-            isExporting = false
         }
     }
 

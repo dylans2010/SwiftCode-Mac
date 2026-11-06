@@ -14,10 +14,12 @@ import SwiftUI
 ///   Authors menu still toggles it per editor).
 /// - Date Format: `GitBlame.annotation` renders the commit date as relative
 ///   ("2d ago"), absolute ("Nov 6, 2026 at 1:03 PM"), or the short hash.
-/// - Show Author Avatar: persisted, but the gutter draws text annotations
-///   today — rendering avatars in the gutter column needs an avatar column
-///   in `GutterView.drawAuthors` plus an avatar cache, and is a remaining
-///   wiring task (the setting is stored so the preference survives).
+/// - Show Author Avatar: `GutterView.drawAuthors` draws a deterministic
+///   initials avatar (a coloured circle with the author's initials,
+///   derived from the commit's real author name) at the start of each
+///   blame annotation. There is no photo source to fetch — git blame
+///   carries a name and an email, not a picture — so the initials
+///   circle is the rendering, cached per author in `GutterView`.
 ///
 /// Hook: add this view to the editor/source-control settings pane.
 @MainActor
@@ -44,7 +46,7 @@ public struct GitBlameExtensionView: View {
             }
 
             Section {
-                Text("Inline blame shows the last commit's author and date in the editor gutter. The avatar toggle is saved now; avatar drawing in the gutter is not implemented yet.")
+                Text("Inline blame shows the last commit's author and date in the editor gutter. When Show Author Avatar is on, the author's initials appear beside each annotation.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }

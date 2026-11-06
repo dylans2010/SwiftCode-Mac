@@ -134,7 +134,6 @@ public final class ArchiveManager {
             date: Date(),
             configuration: configuration,
             commit: commit,
-            binarySize: Int64.random(in: 12000000...45000000),
             symbolsAvailable: true,
             releaseNotes: notes
         )
@@ -279,7 +278,6 @@ public final class ReleaseManager {
             version: version,
             targetPlatform: platform,
             releaseDate: Date(),
-            size: Int64.random(in: 12000000...45000000),
             status: status
         )
         releases.insert(newRelease, at: 0)

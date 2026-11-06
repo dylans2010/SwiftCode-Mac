@@ -42,9 +42,11 @@ public enum GitBlameSettings {
         set { UserDefaults.standard.set(newValue.rawValue, forKey: dateFormatKey) }
     }
 
-    /// Whether blame annotations show the author's avatar. Persisted here;
-    /// rendering an avatar in the gutter column is a remaining wiring task
-    /// (the gutter draws text annotations today — see `GitBlameExtensionView`).
+    /// Whether blame annotations show the author's avatar. The gutter
+    /// renders it as a deterministic initials circle derived from the
+    /// commit's author name (`GutterView.avatarImage(for:)`, cached per
+    /// author); there is no photo source to fetch, so no network or
+    /// Gravatar lookup is involved.
     public static var showAuthorAvatar: Bool {
         get { UserDefaults.standard.bool(forKey: showAuthorAvatarKey) }
         set { UserDefaults.standard.set(newValue, forKey: showAuthorAvatarKey) }

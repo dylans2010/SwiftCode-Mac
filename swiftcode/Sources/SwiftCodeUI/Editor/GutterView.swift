@@ -79,6 +79,9 @@ public final class GutterView: NSRulerView, NSViewToolTipOwner {
     public static let authorsColumnWidth: CGFloat = 170
     /// Blame blocks of the shown text, sorted by line.
     public var authorBlocks: [GitBlame.Block] = [] { didSet { if oldValue != authorBlocks { needsDisplay = true } } }
+    /// Initials-avatar images by author name, so the gutter does not
+    /// redraw the same avatar every frame (`drawAuthors`).
+    private var avatarImageCache: [String: NSImage] = [:]
     /// A click in the Authors column (the line clicked).
     public var onAuthorsClick: ((Int) -> Void)?
     var authorsInset: CGFloat { showsAuthors ? Self.authorsColumnWidth : 0 }
@@ -447,6 +450,10 @@ extension GutterView {
         NSRect(x: 0, y: bounds.minY, width: w, height: bounds.height).fill()
         let para = NSMutableParagraphStyle()
         para.lineBreakMode = .byTruncatingTail
+        // The author's avatar: a deterministic initials circle derived
+        // from the commit's real author name (no photo lookup, no
+        // network). Off unless the Show Author Avatar setting is on.
+        let showAvatar = GitBlameSettings.showAuthorAvatar
         var shownBlock: Int?
         for (line, r) in rows {
             guard let bi = authorBlockIndex(atLine: line) else { continue }
@@ -465,13 +472,60 @@ extension GutterView {
                 NSRect(x: 0, y: row.minY, width: w, height: 0.5).fill()
             }
             let color: NSColor = b.commit.isUncommitted ? .tertiaryLabelColor : .secondaryLabelColor
+            // Uncommitted lines have no author, so they get no avatar.
+            let hasAvatar = showAvatar && !b.commit.author.isEmpty
+            let textX: CGFloat = hasAvatar ? 24 : 6
+            if hasAvatar {
+                let avatar = cachedAvatarImage(for: b.commit.author)
+                avatar.draw(in: NSRect(x: 4, y: row.midY - 8, width: 16, height: 16))
+            }
             let text = NSAttributedString(string: GitBlame.annotation(b.commit),
                                           attributes: [.font: Theme.gutterFont, .foregroundColor: color, .paragraphStyle: para])
             let h = text.size().height
-            text.draw(with: NSRect(x: 6, y: row.minY + (row.height - h) / 2, width: w - 12, height: h),
+            text.draw(with: NSRect(x: textX, y: row.minY + (row.height - h) / 2, width: w - textX - 6, height: h),
                       options: [.usesLineFragmentOrigin, .truncatesLastVisibleLine])
         }
         NSColor.separatorColor.setFill()
         NSRect(x: w - 1, y: bounds.minY, width: 1, height: bounds.height).fill()
+    }
+
+    /// The cached initials avatar for an author, drawn on demand.
+    private func cachedAvatarImage(for author: String) -> NSImage {
+        if let cached = avatarImageCache[author] { return cached }
+        let image = Self.avatarImage(for: author)
+        avatarImageCache[author] = image
+        return image
+    }
+
+    /// A 16 pt avatar for a blame author: a filled circle in a hue derived
+    /// deterministically from the author's name, with the author's initials
+    /// (first letters of the first two name words). There is no avatar photo
+    /// source to fetch — git blame carries a name and an email, not a
+    /// picture — so the initials circle is the real rendering, not a stand-in.
+    static func avatarImage(for author: String) -> NSImage {
+        let initials = author.split(separator: " ").prefix(2).compactMap(\.first)
+            .map { String($0).uppercased() }.joined()
+        let label = initials.isEmpty ? "?" : initials
+        var hash = 0
+        for scalar in author.unicodeScalars { hash = (hash &* 31) &+ Int(scalar.value) }
+        let hue = CGFloat(abs(hash) % 360) / 360.0
+        let fill = NSColor(calibratedHue: hue, saturation: 0.45, brightness: 0.72, alpha: 1)
+        let size = NSSize(width: 16, height: 16)
+        let image = NSImage(size: size)
+        image.lockFocus()
+        fill.setFill()
+        NSBezierPath(ovalIn: NSRect(origin: .zero, size: size)).fill()
+        let paragraph = NSMutableParagraphStyle()
+        paragraph.alignment = .center
+        let text = NSAttributedString(string: label, attributes: [
+            .font: NSFont.systemFont(ofSize: 8, weight: .semibold),
+            .foregroundColor: NSColor.white,
+            .paragraphStyle: paragraph,
+        ])
+        let textSize = text.size()
+        text.draw(at: NSPoint(x: (size.width - textSize.width) / 2,
+                              y: (size.height - textSize.height) / 2))
+        image.unlockFocus()
+        return image
     }
 }

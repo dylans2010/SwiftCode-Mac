@@ -22,10 +22,11 @@ struct ModelDownloadProgressView: View {
     @State private var didCopyError = false
     @State private var hasCompleted = false
 
-    // Real-time metrics
+    // Real-time metrics, read from the downloader (see pollRealProgress).
+    // totalBytesExpected is 0 until the downloader reports a real total.
     @State private var speedMBs: Double = 0.0
     @State private var bytesWritten: Int64 = 0
-    @State private var totalBytesExpected: Int64 = 150 * 1024 * 1024 // Fallback 150MB
+    @State private var totalBytesExpected: Int64 = 0
     @State private var startTime = Date()
     @State private var showLogs = false
     @State private var logHistory: [String] = []
@@ -38,7 +39,9 @@ struct ModelDownloadProgressView: View {
     }
 
     private var calculatedPercentage: Double {
-        downloader.downloadPercentage > 0 ? downloader.downloadPercentage : Double(bytesWritten) / Double(max(1, totalBytesExpected)) * 100
+        if downloader.downloadPercentage > 0 { return downloader.downloadPercentage }
+        guard totalBytesExpected > 0 else { return 0 }
+        return Double(bytesWritten) / Double(totalBytesExpected) * 100
     }
 
     private var downloadSpeedText: String {
@@ -50,6 +53,9 @@ struct ModelDownloadProgressView: View {
 
     private var sizeProgressText: String {
         let writtenMB = Double(bytesWritten) / (1024 * 1024)
+        guard totalBytesExpected > 0 else {
+            return String(format: "%.1f MB downloaded (total unknown)", writtenMB)
+        }
         let totalMB = Double(totalBytesExpected) / (1024 * 1024)
         return String(format: "%.1f MB of %.1f MB", writtenMB, totalMB)
     }
@@ -250,7 +256,7 @@ struct ModelDownloadProgressView: View {
             hasStarted = true
             appendLog("Initiating Model download pipeline.")
             await startDownloadIfNeeded()
-            simulateDownloadProgress()
+            pollRealProgress()
         }
         .onChange(of: downloader.isDownloading) { _, isDownloading in
             guard !isDownloading, hasStarted, !hasCompleted else { return }
@@ -284,22 +290,23 @@ struct ModelDownloadProgressView: View {
         logHistory.append("[\(timestamp)] \(text)")
     }
 
-    private func simulateDownloadProgress() {
+    /// Polls the downloader's real metrics instead of simulating them.
+    /// Bytes written and total come straight from `OfflineModelDownloader`
+    /// (which counts bytes actually received against the model's real
+    /// total); speed is the measured average — bytes received divided by
+    /// real elapsed time. Nothing here is invented: when the total is
+    /// still unknown it stays 0 and the UI says so.
+    private func pollRealProgress() {
         Task {
             while !hasCompleted && downloader.isDownloading {
-                try? await Task.sleep(for: .seconds(1.0))
-                // Read exact progress metrics safely or mock real measurements
-                let percentage = downloader.downloadPercentage
-                let expectedTotal = Int64(150 * 1024 * 1024)
-                let currentWritten = Int64(Double(expectedTotal) * (percentage / 100.0))
-
-                let elapsed = Date().timeIntervalSince(startTime)
-                let speed = elapsed > 0 ? (Double(currentWritten) / elapsed) / (1024 * 1024) : 1.2
-
+                try? await Task.sleep(for: .seconds(0.5))
+                let elapsed = max(Date().timeIntervalSince(startTime), 0.1)
                 await MainActor.run {
-                    self.bytesWritten = currentWritten > 0 ? currentWritten : Int64(percentage * 1.5 * 1024 * 1024)
-                    self.totalBytesExpected = expectedTotal
-                    self.speedMBs = max(0.5, speed > 100 ? 5.2 : speed)
+                    self.bytesWritten = downloader.bytesDownloaded
+                    self.totalBytesExpected = downloader.totalBytesToDownload
+                    self.speedMBs = downloader.bytesDownloaded > 0
+                        ? Double(downloader.bytesDownloaded) / elapsed / (1024 * 1024)
+                        : 0
                 }
             }
         }
