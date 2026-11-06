@@ -279,6 +279,11 @@ public enum MCPWritePolicy: Sendable {
 
 public final class MCPServer: @unchecked Sendable {
     /// The revision served statelessly (per-request `_meta`).
+    /// Legacy tool-name aliases, resolved at `tools/call` time only and
+    /// never shown by `tools/list` (Legacy's registry resolves them the
+    /// same way).
+    public static let toolAliases: [String: String] = ["read_file": "file_read"]
+
     public static let modernVersion = "2026-07-28"
     /// The initialize-based revisions served to older clients, newest first.
     public static let legacyVersions = ["2025-11-25", "2025-06-18", "2025-03-26"]
@@ -396,7 +401,10 @@ public final class MCPServer: @unchecked Sendable {
             return ["tools": .array(tools.map(\.listing))]
         case "tools/call":
             guard let name = params?["name"]?.string else { throw JSONRPCError.invalidParams("tools/call needs a tool name") }
-            guard let tool = tools.first(where: { $0.name == name }) else { throw JSONRPCError.invalidParams("Unknown tool: \(name)") }
+            // Legacy tool-name aliases, resolved at call time only (never
+            // listed): Legacy's registry maps `read_file` to `file_read`.
+            let resolved = Self.toolAliases[name] ?? name
+            guard let tool = tools.first(where: { $0.name == resolved }) else { throw JSONRPCError.invalidParams("Unknown tool: \(name)") }
             let args = params?["arguments"]?.object ?? [:]
             let call = MCPToolCall(name: name, arguments: args, progress: progress)
             return await run(tool, call).json

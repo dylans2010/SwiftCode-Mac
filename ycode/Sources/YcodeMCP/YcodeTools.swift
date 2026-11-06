@@ -51,6 +51,7 @@ extension YcodeMCPHost {
         server.resources = YcodeResources(host: self)
         server.prompts = Self.prompts
         server.tools = workspaceTools + buildTools + runTools + contentTools + completionTools
+            + fileReadingTools + fileInspectionTools + artifactTools
     }
 
     /// A tool whose handler runs on the main actor.

@@ -43,7 +43,11 @@ extension YcodeMCPHost {
                  "A text file of the workspace, with line numbers. In the IDE, an open editor's unsaved text is read.",
                  input: Schema.object(["workspace": Schema.workspace, "path": Schema.string("Relative to the workspace folder."),
                                        "startLine": Schema.integer("First line to read (1-based; default 1).", minimum: 1),
-                                       "lineCount": Schema.integer("Number of lines (default: to the end, at most 2000).", minimum: 1)],
+                                       "lineCount": Schema.integer("Number of lines (default: to the end, at most 2000).", minimum: 1),
+                                       "lines": ["type": "object",
+                                                 "description": .string("Legacy-style 1-based inclusive line range; wins over startLine/lineCount when present. start defaults to 1, end defaults to the last line."),
+                                                 "properties": ["start": Schema.integer("1-based first line to return. Default: 1.", minimum: 1),
+                                                                "end": Schema.integer("1-based last line to return, inclusive. Default: last line.", minimum: 1)]]],
                                       required: ["path"]),
                  output: Schema.output(["path": Schema.str, "startLine": Schema.int, "endLine": Schema.int, "lineCount": Schema.int, "text": Schema.str])) { h, call in
                 try h.readFile(call)
@@ -151,7 +155,10 @@ extension YcodeMCPHost {
 
     func readFile(_ call: MCPToolCall) throws -> MCPToolResult {
         let s = try session(for: call)
-        let url = try resolve(try call.require("path"), in: s)
+        // Resolves against the session working directory (`dir_cd`), like
+        // Legacy's file_read; absolute paths inside the workspace still
+        // work, and a leading `/` is workspace-root-relative.
+        let url = try resolveFileReadingPath(try call.require("path"), in: s)
         var isDir: ObjCBool = false
         guard FileManager.default.fileExists(atPath: url.path, isDirectory: &isDir) || delegate?.mcpHostText(ofOpenFile: url.path) != nil else {
             throw MCPToolError("\(relative(url.path, in: s)) does not exist")
@@ -163,10 +170,30 @@ extension YcodeMCPHost {
         guard let text = text(of: url) else { throw MCPToolError("\(relative(url.path, in: s)) is not UTF-8 text") }
         var lines = text.components(separatedBy: "\n")
         if text.hasSuffix("\n") { lines.removeLast() }
-        let start = max(1, call.int("startLine") ?? 1)
-        let count = min(call.int("lineCount") ?? 2000, 2000)
-        let end = min(lines.count, start + count - 1)
-        let slice = start <= lines.count ? Array(lines[(start - 1)..<end]) : []
+        let start: Int
+        let end: Int
+        let slice: [String]
+        if let range = call.arguments["lines"]?.object {
+            // Legacy's `lines: {start, end}` range (1-based, inclusive),
+            // which wins over startLine/lineCount when present. Its errors
+            // are strict: start > end and start past the last line are
+            // errors, never invented content; end is clamped.
+            let rangeStart = range["start"]?.int ?? 1
+            let rangeEnd = range["end"]?.int ?? lines.count
+            guard rangeStart >= 1, rangeEnd >= 1 else { throw MCPToolError("Invalid line range: start and end must be integers >= 1.") }
+            guard rangeStart <= rangeEnd else { throw MCPToolError("Invalid line range: start (\(rangeStart)) > end (\(rangeEnd)). Lines are 1-based inclusive.") }
+            if lines.isEmpty {
+                start = 1; end = 0; slice = []
+            } else {
+                guard rangeStart <= lines.count else { throw MCPToolError("Line range start (\(rangeStart)) exceeds total lines (\(lines.count)) in \(relative(url.path, in: s)). No content invented.") }
+                start = rangeStart; end = min(rangeEnd, lines.count); slice = Array(lines[(start - 1)...(end - 1)])
+            }
+        } else {
+            start = max(1, call.int("startLine") ?? 1)
+            let count = min(call.int("lineCount") ?? 2000, 2000)
+            end = min(lines.count, start + count - 1)
+            slice = start <= lines.count ? Array(lines[(start - 1)..<end]) : []
+        }
         let numbered = slice.enumerated().map { String(format: "%6d\t", start + $0.offset) + $0.element }.joined(separator: "\n")
         let more = end < lines.count ? "\n… (\(lines.count - end) more lines; read on with startLine \(end + 1))" : ""
         return MCPToolResult(content: [.textBlock(numbered + more)],

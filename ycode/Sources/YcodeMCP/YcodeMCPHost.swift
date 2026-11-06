@@ -32,6 +32,11 @@ public final class YcodeMCPHost {
     /// Whether the session is the IDE's (its scheme and destination stay
     /// the user's unless a call names others).
     public let sharesIDESession: Bool
+    /// The session working directory `dir_cd` sets and `dir_pwd` reports
+    /// (Legacy `AssistFileSystem.currentDirectory`). `nil` means the
+    /// workspace root. Plain relative paths in the file tools resolve
+    /// against it; it is reset whenever a new workspace is opened.
+    var currentDirectory: URL?
     /// Programs started by `run`, by run ID.
     var runs: [String: HostRun] = [:]
     var runOrder: [String] = []
@@ -85,6 +90,7 @@ public final class YcodeMCPHost {
         s.stopOnFirstError = false
         s.destination = model.destinations.first
         session = s
+        currentDirectory = nil
         observe(s)
         return s
     }
