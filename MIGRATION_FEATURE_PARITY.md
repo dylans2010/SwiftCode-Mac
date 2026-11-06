@@ -2,7 +2,7 @@
 
 Legacy -> SwiftCode-Mac. One row per Legacy file (11,832 rows). Only VERIFIED counts as complete. Statuses: NOT STARTED, IMPLEMENTED, SUPERSEDED (feature already present in the destination; the SwiftCode equivalent is named in Destination), VERIFIED (only VERIFIED counts as complete).
 
-Current counts (2026-11-06, after the bulk wave + rebrand + Wave 19 slices A/B/C/D/E/F): 2,409 IMPLEMENTED / 492 SUPERSEDED / 8,931 NOT STARTED / 0 VERIFIED. Nothing is VERIFIED: no Swift tools were run in the migration environment and the Mac build/test pass is still pending on Dylan's Mac. Of the 8,931 NOT STARTED, ~7,600 were already decided (2,484 generated Distribution output, 5,127 vendored venv, drops and other deliberate non-ports — each row records its reason in Disposition/Destination).
+Current counts (2026-11-06, after the bulk wave + rebrand + Wave 19 slices A/B/C/D/E/F + final-audit fixes): 2,406 IMPLEMENTED / 492 SUPERSEDED / 8,934 NOT STARTED / 0 VERIFIED. Nothing is VERIFIED: no Swift tools were run in the migration environment and the Mac build/test pass is still pending on Dylan's Mac. Of the 8,934 NOT STARTED, ~7,600 were already decided (2,484 generated Distribution output, 5,127 vendored venv, drops and other deliberate non-ports — each row records its reason in Disposition/Destination). Rows whose Destination records `DROPPED by design` are marked IMPLEMENTED because the drop decision itself (with its rationale/replacement) was implemented, not because the file was ported.
 
 This file is a copy of the migration workspace ledger; the workspace copy is the source of truth for future updates.
 
@@ -1020,11 +1020,11 @@ This file is a copy of the migration workspace ledger; the workspace copy is the
 | `SwiftCode/Backend/Codex/CodexSession.swift` | MIGRATE_AND_ADAPT | `swiftcode/Sources/SwiftCodeAssistant/CodexAPI/CodexSession.swift` | IMPLEMENTED |
 | `SwiftCode/Backend/Codex/CodexUsageTracker.swift` | MIGRATE_AND_ADAPT | `swiftcode/Sources/SwiftCodeAssistant/CodexAPI/CodexUsageTracker.swift` | IMPLEMENTED |
 | `SwiftCode/Backend/Debug/DebugRunnerService.swift` | MIGRATE_AND_ADAPT | `swiftcode/Sources/SwiftCodeSubprocess/StreamingSubprocess.swift (.lines) + Subprocess.run` | SUPERSEDED |
-| `SwiftCode/Backend/Deployments/DeploymentKeychainManager.swift` | MIGRATE_AND_ADAPT | - | IMPLEMENTED |
-| `SwiftCode/Backend/Deployments/DeploymentTargets.swift` | MIGRATE_AND_ADAPT | - | IMPLEMENTED |
+| `SwiftCode/Backend/Deployments/DeploymentKeychainManager.swift` | MIGRATE_AND_ADAPT | `swiftcode/Sources/SwiftCodeUI/Deploy/DeploymentService.swift` (provider tokens in SecretAccount secret store; tokenAccount) | IMPLEMENTED |
+| `SwiftCode/Backend/Deployments/DeploymentTargets.swift` | MIGRATE_AND_ADAPT | `swiftcode/Sources/SwiftCodeUI/Deploy/DeploymentService.swift` (provider enum: netlify/vercel/github pages + custom-domain toggle) | IMPLEMENTED |
 | `SwiftCode/Backend/Deployments/GitHubPagesManager.swift` | MIGRATE_AND_ADAPT | Pages helpers now public client methods in GitHubClient.swift (Wave 19 F) | IMPLEMENTED |
-| `SwiftCode/Backend/Deployments/NetlifyManager.swift` | MIGRATE_AND_ADAPT | - | IMPLEMENTED |
-| `SwiftCode/Backend/Deployments/VercelManager.swift` | MIGRATE_AND_ADAPT | - | IMPLEMENTED |
+| `SwiftCode/Backend/Deployments/NetlifyManager.swift` | MIGRATE_AND_ADAPT | `swiftcode/Sources/SwiftCodeUI/Deploy/DeploymentService.swift` (case netlify; token validated via GET /api/v1/user) | IMPLEMENTED |
+| `SwiftCode/Backend/Deployments/VercelManager.swift` | MIGRATE_AND_ADAPT | `swiftcode/Sources/SwiftCodeUI/Deploy/DeploymentService.swift` (case vercel; token validated via GET /api/v2/user) | IMPLEMENTED |
 | `SwiftCode/Backend/Developer/DebugToolsRegistry.swift` | MIGRATE_AND_ADAPT | `swiftcode/Sources/SwiftCodeIDECore/Debug/DebugToolsRegistry.swift` | IMPLEMENTED |
 | `SwiftCode/Backend/Developer/DeveloperModeManager.swift` | MIGRATE_AND_ADAPT | `swiftcode/Sources/SwiftCodeIDECore/Utilities/DeveloperModeManager.swift` | IMPLEMENTED |
 | `SwiftCode/Backend/Developer/FeatureFlags.swift` | MIGRATE_AND_ADAPT | `swiftcode/Sources/swiftcode-ide/Developer/DeveloperFeatureFlags.swift (all 7 flags) + swiftcode/Sources/SwiftCodePaywall/PaywallBypass.swift (bypass_paywall)` | SUPERSEDED |
@@ -1067,7 +1067,7 @@ This file is a copy of the migration workspace ledger; the workspace copy is the
 | `SwiftCode/Backend/GitHub/GitCommands.swift` | MIGRATE_AND_ADAPT | `swiftcode/Sources/SwiftCodeGitHub/GitHubClient.swift + swiftcode/Sources/SwiftCodeGitHub/GitHubProjectSync.swift + SwiftCodeMCP git tools` | SUPERSEDED |
 | `SwiftCode/Backend/GitHub/GitHubAPI.swift` | MIGRATE_AND_ADAPT | `New target SwiftCodeGitHub (GitHubClient.swift, GitHubModels.swift, GitHubError.swift, GitHubRepoReference.swift); 25 client methods (+listWorkflows, +rerunWorkflow, +Pages getPagesInfo/enablePages/listPagesDeployments — Wave 19 F), URLSession, api.github.com, Bearer token, typed errors` | IMPLEMENTED |
 | `SwiftCode/Backend/GitHub/GitHubAuth.swift` | MIGRATE_AND_ADAPT | `SwiftCodeGitHub GitHubClient tokenProvider + SecretAccount.githubToken; Settings ▸ Coding Assistant ▸ GitHub pane (SecureField + Validate via GET /user); no API key in the client (auth is the user's PAT in Keychain)` | IMPLEMENTED |
-| `SwiftCode/Backend/GitHub/GitHubBuilds.swift` | MIGRATE_AND_ADAPT | - | IMPLEMENTED |
+| `SwiftCode/Backend/GitHub/GitHubBuilds.swift` | MIGRATE_AND_ADAPT | `swiftcode/Sources/SwiftCodeGitHub/GitHubClient.swift` (listWorkflows, rerunWorkflow, listWorkflowRuns, getWorkflowRun) | IMPLEMENTED |
 | `SwiftCode/Backend/GitHub/GitHubGistService.swift` | MIGRATE_AND_ADAPT | `swiftcode/Sources/SwiftCodeGitHub/GitHubGists.swift (GitHubGistClient)` | SUPERSEDED |
 | `SwiftCode/Backend/GitHub/GitHubImport.swift` | MIGRATE_AND_ADAPT | - | NOT STARTED |
 | `SwiftCode/Backend/GitHub/GitHubOAuth.swift` | MIGRATE_AND_ADAPT | `swiftcode/Sources/SwiftCodeUI/App/GitHubOAuth.swift` | IMPLEMENTED |
@@ -1935,9 +1935,9 @@ This file is a copy of the migration workspace ledger; the workspace copy is the
 | `SwiftCode/Backend/On Device Intelligence/OnDeviceSession.swift` | MIGRATE_AND_ADAPT | - | NOT STARTED |
 | `SwiftCode/Backend/Persistence/BookmarkStore.swift` | MIGRATE_AND_ADAPT | `swiftcode/Sources/SwiftCodeIDECore/Session/Bookmarks.swift (Bookmark + BookmarkStore)` | SUPERSEDED |
 | `SwiftCode/Backend/Persistence/BreakpointStore.swift` | MIGRATE_AND_ADAPT | `swiftcode/Sources/SwiftCodeIDECore/Model/WorkspaceModel.swift (BreakpointStore)` | SUPERSEDED |
-| `SwiftCode/Backend/Persistence/NewFileComment.swift` | MIGRATE_AND_ADAPT | - | IMPLEMENTED |
+| `SwiftCode/Backend/Persistence/NewFileComment.swift` | MIGRATE_AND_ADAPT | `swiftcode/Sources/SwiftCodeIDECore/Model/NewFileComment.swift` | IMPLEMENTED |
 | `SwiftCode/Backend/Persistence/PreferencesStore.swift` | MIGRATE_AND_ADAPT | `swiftcode/Sources/SwiftCodeIDECore/Model/Preferences.swift (Preferences, UserDefaults-backed)` | SUPERSEDED |
-| `SwiftCode/Backend/Persistence/ProjectRegistryStore.swift` | MIGRATE_AND_ADAPT | - | IMPLEMENTED |
+| `SwiftCode/Backend/Persistence/ProjectRegistryStore.swift` | MIGRATE_AND_ADAPT | `swiftcode/Sources/SwiftCodeIDECore/Model/ProjectRegistryStore.swift` | IMPLEMENTED |
 | `SwiftCode/Backend/Persistence/Templates/AnalyticsDashboardViewTemplate.swift` | MIGRATE_AND_ADAPT | `swiftcode/Sources/SwiftCodeIDECore/Model/NewProject/LegacyProjectTemplates.swift` | IMPLEMENTED |
 | `SwiftCode/Backend/Persistence/Templates/AudioPlayerViewTemplate.swift` | MIGRATE_AND_ADAPT | `swiftcode/Sources/SwiftCodeIDECore/Model/NewProject/LegacyProjectTemplates.swift` | IMPLEMENTED |
 | `SwiftCode/Backend/Persistence/Templates/BudgetTrackerViewTemplate.swift` | MIGRATE_AND_ADAPT | `swiftcode/Sources/SwiftCodeIDECore/Model/NewProject/LegacyProjectTemplates.swift` | IMPLEMENTED |
@@ -2171,8 +2171,8 @@ This file is a copy of the migration workspace ledger; the workspace copy is the
 | `SwiftCode/Features/Testing/Views/TestToolsView.swift` | MIGRATE_AND_ADAPT | `swiftcode/Sources/swiftcode-ide/TestNavigator.swift + SwiftCodeBuild test running + test MCP tools` | SUPERSEDED |
 | `SwiftCode/Frameworks/Diff/DiffEngine.swift` | MIGRATE_AND_ADAPT | - | NOT STARTED |
 | `SwiftCode/Frameworks/Diff/MyersDiffAlgorithm.swift` | MIGRATE_AND_ADAPT | - | NOT STARTED |
-| `SwiftCode/Frameworks/Internal/Backups/Engine/BackupEngine.swift` | MIGRATE_AND_ADAPT | - | IMPLEMENTED |
-| `SwiftCode/Frameworks/Internal/Backups/Models/BackupModels.swift` | MIGRATE_AND_ADAPT | - | IMPLEMENTED |
+| `SwiftCode/Frameworks/Internal/Backups/Engine/BackupEngine.swift` | MIGRATE_AND_ADAPT | `swiftcode/Sources/SwiftCodeCloud/BackupEngine.swift` | IMPLEMENTED |
+| `SwiftCode/Frameworks/Internal/Backups/Models/BackupModels.swift` | MIGRATE_AND_ADAPT | `swiftcode/Sources/SwiftCodeCloud/BackupModels.swift` | IMPLEMENTED |
 | `SwiftCode/Frameworks/Internal/Backups/Protocols/BackupProtocols.swift` | MIGRATE_AND_ADAPT | `swiftcode/Sources/SwiftCodeCloud/BackupProtocols.swift` | IMPLEMENTED |
 | `SwiftCode/Frameworks/Internal/Cloud/Core/CloudError.swift` | MIGRATE_AND_ADAPT | `swiftcode/Sources/SwiftCodeCloud/CloudError.swift` | IMPLEMENTED |
 | `SwiftCode/Frameworks/Internal/Cloud/Core/CloudManager.swift` | MIGRATE_AND_ADAPT | `swiftcode/Sources/SwiftCodeCloud/CloudManager.swift` | IMPLEMENTED |
@@ -2217,7 +2217,7 @@ This file is a copy of the migration workspace ledger; the workspace copy is the
 | `SwiftCode/Frameworks/SyntaxHighlighting/TokenizedLine.swift` | MIGRATE_AND_ADAPT | `swiftcode/Sources/SwiftCodeSyntax/SyntaxToken.swift` | SUPERSEDED |
 | `SwiftCode/Frameworks/TextBuffer/TextBufferEngine.swift` | MIGRATE_AND_ADAPT | `swiftcode/Sources/SwiftCodeEditorKit/EditorBuffer.swift + EditorDocument.swift` | SUPERSEDED |
 | `SwiftCode/Info.plist` | RESOURCE_MIGRATION | - | NOT STARTED |
-| `SwiftCode/Models/AppSettings.swift` | MIGRATE_AND_ADAPT | - | IMPLEMENTED |
+| `SwiftCode/Models/AppSettings.swift` | MIGRATE_AND_ADAPT | `NOT ported as a class: SavedRepository/DashboardLayout/FileNavigator* types absent; individual settings dispersed to UserDefaults keys + @Observable stores (see LocalModelManager.swift:3,128)` | NOT STARTED |
 | `SwiftCode/Models/AssistModelOption.swift` | MIGRATE_AND_ADAPT | `swiftcode/Sources/SwiftCodeAssistant/Core.swift (ModelInfo) + AssistantSettings.swift` | SUPERSEDED |
 | `SwiftCode/Models/CodeReviewModels.swift` | MIGRATE_AND_ADAPT | `swiftcode/Sources/SwiftCodeIDECore/Model/CodeReviewModels.swift` | IMPLEMENTED |
 | `SwiftCode/Models/CoreModels.swift` | MIGRATE_AND_ADAPT | `swiftcode/Sources/SwiftCodeIDECore/Model/CoreModels.swift` | IMPLEMENTED |
@@ -10943,7 +10943,7 @@ This file is a copy of the migration workspace ledger; the workspace copy is the
 | `SwiftCode/Views/Assist/AntigravityLimitsModelsUI.swift` | MIGRATE_AND_ADAPT | - | NOT STARTED |
 | `SwiftCode/Views/Assist/AssistActivityView.swift` | MIGRATE_AND_ADAPT | `swiftcode/Sources/swiftcode-ide/AssistantTranscript.swift (message bubbles, tool-call rows, activity) + swiftcode/Sources/SwiftCodeUI/Window/WorkspaceWindowController+Assistant.swift` | SUPERSEDED |
 | `SwiftCode/Views/Assist/AssistArtifactsView.swift` | MIGRATE_AND_ADAPT | `swiftcode/Sources/SwiftCodeMCP/SwiftCodeTools+Artboards.swift + swiftcode/Sources/swiftcode-ide/PreviewCanvasView.swift` | SUPERSEDED |
-| `SwiftCode/Views/Assist/AssistComposerPopup.swift` | MIGRATE_AND_ADAPT | - | IMPLEMENTED |
+| `SwiftCode/Views/Assist/AssistComposerPopup.swift` | MIGRATE_AND_ADAPT | `swiftcode/Sources/SwiftCodeUI/Assistant/ConversationView.swift` (slash-command popup via SlashCommandPopupController) | IMPLEMENTED |
 | `SwiftCode/Views/Assist/AssistConversationsSheet.swift` | MIGRATE_AND_ADAPT | `swiftcode/Sources/swiftcode-ide/AssistantPane.swift (AssistantColumn, ConversationPanel) (ConversationList) + swiftcode/Sources/SwiftCodeAssistant/Conversation.swift (ConversationLibrary)` | SUPERSEDED |
 | `SwiftCode/Views/Assist/AssistDiffView.swift` | MIGRATE_AND_ADAPT | `swiftcode/Sources/swiftcode-ide/AssistantReviewSheet.swift + swiftcode/Sources/SwiftCodeUI/Assistant/ProposalReviewController.swift` | SUPERSEDED |
 | `SwiftCode/Views/Assist/AssistErrorBubble.swift` | MIGRATE_AND_ADAPT | `swiftcode/Sources/swiftcode-ide/AssistantTranscript.swift (message bubbles, tool-call rows, activity)` | SUPERSEDED |
@@ -11047,7 +11047,7 @@ This file is a copy of the migration workspace ledger; the workspace copy is the
 | `SwiftCode/Views/Build/LocalBuildDemoView.swift` | MIGRATE_AND_ADAPT | - | NOT STARTED |
 | `SwiftCode/Views/Build/LocalBuildView.swift` | MIGRATE_AND_ADAPT | `swiftcode/Sources/SwiftCodeBuild/XcodebuildEngine.swift + swiftcode-ide/BuildBezel.swift` | SUPERSEDED |
 | `SwiftCode/Views/Build/PrepareCompileWaitingView.swift` | MIGRATE_AND_ADAPT | `swiftcode/Sources/swiftcode-ide/BuildBezel.swift` | SUPERSEDED |
-| `SwiftCode/Views/Build/TerminalView.swift` | MIGRATE_AND_ADAPT | - | IMPLEMENTED |
+| `SwiftCode/Views/Build/TerminalView.swift` | MIGRATE_AND_ADAPT | `swiftcode/Sources/SwiftCodeUI/Terminal/SandboxTerminalWindowController.swift` (sandboxed terminal window) | IMPLEMENTED |
 | `SwiftCode/Views/Build/Xcode Build/AppleSignInManager.swift` | MIGRATE_AND_ADAPT | - | NOT STARTED |
 | `SwiftCode/Views/Build/Xcode Build/AppleSignInView.swift` | MIGRATE_AND_ADAPT | - | NOT STARTED |
 | `SwiftCode/Views/Build/Xcode Build/IPABuildView.swift` | MIGRATE_AND_ADAPT | - | NOT STARTED |
@@ -11091,7 +11091,7 @@ This file is a copy of the migration workspace ledger; the workspace copy is the
 | `SwiftCode/Views/DebugConsoleView.swift` | MIGRATE_AND_ADAPT | `swiftcode/Sources/swiftcode-ide/DebugArea.swift` | SUPERSEDED |
 | `SwiftCode/Views/Dependencies/DependencyManagerView.swift` | MIGRATE_AND_ADAPT | `swiftcode/Sources/swiftcode-ide/PackageDiscoveryView.swift` | IMPLEMENTED |
 | `SwiftCode/Views/Deployments/DeploymentLogsView.swift` | MIGRATE_AND_ADAPT | - | NOT STARTED |
-| `SwiftCode/Views/Deployments/DeploymentsView.swift` | MIGRATE_AND_ADAPT | - | IMPLEMENTED |
+| `SwiftCode/Views/Deployments/DeploymentsView.swift` | MIGRATE_AND_ADAPT | `swiftcode/Sources/SwiftCodeUI/Deploy/DeploymentWindowController.swift` (deployConsole.view; header cites Legacy DeploymentsView shape) + `swiftcode/Sources/SwiftCodeUI/Deploy/DeploymentService.swift` | IMPLEMENTED |
 | `SwiftCode/Views/Dev Tools/AESEncryptionDevToolView.swift` | MIGRATE_AND_ADAPT | `swiftcode/Sources/swiftcode-ide/DevTools/AESEncryptionDevToolView.swift` | IMPLEMENTED |
 | `SwiftCode/Views/Dev Tools/APIResponseViewerDevToolView.swift` | MIGRATE_AND_ADAPT | `swiftcode/Sources/swiftcode-ide/DevTools/APIResponseViewerDevToolView.swift` | IMPLEMENTED |
 | `SwiftCode/Views/Dev Tools/APITesterView.swift` | MIGRATE_AND_ADAPT | `swiftcode/Sources/swiftcode-ide/DevTools/APITesterView.swift` | IMPLEMENTED |
@@ -11292,10 +11292,10 @@ This file is a copy of the migration workspace ledger; the workspace copy is the
 | `SwiftCode/Views/Developer/VerboseLogging/VerboseLoggingView.swift` | MIGRATE_AND_ADAPT | `swiftcode/Sources/swiftcode-ide/Developer/VerboseLoggingView.swift` | IMPLEMENTED |
 | `SwiftCode/Views/Developer/Virtualization/AppKit/VirtualizationCoordinator.swift` | MIGRATE_AND_ADAPT | - | NOT STARTED |
 | `SwiftCode/Views/Developer/Virtualization/AppKit/VirtualizationSplitViewController.swift` | MIGRATE_AND_ADAPT | - | NOT STARTED |
-| `SwiftCode/Views/Developer/Virtualization/AppKit/VirtualizationWindowController.swift` | MIGRATE_AND_ADAPT | - | IMPLEMENTED |
+| `SwiftCode/Views/Developer/Virtualization/AppKit/VirtualizationWindowController.swift` | MIGRATE_AND_ADAPT | `swiftcode/Sources/SwiftCodeUI/Virtualization/VirtualizationWindowController.swift` | IMPLEMENTED |
 | `SwiftCode/Views/Developer/Virtualization/Core/SCVirtualizationEngine.swift` | MIGRATE_AND_ADAPT | - | NOT STARTED |
 | `SwiftCode/Views/Developer/Virtualization/Core/VirtualMachineController.swift` | MIGRATE_AND_ADAPT | - | NOT STARTED |
-| `SwiftCode/Views/Developer/Virtualization/Core/VirtualMachineRegistry.swift` | MIGRATE_AND_ADAPT | - | IMPLEMENTED |
+| `SwiftCode/Views/Developer/Virtualization/Core/VirtualMachineRegistry.swift` | MIGRATE_AND_ADAPT | `swiftcode/Sources/SwiftCodeUI/Virtualization/VirtualMachineRegistry.swift` | IMPLEMENTED |
 | `SwiftCode/Views/Developer/Virtualization/Core/VirtualizationEventBus.swift` | MIGRATE_AND_ADAPT | - | NOT STARTED |
 | `SwiftCode/Views/Developer/Virtualization/Core/VirtualizationRuntime.swift` | MIGRATE_AND_ADAPT | - | NOT STARTED |
 | `SwiftCode/Views/Developer/Virtualization/Core/VirtualizationStateStore.swift` | MIGRATE_AND_ADAPT | - | NOT STARTED |
@@ -11463,7 +11463,7 @@ This file is a copy of the migration workspace ledger; the workspace copy is the
 | `SwiftCode/Views/GitHub/SwiftCodeWorkflows/WorkflowTemplates.swift` | MIGRATE_AND_ADAPT | - | NOT STARTED |
 | `SwiftCode/Views/GitHub/SwiftCodeWorkflows/WorkflowsCreateView.swift` | MIGRATE_AND_ADAPT | - | NOT STARTED |
 | `SwiftCode/Views/GitHub/TagsView.swift` | MIGRATE_AND_ADAPT | `swiftcode/Sources/SwiftCodeUI/SourceControl/SourceControlNavigatorModel.swift (Tags group) + swiftcode/Sources/SwiftCodeIDEShell/SourceControlShellModel.swift (createTag/pushTag/deleteTag)` | SUPERSEDED |
-| `SwiftCode/Views/GitHub/WorkflowRunsView.swift` | MIGRATE_AND_ADAPT | - | IMPLEMENTED |
+| `SwiftCode/Views/GitHub/WorkflowRunsView.swift` | MIGRATE_AND_ADAPT | `swiftcode/Sources/SwiftCodeUI/CI/CIWindowController.swift` (GitHub Actions dashboard: runs, jobs, steps, logs, re-run) + `swiftcode/Sources/SwiftCodeUI/CI/GitHubActionsService.swift` | IMPLEMENTED |
 | `SwiftCode/Views/HomeProjectGridView.swift` | MIGRATE_AND_ADAPT | `swiftcode/Sources/swiftcode-ide/WelcomeView.swift` | SUPERSEDED |
 | `SwiftCode/Views/ImportProjView.swift` | MIGRATE_AND_ADAPT | `swiftcode/Sources/swiftcode-ide/OrganizerWindow.swift` | SUPERSEDED |
 | `SwiftCode/Views/InfoProjView.swift` | MIGRATE_AND_ADAPT | `swiftcode/Sources/swiftcode-ide/InspectorArea.swift` | SUPERSEDED |
@@ -11487,7 +11487,7 @@ This file is a copy of the migration workspace ledger; the workspace copy is the
 | `SwiftCode/Views/Settings/AppIconManager.swift` | MIGRATE_AND_ADAPT | `swiftcode/Sources/swiftcode-ide/AssetCatalogEditorView.swift + swiftcode/Sources/SwiftCodeUI/Editor/AssetCatalogEditorController.swift` | SUPERSEDED |
 | `SwiftCode/Views/Settings/AppIconSelectView.swift` | MIGRATE_AND_ADAPT | `swiftcode/Sources/swiftcode-ide/AssetCatalogEditorView.swift + swiftcode/Sources/SwiftCodeUI/Editor/AssetCatalogEditorController.swift` | SUPERSEDED |
 | `SwiftCode/Views/Settings/AppPermsView.swift` | MIGRATE_AND_ADAPT | `swiftcode/Sources/swiftcode-ide/AppPermissionsView.swift` | IMPLEMENTED |
-| `SwiftCode/Views/Settings/AssistSettingsView.swift` | MIGRATE_AND_ADAPT | - | IMPLEMENTED |
+| `SwiftCode/Views/Settings/AssistSettingsView.swift` | MIGRATE_AND_ADAPT | `swiftcode/Sources/SwiftCodeUI/App/CodingAssistantSettingsPane.swift` (Settings - Coding Assistant) | IMPLEMENTED |
 | `SwiftCode/Views/Settings/BackupDetailsView.swift` | MIGRATE_AND_ADAPT | `swiftcode/Sources/swiftcode-ide/BackupsSettingsView.swift` | IMPLEMENTED |
 | `SwiftCode/Views/Settings/BackupsView.swift` | MIGRATE_AND_ADAPT | `swiftcode/Sources/swiftcode-ide/BackupsSettingsView.swift` | IMPLEMENTED |
 | `SwiftCode/Views/Settings/CloudAuthViews.swift` | MIGRATE_AND_ADAPT | `swiftcode/Sources/SwiftCodeUI/App/CloudAccountsSettings.swift + SettingsPanes.swift AccountsSettingsPane SwiftCode section (auth sheet: login / create account / forgot password; password-reset completion UI in PasswordResetWindowController.swift — Wave 19 F)` | IMPLEMENTED |
@@ -11604,16 +11604,16 @@ This file is a copy of the migration workspace ledger; the workspace copy is the
 | `SwiftCode/Views/Utilities/CodeDictionarySearch.swift` | MIGRATE_AND_ADAPT | `swiftcode/Sources/SwiftCodeUI/Dictionary/CodingDictionaryWindowController.swift` | SUPERSEDED |
 | `SwiftCode/Views/Utilities/CodingDictionaryView.swift` | MIGRATE_AND_ADAPT | `PARTIAL (Wave 17 §27.3.2) — window + split controller + sidebar/detail views ported as swiftcode/Sources/SwiftCodeUI/Dictionary/CodingDictionaryWindowController.swift (entry rendered as structured attributed text); Legacy's window chrome not reproduced` | IMPLEMENTED |
 | `SwiftCode/Views/Utilities/CopyLogsButton.swift` | MIGRATE_AND_ADAPT | `swiftcode/Sources/swiftcode-ide/DebugConsoleRows.swift` | SUPERSEDED |
-| `SwiftCode/Views/Utilities/Database/Core/DatabaseBackupManager.swift` | MIGRATE_AND_ADAPT | - | IMPLEMENTED |
+| `SwiftCode/Views/Utilities/Database/Core/DatabaseBackupManager.swift` | MIGRATE_AND_ADAPT | `swiftcode/Sources/SwiftCodeIDECore/Model/Database/DatabaseBackups.swift` (class DatabaseBackupManager) | IMPLEMENTED |
 | `SwiftCode/Views/Utilities/Database/Core/DatabaseCache.swift` | MIGRATE_AND_ADAPT | - | NOT STARTED |
 | `SwiftCode/Views/Utilities/Database/Core/DatabaseConnectionManager.swift` | MIGRATE_AND_ADAPT | - | NOT STARTED |
-| `SwiftCode/Views/Utilities/Database/Core/DatabaseExportManager.swift` | MIGRATE_AND_ADAPT | - | IMPLEMENTED |
-| `SwiftCode/Views/Utilities/Database/Core/DatabaseImportManager.swift` | MIGRATE_AND_ADAPT | - | IMPLEMENTED |
+| `SwiftCode/Views/Utilities/Database/Core/DatabaseExportManager.swift` | MIGRATE_AND_ADAPT | `swiftcode/Sources/SwiftCodeIDECore/Model/Database/DatabaseImportExport.swift` (class DatabaseExportManager) | IMPLEMENTED |
+| `SwiftCode/Views/Utilities/Database/Core/DatabaseImportManager.swift` | MIGRATE_AND_ADAPT | `swiftcode/Sources/SwiftCodeIDECore/Model/Database/DatabaseImportExport.swift` (class DatabaseImportManager) | IMPLEMENTED |
 | `SwiftCode/Views/Utilities/Database/Core/DatabaseManager.swift` | MIGRATE_AND_ADAPT | - | NOT STARTED |
-| `SwiftCode/Views/Utilities/Database/Core/DatabaseMigrationManager.swift` | MIGRATE_AND_ADAPT | - | IMPLEMENTED |
+| `SwiftCode/Views/Utilities/Database/Core/DatabaseMigrationManager.swift` | MIGRATE_AND_ADAPT | `swiftcode/Sources/SwiftCodeIDECore/Model/Database/DatabaseMigrations.swift` (class DatabaseMigrationManager) | IMPLEMENTED |
 | `SwiftCode/Views/Utilities/Database/Core/DatabaseSchemaManager.swift` | MIGRATE_AND_ADAPT | - | NOT STARTED |
 | `SwiftCode/Views/Utilities/Database/Core/DatabaseSyncManager.swift` | MIGRATE_AND_ADAPT | - | NOT STARTED |
-| `SwiftCode/Views/Utilities/Database/Core/DatabaseTemplateManager.swift` | MIGRATE_AND_ADAPT | - | IMPLEMENTED |
+| `SwiftCode/Views/Utilities/Database/Core/DatabaseTemplateManager.swift` | MIGRATE_AND_ADAPT | `swiftcode/Sources/SwiftCodeIDECore/Model/Database/DatabaseTemplates.swift` (class DatabaseTemplateManager) | IMPLEMENTED |
 | `SwiftCode/Views/Utilities/Database/Core/DatabaseValidationManager.swift` | MIGRATE_AND_ADAPT | - | NOT STARTED |
 | `SwiftCode/Views/Utilities/Database/DatabaseExplorerSidebarViewController.swift` | MIGRATE_AND_ADAPT | - | NOT STARTED |
 | `SwiftCode/Views/Utilities/Database/DatabaseExplorerSplitViewController.swift` | MIGRATE_AND_ADAPT | - | NOT STARTED |
@@ -11621,33 +11621,33 @@ This file is a copy of the migration workspace ledger; the workspace copy is the
 | `SwiftCode/Views/Utilities/Database/DatabaseExplorerWindowController.swift` | MIGRATE_AND_ADAPT | `swiftcode/Sources/SwiftCodeUI/Database/SQLiteExplorerWindowController.swift (Wave 17 §27.3.1, idempotent showWindow + NSOpenPanel file pick)` | IMPLEMENTED |
 | `SwiftCode/Views/Utilities/Database/DatabaseExplorerWindowManager.swift` | MIGRATE_AND_ADAPT | `swiftcode/Sources/SwiftCodeUI/Database/SQLiteExplorerWindowController.swift (Wave 17 §27.3.1, SQLiteExplorerWindowManager idempotent showWindow)` | IMPLEMENTED |
 | `SwiftCode/Views/Utilities/Database/Helpers/DatabaseConstants.swift` | MIGRATE_AND_ADAPT | - | NOT STARTED |
-| `SwiftCode/Views/Utilities/Database/Helpers/DatabaseErrorHandler.swift` | MIGRATE_AND_ADAPT | - | IMPLEMENTED |
+| `SwiftCode/Views/Utilities/Database/Helpers/DatabaseErrorHandler.swift` | MIGRATE_AND_ADAPT | `swiftcode/Sources/SwiftCodeUI/Database/SQLiteExplorerModel.swift` (SQLiteExplorerError) + per-domain errors: DatabaseBackupError, DatabaseMigrationError, DatabaseCSVError, DatabaseAIError | IMPLEMENTED |
 | `SwiftCode/Views/Utilities/Database/Helpers/DatabaseFormatter.swift` | MIGRATE_AND_ADAPT | - | NOT STARTED |
-| `SwiftCode/Views/Utilities/Database/Helpers/DatabaseUtilities.swift` | MIGRATE_AND_ADAPT | - | IMPLEMENTED |
+| `SwiftCode/Views/Utilities/Database/Helpers/DatabaseUtilities.swift` | MIGRATE_AND_ADAPT | `swiftcode/Sources/SwiftCodeIDECore/Model/Database/DatabaseSQL.swift` (SQL helper namespace) | IMPLEMENTED |
 | `SwiftCode/Views/Utilities/Database/Helpers/DatabaseValidators.swift` | MIGRATE_AND_ADAPT | - | NOT STARTED |
-| `SwiftCode/Views/Utilities/Database/Models/Database.swift` | MIGRATE_AND_ADAPT | - | IMPLEMENTED |
-| `SwiftCode/Views/Utilities/Database/Models/DatabaseColumn.swift` | MIGRATE_AND_ADAPT | - | IMPLEMENTED |
-| `SwiftCode/Views/Utilities/Database/Models/DatabaseConnection.swift` | MIGRATE_AND_ADAPT | - | IMPLEMENTED |
-| `SwiftCode/Views/Utilities/Database/Models/DatabaseIndex.swift` | MIGRATE_AND_ADAPT | - | IMPLEMENTED |
-| `SwiftCode/Views/Utilities/Database/Models/DatabaseMigration.swift` | MIGRATE_AND_ADAPT | - | IMPLEMENTED |
-| `SwiftCode/Views/Utilities/Database/Models/DatabaseRelationship.swift` | MIGRATE_AND_ADAPT | - | IMPLEMENTED |
-| `SwiftCode/Views/Utilities/Database/Models/DatabaseTable.swift` | MIGRATE_AND_ADAPT | - | IMPLEMENTED |
-| `SwiftCode/Views/Utilities/Database/Models/DatabaseTemplate.swift` | MIGRATE_AND_ADAPT | - | IMPLEMENTED |
-| `SwiftCode/Views/Utilities/Database/Models/DatabaseTrigger.swift` | MIGRATE_AND_ADAPT | - | IMPLEMENTED |
-| `SwiftCode/Views/Utilities/Database/Services/DatabaseAIService.swift` | MIGRATE_AND_ADAPT | - | IMPLEMENTED |
-| `SwiftCode/Views/Utilities/Database/Services/DatabaseHistoryService.swift` | MIGRATE_AND_ADAPT | - | IMPLEMENTED |
+| `SwiftCode/Views/Utilities/Database/Models/Database.swift` | MIGRATE_AND_ADAPT | `swiftcode/Sources/SwiftCodeUI/Database/SQLiteExplorerModel.swift` (SQLiteExplorerTable/Column/Result; opened-database model) | IMPLEMENTED |
+| `SwiftCode/Views/Utilities/Database/Models/DatabaseColumn.swift` | MIGRATE_AND_ADAPT | `swiftcode/Sources/SwiftCodeUI/Database/SQLiteExplorerModel.swift` (struct SQLiteExplorerColumn) | IMPLEMENTED |
+| `SwiftCode/Views/Utilities/Database/Models/DatabaseConnection.swift` | MIGRATE_AND_ADAPT | `swiftcode/Sources/SwiftCodeUI/Database/SQLiteExplorerModel.swift` (no separate Connection type; the opened database + queries live in SQLiteExplorerModel) | IMPLEMENTED |
+| `SwiftCode/Views/Utilities/Database/Models/DatabaseIndex.swift` | MIGRATE_AND_ADAPT | `No DatabaseIndex model type and no Indexes view (row 11642 NOT STARTED); index metadata read only via PRAGMA index_list for AI insights (DatabaseAIAssistant.swift:105)` | NOT STARTED |
+| `SwiftCode/Views/Utilities/Database/Models/DatabaseMigration.swift` | MIGRATE_AND_ADAPT | `swiftcode/Sources/SwiftCodeIDECore/Model/Database/DatabaseMigrations.swift` (struct DatabaseMigration) | IMPLEMENTED |
+| `SwiftCode/Views/Utilities/Database/Models/DatabaseRelationship.swift` | MIGRATE_AND_ADAPT | `swiftcode/Sources/SwiftCodeIDECore/Model/Database/DatabaseTemplates.swift` (DatabaseTemplateRelationship, DatabaseRelationshipType) | IMPLEMENTED |
+| `SwiftCode/Views/Utilities/Database/Models/DatabaseTable.swift` | MIGRATE_AND_ADAPT | `swiftcode/Sources/SwiftCodeUI/Database/SQLiteExplorerModel.swift` (struct SQLiteExplorerTable) | IMPLEMENTED |
+| `SwiftCode/Views/Utilities/Database/Models/DatabaseTemplate.swift` | MIGRATE_AND_ADAPT | `swiftcode/Sources/SwiftCodeIDECore/Model/Database/DatabaseTemplates.swift` (struct DatabaseTemplate) | IMPLEMENTED |
+| `SwiftCode/Views/Utilities/Database/Models/DatabaseTrigger.swift` | MIGRATE_AND_ADAPT | `No trigger model/introspection in the Explorer; tables/columns/indexes only` | NOT STARTED |
+| `SwiftCode/Views/Utilities/Database/Services/DatabaseAIService.swift` | MIGRATE_AND_ADAPT | `swiftcode/Sources/SwiftCodeIDECore/Model/Database/DatabaseAIAssistant.swift` (class DatabaseAIAssistant) | IMPLEMENTED |
+| `SwiftCode/Views/Utilities/Database/Services/DatabaseHistoryService.swift` | MIGRATE_AND_ADAPT | `swiftcode/Sources/SwiftCodeIDECore/Model/Database/DatabaseHistory.swift` (class DatabaseHistoryService) | IMPLEMENTED |
 | `SwiftCode/Views/Utilities/Database/Services/SupabaseService.swift` | MIGRATE_AND_ADAPT | `Wave 12: NOT ported — pure-URLSession PostgREST client for the Database utility (user DB connections), not auth; not in Wave 12 accounts/cloud/auth scope` | IMPLEMENTED |
-| `SwiftCode/Views/Utilities/Database/Views/DatabaseAIView.swift` | MIGRATE_AND_ADAPT | - | IMPLEMENTED |
-| `SwiftCode/Views/Utilities/Database/Views/DatabaseBackupView.swift` | MIGRATE_AND_ADAPT | - | IMPLEMENTED |
+| `SwiftCode/Views/Utilities/Database/Views/DatabaseAIView.swift` | MIGRATE_AND_ADAPT | `swiftcode/Sources/SwiftCodeUI/Database/SQLiteExplorerWindowController.swift` (.ai section) + `swiftcode/Sources/SwiftCodeIDECore/Model/Database/DatabaseAIAssistant.swift` | IMPLEMENTED |
+| `SwiftCode/Views/Utilities/Database/Views/DatabaseBackupView.swift` | MIGRATE_AND_ADAPT | `swiftcode/Sources/SwiftCodeUI/Database/SQLiteExplorerWindowController.swift` (.backups section) + `swiftcode/Sources/SwiftCodeIDECore/Model/Database/DatabaseBackups.swift` | IMPLEMENTED |
 | `SwiftCode/Views/Utilities/Database/Views/DatabaseConnectionWizard.swift` | MIGRATE_AND_ADAPT | - | NOT STARTED |
 | `SwiftCode/Views/Utilities/Database/Views/DatabaseConnectionsView.swift` | MIGRATE_AND_ADAPT | - | NOT STARTED |
-| `SwiftCode/Views/Utilities/Database/Views/DatabaseDashboard.swift` | MIGRATE_AND_ADAPT | - | IMPLEMENTED |
-| `SwiftCode/Views/Utilities/Database/Views/DatabaseImportExportView.swift` | MIGRATE_AND_ADAPT | - | IMPLEMENTED |
+| `SwiftCode/Views/Utilities/Database/Views/DatabaseDashboard.swift` | MIGRATE_AND_ADAPT | `swiftcode/Sources/SwiftCodeIDECore/Model/Database/DatabaseDashboard.swift` | IMPLEMENTED |
+| `SwiftCode/Views/Utilities/Database/Views/DatabaseImportExportView.swift` | MIGRATE_AND_ADAPT | `swiftcode/Sources/SwiftCodeUI/Database/SQLiteExplorerWindowController.swift` (.importExport section) + `swiftcode/Sources/SwiftCodeIDECore/Model/Database/DatabaseImportExport.swift` | IMPLEMENTED |
 | `SwiftCode/Views/Utilities/Database/Views/DatabaseIndexesView.swift` | MIGRATE_AND_ADAPT | - | NOT STARTED |
 | `SwiftCode/Views/Utilities/Database/Views/DatabaseInspector.swift` | MIGRATE_AND_ADAPT | - | NOT STARTED |
-| `SwiftCode/Views/Utilities/Database/Views/DatabaseLogsView.swift` | MIGRATE_AND_ADAPT | - | IMPLEMENTED |
-| `SwiftCode/Views/Utilities/Database/Views/DatabaseMigrationView.swift` | MIGRATE_AND_ADAPT | - | IMPLEMENTED |
-| `SwiftCode/Views/Utilities/Database/Views/DatabasePerformanceView.swift` | MIGRATE_AND_ADAPT | - | IMPLEMENTED |
+| `SwiftCode/Views/Utilities/Database/Views/DatabaseLogsView.swift` | MIGRATE_AND_ADAPT | `swiftcode/Sources/SwiftCodeIDECore/Model/Database/DatabaseHistory.swift` (header: logs section renders this service's query history) + `swiftcode/Sources/SwiftCodeUI/Database/SQLiteExplorerSectionsController.swift` (.logs section) | IMPLEMENTED |
+| `SwiftCode/Views/Utilities/Database/Views/DatabaseMigrationView.swift` | MIGRATE_AND_ADAPT | `swiftcode/Sources/SwiftCodeUI/Database/SQLiteExplorerWindowController.swift` (.migrations section) + `swiftcode/Sources/SwiftCodeIDECore/Model/Database/DatabaseMigrations.swift` | IMPLEMENTED |
+| `SwiftCode/Views/Utilities/Database/Views/DatabasePerformanceView.swift` | MIGRATE_AND_ADAPT | `swiftcode/Sources/SwiftCodeUI/Database/SQLiteExplorerWindowController.swift` (.performance section) + `swiftcode/Sources/SwiftCodeIDECore/Model/Database/DatabasePerformance.swift` | IMPLEMENTED |
 | `SwiftCode/Views/Utilities/Database/Views/DatabasePermissionsView.swift` | MIGRATE_AND_ADAPT | - | NOT STARTED |
 | `SwiftCode/Views/Utilities/Database/Views/DatabaseQueryEditor.swift` | MIGRATE_AND_ADAPT | - | NOT STARTED |
 | `SwiftCode/Views/Utilities/Database/Views/DatabaseRecordEditor.swift` | MIGRATE_AND_ADAPT | - | NOT STARTED |
@@ -11657,10 +11657,10 @@ This file is a copy of the migration workspace ledger; the workspace copy is the
 | `SwiftCode/Views/Utilities/Database/Views/DatabaseSchemaView.swift` | MIGRATE_AND_ADAPT | - | NOT STARTED |
 | `SwiftCode/Views/Utilities/Database/Views/DatabaseSettingsView.swift` | MIGRATE_AND_ADAPT | - | NOT STARTED |
 | `SwiftCode/Views/Utilities/Database/Views/DatabaseSidebar.swift` | MIGRATE_AND_ADAPT | - | NOT STARTED |
-| `SwiftCode/Views/Utilities/Database/Views/DatabaseStatisticsView.swift` | MIGRATE_AND_ADAPT | - | IMPLEMENTED |
+| `SwiftCode/Views/Utilities/Database/Views/DatabaseStatisticsView.swift` | MIGRATE_AND_ADAPT | `swiftcode/Sources/SwiftCodeUI/Database/SQLiteExplorerWindowController.swift` (.dashboard section) + `swiftcode/Sources/SwiftCodeIDECore/Model/Database/DatabaseDashboard.swift` (DatabaseDashboardStats) + `swiftcode/Sources/SwiftCodeIDECore/Model/Database/DatabasePerformance.swift` (DatabaseTableStats) | IMPLEMENTED |
 | `SwiftCode/Views/Utilities/Database/Views/DatabaseTableEditor.swift` | MIGRATE_AND_ADAPT | - | NOT STARTED |
 | `SwiftCode/Views/Utilities/Database/Views/DatabaseTablesView.swift` | MIGRATE_AND_ADAPT | - | NOT STARTED |
-| `SwiftCode/Views/Utilities/Database/Views/DatabaseTemplatesView.swift` | MIGRATE_AND_ADAPT | - | IMPLEMENTED |
+| `SwiftCode/Views/Utilities/Database/Views/DatabaseTemplatesView.swift` | MIGRATE_AND_ADAPT | `swiftcode/Sources/SwiftCodeUI/Database/SQLiteExplorerWindowController.swift` (.templates section) + `swiftcode/Sources/SwiftCodeIDECore/Model/Database/DatabaseTemplates.swift` | IMPLEMENTED |
 | `SwiftCode/Views/Utilities/DependencyManager/DependencyPlatformManager.swift` | MIGRATE_AND_ADAPT | `swiftcode/Sources/SwiftCodeIDEShell/PackageDiscoveryModel.swift` | IMPLEMENTED |
 | `SwiftCode/Views/Utilities/DependencyManager/DependencySecurityCenterView.swift` | MIGRATE_AND_ADAPT | `swiftcode/Sources/swiftcode-ide/PackageDiscoveryView.swift` | IMPLEMENTED |
 | `SwiftCode/Views/Utilities/DependencyManager/DependencyVisualizerView.swift` | MIGRATE_AND_ADAPT | `swiftcode/Sources/swiftcode-ide/PackageDiscoveryView.swift` | IMPLEMENTED |
@@ -11820,7 +11820,7 @@ This file is a copy of the migration workspace ledger; the workspace copy is the
 | `SwiftCode/Views/Utilities/VisualUIBuilder/VisualUICanvasView.swift` | MIGRATE_AND_ADAPT | - | NOT STARTED |
 | `SwiftCode/Views/Utilities/VisualUIBuilder/VisualUICodePanel.swift` | MIGRATE_AND_ADAPT | - | NOT STARTED |
 | `SwiftCode/Views/Utilities/VisualUIBuilder/VisualUIComponentLibrary.swift` | MIGRATE_AND_ADAPT | - | NOT STARTED |
-| `SwiftCode/Views/Utilities/VisualUIBuilder/VisualUIDocument.swift` | MIGRATE_AND_ADAPT | - | IMPLEMENTED |
+| `SwiftCode/Views/Utilities/VisualUIBuilder/VisualUIDocument.swift` | MIGRATE_AND_ADAPT | `swiftcode/Sources/SwiftCodeMCP/SwiftCodeTools+Artboards.swift` (ArtboardDocument:897, load:957/save:964, .swiftcode-artboard per-workspace persistence) | IMPLEMENTED |
 | `SwiftCode/Views/Utilities/VisualUIBuilder/VisualUIExportView.swift` | MIGRATE_AND_ADAPT | - | NOT STARTED |
 | `SwiftCode/Views/Utilities/VisualUIBuilder/VisualUIHierarchy.swift` | MIGRATE_AND_ADAPT | - | NOT STARTED |
 | `SwiftCode/Views/Utilities/VisualUIBuilder/VisualUIInspector.swift` | MIGRATE_AND_ADAPT | - | NOT STARTED |
@@ -11829,7 +11829,7 @@ This file is a copy of the migration workspace ledger; the workspace copy is the
 | `SwiftCode/Views/Utilities/VisualUIBuilder/VisualUIPreviewPanel.swift` | MIGRATE_AND_ADAPT | - | NOT STARTED |
 | `SwiftCode/Views/Utilities/VisualUIBuilder/VisualUIPropertiesPanel.swift` | MIGRATE_AND_ADAPT | - | NOT STARTED |
 | `SwiftCode/Views/Utilities/VisualUIBuilder/VisualUIRenderer.swift` | MIGRATE_AND_ADAPT | - | NOT STARTED |
-| `SwiftCode/Views/Utilities/VisualUIBuilder/VisualUIScene.swift` | MIGRATE_AND_ADAPT | - | IMPLEMENTED |
+| `SwiftCode/Views/Utilities/VisualUIBuilder/VisualUIScene.swift` | MIGRATE_AND_ADAPT | `swiftcode/Sources/SwiftCodeMCP/SwiftCodeTools+Artboards.swift` (scene carried as JSON; document.activeArtboardID/artboards rendered by ArtboardWindowController.swift; no VisualUIScene Swift type) | IMPLEMENTED |
 | `SwiftCode/Views/Utilities/VisualUIBuilder/VisualUISettings.swift` | MIGRATE_AND_ADAPT | - | NOT STARTED |
 | `SwiftCode/Views/Utilities/VisualUIBuilder/VisualUITemplatesView.swift` | MIGRATE_AND_ADAPT | - | NOT STARTED |
 | `SwiftCode/Views/Utilities/VisualUIBuilder/VisualUIToolbar.swift` | MIGRATE_AND_ADAPT | - | NOT STARTED |

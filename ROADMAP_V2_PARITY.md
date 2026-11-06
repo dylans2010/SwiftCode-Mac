@@ -47,5 +47,5 @@ after the migration. They do not mean the feature was run, built, or
 verified on a Mac — no Swift tools were run in this environment (per
 Dylan, 2026-11-06) and the Mac build/test pass is still pending on
 Dylan's Mac. The per-file ledger is `MIGRATION_FEATURE_PARITY.md`
-(2,409 IMPLEMENTED / 492 SUPERSEDED / 8,931 NOT STARTED of 11,832
+(2,406 IMPLEMENTED / 492 SUPERSEDED / 8,934 NOT STARTED of 11,832
 Legacy files; 0 VERIFIED).
