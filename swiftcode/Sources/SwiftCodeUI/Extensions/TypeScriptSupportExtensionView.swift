@@ -1,0 +1,61 @@
+// Ported from Legacy `SwiftCode/Views/Settings/Extension Management/TypeScriptSupportExtensionView.swift` (main ab03f681; Dylan's own code, direct port authorised under MIT).
+// Staged only — not yet merged into swiftcode/Sources. See staging-wire/missing/DISPOSITIONS.md.
+// Verbatim except `.liquidGlass(...)` -> thinMaterial (see Adaptive notes).
+// Self-contained v1 extension settings form. All toggles/pickers are local @State
+// in Legacy (no backend calls) — preserved as-is; there is no destination backend
+// for these yet (no Go/Kotlin/Python/Rust/TypeScript language support, no
+// multi-cursor engine, no DocC generator, no SwiftLint runner, no TODO highlighter,
+// and the v2 theme system has 4 built-ins without these palettes).
+// Wiring: the Extensions v2 console (ExtensionsPanelViewController) should present
+// these as the extension's settings view; theme views' "Set as Active Theme" toggle
+// needs a theme-activation hook in the v2 theme system when one exists.
+
+import SwiftUI
+
+// MARK: - TypeScript Support Extension View
+struct TypeScriptSupportExtensionView: View {
+    @State private var isEnabled = true
+    @State private var strictMode = true
+    @State private var tsconfigPath = "./tsconfig.json"
+    @State private var enableJSX = true
+    @State private var targetVersion = "ES2022"
+
+    private let targets = ["ES5", "ES2015", "ES2017", "ES2019", "ES2020", "ES2022", "ESNext"]
+
+    var body: some View {
+        Form {
+            Section {
+                Toggle("Enable TypeScript Support", isOn: $isEnabled)
+                Toggle("Strict Mode", isOn: $strictMode)
+                Toggle("Enable JSX/TSX", isOn: $enableJSX)
+            } header: {
+                Label("TypeScript Support", systemImage: "t.square.fill")
+            }
+            Section {
+                HStack {
+                    Text("tsconfig Path")
+                    Spacer()
+                    TextField("./tsconfig.json", text: $tsconfigPath)
+                        .multilineTextAlignment(.trailing)
+                        .foregroundStyle(.secondary)
+                        .font(.system(.body, design: .monospaced))
+                }
+                Picker("Compile Target", selection: $targetVersion) {
+                    ForEach(targets, id: \.self) { t in Text(t).tag(t) }
+                }
+            } header: {
+                Text("Compiler Options")
+            }
+            Section {
+                Text("TypeScript and TSX syntax highlighting with inline type annotations, import resolution, and tsconfig.json awareness.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .padding(10)
+                    .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+            } header: {
+                Text("About")
+            }
+        }
+        .navigationTitle("TypeScript Support")
+    }
+}
