@@ -1,0 +1,27 @@
+{
+  "_applicationInternalID" : "123456",
+  "_developerTeamID" : "ABCDE12345",
+  "_lastSynchronizedDate" : "2026-11-06T00:00:00Z",
+  "identifier" : "DEADBEEF",
+  "products" : [
+    {
+      "displayPrice" : "0.99",
+      "familyShareable" : false,
+      "internalID" : "1",
+      "localizations" : [
+        {
+          "description" : "Synced product.",
+          "displayName" : "Synced",
+          "locale" : "en_US"
+        }
+      ],
+      "productID" : "com.example.synced",
+      "referenceName" : "Synced",
+      "type" : "Consumable"
+    }
+  ],
+  "version" : {
+    "major" : 4,
+    "minor" : 0
+  }
+}
