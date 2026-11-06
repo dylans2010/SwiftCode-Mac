@@ -1,6 +1,7 @@
 import Foundation
 import Observation
 import SwiftCodeIDECore
+import SwiftUI
 
 /// Personal Documentation — Legacy's `Views/Utilities/NSPersonalDocumentation/`
 /// subsystem, ported onto SwiftCode's systems (spec-first where it costs nothing;
@@ -165,6 +166,25 @@ public enum PersonalDocModuleKind: String, Sendable, Codable, CaseIterable, Iden
         case .whiteboards: return "pencil.and.outline"
         case .snippets: return "text.badge.plus"
         case .snapshots: return "clock.arrow.trianglehead.counterclockwise.rotate.90"
+        }
+    }
+
+    /// Accent colour (Legacy `ModuleKind.accentColor` logic). Added so the
+    /// ported `GlobalSearchView` can colour rows by module kind; the enum
+    /// previously had `icon` but no colour.
+    public var accentColor: Color {
+        switch self {
+        case .knowledgeGraph, .intelligence: return .purple
+        case .timeline, .whiteboards: return .blue
+        case .analytics, .snapshots: return .orange
+        case .snippets: return .green
+        default:
+            switch self.archetype {
+            case .freeform: return .blue
+            case .structured: return .orange
+            case .generated: return .purple
+            case .container: return .green
+            }
         }
     }
 }
@@ -860,6 +880,37 @@ public final class PersonalDocStore {
         }
     }
 
+    /// Duplicates a snapshot under a new id (the "Copy" action): all payloads
+    /// are copied verbatim, so the copy restores exactly what the original
+    /// captured. Defaults to "<title> Copy".
+    @discardableResult
+    public func duplicateSnapshot(_ snapshot: PersonalDocSnapshot, title: String? = nil) -> PersonalDocSnapshot {
+        let copy = PersonalDocSnapshot(
+            projectID: snapshot.projectID, title: title ?? "\(snapshot.title) Copy",
+            description: snapshot.description, documentIDs: snapshot.documentIDs,
+            whiteboardIDs: snapshot.whiteboardIDs, snippetIDs: snapshot.snippetIDs,
+            documentsJSON: snapshot.documentsJSON, whiteboardsJSON: snapshot.whiteboardsJSON,
+            snippetsJSON: snapshot.snippetsJSON)
+        snapshots.append(copy); save(snapshots, "snapshots.json"); return copy
+    }
+
+    /// Replaces a snapshot in place (e.g. after a rename). No-op when the id
+    /// is not in the store.
+    public func updateSnapshot(_ snapshot: PersonalDocSnapshot) {
+        guard let idx = snapshots.firstIndex(where: { $0.id == snapshot.id }) else { return }
+        snapshots[idx] = snapshot; save(snapshots, "snapshots.json")
+    }
+
+    /// Removes a snapshot. No-op when the id is not in the store.
+    public func deleteSnapshot(_ snapshot: PersonalDocSnapshot) {
+        snapshots.removeAll { $0.id == snapshot.id }; save(snapshots, "snapshots.json")
+    }
+
+    /// Removes a wiki page. No-op when the id is not in the store.
+    public func deleteWikiPage(_ page: PersonalDocWikiPage) {
+        wikiPages.removeAll { $0.id == page.id }; save(wikiPages, "wiki.json")
+    }
+
     /// Encodes records as the JSON payload a snapshot stores (`"[]"` when
     /// encoding fails, so a snapshot is never lost to a codec error).
     private func encoded<T: Encodable>(_ value: [T]) -> String {
@@ -963,6 +1014,19 @@ public final class PersonalDocumentationCoordinator {
 
     public let store: PersonalDocStore
 
+    /// Live manager adapters over the store (Legacy exposed these as separate
+    /// per-area sub-stores: `coordinator.documents/.whiteboards/.snippets/
+    /// .snapshots/.timeline/.intelligence/.relationships`). The managers are
+    /// thin wrappers that preserve the Legacy call sites; the store owns the
+    /// data. Created on access — they hold no state beyond the store.
+    public var whiteboards: WhiteboardManager { WhiteboardManager(store: store) }
+    public var snippets: SnippetManager { SnippetManager(store: store) }
+    public var snapshots: SnapshotManager { SnapshotManager(store: store) }
+    public var timeline: EcosystemTimelineManager { EcosystemTimelineManager(store: store) }
+    public var intelligence: IntelligenceManager { IntelligenceManager(store: store) }
+    public var documents: PersonalDocDocumentManager { PersonalDocDocumentManager(store: store) }
+    public var relationships: PersonalDocRelationshipManager { PersonalDocRelationshipManager(store: store) }
+
     public init(store: PersonalDocStore) {
         self.store = store
     }
@@ -976,4 +1040,34 @@ public final class PersonalDocumentationCoordinator {
     public func selectDocument(_ id: UUID) {
         selectedDocumentID = id
     }
+}
+
+/// Throwing adapter over `PersonalDocStore` document CRUD, preserving the
+/// Legacy `DocumentManager` call shape (`coordinator.documents.*`) used by the
+/// Personal Documentation views. The store itself is non-throwing; the
+/// `throws` here exists only so existing `try?`/`try` call sites keep working.
+public final class PersonalDocDocumentManager {
+    private let store: PersonalDocStore
+    public init(store: PersonalDocStore) { self.store = store }
+    public func fetchDocuments() throws -> [PersonalDocDocument] { store.fetchDocuments() }
+    public func fetchDocument(id: UUID) throws -> PersonalDocDocument? { store.fetchDocument(id: id) }
+    public func createDocument(title: String, kind: PersonalDocModuleKind, markdown: String = "", tags: [String] = []) throws -> PersonalDocDocument {
+        store.createDocument(title: title, kind: kind, markdown: markdown, tags: tags)
+    }
+    public func updateDocument(_ doc: PersonalDocDocument) throws { store.updateDocument(doc) }
+    public func deleteDocument(_ doc: PersonalDocDocument) throws { store.deleteDocument(doc) }
+}
+
+/// Throwing adapter over `PersonalDocStore` relationship CRUD, preserving the
+/// Legacy call shape (`coordinator.relationships.*`).
+public final class PersonalDocRelationshipManager {
+    private let store: PersonalDocStore
+    public init(store: PersonalDocStore) { self.store = store }
+    public func fetchRelationships(for sourceDocumentID: UUID) throws -> [PersonalDocRelationship] {
+        store.fetchRelationships(for: sourceDocumentID)
+    }
+    public func addLink(sourceID: UUID, targetType: String, targetIdentifier: String, targetName: String) throws {
+        store.addLink(sourceID: sourceID, targetType: targetType, targetIdentifier: targetIdentifier, targetName: targetName)
+    }
+    public func removeLink(_ rel: PersonalDocRelationship) throws { store.removeLink(rel) }
 }

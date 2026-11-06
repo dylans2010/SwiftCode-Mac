@@ -70,6 +70,8 @@ targets:
         product: SwiftCodeGitHub
       - package: SwiftCode
         product: SwiftCodeUI
+      - package: SwiftCode
+        product: SwiftCodeDarwinKernel
       - package: storekit
         product: StoreKitConfiguration
     settings:

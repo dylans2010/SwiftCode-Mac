@@ -9,6 +9,7 @@
 // Static port only — no Swift toolchain here; build verification pending on Dylan's Mac.
 import SwiftCodeAssistant
 import SwiftCodeBuild
+import SwiftCodeGitHub
 import SwiftCodeXcodebuild
 import SwiftUI
 import AppKit

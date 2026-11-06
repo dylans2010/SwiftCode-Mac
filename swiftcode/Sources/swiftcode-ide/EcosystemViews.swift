@@ -215,7 +215,7 @@ public struct KnowledgeGraphView: View {
         // 1. Documents
         if let docs = try? coordinator.documents.fetchDocuments() {
             for doc in docs {
-                newNodes.append(GraphNode(id: doc.id, label: doc.title, kind: "doc", detail: doc.moduleKindRaw))
+                newNodes.append(GraphNode(id: doc.id, label: doc.title, kind: "doc", detail: doc.moduleKind.rawValue))
             }
         }
 
@@ -266,7 +266,7 @@ public struct KnowledgeGraphView: View {
 
     private func openNode(_ node: GraphNode) {
         if node.kind == "doc" {
-            coordinator.selectedModuleKind = ModuleKind.allCases.first { $0.rawValue == node.detail } ?? .personalDocumentation
+            coordinator.selectedModuleKind = PersonalDocModuleKind.allCases.first { $0.rawValue == node.detail } ?? .personalDocumentation
             coordinator.selectedDocumentID = node.id
         } else if node.kind == "whiteboard" {
             coordinator.selectedModuleKind = .whiteboards
@@ -388,11 +388,7 @@ public struct ProjectTimelineView: View {
     }
 
     private func loadTimeline() {
-        items = (try? coordinator.timeline.fetchTimeline(
-            docManager: coordinator.documents,
-            whiteboardManager: coordinator.whiteboards,
-            snippetManager: coordinator.snippets
-        )) ?? []
+        items = (try? coordinator.timeline.fetchTimeline()) ?? []
     }
 
     private func categoryColor(_ cat: String) -> Color {
@@ -718,8 +714,7 @@ public struct IntelligenceView: View {
         isAuditing = true
         Task {
             do {
-                let docs = (try? coordinator.documents.fetchDocuments()) ?? []
-                auditResult = try await coordinator.intelligence.runIntelligenceAudit(documents: docs)
+                auditResult = try await coordinator.intelligence.runIntelligenceAudit()
             } catch {
                 auditResult = "Error running audit: \(error.localizedDescription)"
             }
@@ -731,8 +726,7 @@ public struct IntelligenceView: View {
         isAnswering = true
         Task {
             do {
-                let docs = (try? coordinator.documents.fetchDocuments()) ?? []
-                memoryAnswer = try await coordinator.intelligence.askProjectMemory(question: memoryQuestion, documents: docs)
+                memoryAnswer = try await coordinator.intelligence.askProjectMemory(question: memoryQuestion)
             } catch {
                 memoryAnswer = "Error getting answer: \(error.localizedDescription)"
             }
@@ -747,7 +741,7 @@ struct WhiteboardListView: View {
     let coordinator: PersonalDocumentationCoordinator
     var onSelect: (() -> Void)? = nil
 
-    @State private var boards: [WhiteboardRecord] = []
+    @State private var boards: [PersonalDocWhiteboard] = []
     @State private var showingAddBoard = false
     @State private var newBoardTitle = ""
 
@@ -845,7 +839,7 @@ struct WhiteboardListView: View {
 // MARK: - WHITEBOARD CANVAS DETAIL VIEW (PANEL 3)
 public struct WhiteboardCanvasDetailView: View {
     let coordinator: PersonalDocumentationCoordinator
-    @State private var board: WhiteboardRecord? = nil
+    @State private var board: PersonalDocWhiteboard? = nil
 
     @State private var offset: CGSize = .zero
     @State private var lastOffset: CGSize = .zero
@@ -1078,7 +1072,7 @@ public struct WhiteboardCanvasDetailView: View {
     }
 
     private func saveCanvas() {
-        guard let board = board else { return }
+        guard var board = board else { return }
         if let data = try? JSONEncoder().encode(elements),
            let str = String(data: data, encoding: .utf8) {
             board.elementsJSON = str
@@ -1093,7 +1087,7 @@ struct SnippetListView: View {
     let coordinator: PersonalDocumentationCoordinator
     var onSelect: (() -> Void)? = nil
 
-    @State private var snippets: [CodeSnippetRecord] = []
+    @State private var snippets: [PersonalDocSnippet] = []
     @State private var showCreateDialog = false
     @State private var titleInput = ""
     @State private var codeInput = ""
@@ -1214,7 +1208,7 @@ struct SnippetListView: View {
 // MARK: - CODE SNIPPET DETAIL VIEW (PANEL 3)
 struct SnippetDetailView: View {
     let coordinator: PersonalDocumentationCoordinator
-    @State private var snippet: CodeSnippetRecord? = nil
+    @State private var snippet: PersonalDocSnippet? = nil
 
     @State private var explanation = ""
     @State private var isExplaining = false
@@ -1349,7 +1343,7 @@ struct SnippetDetailView: View {
         }
     }
 
-    private func explainCode(_ record: CodeSnippetRecord) {
+    private func explainCode(_ record: PersonalDocSnippet) {
         isExplaining = true
         Task {
             do {
@@ -1368,7 +1362,7 @@ struct SnapshotListView: View {
     let coordinator: PersonalDocumentationCoordinator
     var onSelect: (() -> Void)? = nil
 
-    @State private var snapshots: [ProjectSnapshotRecord] = []
+    @State private var snapshots: [PersonalDocSnapshot] = []
     @State private var showCreateDialog = false
     @State private var snapTitle = ""
     @State private var snapDesc = ""
@@ -1461,16 +1455,9 @@ struct SnapshotListView: View {
     private func create() {
         guard !snapTitle.isEmpty else { return }
         do {
-            let docs = (try? coordinator.documents.fetchDocuments()) ?? []
-            let whiteboards = (try? coordinator.whiteboards.fetchWhiteboards()) ?? []
-            let snippets = (try? coordinator.snippets.fetchSnippets()) ?? []
-
             let snap = try coordinator.snapshots.createSnapshot(
                 title: snapTitle,
-                description: snapDesc,
-                documents: docs,
-                whiteboards: whiteboards,
-                snippets: snippets
+                description: snapDesc
             )
             loadSnapshots()
             coordinator.selectedSnapshotID = snap.id
@@ -1488,7 +1475,7 @@ struct SnapshotListView: View {
 // MARK: - PROJECT SNAPSHOT DETAIL VIEW (PANEL 3)
 struct SnapshotDetailView: View {
     let coordinator: PersonalDocumentationCoordinator
-    @State private var snapshot: ProjectSnapshotRecord? = nil
+    @State private var snapshot: PersonalDocSnapshot? = nil
     @State private var statusMsg = ""
     @State private var showBrowserSheet = false
 
@@ -1518,7 +1505,7 @@ struct SnapshotDetailView: View {
                     Divider()
 
                     VStack(alignment: .leading, spacing: 16) {
-                        Text(snap.descriptionText)
+                        Text(snap.description)
                             .font(.body)
 
                         Divider()
@@ -1593,14 +1580,9 @@ struct SnapshotDetailView: View {
         }
     }
 
-    private func restore(_ snap: ProjectSnapshotRecord) {
+    private func restore(_ snap: PersonalDocSnapshot) {
         do {
-            try coordinator.snapshots.restoreSnapshot(
-                snap,
-                docManager: coordinator.documents,
-                whiteboardManager: coordinator.whiteboards,
-                snippetManager: coordinator.snippets
-            )
+            try coordinator.snapshots.restoreSnapshot(snap)
             statusMsg = "Project restored to historical state successfully!"
             DispatchQueue.main.asyncAfter(deadline: .now() + 3.0) {
                 statusMsg = ""

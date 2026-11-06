@@ -1,4 +1,5 @@
 import AppKit
+import Observation
 import SwiftUI
 import SwiftCodeIDECore
 import SwiftCodeMCP
@@ -3147,10 +3148,11 @@ final class DocCURLSchemeHandler: NSObject, WKURLSchemeHandler {
 }
 
 @MainActor
-final class DocCWebViewController: ObservableObject {
-    @Published var canGoBack: Bool = false
-    @Published var canGoForward: Bool = false
-    @Published var currentURLString: String = ""
+@Observable
+final class DocCWebViewController {
+    var canGoBack: Bool = false
+    var canGoForward: Bool = false
+    var currentURLString: String = ""
     weak var webView: WKWebView?
 
     func goBack() {

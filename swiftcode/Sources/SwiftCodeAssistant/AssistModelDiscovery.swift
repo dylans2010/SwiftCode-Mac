@@ -194,6 +194,12 @@ public actor AssistModelDiscoveryService {
     /// `discoveryCacheLifetime`: 300s).
     public static let discoveryCacheLifetime: TimeInterval = 300
 
+    /// The shared instance (V2 fix W-V2). `AssistSDKSessionRunner.applicableKind`
+    /// and `MuseCodeCLIHelper` read `.shared.discoveredModels`; the host's
+    /// settings flow also calls `.shared.discoverAllModels()` to populate it.
+    /// Actor-isolated state: read it with `await` (applicableKind is async).
+    public static let shared = AssistModelDiscoveryService(store: defaultSecretStore())
+
     private let store: SecretStore
     private let transport: any ModelDiscoveryTransport
     private let catalog: AntigravitySDKCatalog

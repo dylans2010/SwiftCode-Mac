@@ -4,7 +4,11 @@
 // Worklist verdict: PARTIAL.
 // Missing behaviour ported: standalone Operations window; AppKit toolbar and split-view window management
 // References types from module(s) not in this target's Package.swift dependencies: SwiftCodeIDEShell — add the dependency in Package.swift or rebind at wiring time; not imported here.
-// References legacy types absent from the destination and from this worklist (wiring/integration gaps): OperationsSidebarView, OperationsWorkspaceView.
+// References legacy types absent from this target (wiring/integration gaps):
+// OperationsSidebarView + OperationsWorkspaceView are both ported now, but into
+// swiftcode-ide (Sidebar by P-UTIL, Workspace by H-E) — unreachable from
+// SwiftCodeUI, so :164/:175 still do not resolve. Needs the 16 Operations panel
+// views migrated into a library module, or a rebind of this window controller.
 // Static port only — no Swift toolchain here; build verification pending on Dylan's Mac.
 import SwiftCodeLanguage
 import AppKit

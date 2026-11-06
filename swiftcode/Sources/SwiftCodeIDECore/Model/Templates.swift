@@ -681,3 +681,27 @@ public enum UntitledAppProject {
         return p
     }
 }
+
+// MARK: - Legacy project-template manager (Audit A PARTIAL)
+
+/// The Legacy name for `LegacyProjectTemplateManager`.
+///
+/// Legacy `SwiftCode/Services/ProjectTemplateManager.swift` was already
+/// ported as `LegacyProjectTemplateManager` (Model/NewProject/…) with all 17
+/// templates verbatim: a verbatim `ProjectTemplateManager` class cannot live
+/// in this module because `ProjectTemplate` (the Legacy template struct) would
+/// collide with the public `ProjectTemplate` enum above. This alias restores
+/// the Legacy name — `ProjectTemplateManager.shared.templates` and
+/// `applyTemplate` — for call sites such as `ProjectTemplateView`.
+public typealias ProjectTemplateManager = LegacyProjectTemplateManager
+
+extension LegacyProjectTemplateManager {
+    /// Legacy-signature apply: writes the template's files into the
+    /// project's directory (`Project.directoryURL`), using the project's name
+    /// for the `(String) -> String` file contents. Delegates to the
+    /// directory-based `applyTemplate(_:projectName:to:)`.
+    @MainActor
+    public func applyTemplate(_ template: LegacyProjectTemplate, to project: Project) throws {
+        try applyTemplate(template, projectName: project.name, to: project.directoryURL)
+    }
+}

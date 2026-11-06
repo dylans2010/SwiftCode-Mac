@@ -178,7 +178,8 @@ public struct GitHubIssue: Sendable, Equatable, Decodable {
 
 /// A pull request (`/repos/{owner}/{repo}/pulls`). `headRef`/`headSha` are
 /// the nested `head.ref`/`head.sha`; `baseRef` is `base.ref`.
-public struct GitHubPullRequest: Sendable, Equatable, Decodable {
+public struct GitHubPullRequest: Sendable, Equatable, Decodable, Identifiable {
+    public var id: Int
     public var number: Int
     public var title: String
     public var body: String?
@@ -194,7 +195,7 @@ public struct GitHubPullRequest: Sendable, Equatable, Decodable {
     public var updatedAt: Date?
 
     private enum CodingKeys: String, CodingKey {
-        case number, title, body, state, head, base, user, draft, merged, htmlUrl, createdAt, updatedAt
+        case id, number, title, body, state, head, base, user, draft, merged, htmlUrl, createdAt, updatedAt
     }
 
     private enum RefKeys: String, CodingKey {
@@ -207,6 +208,7 @@ public struct GitHubPullRequest: Sendable, Equatable, Decodable {
 
     public init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(Int.self, forKey: .id)
         number = try container.decode(Int.self, forKey: .number)
         title = try container.decode(String.self, forKey: .title)
         body = try container.decodeIfPresent(String.self, forKey: .body)
@@ -287,12 +289,35 @@ public struct GitHubBranch: Sendable, Equatable, Decodable {
 /// A commit (`/repos/{owner}/{repo}/commits`). The message and author come
 /// from the nested `commit` object (`commit.message`,
 /// `commit.author.name`/`commit.author.date`).
-public struct GitHubCommit: Sendable, Equatable, Decodable {
+public struct GitHubCommit: Sendable, Equatable, Decodable, Identifiable {
+    /// Stable identity: the SHA (Legacy's `GitHubCommit.id`).
+    public var id: String { sha }
     public var sha: String
     public var message: String
     public var authorName: String?
     public var authorDate: Date?
 
+    /// Legacy nested view (`commit.message`, `commit.author?.name/date`),
+    /// kept for call sites ported verbatim from Legacy's `GitHubCommit`
+    /// (`CommitHistoryView`). The flat `message` / `authorName` /
+    /// `authorDate` above are canonical.
+    public var commit: CommitDetail {
+        CommitDetail(
+            message: message,
+            author: (authorName == nil && authorDate == nil)
+                ? nil : CommitDetail.AuthorInfo(name: authorName, date: authorDate)
+        )
+    }
+
+    public struct CommitDetail: Sendable, Equatable {
+        public var message: String
+        public var author: AuthorInfo?
+
+        public struct AuthorInfo: Sendable, Equatable {
+            public var name: String?
+            public var date: Date?
+        }
+    }
     private enum CodingKeys: String, CodingKey {
         case sha, commit
     }

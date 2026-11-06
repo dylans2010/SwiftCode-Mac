@@ -458,7 +458,7 @@ public final class AssistAgentSession: Sendable {
         // the turn — it never falls back to the HTTP clients or to
         // another provider. Chat-mode OpenRouter traffic (LLMService)
         // is unaffected: this session only runs in agent mode.
-        if let sdkKind = AssistSDKSessionRunner.applicableKind(for: selectedModel) {
+        if let sdkKind = await AssistSDKSessionRunner.applicableKind(for: selectedModel) {
             do {
                 let runner = AssistSDKSessionRunner()
                 self.sdkRunner = runner

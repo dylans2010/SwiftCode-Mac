@@ -4,7 +4,8 @@
 
 import Foundation
 
-enum TransferSessionState: String, Codable {
+// M-REST (2026-11-06): access raised to public so the ported Transfer Projects views in SwiftCodeUI can use it (no behaviour change).
+public enum TransferSessionState: String, Codable {
     case discovered
     case connecting
     case authorizing
@@ -35,22 +36,22 @@ public struct TransferAuditEntry: Identifiable, Codable, Hashable, Sendable {
     }
 }
 
-struct TransferParticipant: Codable, Hashable {
+public struct TransferParticipant: Codable, Hashable {
     let peerID: String
-    let displayName: String
+    public let displayName: String
 }
 
-struct TransferSession: Identifiable, Codable, Hashable {
+public struct TransferSession: Identifiable, Codable, Hashable {
     public let id: UUID
     var projectID: UUID
-    var projectName: String
-    var sender: TransferParticipant
+    public var projectName: String
+    public var sender: TransferParticipant
     var receiver: TransferParticipant?
-    var permission: TransferPermission
-    var state: TransferSessionState
-    var progress: Double
-    var bytesTransferred: Int64
-    var totalBytes: Int64
+    public var permission: TransferPermission
+    public var state: TransferSessionState
+    public var progress: Double
+    public var bytesTransferred: Int64
+    public var totalBytes: Int64
     var transferredFiles: Int
     var totalFiles: Int
     var lastUpdated: Date

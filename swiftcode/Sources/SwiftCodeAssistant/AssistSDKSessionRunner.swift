@@ -1,18 +1,18 @@
 // Ported from Legacy `SwiftCode/Backend/Assist/AssistSDKSessionRunner.swift` (main ab03f681; Dylan's own code, direct port authorised under MIT).
 // Staged only — not yet merged into swiftcode/Sources. See staging-wire/missing/DISPOSITIONS.md.
 // Verbatim. BLOCKED references (left intact, owned by other scopes):
-// - AssistProviderSelection / AgentModelAdapter (unaudited; not on main).
-// - AssistToolRegistry: exists in SwiftCodeMCP since main 555d2a31 (shared, allTools,
-//   getToolSchemas, validate, resolve) but SwiftCodeAssistant has no SwiftCodeMCP
-//   dependency — target-level block; coordinator decision needed (see
-//   AssistToolRouter header).
+// - AssistProviderSelection / AgentModelAdapter: RESOLVED by fix W-V2 — both landed
+//   in SwiftCodeAssistant (AssistProviderConfiguration.swift, AgentModelAdapter.swift).
+// - AssistToolRegistry: RESOLVED by wiring (G-W23) — moved from SwiftCodeMCP into
+//   SwiftCodeAssistant (see AssistToolRegistry.swift header).
 // RESOLVED on main 555d2a31 (A3 landed after staging): AssistModelManager
 // (@Observable; .shared, selectedModelID — note its body calls AgentModelAdapter,
 // which is still missing), AssistToolResultFormatter
 // (modelFacingPayload(toolId:result:)), HermesSessionRunner.
-// - AssistModelDiscoveryService.shared: the service exists in SwiftCodeAssistant but has
-//   no .shared singleton (the host constructs it); applicableKind() needs a host-owned
-//   instance wired in.
+// - AssistModelDiscoveryService.shared: RESOLVED by fix W-V2 — `.shared` now exists
+//   (backed by the default secret store; the host populates it via discoverAllModels)
+//   and applicableKind() is async because the actor's discoveredModels must be read
+//   with await.
 // - Bridge scripts opencode-bridge.mjs / openrouter-bridge.mjs (Legacy
 //   `Backend/Assist/SDKHosts/`): staged at
 //   `Sources/SwiftCodeAssistant/Resources/SDKHosts/` and registered in
@@ -121,7 +121,7 @@ public final class AssistSDKSessionRunner {
     /// provider sections); (3) the adapter specification as a last
     /// resort. Bare ids without "/" are never OpenRouter ids (native
     /// Anthropic ids carry no slash), so they return nil immediately.
-    public static func applicableKind(for selectedModel: String) -> SDKSessionKind? {
+    public static func applicableKind(for selectedModel: String) async -> SDKSessionKind? {
         // Hermes ids carry "/" too (hermes:provider/model) and must
         // never be claimed by the OpenRouter persisted-provider
         // fallback below: Hermes runs go through HermesSessionRunner,
@@ -133,7 +133,7 @@ public final class AssistSDKSessionRunner {
             return .openCode
         }
         guard selectedModel.contains("/") else { return nil }
-        if let discovered = AssistModelDiscoveryService.shared.discoveredModels.first(where: { $0.modelIdentifier == selectedModel }) {
+        if let discovered = await AssistModelDiscoveryService.shared.discoveredModels.first(where: { $0.modelIdentifier == selectedModel }) {
             return discovered.providerID == "openrouter" ? .openRouter : nil
         }
         if AssistProviderSelection.persistedProvider == .openRouter {

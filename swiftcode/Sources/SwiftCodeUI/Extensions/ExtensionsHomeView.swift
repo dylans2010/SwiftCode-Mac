@@ -3,9 +3,10 @@
 // Ported from Legacy `SwiftCode/Views/Extensions v2/ExtensionsHomeView.swift` (SwiftCode-Mac migration, Views/UI worklist).
 // Worklist verdict: PARTIAL.
 // Missing behaviour ported: Curated home sections (native and Xcode extension sections)
-// References legacy types absent from the destination and from this worklist (wiring/integration gaps): ExtV2SourcePosition, ExtV2SourceRange, ExtV2SourceTextBuffer, ExtensionDiagnosticsView, ExtensionPermissionsView, ExtensionSidebarRow, ExtensionsInstalledView.
+// References legacy types absent from the destination and from this worklist (wiring/integration gaps): ExtV2SourcePosition, ExtV2SourceRange, ExtV2SourceTextBuffer, ExtensionDiagnosticsView, ExtensionPermissionsView, ExtensionsInstalledView.
 // Static port only — no Swift toolchain here; build verification pending on Dylan's Mac.
 import SwiftUI
+import SwiftCodeExtensions
 
 // MARK: - ExtensionsHomeView: the Extensions destination
 //

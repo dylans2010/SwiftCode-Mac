@@ -4,7 +4,9 @@
 // Worklist verdict: PARTIAL.
 // Missing behaviour ported: command palette; drag-and-drop; version-restore UI; right inspector panel; standalone window with AppKit toolbar
 // References types from module(s) not in this target's Package.swift dependencies: SwiftCodeIDEShell — add the dependency in Package.swift or rebind at wiring time; not imported here.
-// References legacy types absent from the destination and from this worklist (wiring/integration gaps): DocTypeItem, GlobalSearchView, ModuleKind, PersonalDocCommandPalette.
+// References legacy types absent from the destination and from this worklist (wiring/integration gaps): DocTypeItem, PersonalDocCommandPalette.
+// (GlobalSearchView + ModuleKind resolved by H-E: GlobalSearchView ported to
+// SwiftCodeUI/Window/, ModuleKind to SwiftCodeIDECore/Model/.)
 // Static port only — no Swift toolchain here; build verification pending on Dylan's Mac.
 import SwiftCodeIDECore
 import SwiftCodeLanguage

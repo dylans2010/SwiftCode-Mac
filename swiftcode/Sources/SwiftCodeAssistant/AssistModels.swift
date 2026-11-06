@@ -35,7 +35,7 @@ import SwiftUI
 /// Shared context provided to tools during execution.
 public struct AssistContext: Sendable {
     public let sessionId: UUID
-    public let project: Project?
+    public let project: AssistProject?
     public let workspaceRoot: URL
     public let memory: AssistMemoryGraphProtocol
     public let logger: AssistLoggerProtocol
@@ -50,7 +50,7 @@ public struct AssistContext: Sendable {
 
     public init(
         sessionId: UUID,
-        project: Project?,
+        project: AssistProject?,
         workspaceRoot: URL,
         memory: AssistMemoryGraphProtocol,
         logger: AssistLoggerProtocol,

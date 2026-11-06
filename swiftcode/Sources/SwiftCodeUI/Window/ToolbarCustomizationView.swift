@@ -2,9 +2,10 @@
 // Staged only — not yet merged into swiftcode/Sources. See staging-wire/missing/DISPOSITIONS.md.
 // Verbatim except `.liquidGlass(...)` -> thinMaterial (see Adaptive notes).
 // BLOCKED references (left intact):
-// - ToolbarManager / ToolbarTool (Legacy `SwiftCode/Models/ToolbarItem.swift` —
-//   not in the audit, no owner yet).
-// - ToolbarSettings (Legacy settings type; batch 2's port is not on main).
+// - ToolbarManager / ToolbarTool (Legacy `SwiftCode/Models/ToolbarItem.swift`):
+//   RESOLVED — landed by A4 in SwiftCodeUI/Window/ToolbarItem.swift.
+// - ToolbarSettings (Legacy settings type): RESOLVED by fix W-V2 — landed in
+//   SwiftCodeUI/Editor/ToolbarSettings.swift.
 // - SwiftCodeToolbarDelegate.presentCustomizationPalette() (the audit notes the
 //   CommandTable menu item exists with no handler anywhere).
 // - ExtensionsView (Legacy `Views/ExtensionsView.swift`, PARTIAL, another scope).
@@ -15,8 +16,12 @@
 import SwiftUI
 
 struct ToolbarCustomizationView: View {
-    @StateObject private var toolbarManager = ToolbarManager.shared
-    @EnvironmentObject private var toolbarSettings: ToolbarSettings
+    // V2 fix W-V2: ToolbarManager / ToolbarSettings are @Observable, not
+    // ObservableObject — @StateObject / @EnvironmentObject do not exist for
+    // them. @State owns the shared manager; @Environment reads the settings
+    // the host injects (`.environment(ToolbarSettings...)` at the parent).
+    @State private var toolbarManager = ToolbarManager.shared
+    @Environment(ToolbarSettings.self) private var toolbarSettings: ToolbarSettings
     @Environment(\.dismiss) private var dismiss
     @State private var showExtensions = false
 

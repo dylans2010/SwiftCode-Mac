@@ -75,14 +75,18 @@ public enum LocalizingAppService {
                 userInfo: [NSLocalizedDescriptionKey: "Tool '\(id)' is not registered. Nothing was executed."]
             )
         }
+        // V2 fix W-V2: was `ProjectSessionStore.shared.activeProject`
+        // (SwiftCodeIDECore, unreachable from this target). This service
+        // only has a workspace root, so the root itself is the project.
+        let project = AssistProject(workspaceRoot: workspaceRoot)
         let context = AssistContext(
             sessionId: UUID(),
-            project: ProjectSessionStore.shared.activeProject,
+            project: project,
             workspaceRoot: workspaceRoot,
             memory: AssistMemoryGraph(),
             logger: AssistLogger(),
             fileSystem: AssistFileSystem(workspaceRoot: workspaceRoot),
-            git: AssistGitManager(project: ProjectSessionStore.shared.activeProject, workspaceRoot: workspaceRoot),
+            git: AssistGitManager(project: project, workspaceRoot: workspaceRoot),
             permissions: AssistPermissionsManager(),
             safetyLevel: .balanced,
             isAutonomous: true

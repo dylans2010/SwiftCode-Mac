@@ -1,0 +1,1315 @@
+import Foundation
+import os
+
+private let logger = Logger(subsystem: "com.swiftcode.app", category: "LLMService")
+
+// NOTE (H-TEST): the Legacy `LLMProvider` / `AIRoutingMode` / `LLMError` /
+// `LLMResponse` declarations that opened this file were removed — byte-identical
+// copies already live in `LLMProviderModels.swift` (same target). Only the
+// `LLMService` class below is unique to this file.
+
+@MainActor
+public final class LLMService: Sendable {
+    public static let shared = LLMService()
+    private init() {}
+
+    private let aiRoutingModeKey = "ai.routingMode"
+
+    private var urlSession = URLSession(configuration: .default)
+
+    private let swiftCloudRequestCountKey = "swiftcloud.requestCount"
+    private let swiftCloudLastResetDateKey = "swiftcloud.lastResetDate"
+
+    @MainActor
+    public var swiftCloudRequestsRemaining: Int {
+        checkAndResetDailyLimitIfNeeded()
+        return max(0, 15 - currentSwiftCloudRequestCount())
+    }
+
+    @MainActor
+    private func currentSwiftCloudRequestCount() -> Int {
+        UserDefaults.standard.integer(forKey: swiftCloudRequestCountKey)
+    }
+
+    @MainActor
+    private func checkAndResetDailyLimitIfNeeded() {
+        let now = Date()
+        guard let lastResetDate = UserDefaults.standard.object(forKey: swiftCloudLastResetDateKey) as? Date else {
+            UserDefaults.standard.set(now, forKey: swiftCloudLastResetDateKey)
+            UserDefaults.standard.set(0, forKey: swiftCloudRequestCountKey)
+            return
+        }
+
+        let calendar = Calendar.current
+        if !calendar.isDate(now, inSameDayAs: lastResetDate) {
+            UserDefaults.standard.set(now, forKey: swiftCloudLastResetDateKey)
+            UserDefaults.standard.set(0, forKey: swiftCloudRequestCountKey)
+            logInfo("[SwiftCloud] Daily request limit count has been reset for the new calendar day.")
+        }
+    }
+
+    @MainActor
+    private func incrementSwiftCloudRequestCount() {
+        checkAndResetDailyLimitIfNeeded()
+        let count = currentSwiftCloudRequestCount() + 1
+        UserDefaults.standard.set(count, forKey: swiftCloudRequestCountKey)
+        logInfo("[SwiftCloud] Request succeeded. Count incremented to \(count)/15.")
+    }
+
+    @MainActor
+    private func isSwiftCloudLimitReached() -> Bool {
+        return swiftCloudRequestsRemaining <= 0
+    }
+
+    @MainActor
+    private func isSwiftCloudRequest(for provider: LLMProvider) -> Bool {
+        return AppSettings.shared.swiftCloudModelsEnabled && (provider == .openRouter || provider == .google)
+    }
+
+    @MainActor
+    private func formattedSwiftCloudResetMessage() -> String {
+        let calendar = Calendar.current
+        let now = Date()
+        if let tomorrow = calendar.date(byAdding: .day, value: 1, to: now),
+           let tomorrowStart = calendar.startOfDay(for: tomorrow) as Date? {
+            let formatter = RelativeDateTimeFormatter()
+            formatter.unitsStyle = .full
+            let relativeTime = formatter.localizedString(for: tomorrowStart, relativeTo: now)
+            return "You have reached your daily limit of 15 successful SwiftCloud requests. Additional requests will become available \(relativeTime) (tomorrow at midnight)."
+        }
+        return "You have reached your daily limit of 15 successful SwiftCloud requests. Requests will become available again tomorrow."
+    }
+
+    public func recreateSession(for modelID: String) {
+        logInfo("[recreateSession] Invalidating current session and creating a fully new URLSession for model: \(modelID)")
+        urlSession.invalidateAndCancel()
+        urlSession = URLSession(configuration: .default)
+        logInfo("[recreateSession] Confirmed: LLMService successfully switched to model: \(modelID)")
+    }
+
+    private func logInfo(_ message: String) {
+        logger.log("\(message)")
+        InternalLoggingManager.shared.log(message, category: .aiProcessing)
+    }
+
+    private func logError(_ message: String) {
+        logger.error("\(message)")
+        InternalLoggingManager.shared.log("[ERROR] \(message)", category: .aiProcessing)
+    }
+
+    private func logWarning(_ message: String) {
+        logger.warning("\(message)")
+        InternalLoggingManager.shared.log("[WARN] \(message)", category: .aiProcessing)
+    }
+
+    @MainActor
+    public func resolvedRoutingProvider() throws -> LLMProvider {
+        let isFMEnabled = FoundationModels.shared.isEnabled
+        if isFMEnabled {
+            // If Foundation Models is enabled, we bypass others
+            return .offline // Or any placeholder since we intercept
+        }
+
+        let mode = AIRoutingMode.from(rawValue: UserDefaults.standard.string(forKey: aiRoutingModeKey))
+        let preferredProvider = LLMProvider.from(rawValue: UserDefaults.standard.string(forKey: "ai.selectedProvider"))
+
+        logInfo("[resolvedRoutingProvider] Routing Mode: \(mode.rawValue). Preferred Provider: \(preferredProvider.rawValue).")
+
+        switch mode {
+        case .alwaysLocal:
+            return .offline
+        case .alwaysServer:
+            if preferredProvider == .codex {
+                return .codex
+            }
+            if hasServerAPIKey(for: preferredProvider) {
+                return preferredProvider
+            }
+            throw LLMError.invalidKey
+        case .dynamic:
+            if preferredProvider == .codex {
+                return .codex
+            }
+            if hasServerAPIKey(for: preferredProvider) {
+                return preferredProvider
+            }
+            if hasDefaultOfflineModel() {
+                return .offline
+            }
+            throw LLMError.offlineFallbackUnavailable
+        }
+    }
+
+    public func retrieveAPIKey(for provider: LLMProvider, from keyOverride: String? = nil) -> String {
+        if AppSettings.shared.swiftCloudModelsEnabled && (provider == .openRouter || provider == .google) {
+            return provider == .openRouter ? AppConfig.shared.openRouterAPIKey : AppConfig.shared.geminiAPIKey
+        }
+
+        if let keyOverride, !keyOverride.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            return keyOverride.trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+
+        if provider == .openRouter {
+            return OpenRouterClient.resolveOpenRouterAPIKey()
+        }
+
+        var key = ""
+        if let managerKey = APIKeyManager.shared.retrieveKey(service: apiKeyProvider(for: provider)),
+           !managerKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            key = managerKey.trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+
+        if key.isEmpty {
+            if let keychainKey = KeychainService.shared.get(forKey: provider.keychainKey),
+               !keychainKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                key = keychainKey.trimmingCharacters(in: .whitespacesAndNewlines)
+            }
+        }
+
+        return key
+    }
+
+    /// Effective credential for a request. The provider's API key (or explicit
+    /// override) wins; for the Google provider a valid OAuth session supplies the
+    /// bearer token instead. Returns "" when the user holds neither — never
+    /// invents a credential and never mixes credential kinds.
+    private func resolveEffectiveCredential(for provider: LLMProvider, keyOverride: String? = nil) async -> String {
+        let key = retrieveAPIKey(for: provider, from: keyOverride)
+        if !key.isEmpty { return key }
+        guard provider == .google else { return "" }
+        let mode = UserDefaults.standard.string(forKey: "assist_google_auth_mode") ?? AppSettings.shared.assistGoogleAuthMode
+        guard mode == "google_oauth", GoogleAccountAuthService.shared.isAuthenticated else { return "" }
+        return (try? await GoogleAccountAuthService.shared.getValidAccessToken()) ?? ""
+    }
+
+    private func findCustomEndpoint(for model: String) -> SavedCustomEndpoint? {
+        let trimmedModel = model.trimmingCharacters(in: .whitespacesAndNewlines)
+        return CustomEndpointManager.shared.endpoints.first { endpoint in
+            endpoint.models.contains(trimmedModel)
+        }
+    }
+
+    private func hasServerAPIKey(for provider: LLMProvider) -> Bool {
+        guard provider != .offline else { return false }
+        if provider == .codex { return true } // Managed by bridge token setup
+        let key = retrieveAPIKey(for: provider)
+        return !key.isEmpty
+    }
+
+    @MainActor
+    private func hasDefaultOfflineModel() -> Bool {
+        !OfflineModelManager.shared.defaultOfflineModelName.isEmpty && OfflineModelManager.shared.defaultOfflineModelRecord() != nil
+    }
+
+    @MainActor
+    private func defaultOfflineModelName() throws -> String {
+        guard let model = OfflineModelManager.shared.defaultOfflineModelRecord()?.modelName else {
+            throw LLMError.missingOfflineDefaultModel
+        }
+        return model
+    }
+
+    @MainActor
+    private func defaultOfflineModelDirectory() throws -> URL {
+        OfflineModelManager.shared.modelDirectory(for: try defaultOfflineModelName())
+    }
+
+    private func apiKeyProvider(for provider: LLMProvider) -> APIKeyProvider {
+        switch provider {
+        case .openRouter: return .openRouter
+        case .anthropic: return .anthropic
+        case .openai: return .openai
+        case .google: return .google
+        case .mistral: return .mistral
+        case .qwen: return .qwen
+        case .offline: return .openRouter
+        case .codex: return .openai
+        }
+    }
+
+    public func provider(for modelID: String) -> LLMProvider {
+        let trimmed = modelID.trimmingCharacters(in: .whitespacesAndNewlines)
+        if trimmed == "AFM 3 Core" || trimmed == "AFM 3 Core Advanced" {
+            return .offline
+        }
+        if trimmed.hasPrefix("gpt-5-codex") || trimmed.hasPrefix("gpt-4-codex") || trimmed == "Codex" {
+            return .codex
+        }
+        if trimmed.contains("/") {
+            return .openRouter
+        }
+        if trimmed.hasPrefix("claude-") {
+            return .anthropic
+        }
+        if trimmed.hasPrefix("gpt-") || trimmed.hasPrefix("o1") || trimmed.hasPrefix("o3") || trimmed.hasPrefix("chatgpt-") {
+            return .openai
+        }
+        if trimmed.hasPrefix("gemini-") {
+            return .google
+        }
+        if trimmed.hasPrefix("mistral-") || trimmed.hasPrefix("codestral-") || trimmed.hasPrefix("pixtral-") {
+            return .mistral
+        }
+        if trimmed.hasPrefix("qwen-") || trimmed.hasPrefix("qwq-") {
+            return .qwen
+        }
+        return (try? resolvedRoutingProvider()) ?? .openRouter
+    }
+
+    // MARK: - Core Methods
+
+    public func sendChatRequestWithSequenceFallback(prompt: String, messages: [AIMessage]) async throws -> LLMResponse {
+        let startTime = Date()
+        var lastError: Error? = nil
+
+        struct FallbackStage {
+            let provider: LLMProvider
+            let model: String
+        }
+
+        let stages: [FallbackStage] = [
+            FallbackStage(provider: .offline, model: "AFM 3 Core"),
+            FallbackStage(provider: .openRouter, model: AppSettings.shared.selectedModel.isEmpty ? "meta-llama/llama-3-8b-instruct" : AppSettings.shared.selectedModel),
+            FallbackStage(provider: .google, model: "gemini-1.5-flash"),
+            FallbackStage(provider: .openai, model: "gpt-4o-mini"),
+            FallbackStage(provider: .anthropic, model: "claude-3-5-sonnet-20240620")
+        ]
+
+        for (index, stage) in stages.enumerated() {
+            let stageStartTime = Date()
+            logInfo("[Fallback] Stage \(index + 1): Attempting \(stage.provider.rawValue) (\(stage.model))...")
+
+            do {
+                let completionText: String
+                let latency: TimeInterval
+
+                if stage.model == "AFM 3 Core" {
+                    completionText = try await FoundationModels.shared.generatePrivateResponse(prompt: prompt)
+                    latency = Date().timeIntervalSince(stageStartTime)
+                } else {
+                    let response = try await sendChatRequestInternal(model: stage.model, messages: messages, providerOverride: stage.provider)
+                    completionText = response.completionText
+                    latency = response.latency
+                }
+
+                let totalLatency = Date().timeIntervalSince(startTime)
+                let successMessage = "[LLM] Success! Provider: \(stage.provider.rawValue), Model: \(stage.model), Prompt Length: \(prompt.count) chars, Completion Length: \(completionText.count) chars, Latency: \(String(format: "%.2f", latency))s, Total Latency: \(String(format: "%.2f", totalLatency))s, Retries: \(index), Status: Success"
+
+                await MainActor.run {
+                    PreviewDiagnostics.shared.addLog(category: "llm", message: successMessage)
+                }
+
+                return LLMResponse(
+                    modelName: stage.model,
+                    completionText: completionText,
+                    tokenUsage: nil,
+                    latency: totalLatency
+                )
+            } catch {
+                lastError = error
+                let stageLatency = Date().timeIntervalSince(stageStartTime)
+                let failureMessage = "[LLM] Failed Stage \(index + 1)! Provider: \(stage.provider.rawValue), Model: \(stage.model), Latency: \(String(format: "%.2f", stageLatency))s, Error: \(error.localizedDescription), Status: Retrying"
+
+                await MainActor.run {
+                    PreviewDiagnostics.shared.addLog(category: "llm", message: failureMessage)
+                }
+            }
+        }
+
+        let totalLatency = Date().timeIntervalSince(startTime)
+        let finalFailureMessage = "[LLM] All fallback stages failed! Total Latency: \(String(format: "%.2f", totalLatency))s, Status: Failure"
+        await MainActor.run {
+            PreviewDiagnostics.shared.addLog(category: "llm", message: finalFailureMessage)
+        }
+
+        throw lastError ?? LLMError.unknown("All fallback stages failed.")
+    }
+
+    @MainActor
+    public func generateResponse(prompt: String, useContext: Bool, modelOverride: String? = nil, providerOverride: LLMProvider? = nil) async throws -> String {
+        let messages = [AIMessage(role: .user, content: prompt)]
+
+        if modelOverride == nil && providerOverride == nil {
+            let response = try await sendChatRequestWithSequenceFallback(prompt: prompt, messages: messages)
+            return response.completionText
+        }
+
+        let model = modelOverride ?? AppSettings.shared.selectedModel.trimmingCharacters(in: .whitespacesAndNewlines)
+        let resolvedProvider = providerOverride ?? provider(for: model)
+
+        logInfo("[generateResponse] Authoritative Routing. Provider: \(resolvedProvider.rawValue), Model: \(model).")
+
+        if model == "AFM 3 Core" || model == "AFM 3 Core Advanced" {
+            logInfo("[generateResponse] Routing to Apple private on-device reasoning.")
+            return try await FoundationModels.shared.generatePrivateResponse(prompt: prompt)
+        }
+
+        if resolvedProvider == .codex {
+            logInfo("[generateResponse] Routing response generation to OpenAI Codex.")
+            return try await CodexBridgeManager.shared.sendPrompt(prompt)
+        }
+
+        if modelOverride == nil && providerOverride == nil && OnDeviceModelRouter.shared.useOnDeviceAI() {
+            logInfo("[generateResponse] OnDeviceModelRouter enabled. Routing to on-device AI.")
+            return try await OnDeviceModelRouter.shared.generateResponse(prompt: prompt, useContext: useContext)
+        }
+        return try await generateExternalResponse(prompt: prompt, useContext: useContext, modelOverride: model, providerOverride: resolvedProvider)
+    }
+
+    @MainActor
+    public func generateExternalResponse(prompt: String, useContext: Bool, modelOverride: String? = nil, providerOverride: LLMProvider? = nil) async throws -> String {
+        let model = modelOverride ?? AppSettings.shared.selectedModel.trimmingCharacters(in: .whitespacesAndNewlines)
+        let resolvedProvider = providerOverride ?? provider(for: model)
+
+        logInfo("[generateExternalResponse] Authoritative Routing. Provider: \(resolvedProvider.rawValue), Model: \(model).")
+
+        if model == "AFM 3 Core" || model == "AFM 3 Core Advanced" {
+            logInfo("[generateExternalResponse] Routing to Apple private on-device reasoning.")
+            return try await FoundationModels.shared.generatePrivateResponse(prompt: prompt)
+        }
+
+        if resolvedProvider == .codex {
+            logInfo("[generateExternalResponse] Routing external generation to OpenAI Codex.")
+            return try await CodexBridgeManager.shared.sendPrompt(prompt)
+        }
+
+        let trimmedPrompt = prompt.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedPrompt.isEmpty else { return "" }
+
+        let antiRepeatInstruction = "Answer the request directly. Do not repeat or restate the user's message unless they explicitly ask for a quote."
+        let messageContent: String
+        if useContext {
+            messageContent = "[Use available project context when relevant.]\n[\(antiRepeatInstruction)]\n\n\(trimmedPrompt)"
+        } else {
+            messageContent = "[\(antiRepeatInstruction)]\n\n\(trimmedPrompt)"
+        }
+
+        logInfo("[generateExternalResponse] Request constructed. Provider: \(resolvedProvider.rawValue). Model: \(model). Sending chat request.")
+        let response = try await sendChatRequest(
+            model: model,
+            messages: [AIMessage(role: .user, content: messageContent)],
+            providerOverride: providerOverride
+        )
+
+        logInfo("[generateExternalResponse] Chat request successful. Response completed.")
+        return response.completionText
+    }
+
+    public func sanitizeResponse(_ response: String, relativeTo prompt: String) -> String {
+        let trimmedPrompt = prompt.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmedResponse = response.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedResponse.isEmpty else { return "" }
+
+        if normalizedForComparison(trimmedResponse) == normalizedForComparison(trimmedPrompt) {
+            return ""
+        }
+
+        let responseLines = trimmedResponse
+            .split(separator: "\n", omittingEmptySubsequences: false)
+            .map { String($0).trimmingCharacters(in: .whitespacesAndNewlines) }
+
+        var cleanedLines: [String] = []
+        for (index, line) in responseLines.enumerated() {
+            if index < 2, !line.isEmpty, normalizedForComparison(line) == normalizedForComparison(trimmedPrompt) {
+                continue
+            }
+            if cleanedLines.last.map(normalizedForComparison) == normalizedForComparison(line) {
+                continue
+            }
+            cleanedLines.append(line)
+        }
+
+        let cleaned = cleanedLines.joined(separator: "\n").trimmingCharacters(in: .whitespacesAndNewlines)
+        return normalizedForComparison(cleaned) == normalizedForComparison(trimmedPrompt) ? "" : cleaned
+    }
+
+    private func normalizedForComparison(_ text: String) -> String {
+        text
+            .lowercased()
+            .components(separatedBy: CharacterSet.alphanumerics.inverted)
+            .joined()
+    }
+
+    public func validateAPIKey(provider: LLMProvider, key: String) async throws -> Bool {
+        logInfo("[validateAPIKey] Validating API key for provider: \(provider.rawValue).")
+        if provider == .codex {
+            return await CodexBridgeManager.shared.validateAPIKey(key)
+        }
+        do {
+            _ = try await fetchAvailableModels(provider: provider, key: key)
+            return true
+        } catch {
+            logError("[validateAPIKey] Key validation failed: \(error.localizedDescription)")
+            throw error
+        }
+    }
+
+    public func fetchAvailableModels(provider: LLMProvider, key: String) async throws -> [String] {
+        if provider == .codex {
+            return ["gpt-5-codex", "gpt-4-codex"]
+        }
+        let url = provider.baseURL.appendingPathComponent("models")
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "GET"
+        setupHeaders(for: &request, provider: provider, key: key)
+
+        let (data, response) = try await self.urlSession.data(for: request)
+        try handleHTTPError(response, data: data)
+
+        if provider == .anthropic {
+            struct AnthropicModelsResponse: Codable {
+                struct Entry: Codable {
+                    let id: String
+                }
+                let data: [Entry]?
+            }
+            if let decoded = try? JSONDecoder().decode(AnthropicModelsResponse.self, from: data),
+               let list = decoded.data, !list.isEmpty {
+                return list.map { $0.id }
+            }
+            return []
+        }
+
+        let decoded = try JSONDecoder().decode(ModelListResponse.self, from: data)
+        return decoded.data.map { $0.id }
+    }
+
+    public func sendChatRequest(model: String, messages: [AIMessage], key: String? = nil, providerOverride: LLMProvider? = nil) async throws -> LLMResponse {
+        if SCCloudConfiguration.isCloudModelID(model) {
+            let endpointName = SCCloudConfiguration.endpointName(forInternalID: model)
+            let prompt = messages.last?.content ?? ""
+            let history = messages.dropLast().map { ($0.role.rawValue, $0.content) }
+            let response = try await SCCloudModelClient.shared.complete(
+                prompt: prompt,
+                history: history,
+                systemPrompt: nil,
+                modelIdentifier: endpointName
+            )
+            return LLMResponse(modelName: model, completionText: response, tokenUsage: nil, latency: 0)
+        }
+
+        let resolvedProvider = providerOverride ?? provider(for: model)
+        let onlyFree = await MainActor.run { AppSettings.shared.onlyUseFreeModels }
+        if onlyFree {
+            try AssistModelEligibilityPolicy.validateExecutionEligibility(modelID: model, provider: resolvedProvider.rawValue, onlyUseFreeModels: true)
+        }
+
+        if await isSwiftCloudRequest(for: resolvedProvider) {
+            if await isSwiftCloudLimitReached() {
+                throw LLMError.swiftCloudLimitReached(await formattedSwiftCloudResetMessage())
+            }
+        }
+
+        let isFallbackEnabled = UserDefaults.standard.bool(forKey: "free_models_fallback_enabled")
+
+        do {
+            return try await sendChatRequestInternal(model: model, messages: messages, key: key, providerOverride: providerOverride)
+        } catch {
+            guard isFallbackEnabled else {
+                throw error
+            }
+
+            let resolvedProvider = providerOverride ?? provider(for: model)
+            logInfo("[sendChatRequest] Primary request failed: \(error.localizedDescription). Automatic fallback active, fetching candidate models for provider \(resolvedProvider.rawValue)...")
+
+            let candidates = await getFallbackModels(for: model, provider: resolvedProvider)
+            logInfo("[sendChatRequest] Candidate models for fallback: \(candidates)")
+
+            if onlyFree && candidates.isEmpty {
+                throw AssistModelEligibilityError.noEligibleFreeModelAvailable(provider: resolvedProvider.rawValue)
+            }
+
+            for candidate in candidates {
+                if candidate == model { continue }
+                if onlyFree && !AssistModelEligibilityPolicy.isEligible(modelID: candidate, onlyUseFreeModels: true) { continue }
+                logInfo("[sendChatRequest] Attempting fallback model: \(candidate)...")
+                do {
+                    return try await sendChatRequestInternal(model: candidate, messages: messages, key: key, providerOverride: providerOverride)
+                } catch {
+                    logInfo("[sendChatRequest] Fallback model \(candidate) failed: \(error.localizedDescription)")
+                }
+            }
+
+            throw error
+        }
+    }
+
+    private func sendChatRequestInternal(model: String, messages: [AIMessage], key: String? = nil, providerOverride: LLMProvider? = nil) async throws -> LLMResponse {
+        if let customEndpoint = findCustomEndpoint(for: model) {
+            logInfo("[sendChatRequest] Routing to custom endpoint: \(customEndpoint.endpoint) for model: \(model)")
+            let startTime = Date()
+
+            var urlString = customEndpoint.isLocal ? "http://localhost:\(customEndpoint.localPort.trimmingCharacters(in: .whitespacesAndNewlines))/v1" : customEndpoint.endpoint
+            urlString = urlString.trimmingCharacters(in: .whitespacesAndNewlines)
+            if !urlString.lowercased().hasSuffix("/chat/completions") {
+                if urlString.hasSuffix("/") {
+                    urlString += "chat/completions"
+                } else {
+                    urlString += "/chat/completions"
+                }
+            }
+
+            guard let url = URL(string: urlString) else {
+                throw NSError(domain: "LLMService", code: 400, userInfo: [NSLocalizedDescriptionKey: "Invalid custom endpoint URL: \(urlString)"])
+            }
+
+            var request = URLRequest(url: url)
+            request.httpMethod = "POST"
+            request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+
+            let apiKey = customEndpoint.isLocal ? "" : customEndpoint.apiKey.trimmingCharacters(in: .whitespacesAndNewlines)
+            if !apiKey.isEmpty {
+                request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
+            }
+
+            for header in customEndpoint.headers {
+                let k = header.key.trimmingCharacters(in: .whitespacesAndNewlines)
+                let v = header.value.trimmingCharacters(in: .whitespacesAndNewlines)
+                if !k.isEmpty && !v.isEmpty {
+                    request.setValue(v, forHTTPHeaderField: k)
+                }
+            }
+
+            var apiMessages: [[String: String]] = []
+            apiMessages += messages.map { ["role": $0.role.rawValue, "content": $0.content] }
+            let body: [String: Any] = [
+                "model": model,
+                "messages": apiMessages,
+                "stream": false
+            ]
+            request.httpBody = try JSONSerialization.data(withJSONObject: body)
+
+            let (data, response) = try await self.urlSession.data(for: request)
+            try handleHTTPError(response, data: data)
+
+            let decoded = try JSONDecoder().decode(ChatCompletionResponse.self, from: data)
+            let latency = Date().timeIntervalSince(startTime)
+            return LLMResponse(
+                modelName: decoded.model,
+                completionText: decoded.choices.first?.message.content ?? "",
+                tokenUsage: decoded.usage.map { LLMResponse.TokenUsage(promptTokens: $0.prompt_tokens, completionTokens: $0.completion_tokens, totalTokens: $0.total_tokens) },
+                latency: latency
+            )
+        }
+
+        let provider: LLMProvider
+        if let providerOverride {
+            provider = providerOverride
+        } else {
+            provider = try await resolvedRoutingProvider()
+        }
+
+        logInfo("[sendChatRequest] Starting generation request. Provider: \(provider.rawValue). Model: \(model).")
+
+        if provider == .codex {
+            logInfo("[sendChatRequest] Delegating request to OpenAI Codex.")
+            let prompt = formatFullPrompt(messages: messages)
+            let startTime = Date()
+            let content = try await CodexBridgeManager.shared.sendPrompt(prompt)
+            return LLMResponse(
+                modelName: "gpt-5-codex",
+                completionText: content,
+                tokenUsage: LLMResponse.TokenUsage(promptTokens: 100, completionTokens: 100, totalTokens: 200),
+                latency: Date().timeIntervalSince(startTime)
+            )
+        }
+
+        if provider == .offline {
+            return try await runOfflineResponse(messages: messages)
+        }
+
+        // OAuth-aware credential resolution (mirrors the streaming path): the API
+        // key (or explicit override) wins, otherwise a valid Google OAuth session
+        // supplies the bearer token — setupHeaders already transports ya29.
+        // tokens correctly. Never an API-key error while a valid session exists.
+        let actualKey = await resolveEffectiveCredential(for: provider, keyOverride: key)
+        guard !actualKey.isEmpty else {
+            logError("[sendChatRequest] Missing API key / credentials for \(provider.rawValue).")
+            throw LLMError.invalidKey
+        }
+
+        do {
+            let startTime = Date()
+            let endpoint = provider == .anthropic ? "messages" : "chat/completions"
+            let isSwiftCloud = isSwiftCloudRequest(for: provider)
+            let url = isSwiftCloud ? AppConfig.shared.swiftCloudAPIURL.appendingPathComponent(endpoint) : provider.baseURL.appendingPathComponent(endpoint)
+
+            var request = URLRequest(url: url)
+            request.httpMethod = "POST"
+            if isSwiftCloud {
+                request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+                request.setValue("Bearer \(actualKey)", forHTTPHeaderField: "Authorization")
+            } else {
+                setupHeaders(for: &request, provider: provider, key: actualKey)
+            }
+
+            let body = try buildRequestBody(provider: provider, model: model, messages: messages, stream: false)
+            request.httpBody = try JSONSerialization.data(withJSONObject: body)
+
+            logInfo("[sendChatRequest] Sending non-streaming API request to \(provider.rawValue)...")
+            let (data, response) = try await self.urlSession.data(for: request)
+            try handleHTTPError(response, data: data)
+
+            let latency = Date().timeIntervalSince(startTime)
+            logInfo("[sendChatRequest] Request finished in \(latency) seconds.")
+
+            let resultResponse: LLMResponse
+            if provider == .anthropic {
+                let decoded = try JSONDecoder().decode(AnthropicResponse.self, from: data)
+                resultResponse = LLMResponse(
+                    modelName: decoded.model,
+                    completionText: decoded.content.first?.text ?? "",
+                    tokenUsage: LLMResponse.TokenUsage(
+                        promptTokens: decoded.usage.input_tokens,
+                        completionTokens: decoded.usage.output_tokens,
+                        totalTokens: decoded.usage.input_tokens + decoded.usage.output_tokens
+                    ),
+                    latency: latency
+                )
+            } else {
+                let decoded = try JSONDecoder().decode(ChatCompletionResponse.self, from: data)
+                resultResponse = LLMResponse(
+                    modelName: decoded.model,
+                    completionText: decoded.choices.first?.message.content ?? "",
+                    tokenUsage: decoded.usage.map { LLMResponse.TokenUsage(promptTokens: $0.prompt_tokens, completionTokens: $0.completion_tokens, totalTokens: $0.total_tokens) },
+                    latency: latency
+                )
+            }
+
+            if isSwiftCloud {
+                await incrementSwiftCloudRequestCount()
+            }
+            return resultResponse
+        } catch {
+            logWarning("[sendChatRequest] Request failed: \(error.localizedDescription). Checking fallback eligibility.")
+            if await shouldFallbackToOffline(for: provider) {
+                logInfo("[sendChatRequest] Falling back to offline runner.")
+                return try await runOfflineResponse(messages: messages)
+            }
+            throw error
+        }
+    }
+
+    public func measureLatency(provider: LLMProvider, key: String) async throws -> TimeInterval {
+        let startTime = Date()
+        _ = try await fetchAvailableModels(provider: provider, key: key)
+        return Date().timeIntervalSince(startTime)
+    }
+
+    public func streamChat(
+        messages: [AIMessage],
+        model: String,
+        systemPrompt: String,
+        providerOverride: LLMProvider? = nil,
+        onToken: @escaping @Sendable (String) async -> Void
+    ) async throws {
+        if SCCloudConfiguration.isCloudModelID(model) {
+            let endpointName = SCCloudConfiguration.endpointName(forInternalID: model)
+            let prompt = messages.last?.content ?? ""
+            let history = messages.dropLast().map { ($0.role.rawValue, $0.content) }
+            let response = try await SCCloudModelClient.shared.complete(
+                prompt: prompt,
+                history: history,
+                systemPrompt: systemPrompt.isEmpty ? nil : systemPrompt,
+                modelIdentifier: endpointName
+            )
+            await onToken(response)
+            return
+        }
+
+        let resolvedProvider = providerOverride ?? provider(for: model)
+        let onlyFree = await MainActor.run { AppSettings.shared.onlyUseFreeModels }
+        if onlyFree {
+            try AssistModelEligibilityPolicy.validateExecutionEligibility(modelID: model, provider: resolvedProvider.rawValue, onlyUseFreeModels: true)
+        }
+
+        if await isSwiftCloudRequest(for: resolvedProvider) {
+            if await isSwiftCloudLimitReached() {
+                throw LLMError.swiftCloudLimitReached(await formattedSwiftCloudResetMessage())
+            }
+        }
+
+        let isFallbackEnabled = UserDefaults.standard.bool(forKey: "free_models_fallback_enabled")
+
+        do {
+            try await streamChatInternal(messages: messages, model: model, systemPrompt: systemPrompt, providerOverride: providerOverride, onToken: onToken)
+        } catch {
+            guard isFallbackEnabled else {
+                throw error
+            }
+
+            let resolvedProvider = providerOverride ?? provider(for: model)
+            logInfo("[streamChat] Primary stream request failed: \(error.localizedDescription). Automatic fallback active, fetching candidate models for provider \(resolvedProvider.rawValue)...")
+
+            let candidates = await getFallbackModels(for: model, provider: resolvedProvider)
+            logInfo("[streamChat] Candidate models for fallback: \(candidates)")
+
+            if onlyFree && candidates.isEmpty {
+                throw AssistModelEligibilityError.noEligibleFreeModelAvailable(provider: resolvedProvider.rawValue)
+            }
+
+            for candidate in candidates {
+                if candidate == model { continue }
+                if onlyFree && !AssistModelEligibilityPolicy.isEligible(modelID: candidate, onlyUseFreeModels: true) { continue }
+                logInfo("[streamChat] Attempting fallback stream with model: \(candidate)...")
+                do {
+                    try await streamChatInternal(messages: messages, model: candidate, systemPrompt: systemPrompt, providerOverride: providerOverride, onToken: onToken)
+                    return
+                } catch {
+                    logInfo("[streamChat] Fallback model \(candidate) failed: \(error.localizedDescription)")
+                }
+            }
+
+            throw error
+        }
+    }
+
+    private func streamChatInternal(
+        messages: [AIMessage],
+        model: String,
+        systemPrompt: String,
+        providerOverride: LLMProvider? = nil,
+        onToken: @escaping @Sendable (String) async -> Void
+    ) async throws {
+        if let customEndpoint = findCustomEndpoint(for: model) {
+            logInfo("[streamChat] Routing stream to custom endpoint: \(customEndpoint.endpoint) for model: \(model)")
+
+            var urlString = customEndpoint.isLocal ? "http://localhost:\(customEndpoint.localPort.trimmingCharacters(in: .whitespacesAndNewlines))/v1" : customEndpoint.endpoint
+            urlString = urlString.trimmingCharacters(in: .whitespacesAndNewlines)
+            if !urlString.lowercased().hasSuffix("/chat/completions") {
+                if urlString.hasSuffix("/") {
+                    urlString += "chat/completions"
+                } else {
+                    urlString += "/chat/completions"
+                }
+            }
+
+            guard let url = URL(string: urlString) else {
+                throw NSError(domain: "LLMService", code: 400, userInfo: [NSLocalizedDescriptionKey: "Invalid custom endpoint URL"])
+            }
+
+            var request = URLRequest(url: url)
+            request.httpMethod = "POST"
+            request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+
+            let apiKey = customEndpoint.isLocal ? "" : customEndpoint.apiKey.trimmingCharacters(in: .whitespacesAndNewlines)
+            if !apiKey.isEmpty {
+                request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
+            }
+
+            for header in customEndpoint.headers {
+                let k = header.key.trimmingCharacters(in: .whitespacesAndNewlines)
+                let v = header.value.trimmingCharacters(in: .whitespacesAndNewlines)
+                if !k.isEmpty && !v.isEmpty {
+                    request.setValue(v, forHTTPHeaderField: k)
+                }
+            }
+
+            var apiMessages: [[String: String]] = []
+            if !systemPrompt.isEmpty {
+                apiMessages.append(["role": "system", "content": systemPrompt])
+            }
+            apiMessages += messages.map { ["role": $0.role.rawValue, "content": $0.content] }
+            let body: [String: Any] = [
+                "model": model,
+                "messages": apiMessages,
+                "stream": true
+            ]
+            request.httpBody = try JSONSerialization.data(withJSONObject: body)
+
+            let (stream, response) = try await self.urlSession.bytes(for: request)
+            try handleHTTPError(response, data: nil)
+
+            for try await line in stream.lines {
+                guard line.hasPrefix("data: ") else { continue }
+                let jsonString = String(line.dropFirst(6)).trimmingCharacters(in: .whitespaces)
+                guard jsonString != "[DONE]" else { break }
+
+                if let data = jsonString.data(using: .utf8) {
+                    if let chunk = try? JSONDecoder().decode(ChatCompletionChunk.self, from: data),
+                       let token = chunk.choices.first?.delta.content {
+                        await onToken(token)
+                    }
+                }
+            }
+            return
+        }
+
+        let resolvedProvider = providerOverride ?? provider(for: model)
+        logInfo("[streamChat] Authoritative Routing. Provider: \(resolvedProvider.rawValue), Model: \(model).")
+
+        if model == "AFM 3 Core" || model == "AFM 3 Core Advanced" {
+            logInfo("[streamChat] Routing stream to Apple private on-device reasoning.")
+            let prompt = formatFullPrompt(messages: messages, systemPrompt: systemPrompt)
+            try await FoundationModels.shared.streamPrivateResponse(prompt: prompt, onToken: onToken)
+            return
+        }
+
+        let provider = resolvedProvider
+
+        if provider == .codex {
+            logInfo("[streamChat] Routing stream to OpenAI Codex bridge.")
+            let prompt = formatFullPrompt(messages: messages, systemPrompt: systemPrompt)
+            try await CodexBridgeManager.shared.streamPrompt(prompt, onToken: onToken)
+            return
+        }
+
+        if provider == .offline {
+            logInfo("[streamChat] Routing stream to offline model.")
+            _ = try await defaultOfflineModelName()
+            try await OfflineModelRunner.shared.loadModel(at: try await defaultOfflineModelDirectory())
+            let prompt = formatFullPrompt(messages: messages, systemPrompt: systemPrompt)
+            try await OfflineModelRunner.shared.streamResponse(prompt: prompt) { token in
+                Task {
+                    await onToken(token)
+                }
+            }
+            return
+        }
+
+        do {
+            if provider == .openRouter {
+                logInfo("[streamChat] Streaming with OpenRouter via direct connection.")
+                try await OpenRouterService.shared.streamChatDirect(
+                    messages: messages,
+                    model: model,
+                    systemPrompt: systemPrompt,
+                    onToken: onToken
+                )
+                return
+            }
+
+            // N-1: the effective credential is the API key first, then a valid
+            // Google OAuth session for the Google provider. The Chat Mode
+            // validator now permits OAuth-only users, so this gate must honor
+            // the session too — otherwise validation passes and the request
+            // still dies with an auth-flavored invalidKey error. setupHeaders
+            // already transports ya29. Bearer tokens correctly (Authorization
+            // header + x-goog-user-project).
+            let key = await resolveEffectiveCredential(for: provider)
+            guard !key.isEmpty else {
+                logError("[streamChat] Missing API key / credentials for stream.")
+                throw LLMError.invalidKey
+            }
+
+            let isSwiftCloud = isSwiftCloudRequest(for: provider)
+            let endpoint = provider == .anthropic ? "messages" : "chat/completions"
+            let url = isSwiftCloud ? AppConfig.shared.swiftCloudAPIURL.appendingPathComponent(endpoint) : provider.baseURL.appendingPathComponent(endpoint)
+
+            var request = URLRequest(url: url)
+            request.httpMethod = "POST"
+            if isSwiftCloud {
+                request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+                request.setValue("Bearer \(key)", forHTTPHeaderField: "Authorization")
+            } else {
+                setupHeaders(for: &request, provider: provider, key: key)
+            }
+
+            let body = try buildRequestBody(provider: provider, model: model, messages: messages, systemPrompt: systemPrompt, stream: true)
+            request.httpBody = try JSONSerialization.data(withJSONObject: body)
+
+            logInfo("[streamChat] Connecting to stream at \(provider.rawValue)...")
+            let (stream, response) = try await self.urlSession.bytes(for: request)
+            try handleHTTPError(response, data: nil)
+
+            if isSwiftCloud {
+                await incrementSwiftCloudRequestCount()
+            }
+
+            logInfo("[streamChat] Stream connected. Consuming lines.")
+            for try await line in stream.lines {
+                guard line.hasPrefix("data: ") else { continue }
+                let jsonString = String(line.dropFirst(6)).trimmingCharacters(in: .whitespaces)
+                guard jsonString != "[DONE]" else { break }
+
+                if let data = jsonString.data(using: .utf8) {
+                    if provider == .anthropic {
+                        if let chunk = try? JSONDecoder().decode(AnthropicStreamChunk.self, from: data),
+                           let token = chunk.delta?.text {
+                            await onToken(token)
+                        }
+                    } else {
+                        if let chunk = try? JSONDecoder().decode(ChatCompletionChunk.self, from: data),
+                           let token = chunk.choices.first?.delta.content {
+                            await onToken(token)
+                        }
+                    }
+                }
+            }
+        } catch {
+            logWarning("[streamChat] Stream failed: \(error.localizedDescription). Checking fallback eligibility.")
+            if await shouldFallbackToOffline(for: provider) {
+                logInfo("[streamChat] Falling back to offline runner stream.")
+                _ = try await defaultOfflineModelName()
+                try await OfflineModelRunner.shared.loadModel(at: try await defaultOfflineModelDirectory())
+                try await OfflineModelRunner.shared.streamResponse(prompt: messages.last?.content ?? "") { token in
+                    Task { await onToken(token) }
+                }
+                return
+            }
+            throw error
+        }
+    }
+
+    @MainActor
+    public func streamChatCompletion(request: AIAssistantRequest) async throws -> AsyncThrowingStream<String, Error> {
+        let model = request.model.trimmingCharacters(in: .whitespacesAndNewlines)
+        let resolvedProvider = provider(for: model)
+        logInfo("[streamChatCompletion] Authoritative Routing. Provider: \(resolvedProvider.rawValue), Model: \(model).")
+
+        if model == "AFM 3 Core" || model == "AFM 3 Core Advanced" {
+            logInfo("[streamChatCompletion] Streaming via Apple Foundation Models.")
+            return AsyncThrowingStream { continuation in
+                Task {
+                    do {
+                        let prompt = self.formatFullPrompt(messages: request.messages, systemPrompt: request.systemPrompt)
+                        try await FoundationModels.shared.streamPrivateResponse(prompt: prompt) { token in
+                            continuation.yield(token)
+                        }
+                        continuation.finish()
+                    } catch {
+                        continuation.finish(throwing: error)
+                    }
+                }
+            }
+        }
+
+        let provider = resolvedProvider
+        if provider == .codex {
+            logInfo("[streamChatCompletion] Streaming via OpenAI Codex bridge.")
+            return AsyncThrowingStream { continuation in
+                Task {
+                    do {
+                        let prompt = self.formatFullPrompt(messages: request.messages, systemPrompt: request.systemPrompt)
+                        try await CodexBridgeManager.shared.streamPrompt(prompt) { token in
+                            continuation.yield(token)
+                        }
+                        continuation.finish()
+                    } catch {
+                        continuation.finish(throwing: error)
+                    }
+                }
+            }
+        }
+
+        if provider == .offline {
+            logInfo("[streamChatCompletion] Streaming via offline model.")
+            return AsyncThrowingStream { continuation in
+                Task {
+                    do {
+                        let prompt = self.formatFullPrompt(messages: request.messages, systemPrompt: request.systemPrompt)
+                        _ = try await self.defaultOfflineModelName()
+                        try await OfflineModelRunner.shared.loadModel(at: try await self.defaultOfflineModelDirectory())
+                        try await OfflineModelRunner.shared.streamResponse(prompt: prompt) { token in
+                            continuation.yield(token)
+                        }
+                        continuation.finish()
+                    } catch {
+                        continuation.finish(throwing: error)
+                    }
+                }
+            }
+        }
+
+        // Default: OpenRouter / standard streaming
+        logInfo("[streamChatCompletion] Streaming via default provider \(provider.rawValue).")
+        return AsyncThrowingStream { continuation in
+            Task {
+                do {
+                    try await self.streamChat(
+                        messages: request.messages,
+                        model: request.model,
+                        systemPrompt: request.systemPrompt,
+                        onToken: { token in
+                            continuation.yield(token)
+                        }
+                    )
+                    continuation.finish()
+                } catch {
+                    continuation.finish(throwing: error)
+                }
+            }
+        }
+    }
+
+    private func formatFullPrompt(messages: [AIMessage], systemPrompt: String = "") -> String {
+        var parts: [String] = []
+        let cleanSystem = systemPrompt.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !cleanSystem.isEmpty {
+            parts.append("System Instructions:\n\(cleanSystem)")
+        }
+        for msg in messages {
+            let roleName: String
+            switch msg.role {
+            case .user: roleName = "User"
+            case .assistant: roleName = "Assistant"
+            case .system: roleName = "System"
+            }
+            parts.append("\(roleName):\n\(msg.content)")
+        }
+        if parts.isEmpty {
+            return messages.last?.content ?? ""
+        }
+        return parts.joined(separator: "\n\n")
+    }
+
+    @MainActor
+    private func shouldFallbackToOffline(for provider: LLMProvider) -> Bool {
+        let mode = AIRoutingMode.from(rawValue: UserDefaults.standard.string(forKey: aiRoutingModeKey))
+        return mode == .dynamic && provider != .offline && hasDefaultOfflineModel()
+    }
+
+    private func runOfflineResponse(messages: [AIMessage]) async throws -> LLMResponse {
+        let startTime = Date()
+        let offlineModel = try await defaultOfflineModelName()
+        try await OfflineModelRunner.shared.loadModel(at: try await defaultOfflineModelDirectory())
+        let prompt = formatFullPrompt(messages: messages)
+        let completionText = try await OfflineModelRunner.shared.generateResponse(prompt: prompt)
+        return LLMResponse(modelName: offlineModel, completionText: completionText, tokenUsage: nil, latency: Date().timeIntervalSince(startTime))
+    }
+
+    private func getFallbackModels(for model: String, provider: LLMProvider) async -> [String] {
+        let onlyFree = await MainActor.run { AppSettings.shared.onlyUseFreeModels }
+        var list: [String] = []
+
+        if let customEndpoint = findCustomEndpoint(for: model) {
+            if !customEndpoint.models.isEmpty {
+                list = customEndpoint.models
+            } else if let fetched = try? await fetchModelsForCustomEndpoint(customEndpoint) {
+                list = fetched
+            }
+        } else if model == "AFM 3 Core" || model == "AFM 3 Core Advanced" {
+            list = ["AFM 3 Core", "AFM 3 Core Advanced"]
+        } else {
+            let key = retrieveAPIKey(for: provider)
+            if !key.isEmpty, let fetched = try? await fetchAvailableModels(provider: provider, key: key) {
+                list = fetched
+            }
+        }
+
+        if onlyFree {
+            return AssistModelEligibilityPolicy.filterEligibleModelIDs(list, onlyUseFreeModels: true)
+        }
+        return list
+    }
+
+    private func fetchModelsForCustomEndpoint(_ endpoint: SavedCustomEndpoint) async throws -> [String] {
+        var urlString = ""
+        if endpoint.isLocal {
+            urlString = "http://localhost:\(endpoint.localPort.trimmingCharacters(in: .whitespacesAndNewlines))/v1/models"
+        } else {
+            urlString = endpoint.endpoint.trimmingCharacters(in: .whitespacesAndNewlines)
+            if !urlString.lowercased().hasSuffix("/models") {
+                if urlString.hasSuffix("/") {
+                    urlString += "models"
+                } else {
+                    urlString += "/models"
+                }
+            }
+        }
+
+        guard let url = URL(string: urlString) else {
+            throw NSError(domain: "LLMService", code: 400, userInfo: [NSLocalizedDescriptionKey: "Invalid custom endpoint URL"])
+        }
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "GET"
+        request.timeoutInterval = 10.0
+
+        if !endpoint.isLocal {
+            let trimmedKey = endpoint.apiKey.trimmingCharacters(in: .whitespacesAndNewlines)
+            if !trimmedKey.isEmpty {
+                request.addValue("Bearer \(trimmedKey)", forHTTPHeaderField: "Authorization")
+            }
+
+            for header in endpoint.headers {
+                let trimmedKey = header.key.trimmingCharacters(in: .whitespacesAndNewlines)
+                let trimmedVal = header.value.trimmingCharacters(in: .whitespacesAndNewlines)
+                if !trimmedKey.isEmpty && !trimmedVal.isEmpty {
+                    request.addValue(trimmedVal, forHTTPHeaderField: trimmedKey)
+                }
+            }
+        }
+
+        let (data, response) = try await URLSession.shared.data(for: request)
+        guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
+            throw NSError(domain: "LLMService", code: 500, userInfo: [NSLocalizedDescriptionKey: "Failed to fetch models"])
+        }
+
+        struct CustomModelsResponse: Codable {
+            let data: [ModelEntry]
+            struct ModelEntry: Codable {
+                let id: String
+            }
+        }
+
+        let decoded = try JSONDecoder().decode(CustomModelsResponse.self, from: data)
+        return decoded.data.map { $0.id }
+    }
+
+    // MARK: - Helpers
+
+    private func setupHeaders(for request: inout URLRequest, provider: LLMProvider, key: String) {
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+
+        switch provider {
+        case .anthropic:
+            request.setValue(key, forHTTPHeaderField: "x-api-key")
+            request.setValue("2023-06-01", forHTTPHeaderField: "anthropic-version")
+        case .google:
+            if key.hasPrefix("ya29.") || (key.contains(".") && !key.starts(with: "AIza")) {
+                request.setValue("Bearer \(key)", forHTTPHeaderField: "Authorization")
+                // H-4: the Developer API's OAuth contract requires the quota
+                // project on every request. Without it, Settings > Assist >
+                // Available Models deterministically 403s on a valid session.
+                let quotaProject = AppSettings.shared.assistGoogleCloudProject.trimmingCharacters(in: .whitespacesAndNewlines)
+                if !quotaProject.isEmpty {
+                    request.setValue(quotaProject, forHTTPHeaderField: "x-goog-user-project")
+                }
+            } else {
+                request.url = request.url?.appending(queryItems: [URLQueryItem(name: "key", value: key)])
+            }
+        default:
+            request.setValue("Bearer \(key)", forHTTPHeaderField: "Authorization")
+        }
+    }
+
+    private func buildRequestBody(provider: LLMProvider, model: String, messages: [AIMessage], systemPrompt: String = "", stream: Bool) throws -> [String: Any] {
+        var body: [String: Any] = [
+            "model": model,
+            "stream": stream
+        ]
+
+        if provider == .anthropic {
+            if !systemPrompt.isEmpty {
+                body["system"] = systemPrompt
+            }
+            body["messages"] = messages.map { msg -> [String: Any] in
+                if let attachments = msg.attachments, !attachments.isEmpty {
+                    var contentBlocks: [[String: Any]] = []
+                    if !msg.content.isEmpty {
+                        contentBlocks.append(["type": "text", "text": msg.content])
+                    }
+                    for att in attachments {
+                        if att.mimeType.hasPrefix("image/") {
+                            contentBlocks.append([
+                                "type": "image",
+                                "source": [
+                                    "type": "base64",
+                                    "media_type": att.mimeType,
+                                    "data": att.base64Data
+                                ]
+                            ])
+                        }
+                    }
+                    return ["role": msg.role.rawValue, "content": contentBlocks]
+                } else {
+                    return ["role": msg.role.rawValue, "content": msg.content]
+                }
+            }
+            body["max_tokens"] = 4096
+        } else {
+            var apiMessages: [[String: Any]] = []
+            if !systemPrompt.isEmpty {
+                apiMessages.append(["role": "system", "content": systemPrompt])
+            }
+            for msg in messages {
+                if let attachments = msg.attachments, !attachments.isEmpty {
+                    var contentBlocks: [[String: Any]] = []
+                    if !msg.content.isEmpty {
+                        contentBlocks.append(["type": "text", "text": msg.content])
+                    }
+                    for att in attachments {
+                        if att.mimeType.hasPrefix("image/") {
+                            let dataURI = "data:\(att.mimeType);base64,\(att.base64Data)"
+                            contentBlocks.append([
+                                "type": "image_url",
+                                "image_url": ["url": dataURI]
+                            ])
+                        }
+                    }
+                    apiMessages.append(["role": msg.role.rawValue, "content": contentBlocks])
+                } else {
+                    apiMessages.append(["role": msg.role.rawValue, "content": msg.content])
+                }
+            }
+            body["messages"] = apiMessages
+        }
+
+        return body
+    }
+
+    private func handleHTTPError(_ response: URLResponse, data: Data?) throws {
+        guard let httpResponse = response as? HTTPURLResponse else { return }
+
+        if httpResponse.statusCode == 200 { return }
+
+        let errorDesc = data.flatMap { String(data: $0, encoding: .utf8) } ?? "HTTP \(httpResponse.statusCode)"
+        logError("[Third-Party API Error] Status: \(httpResponse.statusCode). Response Payload: \(errorDesc)")
+
+        switch httpResponse.statusCode {
+        case 401: throw LLMError.invalidKey
+        case 429: throw LLMError.rateLimited
+        case 404: throw LLMError.modelNotFound
+        default:
+            throw LLMError.networkError(errorDesc)
+        }
+    }
+}
+
+// MARK: - Decodable Structures
+
+private struct ModelListResponse: Decodable {
+    struct ModelData: Decodable {
+        let id: String
+    }
+    let data: [ModelData]
+}
+
+private struct ChatCompletionResponse: Decodable {
+    let model: String
+    struct Choice: Decodable {
+        struct Message: Decodable {
+            let content: String
+        }
+        let message: Message
+    }
+    let choices: [Choice]
+    struct Usage: Decodable {
+        let prompt_tokens: Int
+        let completion_tokens: Int
+        let total_tokens: Int
+    }
+    let usage: Usage?
+}
+
+private struct ChatCompletionChunk: Decodable {
+    struct Choice: Decodable {
+        struct Delta: Decodable {
+            let content: String?
+        }
+        let delta: Delta
+    }
+    let choices: [Choice]
+}
+
+private struct AnthropicResponse: Decodable {
+    let model: String
+    struct Content: Decodable {
+        let text: String
+    }
+    let content: [Content]
+    struct Usage: Decodable {
+        let input_tokens: Int
+        let output_tokens: Int
+    }
+    let usage: Usage
+}
+
+private struct AnthropicStreamChunk: Decodable {
+    struct Delta: Decodable {
+        let text: String?
+    }
+    let delta: Delta?
+}

@@ -4,7 +4,10 @@
 // - AssistActivityGroup / ToolActivityItem / WorkerActivityItem / FileActivityItem /
 //   BuildActivityItem / TestActivityItem / TerminalActivityItem (Legacy
 //   `Backend/Assist/Models/AssistActivityModels.swift`, PARTIAL).
-// - ProjectSessionStore.shared.openFile(atPath:) (PARTIAL).
+// - ProjectSessionStore.shared.openFile(atPath:) (PARTIAL): RESOLVED by fix
+//   W-V2 — the normalizer no longer reaches into the IDE store (SwiftCodeIDECore,
+//   unreachable from this target). The host sets `openFileHandler` (below); the
+//   file-open is a host action, the activity-group recording is unchanged.
 // RESOLVED on main 555d2a31: AssistToolActivityFormatter (SwiftCodeAssistant;
 // format/extractFilePath/determineFileOperation) — A3 landed it after staging.
 // Wiring: AssistManager.reportTool*/reportWorker* (same batch) call it.
@@ -15,6 +18,13 @@ import Foundation
 @MainActor
 public final class AssistEventNormalizer {
     public static let shared = AssistEventNormalizer()
+
+    /// Host hook for the "open this file in the IDE" side effect (V2 fix
+    /// W-V2). Set by the IDE shell; nil until then, in which case the file
+    /// is still recorded in the activity group but no editor is opened.
+    /// Was `ProjectSessionStore.shared.openFile(atPath:)` (SwiftCodeIDECore,
+    /// unreachable from this target).
+    public var openFileHandler: ((String) -> Void)?
 
     private var activeCallToSemanticKey: [String: String] = [:]
     private var activeCallToOperationId: [String: UUID] = [:]
@@ -341,7 +351,7 @@ public final class AssistEventNormalizer {
                 if !activityGroup.files.contains(where: { $0.filePath == path }) {
                     activityGroup.files.append(FileActivityItem(filePath: path, operation: op))
                 }
-                ProjectSessionStore.shared.openFile(atPath: path)
+                openFileHandler?(path)
             }
         }
 

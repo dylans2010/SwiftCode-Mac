@@ -23,11 +23,23 @@
 //   reworked from Combine `$lastFallbackMessage` to Observation
 //   (`withObservationTracking`, see that function).
 // STILL BLOCKED:
-// - AssistMemoryGraph / AssistModelProvider / LLMService / AssistExecutionFunctions /
-//   TerminalApprovalRequest / AgentFileContext / AssistTaskEnvelope (not on main).
-// - ProjectSessionStore (PARTIAL); AssistFileSystem concrete class is COVERED-by-design
-//   (superseded by MCP tools) — buildContext() still constructs it; the coordinator
-//   must reconcile with AssistContextBuilder's MCP rewire (see that file's header).
+// - LLMService (1,413 lines, unowned; needs OpenRouterClient / OpenRouterService /
+//   InternalLoggingManager — see W-V2 FIXES.md): provider()/retrieveAPIKey()/
+//   streamChat() call sites below.
+// - SCCloudConfiguration / SCCloudModelClient / AlternativeKeyManager: do not exist
+//   anywhere in the destination (see W-V2 FIXES.md for the port plan).
+// - GoogleAccountAuthService / AntigravityQuotaService / GoogleCloudSDKSession /
+//   GoogleCloudSDKRuntime: exist in SwiftCodeGoogleAuth, which SwiftCodeAssistant
+//   does not (and cannot, per its dependency list) depend on — target-level block.
+// - GoogleCloudSDKConfiguration: does not exist anywhere in the destination.
+// - ProjectSessionStore: RESOLVED by fix W-V2 via AssistProject (see that file) —
+//   the manager now reads `activeProject`, set by the IDE shell. AssistFileSystem
+//   concrete class is COVERED-by-design (superseded by MCP tools) — buildContext()
+//   still constructs it; the coordinator must reconcile with AssistContextBuilder's
+//   MCP rewire (see that file's header).
+// RESOLVED by fix W-V2: AssistMemoryGraph / AssistModelProvider /
+//   AssistExecutionFunctions / TerminalApprovalRequest / AgentFileContext /
+//   AssistTaskEnvelope (all landed in SwiftCodeAssistant).
 // - AppSettings (24 uses: useSwiftCodeCloudModel, selectedAssistModelID,
 //   assistUseProviderModels, isMetaAssist, assistGoogleAuthMode,
 //   alternativeKeysEnabled, isGoogleCloudAssist, ...): no AppSettings exists in the
@@ -57,6 +69,14 @@ import Observation
 @Observable
 public final class AssistManager {
     public static let shared = AssistManager()
+
+    /// The project the assistant operates on (V2 fix W-V2). Set by the IDE
+    /// shell when a project opens; nil until then, in which case contexts
+    /// fall back to the workspace root on disk (see AssistProject.swift).
+    /// Was `ProjectSessionStore.shared.activeProject` (SwiftCodeIDECore,
+    /// unreachable from this target — that store already depends on this
+    /// target, so the reverse would be a cycle).
+    public var activeProject: AssistProject?
 
     public var messages: [AssistMessage] = []
     public var isProcessing = false
@@ -390,13 +410,14 @@ public final class AssistManager {
     }
 
     private func buildContext() -> AssistContext {
-        let activeRoot = ProjectSessionStore.shared.activeProject?.directoryURL ?? AssistContextBuilder.resolvedWorkspaceRoot()
+        let activeRoot = activeProject?.directoryURL ?? AssistContextBuilder.resolvedWorkspaceRoot()
         let builder = AssistContextBuilder(
             logger: logger,
             permissions: permissions,
             memory: memory,
             fileSystem: AssistFileSystem(workspaceRoot: activeRoot),
-            git: AssistGitManager(project: ProjectSessionStore.shared.activeProject, workspaceRoot: activeRoot)
+            git: AssistGitManager(project: activeProject, workspaceRoot: activeRoot),
+            project: activeProject
         )
         return builder.buildContext(sessionId: session.id)
     }
@@ -1231,7 +1252,7 @@ public final class AssistManager {
         metrics: AssistRequestMetrics? = nil,
         generation: AssistRequestGeneration
     ) async {
-        guard let projectURL = ProjectSessionStore.shared.activeProject?.directoryURL,
+        guard let projectURL = activeProject?.directoryURL,
               FileManager.default.fileExists(atPath: projectURL.path) else {
             await MainActor.run {
                 failRequest("Execution failed: No active workspace project selected. Please open or select a project directory first.")

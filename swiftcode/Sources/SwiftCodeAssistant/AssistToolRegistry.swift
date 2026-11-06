@@ -128,15 +128,18 @@ public final class AssistToolRegistry {
         readOnlyResultCache[semanticKey] = (result: result, timestamp: Date())
     }
 
-    /// An empty registry: tools enrol explicitly through ``register(_:)``.
-    /// Registration used to happen here in `registerAllTools()`, but that
-    /// listed ~291 concrete tool types, 274 of which exist nowhere in the
-    /// tree yet and 17 of which live in SwiftCodeMCP (which this target
-    /// cannot import — MCP depends on Assistant, not the reverse).
-    /// Enrolment therefore lives with the tools: MCP-defined tools register
-    /// in `AssistToolRegistry+MCPTools.swift` (SwiftCodeMCP), and each
-    /// further tool registers itself (or via its landing agent) as it lands.
-    public init() {}
+    /// Assistant-side tools enrol here at `init()` so both a fresh
+    /// `AssistToolRegistry()` and `.shared` contain them (the
+    /// `AssistRuntimeTestSuite` constructs fresh registries and resolves
+    /// tools off `.shared`). MCP-defined tools still enrol separately in
+    /// `AssistToolRegistry+MCPTools.swift` (`registerMCPTools()`, called
+    /// once at MCP startup), because this target cannot import SwiftCodeMCP.
+    /// Enrolment lives with the tools: each further Assistant-side tool
+    /// registers itself in `registerAssistantTools()` (see
+    /// `AssistToolRegistry+AssistantTools.swift`) as it lands.
+    public init() {
+        registerAssistantTools()
+    }
 
     public var version: Int { registryVersion }
     private var cachedToolSchemas: [[String: Any]]?

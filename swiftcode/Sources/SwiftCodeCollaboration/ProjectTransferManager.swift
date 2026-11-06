@@ -6,11 +6,12 @@ import Foundation
 import MultipeerConnectivity
 
 @MainActor
-final class ProjectTransferManager: ObservableObject {
-    static let shared = ProjectTransferManager()
+// M-REST (2026-11-06): access raised to public so the ported Transfer Projects views in SwiftCodeUI can use it (no behaviour change).
+public final class ProjectTransferManager: ObservableObject {
+    public static let shared = ProjectTransferManager()
 
-    @Published private(set) var sessions: [TransferSession] = []
-    @Published private(set) var incomingSession: TransferSession?
+    @Published public private(set) var sessions: [TransferSession] = []
+    @Published public private(set) var incomingSession: TransferSession?
     @Published private(set) var lastError: String?
 
     private let serializer = ProjectTransferSerializer()
@@ -25,7 +26,7 @@ final class ProjectTransferManager: ObservableObject {
         }
     }
 
-    func startTransfer(project: CollaborationProject, to peer: MCPeerID, permission: TransferPermission) async throws {
+    public func startTransfer(project: CollaborationProject, to peer: MCPeerID, permission: TransferPermission) async throws {
         let session = TransferSession(
             projectID: project.id,
             projectName: project.name,
@@ -41,7 +42,7 @@ final class ProjectTransferManager: ObservableObject {
         try await transmit(sessionID: session.id, payload: encoded, to: peer)
     }
 
-    func respondToIncoming(accept: Bool) {
+    public func respondToIncoming(accept: Bool) {
         guard var session = incomingSession else { return }
         session.state = accept ? .authorizing : .rejected
         update(session)

@@ -1,0 +1,33 @@
+// Ported from Legacy (Dylan's own SwiftCode code, MIT-authorised direct port):
+//   SwiftCode/Views/Transfer Projects/TransferProgressView
+//
+// Verbatim apart from this header. `PeerSessionManager` /
+// `ProjectTransferManager` / `TransferSession` / `TransferPermission`
+// are in `SwiftCodeCollaboration`.
+
+import SwiftCodeCollaboration
+import SwiftUI
+
+struct TransferProgressView: View {
+    @StateObject private var transferManager = ProjectTransferManager.shared
+
+    var body: some View {
+        ForEach(transferManager.sessions) { session in
+            VStack(alignment: .leading, spacing: 8) {
+                HStack {
+                    Text(session.projectName)
+                    Spacer()
+                    Text(session.state.rawValue.capitalized)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                ProgressView(value: session.progress)
+                Text("\(session.bytesTransferred) / \(session.totalBytes) bytes")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+            .padding(12)
+            .liquidGlass(style: .subtle, cornerRadius: 12)
+        }
+    }
+}

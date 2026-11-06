@@ -16,11 +16,12 @@ import MultipeerConnectivity
 /// certificates instead of accepting them unconditionally.
 
 @MainActor
-final class PeerSessionManager: NSObject, ObservableObject {
-    static let shared = PeerSessionManager()
+// M-REST (2026-11-06): access raised to public so the ported Transfer Projects views in SwiftCodeUI can use it (no behaviour change).
+public final class PeerSessionManager: NSObject, ObservableObject {
+    public static let shared = PeerSessionManager()
 
-    @Published private(set) var nearbyPeers: [MCPeerID] = []
-    @Published private(set) var peerStates: [String: MCSessionState] = [:]
+    @Published public private(set) var nearbyPeers: [MCPeerID] = []
+    @Published public private(set) var peerStates: [String: MCSessionState] = [:]
 
     let localPeerID = MCPeerID(displayName: Host.current().localizedName ?? "macOS Device")
     private let serviceType = "swiftcode-p2p"
@@ -41,7 +42,7 @@ final class PeerSessionManager: NSObject, ObservableObject {
         browser.startBrowsingForPeers()
     }
 
-    func invite(_ peer: MCPeerID) {
+    public func invite(_ peer: MCPeerID) {
         browser.invitePeer(peer, to: session, withContext: nil, timeout: 30)
     }
 

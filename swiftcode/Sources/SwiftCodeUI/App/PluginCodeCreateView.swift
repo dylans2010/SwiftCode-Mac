@@ -4,9 +4,10 @@
 // Worklist verdict: PARTIAL.
 // Missing behaviour ported: v1 plugin authoring model (AdvancedPlugin run with context, AgentTool interop picker, automation steps, config-schema editor)
 // References legacy types absent from the destination and from this worklist (wiring/integration gaps): CreateTab, PluginAutomationStep, PluginConfigField, PluginManifest, PluginToolBinding.
+// Moved here from swiftcode-ide/SDKStudio/ (Views/Settings worklist, Q-DEVSET2) so PluginManagerView.swift's "Create Plugin" sheet resolves: SwiftCodeUI cannot depend on the swiftcode-ide executable target. No call sites; `import SwiftCodeUI` removed (self-import).
+// Resolved by the PluginManager backend port (SwiftCodeUI/Extensions/PluginManager.swift): PluginAutomationStep, PluginConfigField, PluginManifest, PluginToolBinding. Still unresolved (pre-existing dangling refs, not this worklist): AgentTool, ListTools.
 // Static port only — no Swift toolchain here; build verification pending on Dylan's Mac.
 import SwiftCodeIDECore
-import SwiftCodeUI
 import SwiftUI
 
 struct PluginCodeCreateView: View {

@@ -4,6 +4,7 @@
 // Worklist verdict: PARTIAL.
 // Missing behaviour ported: apply-template with GitHub repository initialization and progress log
 // Static port only — no Swift toolchain here; build verification pending on Dylan's Mac.
+import SwiftCodeGitHub
 import SwiftCodeIDECore
 import SwiftCodeUI
 import SwiftUI
@@ -154,8 +155,23 @@ struct ProjectTemplateView: View {
             do {
                 try templateManager.applyTemplate(template, to: project)
 
-                // Block until repository is initialized
-                try await GitHubService.shared.initializeGitHubRepository(for: project) { @Sendable log in
+                // Block until repository is initialized. GitHubService
+                // cannot take the Project model (SwiftCodeGitHub has no
+                // dependency on it), so the owner/repo and directory are
+                // passed as primitives.
+                let repoURL = project.githubRepo ?? ""
+                let repoParts = repoURL.split(separator: "/")
+                guard repoParts.count == 2 else {
+                    throw GitHubError.invalidRepo(repoURL)
+                }
+                let directoryURL = await project.directoryURL
+                try await GitHubService.shared.initializeGitHubRepository(
+                    owner: String(repoParts[0]),
+                    repo: String(repoParts[1]),
+                    projectName: project.name,
+                    projectDescription: project.description,
+                    directoryURL: directoryURL
+                ) { @Sendable log in
                     Task { @MainActor in
                         LogManager.shared.logDeployment("[GitHub Init] \(log)")
                     }

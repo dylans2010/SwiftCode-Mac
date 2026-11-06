@@ -1,0 +1,33 @@
+// Ported from Legacy (Dylan's own SwiftCode code, MIT-authorised direct port):
+//   SwiftCode/Views/Transfer Projects/IncomingTransferView
+//
+// Verbatim apart from this header. `PeerSessionManager` /
+// `ProjectTransferManager` / `TransferSession` / `TransferPermission`
+// are in `SwiftCodeCollaboration`.
+
+import SwiftCodeCollaboration
+import SwiftUI
+
+struct IncomingTransferView: View {
+    @StateObject private var transferManager = ProjectTransferManager.shared
+
+    var body: some View {
+        if let session = transferManager.incomingSession {
+            VStack(alignment: .leading, spacing: 12) {
+                Text(session.projectName)
+                    .font(.headline)
+                Text("From: \(session.sender.displayName)")
+                    .font(.subheadline)
+                Text("Preset: \(session.permission.preset.rawValue)")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                HStack {
+                    Button("Reject", role: .destructive) { transferManager.respondToIncoming(accept: false) }
+                    Button("Accept") { transferManager.respondToIncoming(accept: true) }
+                }
+            }
+            .padding(12)
+            .liquidGlass(style: .standard, cornerRadius: 12)
+        }
+    }
+}

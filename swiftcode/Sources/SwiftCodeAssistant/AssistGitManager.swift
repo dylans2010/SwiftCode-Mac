@@ -18,13 +18,16 @@ import Foundation
 public final class AssistGitManager: Sendable, AssistGitManagerProtocol {
     private let workspaceURL: URL
 
-    public init(project: Project?, workspaceRoot: URL? = nil) {
+    public init(project: AssistProject?, workspaceRoot: URL? = nil) {
+        // V2 fix: was `Project?` (SwiftCodeIDECore, unreachable from this
+        // target); only `directoryURL` was ever read. AssistProject is a
+        // plain Sendable value, so no MainActor isolation is needed here.
         if let workspaceRoot = workspaceRoot {
             self.workspaceURL = workspaceRoot
         } else if let proj = project {
-            self.workspaceURL = MainActor.assumeIsolated { proj.directoryURL }
+            self.workspaceURL = proj.directoryURL
         } else {
-            self.workspaceURL = MainActor.assumeIsolated { AssistContextBuilder.resolvedWorkspaceRoot() }
+            self.workspaceURL = AssistContextBuilder.resolvedWorkspaceRoot()
         }
     }
 

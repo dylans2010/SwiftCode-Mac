@@ -2,12 +2,20 @@
 // Staged only — not yet merged into swiftcode/Sources. See staging-wire/missing/DISPOSITIONS.md.
 // Verbatim except `.liquidGlass(...)` -> thinMaterial (see Adaptive notes).
 // BLOCKED references (left intact, owned by other scopes or unaudited):
-// - ToolbarManager / ToolbarTool / .toolbarToolActivated (Legacy
-//   `SwiftCode/Models/ToolbarItem.swift` — not in the audit, no owner yet).
-// - XcodeBuildManager / XcodeBuildAPI (PARTIAL), EditorViewModel / BuildViewModel
-//   (PARTIAL / unaudited), PreviewManager (PARTIAL), SwiftViewDetector,
-//   DocumentCoordinator, FullAppRunManager, ProjectSessionStore (PARTIAL),
-//   SourceFileDocument, SwiftCodeToolbarDelegate.
+// RESOLVED by fix W-V2 (and A4 for the toolbar model):
+// - ToolbarManager / ToolbarTool (A4, SwiftCodeUI/Window/ToolbarItem.swift);
+//   the @ObservedObject uses below are fixed to @State / plain refs because
+//   ToolbarManager is @Observable, not ObservableObject.
+// - XcodeBuildAPI: exists in SwiftCodeXcodebuild (all methods this view calls).
+// - SwiftViewDetector: landed in SwiftCodePreviews (PreviewDiscoveryService).
+// - PreviewManager / FullAppRunManager / BuildViewModel: landed by W-V2 in
+//   SwiftCodeUI (VisualUIBuilder/PreviewManager.swift, Window/FullAppRunManager.swift,
+//   Window/BuildViewModel.swift).
+// - DocumentCoordinator / ProjectSessionStore: in SwiftCodeIDECore, imported below.
+// - EditorViewModel (SwiftCodeEditorKit), SourceFileDocument, SwiftCodeToolbarDelegate:
+//   all exist in production.
+// STILL OPEN (not this file): SwiftCodeToolbarDelegate.presentCustomizationPalette()
+//   has no handler anywhere (pre-existing; the audit notes it).
 // Wiring: WorkspaceWindowController+ToolbarBand is the destination toolbar — this
 // view is its SwiftUI pinned-tools strip (Tools Hub / App Details / scheme picker /
 // Swift Files menu / Actions menu / pinned tools / Build & Stop).
@@ -16,6 +24,8 @@ import SwiftUI
 import AppKit
 import SwiftCodeBuild
 import SwiftCodeEditorKit
+import SwiftCodeIDECore
+import SwiftCodePreviews
 import SwiftCodeXcodebuild
 import UniformTypeIdentifiers
 
@@ -24,7 +34,8 @@ struct BuildToolbarView: View {
     @State var viewModel: BuildViewModel
     let projectURL: URL
     @Bindable var editorViewModel: EditorViewModel
-    @ObservedObject private var toolbarManager = ToolbarManager.shared
+    // V2 fix W-V2: ToolbarManager is @Observable, not ObservableObject.
+    @State private var toolbarManager = ToolbarManager.shared
 
     private var buildManager: XcodeBuildManager {
         XcodeBuildManager.shared
@@ -92,11 +103,16 @@ struct BuildToolbarView: View {
             Section("Preview & Simulation") {
                 Button {
                     Task {
-                        if let activeDoc = editorViewModel.activeDocument {
+                        if let docURL = editorViewModel.activeDocument?.fileURL {
                             await editorViewModel.saveActiveDocument()
                             NotificationCenter.default.post(name: .toolbarToolActivated, object: nil, userInfo: ["toolID": "visual_ui_builder"])
-                            let (preparedCode, _) = SwiftViewDetector.prepareSourceCode(activeDoc.content, filename: activeDoc.url.path)
-                            await PreviewManager.shared.startFreshLivePreviewSession(sourcePath: activeDoc.url.path, sourceCode: preparedCode)
+                            // Saved just above, so disk content is the editor text here.
+                            // (W-V2: SourceFileDocument has no `content`/`url` members in
+                            // production — the document-model reconciliation is
+                            // coordinator-owned; fileURL + disk read is the equivalent.)
+                            let content = (try? String(contentsOf: docURL, encoding: .utf8)) ?? ""
+                            let (preparedCode, _) = SwiftViewDetector.prepareSourceCode(content, filename: docURL.path)
+                            await PreviewManager.shared.startFreshLivePreviewSession(sourcePath: docURL.path, sourceCode: preparedCode)
                         }
                     }
                 } label: {
@@ -111,7 +127,10 @@ struct BuildToolbarView: View {
                             if let targetArt = artboard {
                                 visDoc.scene.activeArtboardID = targetArt.id
                                 let session = PreviewManager.shared.getOrCreateRuntimeSession(for: targetArt.id)
-                                await session.startBuildPipeline()
+                                // W-V2: startBuildPipeline requires projectDirectory + sourceFile.
+                                if let docURL = editorViewModel.activeDocument?.fileURL {
+                                    await session.startBuildPipeline(projectDirectory: docURL.deletingLastPathComponent(), sourceFile: docURL, targetViewName: targetArt.name)
+                                }
                             }
                         }
                     }
@@ -279,7 +298,9 @@ struct BuildToolbarView: View {
                 .help("View SwiftCode Project Archive metadata")
             }
 
-            if let activeDoc = editorViewModel.activeDocument, activeDoc.url.pathExtension.lowercased() == "swift", hasLivePreviewComment(content: activeDoc.content) {
+            // W-V2: SourceFileDocument has no `content`/`url` in production; the disk
+            // read below can be stale when edits are unsaved — it only gates this button.
+            if let docURL = editorViewModel.activeDocument?.fileURL, docURL.pathExtension.lowercased() == "swift", hasLivePreviewComment(content: (try? String(contentsOf: docURL, encoding: .utf8)) ?? "") {
                 Button {
                     Task {
                         // 1. Save current editor contents immediately
@@ -299,10 +320,12 @@ struct BuildToolbarView: View {
                             }
                         }
 
-                        // 4. Start a brand-new preview session
-                        let (preparedCode, _) = SwiftViewDetector.prepareSourceCode(activeDoc.content, filename: activeDoc.url.path)
+                        // 4. Start a brand-new preview session (saved just above, so
+                        // disk content is the editor text here — see the W-V2 note above).
+                        let content = (try? String(contentsOf: docURL, encoding: .utf8)) ?? ""
+                        let (preparedCode, _) = SwiftViewDetector.prepareSourceCode(content, filename: docURL.path)
                         await PreviewManager.shared.startFreshLivePreviewSession(
-                            sourcePath: activeDoc.url.path,
+                            sourcePath: docURL.path,
                             sourceCode: preparedCode
                         )
                     }
@@ -408,7 +431,8 @@ struct BuildToolbarView: View {
 @MainActor
 struct ToolbarToolView: View {
     let tool: ToolbarTool
-    @ObservedObject var toolbarManager: ToolbarManager
+    // V2 fix W-V2: @Observable types are held as plain refs when passed in.
+    var toolbarManager: ToolbarManager
     @Bindable var buildManager: XcodeBuildManager
 
     var body: some View {

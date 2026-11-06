@@ -4,7 +4,7 @@
 // Worklist verdict: PARTIAL.
 // Missing behaviour ported: Backups, Offline Models, MCP Servers and Plugins panes in the settings window (those views exist as files but have no call site in the repo); Updates pane; Credits pane; Connect pane
 // References types from module(s) not in this target's Package.swift dependencies: swiftcode-ide — add the dependency in Package.swift or rebind at wiring time; not imported here.
-// References legacy types absent from the destination and from this worklist (wiring/integration gaps): AppSettings, AssistSettingsView, BackupDetailsView, LiquidGlassCard, PluginManagerView, UInt16, UpdatesView.
+// References legacy types absent from the destination and from this worklist (wiring/integration gaps): AppSettings, AssistSettingsView, LiquidGlassCard, UInt16.
 // Static port only — no Swift toolchain here; build verification pending on Dylan's Mac.
 import SwiftCodeAssistant
 import SwiftCodeCloud

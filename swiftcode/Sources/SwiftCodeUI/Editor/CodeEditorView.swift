@@ -1,0 +1,918 @@
+// Ported from Legacy `SwiftCode/Views/Editor/CodeEditorView.swift` (Audit E §5 partial entry; H-E5).
+// Types ported here: CodeEditorView, EditorCodeFormatter, TextEditorRepresentable, LineNumberView, CodeEditorTextView, CodingToolMenuPayload.
+
+import AppKit
+import SwiftUI
+import UIKit
+
+// MARK: - Code Editor View
+struct CodeEditorView: View {
+    @Environment(ProjectSessionStore.self) private var sessionStore
+    @EnvironmentObject private var settings: AppSettings
+    @EnvironmentObject private var toolbarSettings: ToolbarSettings
+    @EnvironmentObject private var suggestionsManager: CodeSuggestionsML
+    @State private var searchQuery = ""
+    @State private var replaceText = ""
+    @State private var showFileLoadError = false
+    @State private var showSuggestionToast = false
+    @State private var showSuggestionsView = false
+    @State private var showGistComposer = false
+    @State private var showAssist = false
+    @State private var showDiffViewerSheet = false
+    @State private var contextualCodingToolsAction: CodingToolsUI.CodingAction = .refactor
+    @State private var contextualSelectedCode: String = ""
+    @State private var contextualSelectionRange: NSRange? = nil
+    @AppStorage("minimapEnabled") private var minimapEnabled = true
+
+    var body: some View {
+        ZStack(alignment: .bottom) {
+            VStack(spacing: 0) {
+            if !sessionStore.openFileTabs.isEmpty {
+                fileTabsBar
+            }
+
+            if sessionStore.activeFileNode != nil {
+                editorActionBar
+            }
+
+            if sessionStore.showDiffBanner, let diff = sessionStore.activeFileDiff {
+                assistDiffBanner(diff)
+            }
+
+            Button("") {
+                sessionStore.saveCurrentFile(content: sessionStore.activeFileContent)
+            }
+            .keyboardShortcut("s", modifiers: .command)
+            .opacity(0)
+            .frame(width: 0, height: 0)
+
+            if toolbarSettings.showSearchBar {
+                searchBar
+                    .transition(.move(edge: .top).combined(with: .opacity))
+            }
+
+            if sessionStore.activeFileNode != nil {
+                HStack(spacing: 0) {
+                    TextEditorRepresentable(
+                        text: Binding(
+                            get: { sessionStore.activeFileContent },
+                            set: { newValue in
+                                sessionStore.activeFileContent = newValue
+                                if settings.autoSave {
+                                    scheduleAutoSave(content: newValue)
+                                }
+                            }
+                        ),
+                        wordWrap: toolbarSettings.wordWrap,
+                        searchQuery: toolbarSettings.showSearchBar ? searchQuery : "",
+                        fileExtension: sessionStore.activeFileNode?.name.components(separatedBy: ".").last ?? "swift",
+                        filePath: sessionStore.activeFileNode?.path ?? sessionStore.activeFileNode?.name ?? "File.swift"
+                    )
+                    .background(Color(red: 0.11, green: 0.11, blue: 0.14))
+                    .id(sessionStore.activeFileNode?.id)
+
+                    if minimapEnabled {
+                        MinimapView(content: sessionStore.activeFileContent)
+                    }
+                }
+            } else {
+                editorPlaceholder
+            }
+        }
+
+        if showSuggestionToast {
+            Button {
+                showSuggestionToast = false
+                showSuggestionsView = true
+            } label: {
+                HStack(spacing: 10) {
+                    Image(systemName: "lightbulb.max.fill")
+                        .foregroundStyle(.yellow)
+                    Text("Code Suggestions has reviewed your code, tap here to see.")
+                        .font(.subheadline.weight(.medium))
+                        .foregroundStyle(.white)
+                }
+                .padding(.horizontal, 14)
+                .padding(.vertical, 10)
+                .background(.black.opacity(0.8), in: Capsule())
+            }
+            .padding(.bottom, 16)
+            .transition(.move(edge: .bottom).combined(with: .opacity))
+        }
+        }
+        .background(Color(red: 0.11, green: 0.11, blue: 0.14))
+        .sheet(isPresented: $showFileLoadError) {
+            fileLoadErrorSheet
+        }
+        .sheet(isPresented: $showSuggestionsView) {
+            CodeSuggestionsView()
+                .environmentObject(suggestionsManager)
+        }
+        .sheet(isPresented: $showGistComposer) {
+            CreateGistView(
+                initialFilename: sessionStore.activeFileNode?.name,
+                initialContent: sessionStore.activeFileContent
+            )
+        }
+        .sheet(isPresented: $showDiffViewerSheet) {
+            DiffViewerView()
+        }
+        .onChange(of: sessionStore.fileLoadError) {
+            if sessionStore.fileLoadError != nil {
+                showFileLoadError = true
+            }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .codeSuggestionsReady)) { _ in
+            guard settings.codeSuggestionsEnabled else { return }
+            withAnimation {
+                showSuggestionToast = true
+            }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: Notification.Name("TriggerCodingToolsContextAction"))) { notification in
+            guard let userInfo = notification.userInfo else { return }
+            let action = userInfo["action"] as? CodingToolsUI.CodingAction ?? .refactor
+            let code = userInfo["code"] as? String ?? ""
+            let range = userInfo["range"] as? NSRange
+            let filePath = userInfo["filePath"] as? String ?? sessionStore.activeFileNode?.path ?? "File.swift"
+
+            if action == .addToContext {
+                CodingToolsService.shared.addToAssistContext(
+                    code: code.isEmpty ? sessionStore.activeFileContent : code,
+                    fullFileContent: sessionStore.activeFileContent,
+                    filePath: filePath
+                )
+                return
+            }
+
+            self.contextualCodingToolsAction = action
+            self.contextualSelectedCode = code.isEmpty ? sessionStore.activeFileContent : code
+            self.contextualSelectionRange = range
+        }
+    }
+
+    // MARK: - Assist Diff Banner
+
+    @ViewBuilder
+    private func assistDiffBanner(_ diff: ProjectSessionStore.AssistFileDiff) -> some View {
+        HStack(spacing: 8) {
+            Image(systemName: "sparkles")
+                .font(.system(size: 11, weight: .bold))
+                .foregroundStyle(.purple)
+
+            Text("Assist modified this file:")
+                .font(.system(size: 11, weight: .semibold))
+                .foregroundStyle(.white)
+
+            HStack(spacing: 4) {
+                if diff.addedLines > 0 {
+                    Text("+\(diff.addedLines)")
+                        .font(.system(size: 11, weight: .bold, design: .monospaced))
+                        .foregroundStyle(.green)
+                }
+                if diff.deletedLines > 0 {
+                    Text("-\(diff.deletedLines)")
+                        .font(.system(size: 11, weight: .bold, design: .monospaced))
+                        .foregroundStyle(.red)
+                }
+            }
+            .padding(.horizontal, 6)
+            .padding(.vertical, 2)
+            .background(Color.white.opacity(0.08), in: Capsule())
+
+            Spacer()
+
+            Button {
+                showDiffViewerSheet = true
+            } label: {
+                HStack(spacing: 4) {
+                    Image(systemName: "arrow.left.arrow.right")
+                        .font(.system(size: 10, weight: .semibold))
+                    Text("View Diffs")
+                        .font(.system(size: 10, weight: .semibold))
+                }
+                .foregroundStyle(.white)
+                .padding(.horizontal, 8)
+                .padding(.vertical, 3)
+                .background(Color.purple.opacity(0.8), in: RoundedRectangle(cornerRadius: 4))
+            }
+            .buttonStyle(.plain)
+
+            Button {
+                sessionStore.dismissDiffBanner()
+            } label: {
+                Image(systemName: "xmark")
+                    .font(.system(size: 9, weight: .bold))
+                    .foregroundStyle(.secondary)
+                    .padding(4)
+            }
+            .buttonStyle(.plain)
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 6)
+        .background(Color.purple.opacity(0.12))
+        .overlay(
+            Rectangle()
+                .frame(height: 1)
+                .foregroundStyle(Color.purple.opacity(0.3)),
+            alignment: .bottom
+        )
+    }
+
+    // MARK: - File Tabs Bar
+
+    private var fileTabsBar: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 1) {
+                ForEach(sessionStore.openFileTabs) { tab in
+                    fileTab(tab)
+                }
+            }
+            .padding(.horizontal, 4)
+            .padding(.vertical, 4)
+        }
+        .background(Color(red: 0.08, green: 0.08, blue: 0.10))
+    }
+
+    private func fileTab(_ node: FileNode) -> some View {
+        let isActive = sessionStore.activeFileNode?.id == node.id
+        return HStack(spacing: 6) {
+            Image(systemName: node.icon)
+                .font(.system(size: 10, weight: .medium))
+                .foregroundStyle(node.iconColor)
+            Text(node.name)
+                .font(.system(size: 12, weight: isActive ? .semibold : .regular, design: .default))
+                .foregroundStyle(isActive ? .white : .secondary)
+                .lineLimit(1)
+            Button {
+                sessionStore.closeTab(node)
+            } label: {
+                Image(systemName: "xmark")
+                    .font(.system(size: 8, weight: .semibold))
+                    .foregroundStyle(isActive ? .white.opacity(0.6) : .secondary.opacity(0.5))
+                    .padding(2)
+                    .background(
+                        Circle()
+                            .fill(isActive ? Color.white.opacity(0.1) : Color.clear)
+                    )
+            }
+            .buttonStyle(.plain)
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 6)
+        .background(
+            RoundedRectangle(cornerRadius: 6)
+                .fill(isActive
+                      ? Color(red: 0.16, green: 0.16, blue: 0.20)
+                      : Color.clear)
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 6)
+                .stroke(isActive ? Color.white.opacity(0.08) : Color.clear, lineWidth: 0.5)
+        )
+        .contentShape(Rectangle())
+        .onTapGesture {
+            sessionStore.openFile(node)
+        }
+    }
+
+    // MARK: - Editor Action Bar (Breadcrumb + Format)
+
+    private var editorActionBar: some View {
+        HStack(spacing: 0) {
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 2) {
+                    if let project = sessionStore.activeProject {
+                        HStack(spacing: 4) {
+                            Image(systemName: "folder.fill")
+                                .font(.system(size: 9))
+                                .foregroundStyle(.blue.opacity(0.7))
+                            Text(project.name)
+                                .font(.system(size: 11, weight: .medium, design: .monospaced))
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+
+                    if let node = sessionStore.activeFileNode {
+                        let components = node.path.components(separatedBy: "/")
+                        ForEach(Array(components.enumerated()), id: \.offset) { index, component in
+                            Image(systemName: "chevron.right")
+                                .font(.system(size: 7, weight: .bold))
+                                .foregroundStyle(.quaternary)
+                            Text(component)
+                                .font(.system(size: 11, weight: index == components.count - 1 ? .semibold : .regular, design: .monospaced))
+                                .foregroundStyle(index == components.count - 1 ? .orange : .secondary)
+                        }
+                    }
+                }
+                .padding(.horizontal, 12)
+                .padding(.vertical, 6)
+            }
+
+            Spacer()
+
+            Button {
+                formatCode()
+            } label: {
+                HStack(spacing: 4) {
+                    Image(systemName: "text.alignleft")
+                        .font(.system(size: 10, weight: .semibold))
+                    Text("Format")
+                        .font(.system(size: 10, weight: .semibold))
+                }
+                .foregroundStyle(.white.opacity(0.8))
+                .padding(.horizontal, 10)
+                .padding(.vertical, 5)
+                .background(
+                    RoundedRectangle(cornerRadius: 5)
+                        .fill(Color(red: 0.22, green: 0.22, blue: 0.28))
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: 5)
+                        .stroke(Color.white.opacity(0.08), lineWidth: 0.5)
+                )
+            }
+            .buttonStyle(.plain)
+            .padding(.trailing, 10)
+
+            Button {
+                showGistComposer = true
+            } label: {
+                HStack(spacing: 4) {
+                    Image(systemName: "arrow.up.doc")
+                        .font(.system(size: 10, weight: .semibold))
+                    Text("Gist")
+                        .font(.system(size: 10, weight: .semibold))
+                }
+                .foregroundStyle(.white.opacity(0.8))
+                .padding(.horizontal, 10)
+                .padding(.vertical, 5)
+                .background(
+                    RoundedRectangle(cornerRadius: 5)
+                        .fill(Color.orange.opacity(0.6))
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: 5)
+                        .stroke(Color.white.opacity(0.08), lineWidth: 0.5)
+                )
+            }
+            .buttonStyle(.plain)
+            .padding(.trailing, 10)
+
+            Button {
+                contextualSelectedCode = sessionStore.activeFileContent
+                contextualSelectionRange = nil
+                contextualCodingToolsAction = .refactor
+                showAssist = true
+            } label: {
+                HStack(spacing: 4) {
+                    Image(systemName: "sparkles")
+                        .font(.system(size: 10, weight: .semibold))
+                    Text("Assist")
+                        .font(.system(size: 10, weight: .semibold))
+                }
+                .foregroundStyle(.white.opacity(0.9))
+                .padding(.horizontal, 10)
+                .padding(.vertical, 5)
+                .background(
+                    RoundedRectangle(cornerRadius: 5)
+                        .fill(Color.purple.opacity(0.6))
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: 5)
+                        .stroke(Color.white.opacity(0.08), lineWidth: 0.5)
+                )
+            }
+            .buttonStyle(.plain)
+            .popover(isPresented: $showAssist, arrowEdge: .bottom) {
+                CodingToolsUI(
+                    selectedCode: contextualSelectedCode.isEmpty ? sessionStore.activeFileContent : contextualSelectedCode,
+                    fullFileContent: sessionStore.activeFileContent,
+                    filePath: sessionStore.activeFileNode?.path ?? sessionStore.activeFileNode?.name ?? "File.swift",
+                    initialAction: contextualCodingToolsAction,
+                    onApplyCode: { newCode in
+                        if let range = contextualSelectionRange, range.length > 0 {
+                            let current = sessionStore.activeFileContent as NSString
+                            if range.location + range.length <= current.length {
+                                let updated = current.replacingCharacters(in: range, with: newCode)
+                                sessionStore.activeFileContent = updated
+                                sessionStore.saveCurrentFile(content: updated)
+                                contextualSelectionRange = nil
+                                contextualSelectedCode = ""
+                                return
+                            }
+                        }
+                        sessionStore.activeFileContent = newCode
+                        sessionStore.saveCurrentFile(content: newCode)
+                        contextualSelectionRange = nil
+                        contextualSelectedCode = ""
+                    }
+                )
+                .fixedSize()
+            }
+            .padding(.trailing, 10)
+        }
+        .background(Color(red: 0.10, green: 0.10, blue: 0.13))
+        .overlay(
+            Rectangle()
+                .fill(Color.white.opacity(0.04))
+                .frame(height: 0.5),
+            alignment: .bottom
+        )
+    }
+
+    // MARK: - Subviews
+
+    private var searchBar: some View {
+        VStack(spacing: 6) {
+            HStack(spacing: 8) {
+                HStack(spacing: 6) {
+                    Image(systemName: "magnifyingglass")
+                        .foregroundStyle(.secondary)
+                        .font(.system(size: 12))
+                    TextField("Find In File", text: $searchQuery)
+                        .font(.system(size: 13, design: .monospaced))
+                        .autocorrectionDisabled()
+                }
+                .padding(.horizontal, 10)
+                .padding(.vertical, 7)
+                .liquidGlass(style: .subtle, cornerRadius: 8)
+
+                Button {
+                    withAnimation(.easeInOut(duration: 0.2)) {
+                        toolbarSettings.showSearchBar = false
+                    }
+                } label: {
+                    Text("Done")
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundStyle(.orange)
+                }
+            }
+
+            HStack(spacing: 8) {
+                HStack(spacing: 6) {
+                    Image(systemName: "arrow.left.arrow.right")
+                        .foregroundStyle(.secondary)
+                        .font(.system(size: 12))
+                    TextField("Replace With", text: $replaceText)
+                        .font(.system(size: 13, design: .monospaced))
+                        .autocorrectionDisabled()
+                }
+                .padding(.horizontal, 10)
+                .padding(.vertical, 7)
+                .background(
+                    RoundedRectangle(cornerRadius: 8)
+                        .fill(Color.white.opacity(0.06))
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: 8)
+                        .stroke(Color.white.opacity(0.08), lineWidth: 0.5)
+                )
+
+                Button {
+                    replaceAll()
+                } label: {
+                    Text("Replace")
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundStyle(.blue)
+                }
+            }
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 8)
+        .background(Color(red: 0.10, green: 0.10, blue: 0.13))
+    }
+
+    private var editorPlaceholder: some View {
+        VStack(spacing: 20) {
+            ZStack {
+                Circle()
+                    .fill(Color.white.opacity(0.03))
+                    .frame(width: 100, height: 100)
+                Image(systemName: "curlybraces")
+                    .font(.system(size: 36, weight: .thin))
+                    .foregroundStyle(
+                        LinearGradient(
+                            colors: [.blue.opacity(0.6), .purple.opacity(0.6)],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        )
+                    )
+            }
+            VStack(spacing: 6) {
+                Text("No File Open")
+                    .font(.system(size: 16, weight: .semibold))
+                    .foregroundStyle(.secondary)
+                Text("Select a file from the navigator to begin editing")
+                    .font(.system(size: 13))
+                    .foregroundStyle(.tertiary)
+            }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    private var fileLoadErrorSheet: some View {
+        NavigationStack {
+            VStack(spacing: 16) {
+                ZStack {
+                    Circle()
+                        .fill(Color.red.opacity(0.1))
+                        .frame(width: 72, height: 72)
+                    Image(systemName: "exclamationmark.triangle.fill")
+                        .font(.system(size: 32))
+                        .foregroundStyle(.red)
+                }
+                Text("File Load Error")
+                    .font(.title3.weight(.semibold))
+                    .foregroundStyle(.white)
+                Text(sessionStore.fileLoadError ?? "Unknown Error")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal, 20)
+                Spacer()
+            }
+            .padding(.top, 30)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .background(Color(red: 0.10, green: 0.10, blue: 0.14))
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Dismiss") {
+                        sessionStore.fileLoadError = nil
+                        showFileLoadError = false
+                    }
+                }
+            }
+        }
+        .presentationDetents([.medium])
+    }
+
+    // MARK: - Actions
+
+    @State private var pendingSaveTask: Task<Void, Never>?
+
+    private func scheduleAutoSave(content: String) {
+        pendingSaveTask?.cancel()
+        pendingSaveTask = Task {
+            try? await Task.sleep(nanoseconds: 1_500_000_000)
+            guard !Task.isCancelled else { return }
+            await MainActor.run {
+                sessionStore.saveCurrentFile(content: content)
+            }
+        }
+    }
+
+    private func replaceAll() {
+        guard !searchQuery.isEmpty else { return }
+        let updated = sessionStore.activeFileContent.replacingOccurrences(of: searchQuery, with: replaceText)
+        sessionStore.saveCurrentFile(content: updated)
+    }
+
+    private func formatCode() {
+        let ext = sessionStore.activeFileNode?.name.components(separatedBy: ".").last ?? "swift"
+        let formatted = EditorCodeFormatter.shared.format(sessionStore.activeFileContent, fileExtension: ext)
+        sessionStore.activeFileContent = formatted
+        sessionStore.saveCurrentFile(content: formatted)
+    }
+}
+
+@MainActor
+private final class EditorCodeFormatter {
+    static let shared = EditorCodeFormatter()
+
+    private init() {}
+
+    func format(_ code: String, fileExtension: String) -> String {
+        switch fileExtension.lowercased() {
+        case "json":
+            return formatJSON(code)
+        default:
+            return code
+        }
+    }
+
+    private func formatJSON(_ code: String) -> String {
+        guard let data = code.data(using: .utf8),
+              let object = try? JSONSerialization.jsonObject(with: data),
+              let formattedData = try? JSONSerialization.data(withJSONObject: object, options: [.prettyPrinted, .sortedKeys]),
+              let formatted = String(data: formattedData, encoding: .utf8) else {
+            return code
+        }
+
+        return formatted
+    }
+}
+
+@MainActor
+struct TextEditorRepresentable: NSViewRepresentable {
+    @Binding var text: String
+    var wordWrap: Bool
+    var searchQuery: String
+    var fileExtension: String = "swift"
+    var filePath: String = "File.swift"
+
+    func makeNSView(context: Context) -> NSScrollView {
+        let scrollView = NSScrollView()
+        scrollView.drawsBackground = true
+        scrollView.backgroundColor = NSColor(calibratedRed: 0.11, green: 0.11, blue: 0.14, alpha: 1)
+
+        scrollView.hasVerticalScroller = true
+        scrollView.hasHorizontalScroller = true
+
+        let textView = CodeEditorTextView()
+        textView.filePath = filePath
+        textView.backgroundColor = .clear
+        textView.textColor = NSColor(red: 0.85, green: 0.85, blue: 0.85, alpha: 1)
+        textView.font = TextLayoutEngine.editorFont()
+
+        textView.isAutomaticDashSubstitutionEnabled = false
+        textView.isAutomaticQuoteSubstitutionEnabled = false
+        textView.isEditable = true
+        textView.isVerticallyResizable = true
+        textView.isHorizontallyResizable = true
+        textView.isContinuousSpellCheckingEnabled = false
+        textView.isGrammarCheckingEnabled = false
+        textView.delegate = context.coordinator
+        textView.textContainerInset = TextLayoutEngine.textContainerInset()
+
+        textView.isRichText = false
+        textView.usesFontPanel = false
+
+        let textStorage = NSTextStorage()
+        let layoutManager = NSLayoutManager()
+        let textContainer = NSTextContainer(size: .zero)
+
+        textStorage.addLayoutManager(layoutManager)
+        layoutManager.addTextContainer(textContainer)
+        textView.textContainer = textContainer
+
+        scrollView.documentView = textView
+
+        let lineNumbers = LineNumberView()
+        context.coordinator.lineNumberView = lineNumbers
+        scrollView.contentView.addSubview(lineNumbers)
+
+        context.coordinator.textView = textView
+        context.coordinator.scrollView = scrollView
+        context.coordinator.fileExtension = fileExtension
+
+        let highlighted = SyntaxHighlighter.shared.highlight(text, fileExtension: fileExtension)
+        textView.textStorage?.setAttributedString(highlighted)
+
+        return scrollView
+    }
+
+    func updateNSView(_ scrollView: NSScrollView, context: Context) {
+        guard let textView = context.coordinator.textView else { return }
+
+        context.coordinator.fileExtension = fileExtension
+        if let codeTextView = textView as? CodeEditorTextView {
+            codeTextView.filePath = filePath
+        }
+
+        if textView.string != text {
+            let highlighted = SyntaxHighlighter.shared.highlight(text, fileExtension: fileExtension)
+            let savedRange = textView.selectedRange
+            textView.textStorage?.setAttributedString(highlighted)
+            let clampedLocation = min(savedRange.location, max(0, (text as NSString).length))
+            textView.selectedRange = NSRange(location: clampedLocation, length: 0)
+        }
+
+        if let container = textView.textContainer {
+            if wordWrap {
+                container.lineBreakMode = .byWordWrapping
+                container.widthTracksTextView = true
+                container.containerSize = CGSize(
+                    width: TextLayoutEngine.codeColumnWidth(totalWidth: scrollView.bounds.width),
+                    height: .greatestFiniteMagnitude
+                )
+            } else {
+                container.lineBreakMode = .byClipping
+                container.widthTracksTextView = false
+                container.containerSize = CGSize(
+                    width: CGFloat.greatestFiniteMagnitude,
+                    height: .greatestFiniteMagnitude
+                )
+            }
+        }
+
+        context.coordinator.updateLayout()
+    }
+
+    func makeCoordinator() -> Coordinator {
+        Coordinator(text: $text)
+    }
+
+    @MainActor
+    final class Coordinator: NSObject, NSTextViewDelegate {
+        var text: Binding<String>
+        var fileExtension: String = "swift"
+        weak var textView: NSTextView?
+        weak var scrollView: NSScrollView?
+        weak var lineNumberView: LineNumberView?
+
+        init(text: Binding<String>) {
+            self.text = text
+        }
+
+        @objc func showAllTools() {
+            NotificationCenter.default.post(name: NSNotification.Name("ShowAllToolsPanel"), object: nil)
+        }
+
+        @objc func dismissKeyboard() {
+            textView?.resignFirstResponder()
+        }
+
+        @objc func undoAction() {
+            textView?.undoManager?.undo()
+        }
+
+        @objc func redoAction() {
+            textView?.undoManager?.redo()
+        }
+
+        func textDidChange(_ notification: Notification) {
+            guard let textView = notification.object as? NSTextView else { return }
+            text.wrappedValue = textView.string
+            let highlighted = SyntaxHighlighter.shared.highlight(textView.string, fileExtension: fileExtension)
+            let savedRange = textView.selectedRange
+            textView.textStorage?.setAttributedString(highlighted)
+            let clampedLocation = min(savedRange.location, max(0, (textView.string as NSString).length))
+            textView.selectedRange = NSRange(location: clampedLocation, length: 0)
+            updateLayout()
+        }
+
+        func updateLayout() {
+            guard let textView, let scrollView, let lineNumbers = lineNumberView else { return }
+
+            let gutterWidth = TextLayoutEngine.lineNumberColumnWidth
+            let availableWidth = TextLayoutEngine.codeColumnWidth(totalWidth: scrollView.bounds.width)
+
+            let lines = textView.string.components(separatedBy: "\n").count
+            let font = textView.font ?? TextLayoutEngine.editorFont()
+            let lineHeightFromLayout = textView.layoutManager?.defaultLineHeight(for: font)
+            let lineHeight = lineHeightFromLayout ?? TextLayoutEngine.lineHeight()
+            let topInset = TextLayoutEngine.textContainerInset().height
+
+            textView.sizeToFit()
+            let usedRectHeight = textView.layoutManager?.usedRect(for: textView.textContainer!).height ?? 0
+            let contentHeight = max(max(usedRectHeight + topInset * 2, CGFloat(lines) * lineHeight + topInset * 2), scrollView.bounds.height)
+            let contentWidth = max(scrollView.bounds.width, availableWidth + gutterWidth)
+
+            lineNumbers.frame = CGRect(x: 0, y: 0, width: gutterWidth, height: contentHeight)
+            textView.frame = CGRect(x: gutterWidth, y: 0,
+                                    width: contentWidth - gutterWidth,
+                                    height: contentHeight)
+
+            lineNumbers.lineHeight = lineHeight
+            lineNumbers.topInset = textView.textContainerInset.height
+            lineNumbers.lineCount = lines
+            lineNumbers.needsDisplay = true
+        }
+    }
+}
+
+@MainActor
+final class LineNumberView: NSView {
+    var lineCount: Int = 1
+    var lineHeight: CGFloat = TextLayoutEngine.lineHeight()
+    var topInset: CGFloat = TextLayoutEngine.textContainerInset().height
+
+    override var isFlipped: Bool { true }
+
+    override init(frame: NSRect) {
+        super.init(frame: frame)
+    }
+
+    required init?(coder: NSCoder) { fatalError() }
+
+    override func draw(_ rect: CGRect) {
+        let font = NSFont.monospacedSystemFont(ofSize: 11, weight: .regular)
+        let activeAttrs: [NSAttributedString.Key: Any] = [
+            .font: font,
+            .foregroundColor: NSColor.white.withAlphaComponent(0.4)
+        ]
+        let attrs: [NSAttributedString.Key: Any] = [
+            .font: font,
+            .foregroundColor: NSColor.gray.withAlphaComponent(0.35)
+        ]
+
+        let separatorX = bounds.width - 0.5
+        NSColor.white.withAlphaComponent(0.05).setFill()
+        NSBezierPath(rect: CGRect(x: separatorX, y: 0, width: 0.5, height: bounds.height)).fill()
+
+        let count = max(1, lineCount)
+        for i in 1...count {
+            let label = "\(i)"
+            let useAttrs = (i % 5 == 0 || i == 1) ? activeAttrs : attrs
+            let labelSize = label.size(withAttributes: useAttrs)
+            let x = bounds.width - labelSize.width - 8
+            // Align baseline with the code line: topInset + (line-1) * lineHeight
+            // Drawing with `draw(at:)` places top-left of the glyph at the given point.
+            // Shift down by (lineHeight - labelSize.height) / 2 to vertically centre.
+            let codeLine_y = topInset + CGFloat(i - 1) * lineHeight
+            let y = codeLine_y + (lineHeight - labelSize.height) / 2
+            label.draw(at: CGPoint(x: x, y: y), withAttributes: useAttrs)
+        }
+    }
+}
+
+@MainActor
+final class CodeEditorTextView: NSTextView {
+    var filePath: String = "File.swift"
+
+    override func menu(for event: NSEvent) -> NSMenu? {
+        // Preserve standard macOS contextual menu:
+        // Cut, Copy, Paste, Share, Font, Spelling and Grammar, Speech, Services, etc.
+        guard let menu = super.menu(for: event) else { return nil }
+
+        // Capture current selected text or fallback to line/symbol under cursor
+        var effectiveRange = self.selectedRange()
+        let nsString = self.string as NSString
+        var selectedCode = ""
+
+        if effectiveRange.length > 0 && effectiveRange.location + effectiveRange.length <= nsString.length {
+            selectedCode = nsString.substring(with: effectiveRange)
+        } else if nsString.length > 0 {
+            // If no range is selected, find the character index under the click event
+            let mousePoint = self.convert(event.locationInWindow, from: nil)
+            let charIndex = self.characterIndexForInsertion(at: mousePoint)
+            if charIndex < nsString.length {
+                let lineRange = nsString.lineRange(for: NSRange(location: charIndex, length: 0))
+                selectedCode = nsString.substring(with: lineRange)
+                effectiveRange = lineRange
+            } else {
+                selectedCode = self.string
+                effectiveRange = NSRange(location: 0, length: nsString.length)
+            }
+        }
+
+        // Add standard separator before Coding Tools
+        menu.addItem(NSMenuItem.separator())
+
+        // Create the Coding Tools menu item with submenu
+        let codingToolsRoot = NSMenuItem(title: "Coding Tools", action: nil, keyEquivalent: "")
+        if let icon = NSImage(systemSymbolName: "sparkles", accessibilityDescription: "Coding Tools") {
+            codingToolsRoot.image = icon
+        }
+
+        let codingToolsSubmenu = NSMenu(title: "Coding Tools")
+
+        let actions: [(CodingToolsUI.CodingAction, String, String)] = [
+            (.refactor, "Refactor Code", "wand.and.stars"),
+            (.addToContext, "Add to Assist Context", "plus.bubble"),
+            (.explain, "Explain Code", "text.bubble"),
+            (.documentation, "Write Documentation", "doc.text"),
+            (.preview, "Generate SwiftUI Preview", "eye"),
+            (.custom, "Custom Instruction…", "terminal")
+        ]
+
+        for (action, title, iconName) in actions {
+            let item = NSMenuItem(title: title, action: #selector(handleCodingToolMenuItem(_:)), keyEquivalent: "")
+            item.target = self
+            item.representedObject = CodingToolMenuPayload(
+                action: action,
+                code: selectedCode,
+                range: effectiveRange,
+                filePath: self.filePath
+            )
+            if let image = NSImage(systemSymbolName: iconName, accessibilityDescription: title) {
+                item.image = image
+            }
+            codingToolsSubmenu.addItem(item)
+        }
+
+        codingToolsRoot.submenu = codingToolsSubmenu
+        menu.addItem(codingToolsRoot)
+
+        return menu
+    }
+
+    @objc private func handleCodingToolMenuItem(_ sender: NSMenuItem) {
+        guard let payload = sender.representedObject as? CodingToolMenuPayload else { return }
+        NotificationCenter.default.post(
+            name: Notification.Name("TriggerCodingToolsContextAction"),
+            object: nil,
+            userInfo: [
+                "action": payload.action,
+                "code": payload.code,
+                "range": payload.range,
+                "filePath": payload.filePath
+            ]
+        )
+    }
+}
+
+final class CodingToolMenuPayload: NSObject {
+    let action: CodingToolsUI.CodingAction
+    let code: String
+    let range: NSRange
+    let filePath: String
+
+    init(action: CodingToolsUI.CodingAction, code: String, range: NSRange, filePath: String) {
+        self.action = action
+        self.code = code
+        self.range = range
+        self.filePath = filePath
+        super.init()
+    }
+}

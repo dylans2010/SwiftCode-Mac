@@ -110,7 +110,7 @@ let package = Package(
         .target(name: "SwiftCodeSubprocess"),
         .testTarget(name: "SwiftCodeSubprocessTests", dependencies: ["SwiftCodeSubprocess"]),
         // The coding assistant's model providers, conversations and prompts (specs/ide/coding-assistant.md)
-        .target(name: "SwiftCodeAssistant", dependencies: ["SwiftCodeSubprocess"], resources: [.copy("Resources/System Assets")]),
+        .target(name: "SwiftCodeAssistant", dependencies: ["SwiftCodeSubprocess", .product(name: "Crypto", package: "swift-crypto")], resources: [.copy("Resources/System Assets"), .copy("Resources/SDKHosts"), .copy("Resources/ReverseBridge.mjs")]),
         .testTarget(name: "SwiftCodeAssistantTests", dependencies: ["SwiftCodeAssistant", "SwiftCodeSubprocess"]),
         // GitHub: the api.github.com client shared by the assistant's
         // GitHub tools and the settings pane.
@@ -422,7 +422,7 @@ package.targets += [
             // time through Bundle.module; without this resource the
             // whole SwiftCodeMCP target fails to compile.
             resources: [.copy("Resources/ReverseBridge.mjs")]),
-    .testTarget(name: "SwiftCodeMCPTests", dependencies: ["SwiftCodeMCP", "SwiftCodeIDECore", "SwiftCodeAssistant", "SwiftCodeCompletion", "SwiftCodeBuild", "swiftcode"]),
+    .testTarget(name: "SwiftCodeMCPTests", dependencies: ["SwiftCodeMCP", "SwiftCodeIDECore", "SwiftCodeAssistant", "SwiftCodeCompletion", "SwiftCodeBuild", "swiftcode"], resources: [.copy("Resources/ReverseBridge.mjs")]),
 ]
 if let i = package.targets.firstIndex(where: { $0.name == "swiftcode" }) {
     package.targets[i].dependencies += ["SwiftCodeMCP", "SwiftCodeIDEShell"]
@@ -441,9 +441,13 @@ if FileManager.default.fileExists(atPath: Context.packageDirectory + "/../framew
                                                           .product(name: "SwiftUI", package: "swiftcode-swiftui"),
                                                           .product(name: "OVPlatform", package: "swiftcode-swiftui"),
                                                           .product(name: "OVDBus", package: "swiftcode-swiftui"),
+                                                          .product(name: "OVText", package: "swiftcode-swiftui"),
                                                           // Wave 19 slice C: ModernGroupBoxStyle lives in
                                                           // SwiftCodeUI and 15 DevTools views call it.
-                                                          "SwiftCodeUI"]),
+                                                          "SwiftCodeUI",
+                                                          // Audit D: BuildingXcodeProject.swift names
+                                                          // SwiftCodeDarwinKernel (Linux-guarded sources).
+                                                          "SwiftCodeDarwinKernel"]),
     ]
 }
 #else
@@ -456,6 +460,9 @@ package.targets += [
                                                       .product(name: "StoreKitConfiguration", package: "storekit"),
                                                       // Wave 19 slice C: ModernGroupBoxStyle lives in
                                                       // SwiftCodeUI and 15 DevTools views call it.
-                                                      "SwiftCodeUI"]),
+                                                      "SwiftCodeUI",
+                                                      // Audit D: BuildingXcodeProject.swift names
+                                                      // SwiftCodeDarwinKernel.
+                                                      "SwiftCodeDarwinKernel"]),
 ]
 #endif

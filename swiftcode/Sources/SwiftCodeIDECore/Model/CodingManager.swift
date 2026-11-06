@@ -88,7 +88,8 @@ public final class CodingManager {
     }
 
     /// Delete a CoreML model file from the Models directory.
-    func deleteModel(named name: String) throws {
+    // M-REST (2026-11-06): access raised to public so the ported CoreMLSettingsView (swiftcode-ide) can delete models (no behaviour change).
+    public func deleteModel(named name: String) throws {
         guard !name.isEmpty, !name.contains("/"), !name.hasPrefix(".") else {
             throw CodingError.pathOutsideProject
         }

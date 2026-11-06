@@ -4,8 +4,9 @@
 // DependencyRequirementType / DependencyVisualNode, which already exist there;
 // SwiftCodeUI for ModernGroupBoxStyle).
 // BLOCKED references (left intact, owned by other scopes or unaudited):
-// - ProjectSessionStore (Legacy `SwiftCode/Services/ProjectSessionStore.swift`, PARTIAL)
-//   — @Environment-injected session store; activeProject supplies the Package.swift.
+// - ProjectSessionStore (Legacy `SwiftCode/Services/ProjectSessionStore.swift`):
+//   RESOLVED by fix W-V2 — landed in SwiftCodeIDECore (same target the executable
+//   already depends on); the import above is the only change needed.
 // - DependencyPlatformManager (Legacy
 //   `Views/Utilities/DependencyManager/DependencyPlatformManager.swift` — not in the
 //   audit, no owner yet) — buildDependencyGraph(dependencies:).
@@ -16,6 +17,7 @@
 // entry point; no dependency-graph view exists yet.
 
 import SwiftUI
+import SwiftCodeIDECore
 import SwiftCodeIDEShell
 import SwiftCodeUI
 

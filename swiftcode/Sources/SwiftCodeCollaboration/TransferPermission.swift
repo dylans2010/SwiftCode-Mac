@@ -140,7 +140,7 @@ public struct TransferPermission: Codable, Hashable, Sendable {
     }
 
     var isCollaborative: Bool
-    var preset: AccessPreset
+    public var preset: AccessPreset
     var fileSystem: FileSystemPermissions
     var projectManagement: ProjectManagementPermissions
     var versionControl: VersionControlPermissions
@@ -151,7 +151,7 @@ public struct TransferPermission: Codable, Hashable, Sendable {
     var security: SecurityRestrictions
     var audit: AuditConfiguration
 
-    static func makePreset(_ preset: AccessPreset) -> TransferPermission {
+    public static func makePreset(_ preset: AccessPreset) -> TransferPermission {
         switch preset {
         case .readOnly:
             return TransferPermission(

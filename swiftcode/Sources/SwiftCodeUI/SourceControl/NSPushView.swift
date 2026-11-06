@@ -1,0 +1,69 @@
+// Ported from Legacy (Dylan's own SwiftCode code, MIT-authorised direct port):
+//   SwiftCode/Views/GitHub/Menu Bar/NSPushView.swift
+//
+import SwiftUI
+import SwiftCodeIDECore
+
+public struct NSPushView: View {
+    @State private var successMsg = ""
+    @State private var errorMsg = ""
+    @State private var isLoading = false
+
+    public init() {}
+
+    public var body: some View {
+        Group {
+            if let _ = ProjectSessionStore.shared.activeProject {
+                VStack(alignment: .leading, spacing: 10) {
+                    Label("Git Push (⇧⌘H)", systemImage: "arrow.up.circle.fill")
+                        .font(.headline)
+                        .foregroundStyle(.blue)
+
+                    Text("Push local commits to your remote origin.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+
+                    if isLoading {
+                        ProgressView()
+                            .progressViewStyle(.linear)
+                            .padding(.vertical, 4)
+                    }
+
+                    if !successMsg.isEmpty {
+                        Text(successMsg)
+                            .font(.caption)
+                            .foregroundStyle(.green)
+                    }
+
+                    if !errorMsg.isEmpty {
+                        NSGitErrorView(message: errorMsg)
+                    }
+
+                    Button("Push commits") {
+                        Task {
+                            isLoading = true
+                            successMsg = ""
+                            errorMsg = ""
+                            do {
+                                let branch = try await GitMenuBarCommandExecutor.getCurrentBranchName()
+                                try await GitMenuBarCommandExecutor.runGit(args: ["push", "origin", branch])
+                                successMsg = "Successfully pushed commits to remote '\(branch)'."
+                            } catch {
+                                errorMsg = "Failed: \(error.localizedDescription)"
+                            }
+                            isLoading = false
+                        }
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .controlSize(.small)
+                    .disabled(isLoading)
+                }
+            } else {
+                NoActiveProjectView(title: "Push")
+            }
+        }
+        .padding()
+        .liquidGlass(style: .sheet, cornerRadius: 12)
+        .frame(width: 280)
+    }
+}

@@ -14,7 +14,7 @@
 // UNRESOLVED DEPENDENCIES (no definition in the destination yet; resolve as the owning ports land):
 //   - APIKeyManager — UNOWNED (no worklist) (`SwiftCode/Views/Settings/GeneralSettingsView.swift`)
 //   - AddMCPServerView — other agent (views-native-ui) (`SwiftCode/Views/Settings/AddMCPServerView.swift`)
-//   - AllowedTerminalCommandsView — UNOWNED (no worklist) (`SwiftCode/Views/Settings/AllowedTerminalCommandsView.swift`)
+//   - AllowedTerminalCommandsView — ported (SwiftCodeUI/App/AllowedTerminalCommandsView.swift, made public by H-E for this cross-module use)
 //   - AlternativeKeyManager — UNOWNED (no worklist) (`SwiftCode/Backend/Assist/AlternativeKeyManager.swift`)
 //   - AlternativeKeysView — other agent (views-native-ui) (`SwiftCode/Views/Settings/AlternativeKeysView.swift`)
 //   - AntigravitySDKModelFetcher — UNOWNED (no worklist) (`SwiftCode/Services/AntigravitySDKModelFetcher.swift`)

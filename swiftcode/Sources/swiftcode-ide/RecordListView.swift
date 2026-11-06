@@ -3,7 +3,9 @@
 // Ported from Legacy `SwiftCode/Views/Utilities/NSPersonalDocumentation/Views/RecordListView.swift` (SwiftCode-Mac migration, Views/UI worklist).
 // Worklist verdict: PARTIAL.
 // Missing behaviour ported: sort options; rename/duplicate/delete actions in the list UI; middle-pane collapse
-// References legacy types absent from the destination and from this worklist (wiring/integration gaps): BrowserItemKind, ModuleKind, UnifiedBrowserItem, WikiPage.
+// Legacy types now resolved in production: BrowserItemKind + UnifiedBrowserItem are declared
+// in this file; ModuleKind/WikiPage map to PersonalDocModuleKind/PersonalDocWikiPage in
+// SwiftCodeIDEShell (PersonalDocumentationModel.swift).
 // Static port only — no Swift toolchain here; build verification pending on Dylan's Mac.
 import SwiftCodeIDEShell
 import SwiftCodeUI
@@ -33,7 +35,7 @@ public struct RecordListView: View {
     @State private var showingCreateSheet = false
     @State private var newTitle = ""
     @State private var newKind: BrowserItemKind = .document
-    @State private var newDocModuleKind: ModuleKind = .personalDocumentation
+    @State private var newDocModuleKind: PersonalDocModuleKind = .personalDocumentation
 
     // Snippet-specific creation states
     @State private var snippetLanguage = "Swift"
@@ -90,22 +92,22 @@ public struct RecordListView: View {
         public let kind: BrowserItemKind
         public let updatedAt: Date
         public let createdAt: Date
-        public var rawDocument: Document? = nil
-        public var rawWikiPage: WikiPage? = nil
-        public var rawWhiteboard: WhiteboardRecord? = nil
-        public var rawSnippet: CodeSnippetRecord? = nil
-        public var rawSnapshot: ProjectSnapshotRecord? = nil
+        public var rawDocument: PersonalDocDocument? = nil
+        public var rawWikiPage: PersonalDocWikiPage? = nil
+        public var rawWhiteboard: PersonalDocWhiteboard? = nil
+        public var rawSnippet: PersonalDocSnippet? = nil
+        public var rawSnapshot: PersonalDocSnapshot? = nil
     }
 
-    private var availableCreationKinds: [ModuleKind] {
-        ModuleKind.allCases.filter {
+    private var availableCreationKinds: [PersonalDocModuleKind] {
+        PersonalDocModuleKind.allCases.filter {
             $0.archetype == .freeform || $0.archetype == .structured
         }
     }
 
     public init(
         coordinator: PersonalDocumentationCoordinator,
-        kind: ModuleKind,
+        kind: PersonalDocModuleKind,
         selectedDocumentID: Binding<UUID?>,
         onSelect: (() -> Void)? = nil
     ) {
@@ -373,7 +375,7 @@ public struct RecordListView: View {
             }
 
         case .wikiPage:
-            let pages = (try? coordinator.wiki.fetchWikiPages()) ?? []
+            let pages = coordinator.store.fetchWikiPages()
             loadedItems = pages.map { page in
                 UnifiedBrowserItem(
                     id: page.id,
@@ -426,7 +428,7 @@ public struct RecordListView: View {
                 UnifiedBrowserItem(
                     id: snap.id,
                     title: snap.title,
-                    subtitle: snap.descriptionText,
+                    subtitle: snap.description,
                     iconName: "clock.arrow.trianglehead.counterclockwise.rotate.90",
                     accentColor: .orange,
                     kind: .snapshot,
@@ -508,29 +510,31 @@ public struct RecordListView: View {
         do {
             switch item.kind {
             case .document:
-                if let doc = item.rawDocument {
+                if var doc = item.rawDocument {
                     doc.title = newName
                     try coordinator.documents.updateDocument(doc)
                 }
             case .wikiPage:
                 if let page = item.rawWikiPage {
-                    page.title = newName
-                    try coordinator.storage.context.save()
+                    // No rename in the store: copy under the new title, then
+                    // delete the old-titled page.
+                    _ = coordinator.store.createOrUpdateWikiPage(title: newName, content: page.markdownSource)
+                    coordinator.store.deleteWikiPage(page)
                 }
             case .whiteboard:
-                if let board = item.rawWhiteboard {
+                if var board = item.rawWhiteboard {
                     board.title = newName
                     try coordinator.whiteboards.updateWhiteboard(board)
                 }
             case .snippet:
-                if let snip = item.rawSnippet {
+                if var snip = item.rawSnippet {
                     snip.title = newName
-                    try coordinator.storage.context.save()
+                    try coordinator.snippets.updateSnippet(snip)
                 }
             case .snapshot:
-                if let snap = item.rawSnapshot {
+                if var snap = item.rawSnapshot {
                     snap.title = newName
-                    try coordinator.storage.context.save()
+                    try coordinator.snapshots.updateSnapshot(snap)
                 }
             }
             loadAllItems()
@@ -579,7 +583,7 @@ public struct RecordListView: View {
                 selectedDocumentID = doc.id
 
             case .wikiPage:
-                let page = try coordinator.wiki.createOrUpdateWikiPage(title: trimmedTitle, content: "# \(trimmedTitle)\n\nStart writing wiki content here.")
+                let page = coordinator.store.createOrUpdateWikiPage(title: trimmedTitle, content: "# \(trimmedTitle)\n\nStart writing wiki content here.")
                 coordinator.selectedModuleKind = .projectWiki
                 coordinator.selectedWikiPageID = page.id
 
@@ -599,16 +603,9 @@ public struct RecordListView: View {
                 coordinator.selectedSnippetID = snip.id
 
             case .snapshot:
-                let docs = (try? coordinator.documents.fetchDocuments()) ?? []
-                let whiteboards = (try? coordinator.whiteboards.fetchWhiteboards()) ?? []
-                let snippets = (try? coordinator.snippets.fetchSnippets()) ?? []
-
                 let snap = try coordinator.snapshots.createSnapshot(
                     title: trimmedTitle,
-                    description: snapshotDescription,
-                    documents: docs,
-                    whiteboards: whiteboards,
-                    snippets: snippets
+                    description: snapshotDescription
                 )
                 coordinator.selectedModuleKind = .snapshots
                 coordinator.selectedSnapshotID = snap.id
@@ -627,24 +624,19 @@ public struct RecordListView: View {
             switch item.kind {
             case .document:
                 if let doc = item.rawDocument {
-                    let duplicate = Document(
-                        projectID: doc.projectID,
-                        archetype: doc.archetype,
-                        moduleKind: doc.moduleKind,
+                    // The store's create has no archetype/attachment parameters:
+                    // the copy keeps title (suffixed), kind, content and tags.
+                    _ = try coordinator.documents.createDocument(
                         title: "\(doc.title) Copy",
-                        markdownSource: doc.markdownSource,
-                        attachments: doc.attachments,
-                        tags: doc.tags,
-                        createdAt: Date(),
-                        updatedAt: Date()
+                        kind: doc.moduleKind,
+                        markdown: doc.markdownSource,
+                        tags: doc.tags
                     )
-                    coordinator.storage.context.insert(duplicate)
-                    try coordinator.storage.context.save()
                 }
 
             case .wikiPage:
                 if let page = item.rawWikiPage {
-                    _ = try coordinator.wiki.createOrUpdateWikiPage(
+                    _ = coordinator.store.createOrUpdateWikiPage(
                         title: "\(page.title) Copy",
                         content: page.markdownSource
                     )
@@ -652,7 +644,7 @@ public struct RecordListView: View {
 
             case .whiteboard:
                 if let board = item.rawWhiteboard {
-                    let duplicate = try coordinator.whiteboards.createWhiteboard(title: "\(board.title) Copy")
+                    var duplicate = try coordinator.whiteboards.createWhiteboard(title: "\(board.title) Copy")
                     duplicate.elementsJSON = board.elementsJSON
                     try coordinator.whiteboards.updateWhiteboard(duplicate)
                 }
@@ -669,13 +661,7 @@ public struct RecordListView: View {
 
             case .snapshot:
                 if let snap = item.rawSnapshot {
-                    _ = try coordinator.snapshots.createSnapshot(
-                        title: "\(snap.title) Copy",
-                        description: snap.descriptionText,
-                        documents: (try? coordinator.documents.fetchDocuments()) ?? [],
-                        whiteboards: (try? coordinator.whiteboards.fetchWhiteboards()) ?? [],
-                        snippets: (try? coordinator.snippets.fetchSnippets()) ?? []
-                    )
+                    _ = try coordinator.snapshots.duplicateSnapshot(snap, title: "\(snap.title) Copy")
                 }
             }
 
@@ -699,8 +685,7 @@ public struct RecordListView: View {
 
             case .wikiPage:
                 if let page = item.rawWikiPage {
-                    coordinator.storage.context.delete(page)
-                    try coordinator.storage.context.save()
+                    coordinator.store.deleteWikiPage(page)
                     if coordinator.selectedWikiPageID == page.id {
                         coordinator.selectedWikiPageID = nil
                     }
@@ -724,8 +709,7 @@ public struct RecordListView: View {
 
             case .snapshot:
                 if let snap = item.rawSnapshot {
-                    coordinator.storage.context.delete(snap)
-                    try coordinator.storage.context.save()
+                    try coordinator.snapshots.deleteSnapshot(snap)
                     if coordinator.selectedSnapshotID == snap.id {
                         coordinator.selectedSnapshotID = nil
                     }
