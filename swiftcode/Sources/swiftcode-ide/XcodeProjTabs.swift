@@ -852,8 +852,37 @@ public struct DependenciesTabView: View {
 public struct SigningCapabilitiesTabView: View {
     public let model: XcodeProjModel
 
+    // D5: functional signing toggle (C25 pattern from IdentityTabView) +
+    // capabilities read from the real .entitlements file resolved via
+    // ProjectResolutionService. An unset CODE_SIGN_STYLE / absent
+    // entitlements file shows "—" / "Not set" instead of asserting a state.
+    @State private var automaticSigning: Bool = false
+    @State private var codeSignStyleUnset: Bool = true
+    @State private var signingLoaded: Bool = false
+    @State private var signingStatus: String? = nil
+
     public init(model: XcodeProjModel) {
         self.model = model
+    }
+
+    /// The project's entitlements dictionary, or `nil` when no
+    /// entitlements file resolves or it cannot be read as a plist.
+    private var entitlements: [String: Any]? {
+        guard let url = ProjectResolutionService.shared.resolveEntitlements(for: model),
+              let dict = NSDictionary(contentsOf: url) as? [String: Any] else { return nil }
+        return dict
+    }
+
+    /// Display value for one entitlements key: the real value when the
+    /// key is present ("Enabled"/"Disabled" for booleans), "Not set" when
+    /// the file exists but the key is absent, "—" when there is no
+    /// entitlements file at all.
+    private func capabilityValue(_ key: String, in entitlements: [String: Any]?) -> String {
+        guard let entitlements else { return "—" }
+        guard let value = entitlements[key] else { return "Not set" }
+        if let bool = value as? Bool { return bool ? "Enabled" : "Disabled" }
+        if let array = value as? [String] { return array.isEmpty ? "None" : array.joined(separator: ", ") }
+        return "\(value)"
     }
 
     public var body: some View {
@@ -863,26 +892,89 @@ public struct SigningCapabilitiesTabView: View {
 
             ScrollView {
                 VStack(alignment: .leading, spacing: 20) {
-                    Toggle("Automatically manage signing", isOn: .constant(true))
+                    // D5: functional toggle — the Binding setter writes
+                    // CODE_SIGN_STYLE; loading the value in onAppear assigns
+                    // the state directly and never writes (C25 pattern).
+                    Toggle("Automatically manage signing", isOn: Binding(
+                        get: { automaticSigning },
+                        set: { newValue in
+                            guard signingLoaded else { return }
+                            let oldValue = automaticSigning
+                            automaticSigning = newValue
+                            do {
+                                try XcodeProjWriter.shared.updateBuildSetting(
+                                    key: "CODE_SIGN_STYLE",
+                                    value: newValue ? "Automatic" : "Manual",
+                                    projectURL: model.projectURL
+                                )
+                                codeSignStyleUnset = false
+                                signingStatus = "Updated CODE_SIGN_STYLE in .xcodeproj"
+                            } catch {
+                                automaticSigning = oldValue
+                                signingStatus = "Error: \(error.localizedDescription)"
+                            }
+                        }
+                    ))
                         .toggleStyle(.checkbox)
+                        .onAppear {
+                            if !signingLoaded {
+                                if let style = xcodeProjSetting("CODE_SIGN_STYLE", in: model) {
+                                    codeSignStyleUnset = false
+                                    automaticSigning = (style == "Automatic")
+                                } else {
+                                    codeSignStyleUnset = true
+                                    automaticSigning = false
+                                }
+                                signingLoaded = true
+                            }
+                        }
+                    if codeSignStyleUnset {
+                        Text("CODE_SIGN_STYLE is not set in this project.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+                    if let signingStatus {
+                        Text(signingStatus)
+                            .font(.caption)
+                            .foregroundStyle(signingStatus.starts(with: "Error") ? .red : .secondary)
+                    }
 
                     Divider()
 
                     Text("System Capabilities Entitlements")
                         .font(.headline)
 
+                    let entitlements = entitlements
+                    if entitlements == nil {
+                        Text("No entitlements file found for this project — capabilities are unknown, not enabled.")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+
                     Grid(alignment: .leading, horizontalSpacing: 16, verticalSpacing: 12) {
                         GridRow {
                             Label("App Sandbox", systemImage: "lock.shield")
-                            Text("Enabled (Standard macOS sandboxing requirement)")
+                            Text(capabilityValue("com.apple.security.app-sandbox", in: entitlements))
                         }
                         GridRow {
-                            Label("Network Access", systemImage: "network")
-                            Text("Incoming and Outgoing Connections allowed")
+                            Label("Network (Client)", systemImage: "network")
+                            Text(capabilityValue("com.apple.security.network.client", in: entitlements))
                         }
                         GridRow {
-                            Label("Hardware Controls", systemImage: "camera")
-                            Text("Standard Hardware capability gates")
+                            Label("Network (Server)", systemImage: "network")
+                            Text(capabilityValue("com.apple.security.network.server", in: entitlements))
+                        }
+                        GridRow {
+                            Label("Camera", systemImage: "camera")
+                            Text(capabilityValue("com.apple.security.device.camera", in: entitlements))
+                        }
+                        GridRow {
+                            Label("Microphone", systemImage: "mic")
+                            Text(capabilityValue("com.apple.security.device.audio-input", in: entitlements))
+                        }
+                        GridRow {
+                            Label("Application Groups", systemImage: "person.2")
+                            Text(capabilityValue("com.apple.security.application-groups", in: entitlements))
                         }
                     }
                 }

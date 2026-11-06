@@ -11,6 +11,21 @@
 // and the list is empty until the user adds items. "Reset State" resets only
 // the transient preview state (counter, drag offsets); it never touches document
 // content, so it can no longer resurrect the demo rows.
+//
+// Cleanup D5 (2026-11-06): other demo defaults outside the C31 list fix:
+// - The `.form` username defaulted to "Jules" and its "Push
+//   Notifications" toggle (like the standalone `.toggle` case) defaulted
+//   to on. Both are now empty/off until the user sets them; the form
+//   reads transient preview state only, like the other controls.
+// - The `.charts` case drew three invented bars (5/12/18). A chart node
+//   carries no data model of its own, so bars now come from its children:
+//   a child with a numeric "value" property is one bar (labelled by its
+//   "textValue" or name). With no such children the chart renders an
+//   honest empty state, not pre-filled bars.
+// - Sheet/popover actions used to present invented fallback content
+//   ("Interactive Sheet Content") when the node had no child. They now
+//   present nothing in that case (and log why) instead of fabricating
+//   content.
 import SwiftUI
 import Charts
 import MapKit
@@ -230,13 +245,13 @@ public struct VisualUIRenderer: View {
                 Form {
                     Section("Profile Settings") {
                         TextField("Username", text: Binding(
-                            get: { textValues[node.id] ?? "Jules" },
+                            get: { textValues[node.id] ?? "" },
                             set: { textValues[node.id] = $0 }
                         ))
                         .textFieldStyle(.roundedBorder)
 
                         Toggle("Push Notifications", isOn: Binding(
-                            get: { toggleValues[node.id] ?? true },
+                            get: { toggleValues[node.id] ?? false },
                             set: { toggleValues[node.id] = $0 }
                         ))
                     }
@@ -297,7 +312,7 @@ public struct VisualUIRenderer: View {
 
             case .toggle:
                 Toggle(node.properties["textValue"] ?? "Toggle Me", isOn: Binding(
-                    get: { toggleValues[node.id] ?? true },
+                    get: { toggleValues[node.id] ?? false },
                     set: { toggleValues[node.id] = $0 }
                 ))
 
@@ -351,12 +366,11 @@ public struct VisualUIRenderer: View {
 
             // Advanced Elements
             case .charts:
-                Chart {
-                    BarMark(x: .value("A", "Category 1"), y: .value("B", 5))
-                    BarMark(x: .value("A", "Category 2"), y: .value("B", 12))
-                    BarMark(x: .value("A", "Category 3"), y: .value("B", 18))
-                }
-                .frame(height: 120)
+                // D5: the three bars (5/12/18) were invented demo data.
+                // See chartView(for:): bars come from the node's children
+                // (a child with a numeric "value" property is one bar);
+                // with no such children the chart is empty, not pre-filled.
+                chartView(for: node)
 
             case .map:
                 Map()
@@ -464,6 +478,32 @@ public struct VisualUIRenderer: View {
         )
     }
 
+    /// Chart rendering (D5): a chart node carries no data model of its
+    /// own, so bars come from its children — a child with a numeric
+    /// "value" property is one bar (labelled by its "textValue" or name).
+    /// With no such children the chart renders an honest empty state
+    /// instead of the invented 5/12/18 demo bars it used to draw.
+    private func chartView(for node: VisualComponentNode) -> AnyView {
+        let bars: [(label: String, value: Double)] = node.children.compactMap { child in
+            guard let raw = child.properties["value"], let value = Double(raw) else { return nil }
+            return (label: child.properties["textValue"] ?? child.name, value: value)
+        }
+        if bars.isEmpty {
+            return AnyView(
+                ContentUnavailableView("No Chart Data", systemImage: "chart.bar", description: Text("Add child nodes with a numeric \"value\" property to plot bars."))
+                    .frame(height: 120)
+            )
+        }
+        return AnyView(
+            Chart {
+                ForEach(Array(bars.enumerated()), id: \.offset) { _, bar in
+                    BarMark(x: .value("Category", bar.label), y: .value("Value", bar.value))
+                }
+            }
+            .frame(height: 120)
+        )
+    }
+
     private func customFont(from node: VisualComponentNode) -> Font {
         let preset = node.properties["fontPreset"] ?? "Body"
         switch preset {
@@ -502,18 +542,16 @@ public struct VisualUIRenderer: View {
                 if let child = node.children.first {
                     activeSheetNode = child
                 } else {
-                    activeSheetNode = VisualComponentNode(type: .vStack, children: [
-                        VisualComponentNode(type: .text, properties: ["textValue": "Interactive Sheet Content"]),
-                        VisualComponentNode(type: .button, properties: ["textValue": "Dismiss"])
-                    ])
+                    // D5: no invented fallback sheet content. With no child
+                    // node there is nothing to present.
+                    VisualUISettings.shared.addLog("Sheet action ignored: node '\(node.name)' has no child node to present.")
                 }
             } else if node.properties["actionType"] == "popover" {
                 if let child = node.children.first {
                     activePopoverNode = child
                 } else {
-                    activePopoverNode = VisualComponentNode(type: .vStack, children: [
-                        VisualComponentNode(type: .text, properties: ["textValue": "Interactive Popover Content"])
-                    ])
+                    // D5: no invented fallback popover content.
+                    VisualUISettings.shared.addLog("Popover action ignored: node '\(node.name)' has no child node to present.")
                 }
             } else {
                 withAnimation(.spring()) {

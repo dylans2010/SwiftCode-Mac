@@ -13,6 +13,19 @@
 // nothing is persisted, and the catalog shows why. When a guest command channel
 // lands, implement the install there and restore progress reporting from its real
 // output; do not re-add a timed progress animation.
+//
+// Cleanup D5 (2026-11-06): the software-catalog health panel asserted
+// "PACKAGE HEALTH INDEX GOOD" and "2 updates available", and each catalog
+// tool carried a hardcoded version ("v2.43.0", "v25.0.3", …) with a health
+// status derived only from membership in the VM's recorded
+// `installedPackagesList` (Git "Update Available", Python "Version
+// Conflict" — invented). None of that is measured: there is still no guest
+// query channel (C29), so no installed version, health score, or update
+// count can be known from the host. The panel now reports "Unknown" health
+// and "Unknown" pending updates; catalog tools show only whether the VM's
+// recorded list contains them ("Installed" / "Not Installed") with health
+// "Unknown" when present (unmeasurable) and "Missing" when absent. The
+// installed-packages count is the recorded list's count, not a measurement.
 import SwiftUI
 import SwiftCodeUI
 
@@ -427,13 +440,17 @@ public struct VirtualMachineDetailView: View {
                             .foregroundStyle(.secondary)
 
                         HStack {
-                            Text("GOOD")
+                            Text("UNKNOWN")
                                 .font(.system(size: 24, weight: .bold))
-                                .foregroundStyle(.green)
-                            Image(systemName: "checkmark.seal.fill")
+                                .foregroundStyle(.secondary)
+                            Image(systemName: "questionmark.circle")
                                 .font(.title3)
-                                .foregroundStyle(.green)
+                                .foregroundStyle(.secondary)
                         }
+
+                        Text("No guest query channel — health cannot be measured from the host.")
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
                     }
 
                     Divider()
@@ -455,10 +472,14 @@ public struct VirtualMachineDetailView: View {
                             .font(.caption2)
                             .fontWeight(.bold)
                             .foregroundStyle(.secondary)
-                        Text("2 updates available")
+                        Text("Unknown")
                             .font(.subheadline)
                             .fontWeight(.semibold)
-                            .foregroundStyle(.orange)
+                            .foregroundStyle(.secondary)
+
+                        Text("Update status cannot be read from the host.")
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
                     }
 
                     Spacer()
@@ -499,9 +520,12 @@ public struct VirtualMachineDetailView: View {
     struct CatalogTool: Identifiable {
         var id: String { name }
         let name: String
-        let version: String
         let isInstalled: Bool
-        let healthStatus: String // "Healthy", "Update Available", "Version Conflict", "Missing"
+        // "Unknown" (in the VM's recorded installed list, but no health
+        // measurement exists — there is no guest query channel) or
+        // "Missing" (absent from the recorded list). No version is stored:
+        // installed versions cannot be read from the host.
+        let healthStatus: String
 
         var iconColor: Color {
             isInstalled ? .green : .secondary
@@ -513,25 +537,34 @@ public struct VirtualMachineDetailView: View {
 
         var healthColor: Color {
             switch healthStatus {
-            case "Version Conflict": return .red
-            case "Update Available": return .orange
-            default: return .green
+            case "Missing": return .orange
+            default: return .secondary
             }
         }
     }
 
     private func getCatalogTools(vm: VirtualMachine) -> [CatalogTool] {
+        // D5: no hardcoded versions and no invented health. A tool is
+        // "Installed" only in the sense that the VM's recorded
+        // installed-packages list contains it; its health is "Unknown"
+        // because nothing can query the guest, and a tool absent from the
+        // list is "Missing". The catalog names are just the tools the VM
+        // may carry — not measured data.
+        func tool(_ name: String, _ packages: String...) -> CatalogTool {
+            let installed = packages.contains { vm.installedPackagesList.contains($0) }
+            return CatalogTool(name: name, isInstalled: installed, healthStatus: installed ? "Unknown" : "Missing")
+        }
         return [
-            CatalogTool(name: "Swift 6.0", version: "v6.0-release", isInstalled: vm.installedPackagesList.contains("swift"), healthStatus: vm.installedPackagesList.contains("swift") ? "Healthy" : "Missing"),
-            CatalogTool(name: "Git VCS", version: "v2.43.0", isInstalled: vm.installedPackagesList.contains("git"), healthStatus: vm.installedPackagesList.contains("git") ? "Update Available" : "Missing"),
-            CatalogTool(name: "Docker Engine", version: "v25.0.3", isInstalled: vm.installedPackagesList.contains("docker"), healthStatus: vm.installedPackagesList.contains("docker") ? "Healthy" : "Missing"),
-            CatalogTool(name: "Node.js Platform", version: "v20.11.0", isInstalled: vm.installedPackagesList.contains("node"), healthStatus: vm.installedPackagesList.contains("node") ? "Healthy" : "Missing"),
-            CatalogTool(name: "Python interpreter", version: "v3.12.1", isInstalled: vm.installedPackagesList.contains("python3") || vm.installedPackagesList.contains("python"), healthStatus: vm.installedPackagesList.contains("python3") ? "Version Conflict" : "Missing"),
-            CatalogTool(name: "Redis Cache Server", version: "v7.2.4", isInstalled: vm.installedPackagesList.contains("redis"), healthStatus: vm.installedPackagesList.contains("redis") ? "Healthy" : "Missing"),
-            CatalogTool(name: "PostgreSQL Database", version: "v16.1", isInstalled: vm.installedPackagesList.contains("postgresql"), healthStatus: vm.installedPackagesList.contains("postgresql") ? "Healthy" : "Missing"),
-            CatalogTool(name: "Nginx Server", version: "v1.24.0", isInstalled: vm.installedPackagesList.contains("nginx"), healthStatus: vm.installedPackagesList.contains("nginx") ? "Healthy" : "Missing"),
-            CatalogTool(name: "Go Language Compiler", version: "v1.22.0", isInstalled: vm.installedPackagesList.contains("go"), healthStatus: vm.installedPackagesList.contains("go") ? "Healthy" : "Missing"),
-            CatalogTool(name: "Rust Toolchain", version: "v1.75.0", isInstalled: vm.installedPackagesList.contains("rustc") || vm.installedPackagesList.contains("cargo"), healthStatus: (vm.installedPackagesList.contains("rustc") || vm.installedPackagesList.contains("cargo")) ? "Healthy" : "Missing")
+            tool("Swift 6.0", "swift"),
+            tool("Git VCS", "git"),
+            tool("Docker Engine", "docker"),
+            tool("Node.js Platform", "node"),
+            tool("Python interpreter", "python3", "python"),
+            tool("Redis Cache Server", "redis"),
+            tool("PostgreSQL Database", "postgresql"),
+            tool("Nginx Server", "nginx"),
+            tool("Go Language Compiler", "go"),
+            tool("Rust Toolchain", "rustc", "cargo")
         ]
     }
 
@@ -727,7 +760,7 @@ struct CatalogToolRow: View {
                 VStack(alignment: .leading, spacing: 3) {
                     Text(tool.name)
                         .font(.headline)
-                    Text(tool.isInstalled ? "Installed • \(tool.version)" : "Not Installed")
+                    Text(tool.isInstalled ? "Installed" : "Not Installed")
                         .font(.caption2)
                         .foregroundStyle(tool.statusColor)
 
@@ -740,20 +773,11 @@ struct CatalogToolRow: View {
                 Spacer()
 
                 if tool.isInstalled {
-                    if tool.healthStatus == "Update Available" {
-                        Button("Update") {
-                            onInstall(tool.name)
-                        }
-                        .buttonStyle(.borderedProminent)
-                        .tint(.orange)
-                        .controlSize(.small)
-                    } else {
-                        Button("Reinstall") {
-                            onInstall(tool.name)
-                        }
-                        .buttonStyle(.bordered)
-                        .controlSize(.small)
+                    Button("Reinstall") {
+                        onInstall(tool.name)
                     }
+                    .buttonStyle(.bordered)
+                    .controlSize(.small)
                 } else {
                     Button("Install") {
                         onInstall(tool.name)

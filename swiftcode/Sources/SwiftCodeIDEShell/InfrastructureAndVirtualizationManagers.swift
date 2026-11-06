@@ -21,6 +21,30 @@
 // whose expiry cannot be read are omitted rather than given an invented date;
 // if that ever hides a real identity, match by SHA-1 (`SecCertificateCopyData`
 // + SHA-1) instead of by name.
+//
+// Cleanup D5 (2026-11-06): `SCOperationsStorageManager` initialised with
+// invented sizes (projects 0.4 GB, caches 1.2 GB, DerivedData 0.8 GB,
+// archives 0.2 GB, logs 0.05 GB, backups 0.1 GB, 42.0 GB free) and only
+// ever re-measured projects, DerivedData and free space — caches, VMs,
+// archives, logs and backups kept their seeded values forever. All sizes
+// now start at 0.0 and `recalculateSizes()` measures every bucket from a
+// real source: projects directory, active project's build directory,
+// `~/Library/Caches/SwiftCode`, the `SwiftCode/Backups` directory,
+// archive records' recorded `binarySize`, and the VMs' configured disk
+// sizes (no VM disk path is recorded on the VM model, so nothing on disk
+// can be measured for them — the configured size is reported as such).
+// Logs stay 0.0: no on-disk log store exists (logs are in-memory only).
+// Free space was already a real filesystem-attributes reading; its fake
+// 42.0 initial value is gone (0.0 = no reading yet).
+// `SCOperationsDeviceManager` listed three hardcoded devices ("My Mac /
+// Mac Studio (M2 Max) / macOS 15.0", "iPhone 15 Simulator / iOS 18.0",
+// "iPad Pro Simulator / iOS 18.0"). It now enumerates real devices: this
+// Mac (host name, `sysctl hw.model`, OS version), physical devices from
+// `xcrun devicectl list devices`, and simulators from `xcrun simctl list
+// -j devices` (available devices only; booted → "Connected", otherwise
+// "Offline"). No `xcrun` / no devices means an empty list (apart from
+// this Mac), never invented rows. D4's C30 `refreshCertificates` code was
+// verified still intact and is untouched.
 import Foundation
 import Observation
 #if canImport(Security)
@@ -52,15 +76,18 @@ public struct SCDependencyItem: Identifiable, Codable, Sendable, Hashable {
 public final class SCOperationsStorageManager {
     public static let shared = SCOperationsStorageManager()
 
-    public var projectUsageGB: Double = 0.4
-    public var cacheUsageGB: Double = 1.2
-    public var derivedDataGB: Double = 0.8
+    /// All sizes are measured by `recalculateSizes()`; 0.0 means "no
+    /// measurement yet", never a measured zero. Logs stay 0.0: no on-disk
+    /// log store exists (logs are in-memory only).
+    public var projectUsageGB: Double = 0.0
+    public var cacheUsageGB: Double = 0.0
+    public var derivedDataGB: Double = 0.0
     public var vmUsageGB: Double = 0.0
-    public var archiveUsageGB: Double = 0.2
-    public var logUsageGB: Double = 0.05
-    public var backupUsageGB: Double = 0.1
+    public var archiveUsageGB: Double = 0.0
+    public var logUsageGB: Double = 0.0
+    public var backupUsageGB: Double = 0.0
 
-    public var totalSystemFreeGB: Double = 42.0
+    public var totalSystemFreeGB: Double = 0.0
 
     public var totalAllocatedGB: Double {
         projectUsageGB + cacheUsageGB + derivedDataGB + vmUsageGB + archiveUsageGB + logUsageGB + backupUsageGB
@@ -73,6 +100,14 @@ public final class SCOperationsStorageManager {
     public func recalculateSizes() {
         let projectsDir = ProjectSessionStore.shared.projectsDirectory
         let activeProjectDir = ProjectSessionStore.shared.activeProject?.directoryURL
+        // Values read on the main thread before the background measurement:
+        // archive sizes are recorded on the archive records, and VM disk
+        // sizes are the VMs' configured sizes (no VM disk path is recorded
+        // on the VM model, so nothing on disk can be measured for them).
+        let archiveBytes = ArchiveManager.shared.archives.reduce(Int64(0)) { $0 + $1.binarySize }
+        let vmConfiguredGB = Double(VirtualizationStateStore.shared.virtualMachines.reduce(0) { $0 + $1.storageGB })
+        let cachesDir = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask)[0].appendingPathComponent("SwiftCode")
+        let backupsDir = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0].appendingPathComponent("SwiftCode/Backups")
 
         Task.detached(priority: .background) {
             let projectsBytes = SCOperationsStorageManager.getDirectorySize(at: projectsDir)
@@ -85,16 +120,29 @@ public final class SCOperationsStorageManager {
                 derivedUsage = Double(derivedBytes) / (1024 * 1024 * 1024)
             }
 
-            var freeGB = 42.0
+            let cachesBytes = SCOperationsStorageManager.getDirectorySize(at: cachesDir)
+            let backupsBytes = SCOperationsStorageManager.getDirectorySize(at: backupsDir)
+
+            var freeGB = 0.0
             if let attrs = try? FileManager.default.attributesOfFileSystem(forPath: NSHomeDirectory()) {
                 if let freeSpace = attrs[.systemFreeSize] as? Int64 {
                     freeGB = Double(freeSpace) / (1024 * 1024 * 1024)
                 }
             }
 
+            let cacheUsage = Double(cachesBytes) / (1024 * 1024 * 1024)
+            let backupUsage = Double(backupsBytes) / (1024 * 1024 * 1024)
+            let archiveUsage = Double(archiveBytes) / (1024 * 1024 * 1024)
+
             await MainActor.run {
                 self.projectUsageGB = projectUsage
                 self.derivedDataGB = derivedUsage
+                self.cacheUsageGB = cacheUsage
+                self.vmUsageGB = vmConfiguredGB
+                self.archiveUsageGB = archiveUsage
+                // No on-disk log store exists; 0.0 means "no log files".
+                self.logUsageGB = 0.0
+                self.backupUsageGB = backupUsage
                 self.totalSystemFreeGB = freeGB
                 WorkspaceHealth.shared.recompute()
             }
@@ -224,12 +272,131 @@ public final class SCOperationsDeviceManager {
         refreshDevices()
     }
 
+    /// Real device enumeration: this Mac (host name, `sysctl hw.model`,
+    /// OS version), physical devices from `xcrun devicectl list devices`,
+    /// and simulators from `xcrun simctl list -j devices` (available
+    /// devices only; booted → "Connected", otherwise "Offline"). No
+    /// `xcrun` / no devices means an empty list (apart from this Mac),
+    /// never invented rows. Runs the listings synchronously, like
+    /// `SCOperationsSigningManager`'s `security find-identity` call.
     public func refreshDevices() {
-        self.devices = [
-            SCDevice(id: "MAC-SELF", name: "My Mac", model: "Mac Studio (M2 Max)", platform: "macOS", osVersion: "15.0", status: "Connected"),
-            SCDevice(id: "SIM-IPHONE-15", name: "iPhone 15 Simulator", model: "iPhone 15", platform: "iOS", osVersion: "18.0", status: "Simulated"),
-            SCDevice(id: "SIM-IPAD-PRO", name: "iPad Pro Simulator", model: "iPad Pro (11-inch)", platform: "iOS", osVersion: "18.0", status: "Simulated")
-        ]
+        var found: [SCDevice] = []
+
+        #if os(macOS)
+        // This Mac — the real local host.
+        let version = ProcessInfo.processInfo.operatingSystemVersion
+        let osVersion = "\(version.majorVersion).\(version.minorVersion).\(version.patchVersion)"
+        let hostName = Host.current().localizedName ?? ProcessInfo.processInfo.hostName
+        let model = Self.runCommand("/usr/sbin/sysctl", ["-n", "hw.model"])?.trimmingCharacters(in: .whitespacesAndNewlines)
+        found.append(SCDevice(
+            id: "MAC-SELF",
+            name: hostName,
+            model: (model?.isEmpty == false) ? model! : "Mac",
+            platform: "macOS",
+            osVersion: osVersion,
+            status: "Connected"))
+        #endif
+
+        found += Self.physicalDevices()
+        found += Self.simulatorDevices()
+        self.devices = found
+    }
+
+    /// Physical devices from `xcrun devicectl list devices` (same JSON
+    /// shape `DestinationCatalog.devices(fromDevicectlJSON:)` parses).
+    /// Empty when `xcrun` is unavailable, the command fails, or no
+    /// physical device is attached.
+    private static func physicalDevices() -> [SCDevice] {
+        let scratch = FileManager.default.temporaryDirectory
+            .appendingPathComponent("swiftcode-devicectl-\(ProcessInfo.processInfo.processIdentifier).json")
+        defer { try? FileManager.default.removeItem(at: scratch) }
+        guard runCommand("/usr/bin/xcrun", ["devicectl", "list", "devices", "--json-output", scratch.path, "-q"]) != nil,
+              let data = try? Data(contentsOf: scratch),
+              let root = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let result = root["result"] as? [String: Any],
+              let list = result["devices"] as? [[String: Any]] else { return [] }
+        return list.compactMap { device in
+            let hw = device["hardwareProperties"] as? [String: Any] ?? [:]
+            let props = device["deviceProperties"] as? [String: Any] ?? [:]
+            guard (hw["reality"] as? String) == "physical",
+                  let platform = hw["platform"] as? String,
+                  let udid = hw["udid"] as? String,
+                  let name = props["name"] as? String else { return nil }
+            // hardwareProperties carries the model identifier when the
+            // listing provides one; fall back to the platform, never an
+            // invented model name.
+            let model = (hw["model"] as? String) ?? (hw["deviceType"] as? String) ?? platform
+            return SCDevice(
+                id: udid,
+                name: name,
+                model: model,
+                platform: platform,
+                osVersion: (props["osVersionNumber"] as? String) ?? "",
+                status: "Connected")
+        }
+        .sorted { $0.name.localizedStandardCompare($1.name) == .orderedAscending }
+    }
+
+    /// Simulators from `xcrun simctl list -j devices` (same JSON shape
+    /// `DestinationCatalog.simulators(fromSimctlJSON:)` parses). Only
+    /// available devices are listed. Empty when `xcrun` is unavailable,
+    /// the command fails, or no simulator exists.
+    private static func simulatorDevices() -> [SCDevice] {
+        guard let data = runCommandData("/usr/bin/xcrun", ["simctl", "list", "-j", "devices"]),
+              let root = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let byRuntime = root["devices"] as? [String: [[String: Any]]] else { return [] }
+        // CoreSimulator runtime identifiers spell platforms this way.
+        let runtimePlatforms = ["iOS": "iOS", "watchOS": "watchOS", "tvOS": "tvOS", "xrOS": "visionOS", "visionOS": "visionOS"]
+        var out: [SCDevice] = []
+        for (runtime, devices) in byRuntime {
+            // com.apple.CoreSimulator.SimRuntime.iOS-18-0 → iOS, 18.0
+            let tail = runtime.split(separator: ".").last.map(String.init) ?? runtime
+            let parts = tail.split(separator: "-").map(String.init)
+            guard let first = parts.first, let platform = runtimePlatforms[first] else { continue }
+            let version = parts.dropFirst().joined(separator: ".")
+            for device in devices where (device["isAvailable"] as? Bool) ?? true {
+                guard let name = device["name"] as? String,
+                      let udid = device["udid"] as? String else { continue }
+                // com.apple.CoreSimulator.SimDeviceType.iPhone-15 → iPhone 15
+                let model = (device["deviceTypeIdentifier"] as? String)?
+                    .replacingOccurrences(of: "com.apple.CoreSimulator.SimDeviceType.", with: "")
+                    .replacingOccurrences(of: "-", with: " ") ?? name
+                let state = (device["state"] as? String) ?? ""
+                out.append(SCDevice(
+                    id: udid,
+                    name: name,
+                    model: model,
+                    platform: platform,
+                    osVersion: version,
+                    status: state == "Booted" ? "Connected" : "Offline"))
+            }
+        }
+        return out.sorted { $0.name.localizedStandardCompare($1.name) == .orderedAscending }
+    }
+
+    /// Runs a command and returns its stdout as a string, or `nil` when
+    /// the executable is missing, the launch fails, or it exits non-zero.
+    private static func runCommand(_ executable: String, _ arguments: [String]) -> String? {
+        guard let data = runCommandData(executable, arguments) else { return nil }
+        return String(data: data, encoding: .utf8)
+    }
+
+    /// Runs a command and returns its stdout data, or `nil` when the
+    /// executable is missing, the launch fails, or it exits non-zero.
+    private static func runCommandData(_ executable: String, _ arguments: [String]) -> Data? {
+        guard FileManager.default.isExecutableFile(atPath: executable) else { return nil }
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: executable)
+        process.arguments = arguments
+        let pipe = Pipe()
+        process.standardOutput = pipe
+        process.standardError = FileHandle.nullDevice
+        process.standardInput = FileHandle.nullDevice
+        do { try process.run() } catch { return nil }
+        let data = pipe.fileHandleForReading.readDataToEndOfFile()
+        process.waitUntilExit()
+        guard process.terminationStatus == 0 else { return nil }
+        return data
     }
 }
 

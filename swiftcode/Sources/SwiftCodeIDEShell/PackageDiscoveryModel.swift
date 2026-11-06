@@ -1,27 +1,19 @@
-import Foundation
-import Observation
-import SwiftCodeIDECore
-
 /// Package discovery — Legacy's `Views/Utilities/DependencyManager/`
 /// subsystem, ported onto SwiftCode's systems.
 ///
 /// What maps where:
 /// - The installed-project side is SwiftCode's `PackageDependencyModel`
 ///   (`SwiftCodeIDECore`, rows from the .xcodeproj); this file is the
-///   *discovery* side Legacy owned: GitHub search, the curated starter
-///   catalog, collections/favorites/watchlist, install/remove, the
-///   dependency graph, compatibility and security checks.
+///   *discovery* side Legacy owned: GitHub search, featured/trending lists
+///   (live search only — no seeded catalog), collections/favorites/
+///   watchlist, install/remove, the dependency graph, compatibility and
+///   security checks.
 /// - Search is live against `api.github.com/search/repositories`
 ///   (unauthenticated; a token, when supplied, raises the rate limit).
-///   The featured/trending lists are Legacy's curated starter catalog —
-///   editorial picks, not live trending data — and the view offers a
-///   "Refresh from GitHub" action that replaces their numbers with live
-///   values. They are never presented as live trending.
-/// - Legacy's security scan slept 800ms and then matched names against a
-///   hardcoded advisory list. This port keeps the advisory list (verified
-///   against Legacy) AND checks each repository live (archived flag,
-///   license presence, last push) via the GitHub API; the score is computed
-///   from those real signals.
+///   The featured/trending lists start empty and fill only from live
+///   GitHub search results (same treatment as `DependencyPlatformManager`
+///   C20); there is no seeded catalog. `refreshCatalog()` re-fetches live
+///   numbers for whatever entries are present.
 /// - Legacy's `installPackage`/`removePackage` edited Legacy's project
 ///   model. Here install/remove go through an injected
 ///   `PackageInstallHandler`; with none set they fail honestly instead of
@@ -31,6 +23,30 @@ import SwiftCodeIDECore
 ///   an injected `PackageDiscoveryTextProvider`; with none set it fails
 ///   honestly. State persists as JSON in Application Support
 ///   `SwiftCode/PackageDiscovery/` (Legacy used UserDefaults keys).
+// CLEANUP (2026-11-06, writer D5) — fabricated package data deleted:
+// - Seeded featured/trending catalogs (fixed stars/forks/versions, e.g.
+//   swift-collections 4800 stars, Alamofire 41000 stars, tools "5.9") are
+//   gone; both lists start empty and fill only from live GitHub search
+//   results. `refreshCatalog()` is the live-refresh path for entries that
+//   arrive that way; it never re-seeds.
+// - The seeded advisory is gone. The "Alamofire / GHSA-9pxf-2ur3-3p2g"
+//   entry is deleted: its advisory page and its API record both return
+//   404 (checked 2026-11-06), so it cannot be presented as verified.
+//   `knownAdvisories` starts empty until a live advisory source
+//   (GitHub Advisory Database / OSV API) populates it. The security scan
+//   scores each repository from live signals only (archived flag, license
+//   presence, last push) via the GitHub API.
+// - `PackageMetadata`'s init defaults no longer stamp "5.10" /
+//   ["macOS 14+", "iOS 17+"] / "1.0.0": they are "" / [] / "" (D3's C20
+//   unset convention), so `fromSearchResult` no longer inherits stamped
+//   values for fields the Search API never returns.
+// - Residue: `releaseDate` still defaults to `Date()`. The Search API
+//   returns no release date, but the field is `Date` and PackageDetailsView
+//   formats it directly, so making it nil needs that (out-of-slice) view
+//   updated too; left for a follow-up that owns that view.
+import Foundation
+import Observation
+import SwiftCodeIDECore
 
 public struct ParsedDependency: Identifiable, Codable, Sendable {
     public var id: UUID
@@ -116,7 +132,14 @@ public struct PackageMetadata: Identifiable, Codable, Hashable, Sendable {
     public var releaseDate: Date
     public var isVerified: Bool
     public var topics: [String]
-    public init(name: String, fullName: String, description: String? = nil, cloneUrl: String, stars: Int, forks: Int, openIssues: Int, license: String? = nil, owner: String, swiftToolsVersion: String = "5.10", platforms: [String] = ["macOS 14+", "iOS 17+"], lastReleasedVersion: String = "1.0.0", releaseDate: Date = Date(), isVerified: Bool = false, topics: [String] = []) {
+    /// Unset means unknown: `swiftToolsVersion` "" / `platforms` [] /
+    /// `lastReleasedVersion` "" is D3's C20 unset convention — the GitHub
+    /// Search API returns none of these, so they stay unset instead of
+    /// being stamped "5.10" / ["macOS 14+", "iOS 17+"] / "1.0.0".
+    /// (`releaseDate` still defaults to `Date()`: the API returns no
+    /// release date, but the field is `Date` and PackageDetailsView formats
+    /// it directly — making it optional needs that view updated too.)
+    public init(name: String, fullName: String, description: String? = nil, cloneUrl: String, stars: Int, forks: Int, openIssues: Int, license: String? = nil, owner: String, swiftToolsVersion: String = "", platforms: [String] = [], lastReleasedVersion: String = "", releaseDate: Date = Date(), isVerified: Bool = false, topics: [String] = []) {
         self.name = name; self.fullName = fullName; self.description = description; self.cloneUrl = cloneUrl
         self.stars = stars; self.forks = forks; self.openIssues = openIssues; self.license = license
         self.owner = owner; self.swiftToolsVersion = swiftToolsVersion; self.platforms = platforms
@@ -259,10 +282,19 @@ public enum PackageCompatibility {
     public static func analyze(package: PackageMetadata, projectSwiftToolsVersion: String, projectPlatforms: [String]) -> PackageCompatibilityReport {
         var recommendations: [String] = []
         var conflicts: [String] = []
-        let toolsMatch = package.swiftToolsVersion <= projectSwiftToolsVersion
-        if !toolsMatch {
-            conflicts.append("Package needs Swift tools \(package.swiftToolsVersion); project uses \(projectSwiftToolsVersion).")
-            recommendations.append("Raise the project's Swift tools version or pin an older release of \(package.name).")
+        // An unset tools version ("" — the D5/C20 unset convention) is
+        // unknown, not a match: "" sorts before every real version, so a
+        // bare `<=` would have called every unstamped package compatible.
+        let toolsMatch: Bool
+        if package.swiftToolsVersion.isEmpty {
+            toolsMatch = false
+            recommendations.append("\(package.name) declares no Swift tools version; verify it builds with your toolchain before adopting it.")
+        } else {
+            toolsMatch = package.swiftToolsVersion <= projectSwiftToolsVersion
+            if !toolsMatch {
+                conflicts.append("Package needs Swift tools \(package.swiftToolsVersion); project uses \(projectSwiftToolsVersion).")
+                recommendations.append("Raise the project's Swift tools version or pin an older release of \(package.name).")
+            }
         }
         let platformMatch: Bool
         if package.platforms.isEmpty {
@@ -380,28 +412,17 @@ public final class PackageDiscoveryStore {
         var continueBrowsing: [String]
     }
 
-    /// Legacy's curated starter catalog (editorial picks with the star
-    /// counts Legacy shipped). `refreshCatalog()` replaces the numbers
-    /// with live GitHub values; until then the view labels them as the
-    /// starter catalog, not live trending data.
+    /// No seeded catalogs: featured/trending lists start empty and fill
+    /// only from live GitHub search results (D5, same as C20). The stale
+    /// fixed star/fork/version rows Legacy shipped (swift-collections 4800
+    /// stars, Alamofire 41000 stars, tools "5.9"/"5.10", versions "1.1.0"/
+    /// "5.9.1") are deleted, not re-seeded. No seeded advisories either:
+    /// the "Alamofire / GHSA-9pxf-2ur3-3p2g" entry's advisory page and API
+    /// record both return 404, so it cannot be presented as verified.
     private func loadPresets() {
-        featuredPackages = [
-            PackageMetadata(name: "swift-collections", fullName: "apple/swift-collections", description: "Efficient double-ended queues, ordered sets, ordered dictionaries, and red-black trees.", cloneUrl: "https://github.com/apple/swift-collections.git", stars: 4800, forks: 410, openIssues: 32, license: "Apache 2.0", owner: "apple", swiftToolsVersion: "5.9", platforms: ["macOS 13+", "iOS 16+", "tvOS 16+", "watchOS 9+"], lastReleasedVersion: "1.1.0", isVerified: true, topics: ["data-structures", "algorithms", "performance"]),
-            PackageMetadata(name: "swift-algorithms", fullName: "apple/swift-algorithms", description: "A toolbox of sequence and collection algorithms for the Swift standard library.", cloneUrl: "https://github.com/apple/swift-algorithms.git", stars: 6200, forks: 580, openIssues: 18, license: "Apache 2.0", owner: "apple", swiftToolsVersion: "5.8", platforms: ["macOS 12+", "iOS 15+"], lastReleasedVersion: "1.2.0", isVerified: true, topics: ["algorithms", "sorting", "permutations"]),
-        ]
-        trendingPackages = [
-            PackageMetadata(name: "swift-composable-architecture", fullName: "pointfreeco/swift-composable-architecture", description: "A library for building applications in a consistent and understandable way, with composition, testing, and ergonomics in mind.", cloneUrl: "https://github.com/pointfreeco/swift-composable-architecture.git", stars: 10500, forks: 1200, openIssues: 45, license: "MIT", owner: "pointfreeco", swiftToolsVersion: "5.9", platforms: ["macOS 13+", "iOS 16+"], lastReleasedVersion: "1.10.0", isVerified: true, topics: ["architecture", "redux", "state-management"]),
-            PackageMetadata(name: "Alamofire", fullName: "Alamofire/Alamofire", description: "Elegant HTTP Networking in Swift", cloneUrl: "https://github.com/Alamofire/Alamofire.git", stars: 41000, forks: 7500, openIssues: 12, license: "MIT", owner: "Alamofire", swiftToolsVersion: "5.10", platforms: ["macOS 10.15+", "iOS 13+"], lastReleasedVersion: "5.9.1", isVerified: true, topics: ["networking", "http", "rest"]),
-            PackageMetadata(name: "SDWebImageSwiftUI", fullName: "SDWebImage/SDWebImageSwiftUI", description: "SwiftUI Image loading and animation framework powered by SDWebImage.", cloneUrl: "https://github.com/SDWebImage/SDWebImageSwiftUI.git", stars: 3200, forks: 480, openIssues: 15, license: "MIT", owner: "SDWebImage", swiftToolsVersion: "5.7", platforms: ["macOS 11+", "iOS 14+"], lastReleasedVersion: "3.0.4", isVerified: true, topics: ["swiftui", "image-loading", "webp", "gif"]),
-        ]
-        knownAdvisories = [
-            PackageSecurityAdvisory(
-                packageName: "Alamofire",
-                title: "Improper Certificate Validation under Specific Proxy Configurations",
-                severity: "Moderate", affectedVersions: "< 5.6.1", fixedVersion: "5.6.1",
-                advisoryUrl: "https://github.com/Alamofire/Alamofire/security/advisories/GHSA-9pxf-2ur3-3p2g",
-                details: "Alamofire versions before 5.6.1 incorrectly evaluated server trust constraints when using proxy connections with manual route configurations."),
-        ]
+        featuredPackages = []
+        trendingPackages = []
+        knownAdvisories = []
     }
 
     // MARK: - Search (live GitHub API)
@@ -442,7 +463,9 @@ public final class PackageDiscoveryStore {
         }
     }
 
-    /// Replaces the starter catalog's numbers with live GitHub values.
+    /// Re-fetches live GitHub numbers for whatever catalog entries are
+    /// present. The lists start empty (see `loadPresets`), so until live
+    /// search results populate them this is a no-op — it never re-seeds.
     public func refreshCatalog() async {
         for list in [featuredPackages, trendingPackages] {
             for pkg in list {
@@ -543,7 +566,8 @@ public final class PackageDiscoveryStore {
         saveState()
     }
 
-    // MARK: - Security scan (live repository signals + advisory list)
+    // MARK: - Security scan (live repository signals; knownAdvisories is
+    // empty until a live advisory source populates it — see loadPresets)
 
     public func executeSecurityScan(dependencies: [ParsedDependency]) async {
         securityScanRunning = true

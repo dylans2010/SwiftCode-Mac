@@ -26,6 +26,33 @@
 //   `WorkspaceTimelineManager.refresh` also no longer pretend to have
 //   happened 2 min / 1 h ago — they are dated when the refresh logs
 //   them, which is when the check actually ran.
+//
+// CLEANUP (2026-11-06, writer D5) — fabricated analytics deleted:
+// - `WorkspaceAnalytics`: no-build fallback of 100.0% success rate is
+//   gone (0.0 = no builds recorded yet, same "0 = no data" convention as
+//   A2's build durations); no-active-project fallback of 1200 lines of
+//   code is gone (0 = nothing counted).
+// - `WorkspaceIntelligence`: doc-coverage 0.72 / test-coverage 0.65 /
+//   storage-growth count × 3 MB / "Improving (Clean compiles are 12%
+//   faster)" baselines are gone. Doc coverage is the real scanned ratio
+//   (0.0 when nothing was scanned); test coverage is 0.0 (no .xcresult /
+//   xccov source is wired — 0.0 means "no data", not a measured 0%);
+//   storage growth is 0 (no prior snapshot is stored to compare
+//   against); the build trend is computed from real build records
+//   (recent-half vs earlier-half mean duration, with the percentage
+//   computed from those durations, "No build history" under 2 builds).
+// - `NotificationCenterManager`: the four seeded notifications are gone
+//   ("Certificate expires in 365 days", "ZIPFoundation v0.9.19 →
+//   v0.9.22", "DerivedData is taking 12.4 GB", "Cloud Sync Connected").
+//   Notifications are now derived from real state only: keychain
+//   certificates expiring within 30 days (via
+//   `SCOperationsSigningManager`), measured DerivedData ≥ 5 GB and
+//   measured free disk < 5 GB (via `SCOperationsStorageManager`), and
+//   cloud-connected only while actually authenticated. Storage values
+//   reflect the latest completed measurement — call `loadNotifications()`
+//   again after a recalculation to refresh them. D3's A1–A3 fixes above
+//   (ResourceMonitor / PerformanceManager / TimelineManager) were verified
+//   still intact and are untouched.
 
 import Foundation
 #if os(macOS)
@@ -89,7 +116,8 @@ public final class WorkspaceAnalytics {
     public var totalProjects: Int = 0
     public var totalFiles: Int = 0
     public var totalArchives: Int = 0
-    public var averageBuildSuccessRate: Double = 100.0
+    /// Mean success rate of recorded builds; 0.0 = no builds recorded yet.
+    public var averageBuildSuccessRate: Double = 0.0
     public var totalLinesOfCode: Int = 0
 
     private init() {
@@ -104,7 +132,10 @@ public final class WorkspaceAnalytics {
 
         let builds = BuildHistoryManager.shared.buildRecords
         if builds.isEmpty {
-            self.averageBuildSuccessRate = 100.0
+            // No builds recorded: no success rate exists. 0.0 means "no
+            // data", not a measured 0% (the old 100.0 asserted perfection
+            // with zero evidence).
+            self.averageBuildSuccessRate = 0.0
         } else {
             let succeededCount = builds.filter { $0.status == "Succeeded" }.count
             self.averageBuildSuccessRate = (Double(succeededCount) / Double(builds.count)) * 100.0
@@ -131,7 +162,9 @@ public final class WorkspaceAnalytics {
                 }
             }
         } else {
-            self.totalLinesOfCode = 1200
+            // No active project: nothing was counted. 0 means "no data",
+            // not a measured zero (the old 1200 was invented).
+            self.totalLinesOfCode = 0
         }
     }
 }
@@ -962,9 +995,14 @@ public final class WorkspaceIntelligence {
         if totalSwiftLinesOfCode > 0 {
             docCoverageRatio = min(1.0, Double(totalSwiftCommentsCount) / Double(totalSwiftLinesOfCode) * 5.0)
         } else {
-            docCoverageRatio = 0.72 // Realistic baseline if empty
+            // No Swift lines scanned: no coverage figure exists. 0.0 means
+            // "no data", not a measured 0% (the old 0.72 "realistic
+            // baseline" was invented).
+            docCoverageRatio = 0.0
         }
-        testCoverageRatio = 0.65 // Baseline from test target definitions
+        // No coverage source is wired (no .xcresult / xccov parsing), so
+        // there is no measured test-coverage figure. 0.0 means "no data".
+        testCoverageRatio = 0.0
 
         // Map relationships
         for (proj, deps) in buildDependencies {
@@ -975,10 +1013,33 @@ public final class WorkspaceIntelligence {
             }
         }
 
-        storageGrowthBytes = Int64(projects.count) * 1024 * 1024 * 3 // Realistic tracking
-        buildTrends = projects.count > 0 ? "Improving (Clean compiles are 12% faster)" : "Stable"
+        // Growth needs a prior snapshot to compare against; none is
+        // stored, so no growth figure is reported. 0 means "no
+        // measurement", not "zero growth" (the old count × 3 MB was
+        // invented). The trend is computed from real build records.
+        storageGrowthBytes = 0
+        buildTrends = Self.buildTrend(from: BuildHistoryManager.shared.buildRecords)
 
         isAnalyzing = false
+    }
+
+    /// Trend from real build records: mean duration of the recent half of
+    /// recorded builds vs the earlier half. Fewer than two builds (or no
+    /// usable durations) means no trend can be computed. A percentage,
+    /// when shown, is computed from those real durations — never asserted.
+    private static func buildTrend(from records: [SCBuildRecord]) -> String {
+        let sorted = records.sorted { $0.date < $1.date }
+        guard sorted.count >= 2 else { return "No build history" }
+        let split = sorted.count / 2
+        let earlier = sorted[..<split]
+        let recent = sorted[split...]
+        let earlierAvg = earlier.reduce(0.0) { $0 + $1.duration } / Double(earlier.count)
+        let recentAvg = recent.reduce(0.0) { $0 + $1.duration } / Double(recent.count)
+        guard earlierAvg > 0, recentAvg > 0 else { return "Stable" }
+        let change = (earlierAvg - recentAvg) / earlierAvg * 100
+        if change >= 5 { return String(format: "Improving (recent builds %.0f%% faster)", change) }
+        if change <= -5 { return String(format: "Slowing (recent builds %.0f%% slower)", -change) }
+        return "Stable"
     }
 }
 
@@ -1368,13 +1429,67 @@ public final class NotificationCenterManager {
         loadNotifications()
     }
 
+    /// Notifications derived from real state only — nothing is seeded.
+    /// Sources: keychain certificates expiring within 30 days (real
+    /// identities from `SCOperationsSigningManager`), measured DerivedData
+    /// size and measured free disk space (via
+    /// `SCOperationsStorageManager`), and cloud-connected only while
+    /// actually authenticated. An empty list means nothing currently needs
+    /// attention, not that nothing was checked. Storage figures reflect
+    /// the latest completed measurement; call this again after a
+    /// recalculation to refresh them.
     public func loadNotifications() {
-        self.notifications = [
-            SCNotification(title: "Certificate Expiration Warning", subtitle: "Apple Development Certificate expires in 365 days. Set up automatic renewal under signing settings.", type: "Certificate"),
-            SCNotification(title: "ZIPFoundation Update Available", subtitle: "ZIPFoundation v0.9.19 can be upgraded to v0.9.22.", type: "Package"),
-            SCNotification(title: "Storage Space Low Warning", subtitle: "DerivedData is taking 12.4 GB. Reclaim space by purging cached compiler objects.", type: "Storage"),
-            SCNotification(title: "Cloud Sync Connected", subtitle: "Offline sync fully integrated with cloud backup repository.", type: "Cloud")
-        ]
+        var fresh: [SCNotification] = []
+
+        // Certificates expiring soon (30-day window is a policy choice;
+        // the dates and names come from the real keychain identities).
+        let now = Date()
+        let calendar = Calendar.current
+        for cert in SCOperationsSigningManager.shared.certificates {
+            let days = calendar.dateComponents([.day], from: calendar.startOfDay(for: now), to: calendar.startOfDay(for: cert.expirationDate)).day ?? 0
+            guard days <= 30 else { continue }
+            let timing: String
+            if days < 0 {
+                timing = "expired \(-days) day\(days == -1 ? "" : "s") ago"
+            } else if days == 0 {
+                timing = "expires today"
+            } else {
+                timing = "expires in \(days) day\(days == 1 ? "" : "s")"
+            }
+            fresh.append(SCNotification(
+                title: "Certificate Expiring Soon",
+                subtitle: "\(cert.name) \(timing). Renew it under signing settings.",
+                type: "Certificate"))
+        }
+
+        // DerivedData size (real measured size; 5 GB is a policy threshold).
+        let derivedGB = SCOperationsStorageManager.shared.derivedDataGB
+        if derivedGB >= 5.0 {
+            fresh.append(SCNotification(
+                title: "DerivedData Is Large",
+                subtitle: "DerivedData is taking \(String(format: "%.1f", derivedGB)) GB. Reclaim space by purging cached compiler objects.",
+                type: "Storage"))
+        }
+
+        // Low free disk (real filesystem attributes; 0 means no reading
+        // yet, so it never triggers a warning before the first measurement).
+        let freeGB = SCOperationsStorageManager.shared.totalSystemFreeGB
+        if freeGB > 0, freeGB < 5.0 {
+            fresh.append(SCNotification(
+                title: "Storage Space Low Warning",
+                subtitle: "Only \(String(format: "%.1f", freeGB)) GB free on the system volume.",
+                type: "Storage"))
+        }
+
+        // Cloud sync state (real auth state — shown only when signed in).
+        if AuthManager.shared.isAuthenticated {
+            fresh.append(SCNotification(
+                title: "Cloud Sync Connected",
+                subtitle: "Signed in to cloud sync.",
+                type: "Cloud"))
+        }
+
+        self.notifications = fresh
     }
 
     public func addNotification(title: String, subtitle: String, type: String) {
