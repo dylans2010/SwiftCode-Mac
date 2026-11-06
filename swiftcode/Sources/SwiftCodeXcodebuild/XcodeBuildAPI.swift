@@ -1,0 +1,1376 @@
+// Ported from Legacy (Dylan's own SwiftCode code, MIT-authorised direct port):
+//   SwiftCode/Backend/Build/XcodeBuildAPI.swift (commit d51a8f0d)
+//
+// Adapted for SwiftCode (macOS-only, like IPABuildService in this
+// target — xcodebuild, Homebrew and XcodeGen only exist there).
+// Legacy's class was an @Observable @MainActor orchestrator wired
+// into Legacy's app state; the managers it read do not exist in
+// SwiftCode, so the wiring is replaced with injected configuration
+// and the destination's own process conventions:
+//
+// - DocumentCoordinator / ProjectSessionStore / CodingManager
+//   (Legacy's "current workspace / project / editor" sources):
+//   replaced by an injected `projectRoot`. Discovery searches
+//   that root, then its ancestors (Legacy's findWorkspaceAncestor
+//   behaviour). `determineActiveWorkspace` is dropped: its return
+//   type is the destination's SwiftCodeWorkspace.Workspace, a
+//   different type from Legacy's Workspace.
+// - XcodeBuildManager (selected scheme/configuration/destination,
+//   xcodebuild path, toolchain, runBuild, buildLogs, status,
+//   cancelBuild): replaced by the injected selectedScheme /
+//   selectedConfiguration / selectedDestination properties, by
+//   the xcodebuild path convention IPABuildService uses
+//   (UserDefaults "xcodebuild_executable_path", else
+//   /usr/bin/xcodebuild), and by running xcodebuild directly
+//   (see buildProject). Destination resolution no longer uses
+//   the missing BuildDestinationResolver: the SDK is derived
+//   from the destination string with Legacy's own substring
+//   rules (simulator/iPhone/watch/tv/xr/macOS).
+// - ProcessRunnerTool: replaced by runProcess below (Foundation
+//   Process + Task.detached, the pattern IPABuildService uses in
+//   this target). The running build's Process is kept so
+//   cancelBuild can terminate it, as Legacy's delegated cancel did.
+// - UnifiedLogger: dropped from logStage — it lives in
+//   SwiftCodeIDECore, which depends on this target (a cycle).
+//   os.log (Logger) is kept.
+// - ProjectSessionStore.refreshFileTree: replaced by the injected
+//   `onFileTreeRefresh` callback.
+// - Legacy's BuildResult/BuildStatus are kept as NESTED types
+//   (XcodeBuildAPI.BuildResult) because the destination's
+//   SwiftCodeBuild.BuildResult is a different shape
+//   (status/exitCode/issues) and both modules are imported
+//   together elsewhere; a top-level duplicate would make the
+//   name ambiguous. Discovery returns the nested
+//   DiscoveredProject (Legacy's XcodeProject shape) because a
+//   top-level XcodeProject already exists nested in this
+//   target's XcodeProjectPluginSource.swift.
+// - The AppEntry/ContentView occurrences in Legacy are SwiftUI
+//   template TEXT inside string literals written to generated
+//   main.swift files; they are kept as text only. No ContentView
+//   type is ported.
+
+#if os(macOS)
+
+import Foundation
+import Observation
+import os.log
+
+private let logger = Logger(subsystem: "com.swiftcode.Build", category: "XcodeBuildAPI")
+
+@Observable
+@MainActor
+public final class XcodeBuildAPI: Sendable {
+    /// The project container discovery found (Legacy's XcodeProject
+    /// shape: container URL, display name, schemes). Nested because a
+    /// top-level `XcodeProject` already exists in this target.
+    public struct DiscoveredProject: Sendable, Codable, Hashable, Identifiable {
+        public var id: URL { url }
+        public let url: URL
+        public let name: String
+        public let schemes: [SchemeMetadata]
+
+        public init(url: URL, name: String, schemes: [SchemeMetadata]) {
+            self.url = url
+            self.name = name
+            self.schemes = schemes
+        }
+    }
+
+    /// The outcome of a build: Legacy's BuildResult shape
+    /// (status / .app bundle / diagnostics / log lines). Nested
+    /// because SwiftCodeBuild.BuildResult is a different type.
+    public struct BuildResult: Sendable, Codable {
+        public let status: BuildStatus
+        public let appBundleURL: URL?
+        public let diagnostics: [BuildDiagnostics]
+        public let logs: BuildLogs
+
+        public enum BuildStatus: String, Sendable, Codable {
+            case succeeded
+            case failed
+            case cancelled
+        }
+
+        public init(status: BuildStatus, appBundleURL: URL?, diagnostics: [BuildDiagnostics], logs: BuildLogs) {
+            self.status = status
+            self.appBundleURL = appBundleURL
+            self.diagnostics = diagnostics
+            self.logs = logs
+        }
+    }
+
+    public static let shared = XcodeBuildAPI()
+
+    // Injected configuration (Legacy read all of this from its app
+    // state managers on every call).
+    /// The project root discovery and path resolution start from.
+    public var projectRoot: URL
+    /// The scheme to build (nil = first discovered scheme).
+    public var selectedScheme: String?
+    /// "Debug" or "Release" (anything else reads as Debug, as in Legacy).
+    public var selectedConfiguration: String
+    /// The `xcodebuild -destination` string, e.g. "platform=macOS".
+    public var selectedDestination: String
+    /// The bundle identifier for generated projects (nil = com.example.<name>).
+    public var bundleIdentifier: String?
+    /// Saved destination SDKs for generated project.yml files.
+    public var destinations: [String]?
+    /// Called after a generation step changes the project structure
+    /// on disk (Legacy called ProjectSessionStore.refreshFileTree).
+    @ObservationIgnored public var onFileTreeRefresh: (@Sendable () -> Void)?
+
+    // Shared State & Configurations
+    public private(set) var currentLogs: [String] = []
+    public private(set) var isExecuting = false
+    public private(set) var currentStage = ""
+
+    // XcodeGen Integration Properties
+    public var showProjectGenerationUI = false
+    public private(set) var xcodegenState: XcodeGenInstallationState = .missing
+    public private(set) var installationStatusString = ""
+    public private(set) var activeGenerationError: ProjectGenerationError? = nil
+
+    @ObservationIgnored
+    private var generationContinuation: CheckedContinuation<Bool, Never>?
+
+    @ObservationIgnored
+    private var currentProcessBox: XcodeBuildProcessBox?
+
+    @ObservationIgnored
+    private var buildCancelled = false
+
+    public init(
+        projectRoot: URL? = nil,
+        selectedScheme: String? = nil,
+        selectedConfiguration: String = "Debug",
+        selectedDestination: String = "platform=macOS",
+        bundleIdentifier: String? = nil,
+        destinations: [String]? = nil,
+        onFileTreeRefresh: (@Sendable () -> Void)? = nil
+    ) {
+        self.projectRoot = projectRoot ?? URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
+        self.selectedScheme = selectedScheme
+        self.selectedConfiguration = selectedConfiguration
+        self.selectedDestination = selectedDestination
+        self.bundleIdentifier = bundleIdentifier
+        self.destinations = destinations
+        self.onFileTreeRefresh = onFileTreeRefresh
+    }
+
+    /// The xcodebuild executable: the Build Center override when
+    /// set, else /usr/bin/xcodebuild (the IPABuildService
+    /// convention; Legacy read it from XcodeBuildManager).
+    private static func xcodebuildPath() -> String {
+        UserDefaults.standard.string(forKey: "xcodebuild_executable_path") ?? "/usr/bin/xcodebuild"
+    }
+
+    // MARK: - Project Discovery & Existence Check
+
+    /// Checks if a valid .xcodeproj or .xcworkspace is present anywhere in our resolved path hierarchy.
+    public func hasWorkspaceOrXcodeproj() -> Bool {
+        logStage("Checking for existing project")
+        let fm = FileManager.default
+        let root = resolveProjectRoot()
+
+        do {
+            let contents = try fm.contentsOfDirectory(at: root, includingPropertiesForKeys: nil, options: .skipsHiddenFiles)
+            let hasFiles = contents.contains { $0.pathExtension == "xcodeproj" || $0.pathExtension == "xcworkspace" }
+            if hasFiles {
+                appendLog("[SYSTEM] Located existing Xcode workspace/project file.")
+                return true
+            }
+        } catch {
+            appendLog("[WARNING] Directory scanning failed: \(error.localizedDescription)")
+        }
+        return false
+    }
+
+    /// Discovers the active project: the container at the project
+    /// root, else the nearest ancestor that holds one. (Legacy
+    /// also searched its workspace / editor / projects-directory
+    /// state; those sources do not exist in SwiftCode.)
+    public func discoverActiveProject() -> DiscoveredProject? {
+        logger.info("Starting project discovery...")
+
+        if let project = scanDirectoryForProject(at: projectRoot) {
+            logger.info("Discovered project: \(project.name) at \(project.url.path)")
+            return project
+        }
+        if let ancestor = findWorkspaceAncestor(of: projectRoot),
+           let project = scanDirectoryForProject(at: ancestor) {
+            logger.info("Discovered project: \(project.name) at \(project.url.path)")
+            return project
+        }
+
+        logger.warning("No supported project discovered.")
+        return nil
+    }
+
+    private func scanDirectoryForProject(at url: URL) -> DiscoveredProject? {
+        let fm = FileManager.default
+        var isDir: ObjCBool = false
+        guard fm.fileExists(atPath: url.path, isDirectory: &isDir), isDir.boolValue else { return nil }
+
+        do {
+            let contents = try fm.contentsOfDirectory(at: url, includingPropertiesForKeys: nil, options: .skipsHiddenFiles)
+
+            // Look for .xcworkspace
+            if let workspaceURL = contents.first(where: { $0.pathExtension == "xcworkspace" }) {
+                // Discover schemes inside
+                let schemes = discoverSchemes(at: workspaceURL)
+                return DiscoveredProject(url: workspaceURL, name: workspaceURL.deletingPathExtension().lastPathComponent, schemes: schemes)
+            }
+
+            // Look for .xcodeproj
+            if let xcodeprojURL = contents.first(where: { $0.pathExtension == "xcodeproj" }) {
+                let schemes = discoverSchemes(at: xcodeprojURL)
+                return DiscoveredProject(url: xcodeprojURL, name: xcodeprojURL.deletingPathExtension().lastPathComponent, schemes: schemes)
+            }
+
+            // Look for Package.swift
+            if let packageURL = contents.first(where: { $0.lastPathComponent == "Package.swift" }) {
+                // For Package.swift, scheme is usually same as name of the directory
+                let schemeName = url.lastPathComponent
+                return DiscoveredProject(url: packageURL, name: schemeName, schemes: [SchemeMetadata(name: schemeName)])
+            }
+
+        } catch {
+            logger.error("Failed to read directory \(url.path): \(error.localizedDescription)")
+        }
+
+        return nil
+    }
+
+    private func findWorkspaceAncestor(of url: URL) -> URL? {
+        let fm = FileManager.default
+        var current = url.deletingLastPathComponent()
+        while current.path != "/" {
+            let packageSwift = current.appendingPathComponent("Package.swift")
+            if fm.fileExists(atPath: packageSwift.path) {
+                return current
+            }
+            if let contents = try? fm.contentsOfDirectory(at: current, includingPropertiesForKeys: nil, options: .skipsHiddenFiles) {
+                if contents.contains(where: { $0.pathExtension == "xcodeproj" || $0.pathExtension == "xcworkspace" }) {
+                    return current
+                }
+            }
+            current = current.deletingLastPathComponent()
+        }
+        return nil
+    }
+
+    private func discoverSchemes(at url: URL) -> [SchemeMetadata] {
+        let fm = FileManager.default
+        var schemes = Set<String>()
+
+        // Scan for xcshareddata/xcschemes or xcschemes
+        if let enumerator = fm.enumerator(at: url, includingPropertiesForKeys: nil, options: [.skipsHiddenFiles]) {
+            while let fileURL = enumerator.nextObject() as? URL {
+                if fileURL.pathExtension == "xcscheme" {
+                    schemes.insert(fileURL.deletingPathExtension().lastPathComponent)
+                }
+            }
+        }
+
+        if schemes.isEmpty {
+            schemes.insert(url.deletingPathExtension().lastPathComponent)
+        }
+
+        return schemes.sorted().map { SchemeMetadata(name: $0) }
+    }
+
+    // MARK: - Auto-resolved Path Configurations
+
+    public func resolveProjectRoot() -> URL {
+        projectRoot
+    }
+
+    public func resolveSourceDirectory() -> String {
+        let root = resolveProjectRoot()
+        let fm = FileManager.default
+        let commonDirs = ["Sources", "Views", "Features", "Components"]
+        for dir in commonDirs {
+            let dirURL = root.appendingPathComponent(dir)
+            var isDir: ObjCBool = false
+            if fm.fileExists(atPath: dirURL.path, isDirectory: &isDir), isDir.boolValue {
+                return dir
+            }
+        }
+        return "Sources" // default fallback
+    }
+
+    public func resolveResourcesDirectory() -> String? {
+        let root = resolveProjectRoot()
+        let fm = FileManager.default
+        let resourcesURL = root.appendingPathComponent("Resources")
+        var isDir: ObjCBool = false
+        if fm.fileExists(atPath: resourcesURL.path, isDirectory: &isDir), isDir.boolValue {
+            return "Resources"
+        }
+        return nil
+    }
+
+    public func resolveOutputLocation() -> URL {
+        return resolveProjectRoot().appendingPathComponent("build")
+    }
+
+    public func resolveBuildDirectory() -> URL {
+        return resolveOutputLocation()
+    }
+
+    public func resolveDerivedDataLocation() -> URL {
+        return resolveProjectRoot().appendingPathComponent("build/DerivedData")
+    }
+
+    public func resolveWorkingDirectory() -> URL {
+        return resolveProjectRoot()
+    }
+
+    public func resolveTargetPaths() -> [String] {
+        var paths = [resolveSourceDirectory()]
+        if let res = resolveResourcesDirectory() {
+            paths.append(res)
+        }
+        return paths
+    }
+
+    // MARK: - Active Project Configuration Discovery
+
+    public func determineActiveProject() -> DiscoveredProject? {
+        return discoverActiveProject()
+    }
+
+    public func determineActiveScheme() -> SchemeMetadata? {
+        if let selected = selectedScheme {
+            return SchemeMetadata(name: selected)
+        }
+        return discoverActiveProject()?.schemes.first
+    }
+
+    public func determineActiveBuildConfiguration() -> String {
+        if selectedConfiguration == "Release" {
+            return "Release"
+        }
+        return "Debug"
+    }
+
+    public func determineProductName() -> String {
+        return determineActiveProject()?.name ?? "SwiftCodeDemo"
+    }
+
+    public func determineBundleIdentifier() -> String {
+        let pName = determineProductName().lowercased().replacingOccurrences(of: " ", with: "")
+        if let bundleIdentifier, !bundleIdentifier.isEmpty {
+            return bundleIdentifier
+        }
+        return "com.example.\(pName)"
+    }
+
+    public func determineBuildDestination() -> BuildDestination {
+        return BuildDestination(destination: selectedDestination)
+    }
+
+    public func determineDerivedDataLocation() -> URL {
+        if let proj = discoverActiveProject() {
+            return proj.url.deletingLastPathComponent().appendingPathComponent("build/DerivedData")
+        }
+        let appSupport = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
+        return appSupport.appendingPathComponent("SwiftCode/DerivedData")
+    }
+
+    public func determineAppBundleURL() -> URL? {
+        guard let proj = discoverActiveProject() else { return nil }
+        let fm = FileManager.default
+        let rootDir = proj.url.deletingLastPathComponent()
+        var searchRoots: [URL] = [
+            rootDir.appendingPathComponent("build/DerivedData/Build/Products"),
+            proj.url.appendingPathComponent("build/DerivedData/Build/Products")
+        ]
+
+        // Standard Xcode DerivedData fallback
+        let homeDir = fm.homeDirectoryForCurrentUser
+        let xcodeDerivedData = homeDir.appendingPathComponent("Library/Developer/Xcode/DerivedData")
+        if let ddEntries = try? fm.contentsOfDirectory(at: xcodeDerivedData, includingPropertiesForKeys: nil, options: .skipsHiddenFiles) {
+            for entry in ddEntries where entry.lastPathComponent.lowercased().hasPrefix(proj.name.lowercased()) {
+                searchRoots.append(entry.appendingPathComponent("Build/Products"))
+            }
+        }
+
+        for productsURL in searchRoots where fm.fileExists(atPath: productsURL.path) {
+            if let enumerator = fm.enumerator(at: productsURL, includingPropertiesForKeys: [.isDirectoryKey], options: [.skipsHiddenFiles]) {
+                for case let fileURL as URL in enumerator {
+                    if fileURL.pathExtension == "app" {
+                        return fileURL
+                    }
+                }
+            }
+        }
+
+        // Fallback to managed sandbox builds folder
+        let appSupport = fm.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
+        let buildsDir = appSupport.appendingPathComponent("SwiftCode/Builds/\(proj.name)")
+        if let items = try? fm.contentsOfDirectory(at: buildsDir, includingPropertiesForKeys: nil, options: .skipsHiddenFiles) {
+            if let appFile = items.first(where: { $0.pathExtension == "app" }) {
+                return appFile
+            }
+        }
+
+        return nil
+    }
+
+    public func determineProjectMetadata() -> XcodeProjectMetadata? {
+        guard let proj = discoverActiveProject() else { return nil }
+        return XcodeProjectMetadata(
+            name: proj.name,
+            productType: "com.apple.product-type.application",
+            targetName: proj.name,
+            path: proj.url
+        )
+    }
+
+    // MARK: - Validation & Environment
+
+    public func validateBuildEnvironment() async -> EnvironmentValidation {
+        currentStage = "Validating build environment..."
+        let fm = FileManager.default
+        let xcodePath = Self.xcodebuildPath()
+        let xcodeAvailable = fm.fileExists(atPath: xcodePath) && fm.isExecutableFile(atPath: xcodePath)
+
+        var selectPath = "/usr/bin/xcode-select"
+        if !fm.fileExists(atPath: selectPath) {
+            selectPath = "N/A"
+        }
+
+        let activeToolchain = await activeToolchainDescription()
+        let isValid = xcodeAvailable && selectPath != "N/A"
+
+        return EnvironmentValidation(
+            xcodeAvailable: xcodeAvailable,
+            xcodeSelectPath: selectPath,
+            activeToolchain: activeToolchain,
+            isValid: isValid,
+            errorDescription: isValid ? nil : "xcodebuild tool was not found or is not executable at: \(xcodePath)"
+        )
+    }
+
+    /// The first line of `xcodebuild -version` ("Xcode 27.1 ..."),
+    /// or "unknown" when xcodebuild cannot run. (Legacy read this
+    /// from XcodeBuildManager.)
+    private func activeToolchainDescription() async -> String {
+        guard let result = try? await runProcess(executable: Self.xcodebuildPath(), arguments: ["-version"], workingDirectory: nil),
+              result.exitCode == 0,
+              let firstLine = result.stdout.split(separator: "\n").first else {
+            return "unknown"
+        }
+        return String(firstLine)
+    }
+
+    /// The SDK for a `-destination` string, with Legacy's own
+    /// substring rules from buildProject's resolver branch
+    /// (Legacy resolved this through BuildDestinationResolver).
+    private func sdkForDestination(_ destination: String) -> String {
+        let lower = destination.lowercased()
+        if lower.contains("simulator") {
+            if lower.contains("iphone") || lower.contains("ios") { return "iphonesimulator" }
+            if lower.contains("watch") { return "watchsimulator" }
+            if lower.contains("appletv") || lower.contains("tv") { return "appletvsimulator" }
+            if lower.contains("xr") || lower.contains("vision") { return "xrsimulator" }
+            return "iphonesimulator"
+        }
+        if lower.contains("iphone") || lower.contains("ios") { return "iphoneos" }
+        return "macosx"
+    }
+
+    // MARK: - XcodeGen Detection & Installation
+
+    public func checkXcodeGenInstallation() async -> XcodeGenInstallationState {
+        logStage("Checking XcodeGen")
+        let fm = FileManager.default
+        let possiblePaths = [
+            "/opt/homebrew/bin/xcodegen",
+            "/usr/local/bin/xcodegen",
+            "/usr/bin/xcodegen"
+        ]
+
+        for path in possiblePaths {
+            if fm.fileExists(atPath: path) && fm.isExecutableFile(atPath: path) {
+                xcodegenState = .installed
+                appendLog("[SYSTEM] Discovered XcodeGen executable at: \(path)")
+                return .installed
+            }
+        }
+
+        do {
+            let result = try await runProcess(
+                executable: "/usr/bin/which",
+                arguments: ["xcodegen"],
+                workingDirectory: nil
+            )
+            if result.exitCode == 0 {
+                xcodegenState = .installed
+                appendLog("[SYSTEM] Located XcodeGen in system PATH.")
+                return .installed
+            }
+        } catch {}
+
+        xcodegenState = .missing
+        appendLog("[SYSTEM] XcodeGen is not installed or not in PATH.")
+        return .missing
+    }
+
+    public func checkHomebrewInstallation() -> Bool {
+        logStage("Checking Homebrew")
+        let fm = FileManager.default
+        let possiblePaths = [
+            "/opt/homebrew/bin/brew",
+            "/usr/local/bin/brew",
+            "/usr/bin/brew"
+        ]
+        for path in possiblePaths {
+            if fm.fileExists(atPath: path) {
+                appendLog("[SYSTEM] Discovered Homebrew executable at: \(path)")
+                return true
+            }
+        }
+        appendLog("[SYSTEM] Homebrew is not installed on this system.")
+        return false
+    }
+
+    private func getHomebrewPath() -> String? {
+        let fm = FileManager.default
+        let possiblePaths = [
+            "/opt/homebrew/bin/brew",
+            "/usr/local/bin/brew",
+            "/usr/bin/brew"
+        ]
+        for path in possiblePaths {
+            if fm.fileExists(atPath: path) {
+                return path
+            }
+        }
+        return nil
+    }
+
+    public func installXcodeGen() async -> Bool {
+        logStage("Installing XcodeGen")
+        activeGenerationError = nil
+
+        guard checkHomebrewInstallation() else {
+            xcodegenState = .failed
+            installationStatusString = "Homebrew is missing. Please install Homebrew first."
+            activeGenerationError = ProjectGenerationError(
+                stage: "Checking Homebrew",
+                message: "Homebrew was not found on this system.",
+                suggestedRecovery: "Please install Homebrew (https://brew.sh) and try again."
+            )
+            appendLog("[ERROR] Homebrew is not installed. XcodeGen installation requires Homebrew.")
+            return false
+        }
+
+        guard let brewPath = getHomebrewPath() else { return false }
+
+        xcodegenState = .installing
+        installationStatusString = "Preparing installation..."
+        appendLog("[SYSTEM] Preparing installation...")
+
+        installationStatusString = "Downloading..."
+        appendLog("[SYSTEM] Downloading XcodeGen...")
+
+        installationStatusString = "Installing..."
+        appendLog("[SYSTEM] Installing XcodeGen via Homebrew...")
+
+        do {
+            let result = try await runProcess(
+                executable: brewPath,
+                arguments: ["install", "xcodegen"],
+                workingDirectory: nil
+            )
+            appendLog(result.stdout)
+            if !result.stderr.isEmpty {
+                appendLog("[ERROR] " + result.stderr)
+            }
+
+            installationStatusString = "Verifying installation..."
+            appendLog("[SYSTEM] Verifying installation...")
+            let verified = await checkXcodeGenInstallation()
+            if verified == .installed {
+                installationStatusString = "Installation complete"
+                appendLog("[SYSTEM] Installation complete!")
+                xcodegenState = .installed
+                return true
+            } else {
+                installationStatusString = "Verification failed"
+                activeGenerationError = ProjectGenerationError(
+                    stage: "Installing XcodeGen",
+                    message: "XcodeGen verification failed post-installation.",
+                    suggestedRecovery: "Check Homebrew logs or manually run 'brew install xcodegen' in the terminal."
+                )
+                appendLog("[ERROR] Verification failed. XcodeGen is still not found after installation.")
+                xcodegenState = .failed
+                return false
+            }
+        } catch {
+            installationStatusString = "Installation failed"
+            activeGenerationError = ProjectGenerationError(
+                stage: "Installing XcodeGen",
+                message: error.localizedDescription,
+                suggestedRecovery: "Ensure your network is active and try clicking 'Install Component' again."
+            )
+            appendLog("[ERROR] Installation failed: \(error.localizedDescription)")
+            xcodegenState = .failed
+            return false
+        }
+    }
+
+    // MARK: - Project Generation (XcodeGen)
+
+    public func generateProjectWithXcodeGen(
+        projectName: String,
+        scheme: String,
+        bundleIdentifier: String,
+        organizationIdentifier: String = "com.example",
+        deploymentTarget: String = "16.0",
+        targetPlatform: String = "iOS",
+        destinations: [String]? = nil
+    ) async -> Bool {
+        activeGenerationError = nil
+
+        logStage("Generating project.yml")
+        let rootURL = resolveProjectRoot()
+        let sourceDir = resolveSourceDirectory()
+
+        let fm = FileManager.default
+        let sourceURL = rootURL.appendingPathComponent(sourceDir)
+        if !fm.fileExists(atPath: sourceURL.path) {
+            do {
+                try fm.createDirectory(at: sourceURL, withIntermediateDirectories: true)
+                appendLog("[SYSTEM] Created source directory at \(sourceURL.path)")
+            } catch {
+                activeGenerationError = ProjectGenerationError(
+                    stage: "Generating project.yml",
+                    message: "Failed to create source folder: \(error.localizedDescription)",
+                    suggestedRecovery: "Ensure proper filesystem permissions at \(rootURL.path)."
+                )
+                return false
+            }
+        }
+
+        // Write main.swift template if missing. (The AppEntry /
+        // ContentView below are template TEXT written to the file,
+        // not types in this file.)
+        let mainSwift = sourceURL.appendingPathComponent("main.swift")
+        if !fm.fileExists(atPath: mainSwift.path) {
+            let templateMain = """
+import SwiftUI
+
+@main
+struct AppEntry: App {
+    var body: some Scene {
+        WindowGroup {
+            ContentView()
+        }
+    }
+}
+
+struct ContentView: View {
+    var body: some View {
+        Text("Hello, SwiftCode!")
+            .padding()
+    }
+}
+"""
+            do {
+                try templateMain.write(to: mainSwift, atomically: true, encoding: .utf8)
+                appendLog("[SYSTEM] Created main.swift template file.")
+            } catch {
+                appendLog("[WARNING] Failed to write main.swift template: \(error.localizedDescription)")
+            }
+        }
+
+        // Generate Info.plist if missing
+        let infoPlistURL = rootURL.appendingPathComponent("Info.plist")
+        if !fm.fileExists(atPath: infoPlistURL.path) {
+            let plistContent = """
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+\t<key>CFBundleIdentifier</key>
+\t<string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>
+\t<key>CFBundleShortVersionString</key>
+\t<string>1.0</string>
+\t<key>CFBundleVersion</key>
+\t<string>1</string>
+\t<key>UILaunchScreen</key>
+\t<dict/>
+</dict>
+</plist>
+"""
+            try? plistContent.write(to: infoPlistURL, atomically: true, encoding: .utf8)
+        }
+
+        // Load project.yml template
+        var templateContent = ""
+        if let templateURL = Bundle.main.url(forResource: "project", withExtension: "yml"),
+           let loaded = try? String(contentsOf: templateURL, encoding: .utf8) {
+            templateContent = loaded
+        } else {
+            // Robust fallback template
+            templateContent = """
+name: __PROJECT_NAME__
+options:
+  bundleIdPrefix: __ORGANIZATION_IDENTIFIER__
+settings:
+  base:
+    SWIFT_VERSION: 5.0
+configs:
+  Debug: debug
+  Release: release
+targets:
+  __TARGET_NAME__:
+    type: application
+    platform: __TARGET_PLATFORM__
+    deploymentTarget: "__DEPLOYMENT_TARGET__"
+    sources:
+__TARGET_SOURCES__
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: __BUNDLE_IDENTIFIER__
+        INFOPLIST_FILE: Info.plist
+schemes:
+  __SCHEME_NAME__:
+    build:
+      targets:
+        __TARGET_NAME__: all
+"""
+        }
+
+        let targetPaths = resolveTargetPaths()
+        let sourcesBlock = targetPaths.map { "      - \($0)" }.joined(separator: "\n")
+
+        var settingsBlock = "        INFOPLIST_FILE: Info.plist"
+        let resolvedDests = destinations ?? self.destinations
+        if let dests = resolvedDests, !dests.isEmpty {
+            let supportedPlatforms = dests.joined(separator: " ")
+            let sdkRoot = dests.first ?? "iphoneos"
+            settingsBlock += "\n        SUPPORTED_PLATFORMS: \(supportedPlatforms)"
+            settingsBlock += "\n        SDKROOT: \(sdkRoot)"
+        }
+
+        let finalYML = templateContent
+            .replacingOccurrences(of: "__PROJECT_NAME__", with: projectName)
+            .replacingOccurrences(of: "__SCHEME_NAME__", with: scheme)
+            .replacingOccurrences(of: "__TARGET_NAME__", with: projectName)
+            .replacingOccurrences(of: "__ORGANIZATION_IDENTIFIER__", with: organizationIdentifier)
+            .replacingOccurrences(of: "__BUNDLE_IDENTIFIER__", with: bundleIdentifier)
+            .replacingOccurrences(of: "__DEPLOYMENT_TARGET__", with: deploymentTarget)
+            .replacingOccurrences(of: "__TARGET_PLATFORM__", with: targetPlatform)
+            .replacingOccurrences(of: "__TARGET_SOURCES__", with: sourcesBlock)
+            .replacingOccurrences(of: "        INFOPLIST_FILE: Info.plist", with: settingsBlock)
+
+        let projectYMLURL = rootURL.appendingPathComponent("project.yml")
+        defer {
+            try? FileManager.default.removeItem(at: projectYMLURL)
+        }
+        do {
+            try finalYML.write(to: projectYMLURL, atomically: true, encoding: .utf8)
+            appendLog("[SYSTEM] Generated project.yml at \(projectYMLURL.path)")
+        } catch {
+            activeGenerationError = ProjectGenerationError(
+                stage: "Generating project.yml",
+                message: "Failed to write project.yml: \(error.localizedDescription)",
+                suggestedRecovery: "Ensure proper filesystem permissions in the project folder."
+            )
+            appendLog("[ERROR] Failed to write project.yml: \(error.localizedDescription)")
+            return false
+        }
+
+        logStage("Generating Xcode project")
+        let xcodegenPath: String
+        let possiblePaths = [
+            "/opt/homebrew/bin/xcodegen",
+            "/usr/local/bin/xcodegen",
+            "/usr/bin/xcodegen"
+        ]
+        var foundPath: String? = nil
+        for path in possiblePaths {
+            if fm.fileExists(atPath: path) && fm.isExecutableFile(atPath: path) {
+                foundPath = path
+                break
+            }
+        }
+
+        xcodegenPath = foundPath ?? "xcodegen"
+        appendLog("[SYSTEM] Executing XcodeGen generation stage...")
+
+        do {
+            let result = try await runProcess(
+                executable: xcodegenPath,
+                arguments: ["generate"],
+                workingDirectory: rootURL
+            )
+            appendLog(result.stdout)
+            if !result.stderr.isEmpty {
+                appendLog("[ERROR] " + result.stderr)
+            }
+
+            if result.exitCode == 0 {
+                logStage("Validating generated project")
+                let generatedProj = rootURL.appendingPathComponent("\(projectName).xcodeproj")
+                if fm.fileExists(atPath: generatedProj.path) {
+                    logStage("Moving project")
+                    appendLog("[SYSTEM] Generated project \(projectName).xcodeproj is placed in the project root.")
+
+                    logStage("Refreshing project metadata")
+                    onFileTreeRefresh?()
+
+                    appendLog("[SYSTEM] Validation succeeded!")
+                    return true
+                } else {
+                    activeGenerationError = ProjectGenerationError(
+                        stage: "Validating generated project",
+                        message: "The generated .xcodeproj file could not be verified on disk.",
+                        suggestedRecovery: "Ensure XcodeGen has write permission to \(rootURL.path)."
+                    )
+                    appendLog("[ERROR] Generated project file not found at expected location: \(generatedProj.path)")
+                    return false
+                }
+            } else {
+                activeGenerationError = ProjectGenerationError(
+                    stage: "Generating Xcode project",
+                    message: "XcodeGen completed with a non-zero exit code \(result.exitCode). Details: \(result.stderr)",
+                    suggestedRecovery: "Please correct any formatting errors in project.yml."
+                )
+                appendLog("[ERROR] XcodeGen failed with exit code \(result.exitCode)")
+                return false
+            }
+        } catch {
+            activeGenerationError = ProjectGenerationError(
+                stage: "Generating Xcode project",
+                message: "Launch failure: \(error.localizedDescription)",
+                suggestedRecovery: "Check that XcodeGen is fully functional in terminal."
+            )
+            appendLog("[ERROR] XcodeGen failed to launch: \(error.localizedDescription)")
+            return false
+        }
+    }
+
+    public func completeProjectGeneration(success: Bool) {
+        showProjectGenerationUI = false
+        if let continuation = generationContinuation {
+            generationContinuation = nil
+            continuation.resume(returning: success)
+        }
+    }
+
+    // MARK: - Project Generation (Tuist / Fallback)
+
+    /// Generates an Xcode project using Tuist or falls back to Package.swift/SPM or template generation.
+    public func generateProject(projectName: String, scheme: String, bundleIdentifier: String, targetURL: URL) async -> GenerationResult {
+        isExecuting = true
+        currentStage = "Generating Xcode Project..."
+        currentLogs.removeAll()
+        appendLog("[SYSTEM] Starting project generation for '\(projectName)' at \(targetURL.path)")
+
+        let fm = FileManager.default
+
+        // Ensure the directory exists
+        if !fm.fileExists(atPath: targetURL.path) {
+            try? fm.createDirectory(at: targetURL, withIntermediateDirectories: true)
+        }
+
+        // 1. Check if Tuist is available to generate
+        let tuistPaths = ["/usr/local/bin/tuist", "/opt/homebrew/bin/tuist", "/usr/bin/tuist"]
+        var resolvedTuist: String? = nil
+        for path in tuistPaths {
+            if fm.fileExists(atPath: path) && fm.isExecutableFile(atPath: path) {
+                resolvedTuist = path
+                break
+            }
+        }
+
+        if let tuistPath = resolvedTuist {
+            appendLog("[SYSTEM] Discovered Tuist at \(tuistPath). Creating Project.swift config...")
+
+            // Generate Project.swift
+            let projectSwiftContent = """
+import ProjectDescription
+
+let project = Project(
+    name: "\(projectName)",
+    targets: [
+        .target(
+            name: "\(projectName)",
+            destinations: .iOS,
+            product: .app,
+            bundleId: "\(bundleIdentifier)",
+            infoPlist: .default,
+            sources: ["Sources/**"],
+            resources: ["Resources/**"]
+        )
+    ]
+)
+"""
+            let projectSwiftURL = targetURL.appendingPathComponent("Project.swift")
+            try? projectSwiftContent.write(to: projectSwiftURL, atomically: true, encoding: .utf8)
+
+            // Generate basic directories if not existing
+            let sourcesDir = targetURL.appendingPathComponent("Sources")
+            try? fm.createDirectory(at: sourcesDir, withIntermediateDirectories: true)
+
+            let mainSwift = sourcesDir.appendingPathComponent("main.swift")
+            if !fm.fileExists(atPath: mainSwift.path) {
+                // AppEntry / ContentView here are template text, not types.
+                let templateMain = """
+import SwiftUI
+
+@main
+struct AppEntry: App {
+    var body: some Scene {
+        WindowGroup {
+            ContentView()
+        }
+    }
+}
+
+struct ContentView: View {
+    var body: some View {
+        Text("Hello, SwiftCode!")
+            .padding()
+    }
+}
+"""
+                try? templateMain.write(to: mainSwift, atomically: true, encoding: .utf8)
+            }
+
+            appendLog("[SYSTEM] Running 'tuist generate'...")
+            do {
+                let result = try await runProcess(
+                    executable: tuistPath,
+                    arguments: ["generate"],
+                    workingDirectory: targetURL
+                )
+
+                appendLog(result.stdout)
+                if !result.stderr.isEmpty {
+                    appendLog("[ERROR] " + result.stderr)
+                }
+
+                if result.exitCode == 0 {
+                    let generatedProj = targetURL.appendingPathComponent("\(projectName).xcodeproj")
+                    isExecuting = false
+                    return GenerationResult(success: true, generatedProjectPath: generatedProj, errorDescription: nil)
+                } else {
+                    appendLog("[WARNING] Tuist generation failed. Falling back to Package.swift SPM generation...")
+                }
+            } catch {
+                appendLog("[WARNING] Tuist failed to launch: \(error.localizedDescription). Falling back to SPM...")
+            }
+        }
+
+        // 2. Fallback: Generate standard SPM Package.swift & optionally use swift package generate-xcodeproj (if available)
+        appendLog("[SYSTEM] Generating SPM Package.swift manifest...")
+        let packageSwiftContent = """
+// swift-tools-version: 6.0
+import PackageDescription
+
+let package = Package(
+    name: "\(projectName)",
+    platforms: [
+        .macOS(.v15),
+        .iOS(.v16)
+    ],
+    products: [
+        .executable(name: "\(projectName)", targets: ["\(projectName)"])
+    ],
+    targets: [
+        .executableTarget(
+            name: "\(projectName)",
+            path: "Sources"
+        )
+    ]
+)
+"""
+        let packageSwiftURL = targetURL.appendingPathComponent("Package.swift")
+        try? packageSwiftContent.write(to: packageSwiftURL, atomically: true, encoding: .utf8)
+
+        let sourcesDir = targetURL.appendingPathComponent("Sources")
+        try? fm.createDirectory(at: sourcesDir, withIntermediateDirectories: true)
+
+        let mainSwift = sourcesDir.appendingPathComponent("main.swift")
+        if !fm.fileExists(atPath: mainSwift.path) {
+            let templateMain = """
+import SwiftUI
+
+@main
+struct AppEntry: App {
+    var body: some Scene {
+        WindowGroup {
+            Text("Hello, SwiftCode!")
+                .padding()
+        }
+    }
+}
+"""
+            try? templateMain.write(to: mainSwift, atomically: true, encoding: .utf8)
+        }
+
+        // Run generate-xcodeproj if swift toolchain is present
+        let swiftPath = "/usr/bin/swift"
+        if fm.fileExists(atPath: swiftPath) {
+            appendLog("[SYSTEM] Invoking 'swift package generate-xcodeproj'...")
+            do {
+                let result = try await runProcess(
+                    executable: swiftPath,
+                    arguments: ["package", "generate-xcodeproj"],
+                    workingDirectory: targetURL
+                )
+                appendLog(result.stdout)
+                if result.exitCode == 0 {
+                    let generatedProj = targetURL.appendingPathComponent("\(projectName).xcodeproj")
+                    isExecuting = false
+                    return GenerationResult(success: true, generatedProjectPath: generatedProj, errorDescription: nil)
+                }
+            } catch {
+                appendLog("[WARNING] SPM generate-xcodeproj failed: \(error.localizedDescription)")
+            }
+        }
+
+        // If xcodeproj generation fails but Package.swift is written successfully, return Package.swift as project URL
+        isExecuting = false
+        appendLog("[SYSTEM] Setup completed with Package.swift.")
+        return GenerationResult(success: true, generatedProjectPath: packageSwiftURL, errorDescription: nil)
+    }
+
+    // MARK: - Build Execution
+
+    /// Builds the discovered project with xcodebuild. (Legacy
+    /// delegated this to XcodeBuildManager.runBuild and read its
+    /// shared log/status state; that manager does not exist in
+    /// SwiftCode, so xcodebuild is run directly here and the
+    /// status is derived from its exit code. The generation
+    /// gate, scheme validation, diagnostics scan and .app
+    /// discovery are Legacy's.)
+    public func buildProject() async -> BuildResult {
+        guard !isExecuting else {
+            return BuildResult(status: .cancelled, appBundleURL: nil, diagnostics: [], logs: BuildLogs(lines: ["Build already in progress."]))
+        }
+
+        isExecuting = true
+        buildCancelled = false
+        currentStage = "Building Project..."
+        currentLogs.removeAll()
+
+        // 1. Check for existing project (.xcworkspace or .xcodeproj)
+        let projectExists = hasWorkspaceOrXcodeproj()
+        if !projectExists {
+            appendLog("[SYSTEM] No existing .xcworkspace or .xcodeproj located. Transitioning to project generation workflow...")
+            showProjectGenerationUI = true
+
+            // Suspend until completed or cancelled
+            let success = await withCheckedContinuation { continuation in
+                self.generationContinuation = continuation
+            }
+
+            if !success {
+                isExecuting = false
+                appendLog("[ERROR] Project generation was cancelled or failed.")
+                return BuildResult(
+                    status: .failed,
+                    appBundleURL: nil,
+                    diagnostics: [BuildDiagnostics(message: "Project generation was cancelled or failed.", severity: .error)],
+                    logs: BuildLogs(lines: ["Build failed: No project generated."])
+                )
+            }
+
+            // Verify project now exists
+            let verified = hasWorkspaceOrXcodeproj()
+            if !verified {
+                isExecuting = false
+                appendLog("[ERROR] Generated project could not be resolved.")
+                return BuildResult(
+                    status: .failed,
+                    appBundleURL: nil,
+                    diagnostics: [BuildDiagnostics(message: "Verification failed after project generation.", severity: .error)],
+                    logs: BuildLogs(lines: ["Build failed: Post-generation validation failed."])
+                )
+            }
+        }
+
+        logStage("Continuing build")
+        appendLog("[SYSTEM] Initiating build via XcodeBuildAPI...")
+
+        guard let project = discoverActiveProject() else {
+            isExecuting = false
+            return BuildResult(
+                status: .failed,
+                appBundleURL: nil,
+                diagnostics: [BuildDiagnostics(message: "No supported Xcode project found to build.", severity: .error)],
+                logs: BuildLogs(lines: ["Build failed: No project found."])
+            )
+        }
+
+        // Validate scheme
+        let activeScheme = determineActiveScheme()?.name ?? project.name
+        guard project.schemes.contains(where: { $0.name == activeScheme }) else {
+            isExecuting = false
+            return BuildResult(
+                status: .failed,
+                appBundleURL: nil,
+                diagnostics: [BuildDiagnostics(message: "Scheme '\(activeScheme)' does not exist or is not shared in the project.", severity: .error)],
+                logs: BuildLogs(lines: ["Validation failed: Selected scheme '\(activeScheme)' is invalid."])
+            )
+        }
+
+        appendLog("[SYSTEM] Resolving build destination and SDK for scheme '\(activeScheme)'...")
+        let resolvedDestString = determineBuildDestination().destination
+        let resolvedSDK = sdkForDestination(resolvedDestString)
+        appendLog("[SYSTEM] Resolved SDK: \(resolvedSDK) and destination: \(resolvedDestString)")
+
+        // Run the build. A Package.swift container builds with
+        // `swift build`; a project/workspace builds with xcodebuild.
+        let projectDir = project.url.deletingLastPathComponent()
+        let buildOutput: ProcessResult
+        do {
+            if project.url.lastPathComponent == "Package.swift" {
+                buildOutput = try await runProcess(
+                    executable: "/usr/bin/swift",
+                    arguments: ["build"],
+                    workingDirectory: projectDir,
+                    registerForCancellation: true
+                )
+            } else {
+                let containerArg = project.url.pathExtension == "xcworkspace" ? "-workspace" : "-project"
+                buildOutput = try await runProcess(
+                    executable: Self.xcodebuildPath(),
+                    arguments: [
+                        containerArg, project.url.path,
+                        "-scheme", activeScheme,
+                        "-configuration", determineActiveBuildConfiguration(),
+                        "-destination", resolvedDestString,
+                        "-sdk", resolvedSDK,
+                        "build"
+                    ],
+                    workingDirectory: projectDir,
+                    registerForCancellation: true
+                )
+            }
+        } catch {
+            isExecuting = false
+            appendLog("[ERROR] Build failed to launch: \(error.localizedDescription)")
+            return BuildResult(
+                status: .failed,
+                appBundleURL: nil,
+                diagnostics: [BuildDiagnostics(message: "Build failed to launch: \(error.localizedDescription)", severity: .error)],
+                logs: BuildLogs(lines: currentLogs)
+            )
+        }
+
+        // Stream the output into our current logs for consistency.
+        currentLogs = buildOutput.stdout.split(separator: "\n", omittingEmptySubsequences: false).map(String.init)
+        if !buildOutput.stderr.isEmpty {
+            currentLogs.append(contentsOf: buildOutput.stderr.split(separator: "\n", omittingEmptySubsequences: false).map { "[ERROR] \($0)" })
+        }
+
+        var buildStatus: BuildResult.BuildStatus = .failed
+        if buildCancelled {
+            buildStatus = .cancelled
+        } else if buildOutput.exitCode == 0 {
+            buildStatus = .succeeded
+        }
+        isExecuting = false
+
+        // Parse basic diagnostics
+        var diagnostics: [BuildDiagnostics] = []
+        for log in currentLogs {
+            if log.lowercased().contains("error:") {
+                diagnostics.append(BuildDiagnostics(message: log, severity: .error))
+            } else if log.lowercased().contains("warning:") {
+                diagnostics.append(BuildDiagnostics(message: log, severity: .warning))
+            }
+        }
+
+        return BuildResult(
+            status: buildStatus,
+            appBundleURL: determineAppBundleURL(),
+            diagnostics: diagnostics,
+            logs: BuildLogs(lines: currentLogs)
+        )
+    }
+
+    // MARK: - Clean Execution
+
+    public func cleanProject() async -> Bool {
+        guard !isExecuting else { return false }
+        isExecuting = true
+        currentStage = "Cleaning build artifacts..."
+        currentLogs.removeAll()
+
+        guard let project = discoverActiveProject() else {
+            isExecuting = false
+            return false
+        }
+
+        appendLog("[SYSTEM] Cleaning project: \(project.name)")
+
+        let xcodebuild = Self.xcodebuildPath()
+        let derivedData = determineDerivedDataLocation()
+
+        // 1. Delete DerivedData folder
+        let fm = FileManager.default
+        if fm.fileExists(atPath: derivedData.path) {
+            do {
+                try fm.removeItem(at: derivedData)
+                appendLog("[SYSTEM] Removed DerivedData directory: \(derivedData.path)")
+            } catch {
+                appendLog("[ERROR] Failed to delete DerivedData: \(error.localizedDescription)")
+            }
+        }
+
+        // 2. Execute xcodebuild clean
+        do {
+            let result = try await runProcess(
+                executable: xcodebuild,
+                arguments: [
+                    "-project", project.url.path,
+                    "-scheme", determineActiveScheme()?.name ?? project.name,
+                    "clean"
+                ],
+                workingDirectory: project.url.deletingLastPathComponent()
+            )
+            appendLog(result.stdout)
+            if !result.stderr.isEmpty {
+                appendLog("[ERROR] " + result.stderr)
+            }
+            isExecuting = false
+            return result.exitCode == 0
+        } catch {
+            appendLog("[ERROR] Clean failed: \(error.localizedDescription)")
+            isExecuting = false
+            return false
+        }
+    }
+
+    // MARK: - Visual UI Document Discovery
+
+    /// Scans the entire active project to locate Swift files containing `@SwiftCodeVisualUIBuilderDocument`.
+    public func scanForVisualUIDocuments() async -> [URL] {
+        guard let project = discoverActiveProject() else { return [] }
+        let projectDir = project.url.deletingLastPathComponent()
+
+        let fm = FileManager.default
+        guard let enumerator = fm.enumerator(at: projectDir, includingPropertiesForKeys: [.isRegularFileKey], options: [.skipsHiddenFiles]) else {
+            return []
+        }
+
+        var documents: [URL] = []
+        while let fileURL = enumerator.nextObject() as? URL {
+            guard fileURL.pathExtension == "swift" else { continue }
+            guard let content = try? String(contentsOf: fileURL, encoding: .utf8) else { continue }
+            if content.contains("@SwiftCodeVisualUIBuilderDocument") {
+                documents.append(fileURL)
+            }
+        }
+        return documents.sorted { $0.lastPathComponent < $1.lastPathComponent }
+    }
+
+    // MARK: - Cancel Execution
+
+    /// Terminates the running build process, if any. (Legacy
+    /// delegated to XcodeBuildManager.cancelBuild; the process
+    /// handle is kept here instead.)
+    public func cancelBuild() {
+        buildCancelled = true
+        currentProcessBox?.terminate()
+        isExecuting = false
+        currentStage = "Cancelled"
+    }
+
+    // MARK: - Logging helpers
+
+    private func appendLog(_ log: String) {
+        currentLogs.append(log)
+        logger.info("\(log)")
+    }
+
+    private func logStage(_ stage: String) {
+        currentStage = stage
+        appendLog("[SYSTEM] Stage: \(stage)")
+        // Legacy also wrote to UnifiedLogger here; that type lives
+        // in SwiftCodeIDECore, which depends on this target, so it
+        // cannot be used from SwiftCodeXcodebuild.
+    }
+
+    // MARK: - Process execution
+
+    /// Runs a tool to completion and captures its output. The
+    /// blocking wait happens in a detached task (never on the
+    /// MainActor), following the pattern IPABuildService uses in
+    /// this target. Throws only when the tool cannot start.
+    private func runProcess(executable: String, arguments: [String], workingDirectory: URL?, registerForCancellation: Bool = false) async throws -> ProcessResult {
+        let box = XcodeBuildProcessBox()
+        if registerForCancellation { currentProcessBox = box }
+        defer {
+            if registerForCancellation, currentProcessBox === box { currentProcessBox = nil }
+        }
+        return try await Task.detached(priority: .userInitiated) {
+            let process = Process()
+            process.executableURL = URL(fileURLWithPath: executable)
+            process.arguments = arguments
+            if let workingDirectory { process.currentDirectoryURL = workingDirectory }
+            process.standardInput = FileHandle.nullDevice
+            let outPipe = Pipe()
+            let errPipe = Pipe()
+            process.standardOutput = outPipe
+            process.standardError = errPipe
+            box.process = process
+            try process.run()
+            // stderr on its own thread (see Subprocess.run): reading
+            // the two pipes one after the other deadlocks when the
+            // child fills the second one first.
+            let errBox = ProcessDataBox()
+            let group = DispatchGroup()
+            group.enter()
+            Thread { errBox.data = errPipe.fileHandleForReading.readDataToEndOfFile(); group.leave() }.start()
+            let outData = outPipe.fileHandleForReading.readDataToEndOfFile()
+            group.wait()
+            process.waitUntilExit()
+            return ProcessResult(
+                exitCode: process.terminationStatus,
+                stdout: String(decoding: outData, as: UTF8.self),
+                stderr: String(decoding: errBox.data, as: UTF8.self)
+            )
+        }.value
+    }
+}
+
+/// The captured output of one runProcess call.
+private struct ProcessResult: Sendable {
+    var exitCode: Int32
+    var stdout: String
+    var stderr: String
+}
+
+/// A thread-safe holder for the currently running build process,
+/// so cancelBuild (MainActor) can terminate a process started in
+/// a detached task.
+private final class XcodeBuildProcessBox: @unchecked Sendable {
+    private let lock = NSLock()
+    private var _process: Process?
+
+    var process: Process? {
+        get { lock.withLock { _process } }
+        set { lock.withLock { _process = newValue } }
+    }
+
+    func terminate() {
+        lock.withLock { _process }?.terminate()
+    }
+}
+
+/// A thread-safe holder for pipe data read on a helper thread.
+private final class ProcessDataBox: @unchecked Sendable {
+    var data = Data()
+}
+
+#endif // os(macOS)
