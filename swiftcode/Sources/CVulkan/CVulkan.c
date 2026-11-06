@@ -1,0 +1,1396 @@
+/*
+ * CVulkan.c: run-time loaded Vulkan for SwiftCode's Metal host back end
+ * (stage8-contract.md §5.2, owner VK). Written from the Vulkan
+ * specification and our own R8 harness (research/experiments/simulator/
+ * metal-shaders/vk). See CVulkan.h.
+ */
+#if defined(__linux__) && !defined(_GNU_SOURCE)
+#define _GNU_SOURCE
+#endif
+#include "CVulkan.h"
+
+#include <dlfcn.h>
+#include <errno.h>
+#include <fcntl.h>
+#include <pthread.h>
+#include <signal.h>
+#include <spawn.h>
+#include <sys/wait.h>
+#include <time.h>
+#include <unistd.h>
+#include <stdarg.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+
+static yvk_dispatch g_vk;
+
+const yvk_dispatch *yvk_fns(void) { return &g_vk; }
+
+static int fail(char *err, size_t errlen, const char *fmt, ...) {
+    if (err && errlen) {
+        va_list ap;
+        va_start(ap, fmt);
+        vsnprintf(err, errlen, fmt, ap);
+        va_end(ap);
+    }
+    return -1;
+}
+
+/* ------------------------------------------------------------------ */
+/* Loader                                                              */
+/* ------------------------------------------------------------------ */
+
+static void *g_lib;
+
+int yvk_load(char *err, size_t errlen) {
+    if (g_vk.vkGetInstanceProcAddr) return 0;
+    const char *override = getenv("SWIFTCODE_VULKAN_LIBRARY");
+    const char *names[] = {
+        override,
+#if defined(__APPLE__)
+        "libvulkan.1.dylib",
+#else
+        "libvulkan.so.1",
+        "libvulkan.so",
+#endif
+    };
+    for (size_t i = 0; i < sizeof names / sizeof names[0] && !g_lib; i++) {
+        if (names[i] && *names[i]) g_lib = dlopen(names[i], RTLD_NOW | RTLD_LOCAL);
+    }
+    if (!g_lib) return fail(err, errlen, "no Vulkan loader (libvulkan.so.1) on this host");
+    g_vk.vkGetInstanceProcAddr = (PFN_vkGetInstanceProcAddr)dlsym(g_lib, "vkGetInstanceProcAddr");
+    if (!g_vk.vkGetInstanceProcAddr) return fail(err, errlen, "the Vulkan loader has no vkGetInstanceProcAddr");
+    g_vk.vkCreateInstance = (PFN_vkCreateInstance)g_vk.vkGetInstanceProcAddr(NULL, "vkCreateInstance");
+    g_vk.vkEnumerateInstanceVersion =
+        (PFN_vkEnumerateInstanceVersion)g_vk.vkGetInstanceProcAddr(NULL, "vkEnumerateInstanceVersion");
+    g_vk.vkEnumerateInstanceExtensionProperties = (PFN_vkEnumerateInstanceExtensionProperties)
+        g_vk.vkGetInstanceProcAddr(NULL, "vkEnumerateInstanceExtensionProperties");
+    if (!g_vk.vkCreateInstance) return fail(err, errlen, "the Vulkan loader has no vkCreateInstance");
+    return 0;
+}
+
+/* ------------------------------------------------------------------ */
+/* Device                                                              */
+/* ------------------------------------------------------------------ */
+
+static int has_extension(const VkExtensionProperties *list, uint32_t count, const char *name) {
+    for (uint32_t i = 0; i < count; i++)
+        if (strcmp(list[i].extensionName, name) == 0) return 1;
+    return 0;
+}
+
+static uint32_t min_u32(uint32_t a, uint32_t b) { return a < b ? a : b; }
+
+static int score_device(const VkPhysicalDeviceProperties *p) {
+    switch (p->deviceType) {
+    case VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU: return 4;
+    case VK_PHYSICAL_DEVICE_TYPE_INTEGRATED_GPU: return 4;
+    case VK_PHYSICAL_DEVICE_TYPE_VIRTUAL_GPU: return 2;
+    case VK_PHYSICAL_DEVICE_TYPE_CPU: return getenv("SWIFTCODE_VULKAN_ALLOW_CPU") ? 1 : 0;
+    default: return 0;
+    }
+}
+
+int yvk_context_create(yvk_context *ctx, const yvk_context_options *opts, char *err, size_t errlen) {
+    memset(ctx, 0, sizeof *ctx);
+    if (yvk_load(err, errlen) != 0) return -1;
+    yvk_context_options defaults = {0};
+    if (!opts) opts = &defaults;
+
+    uint32_t instanceVersion = VK_API_VERSION_1_0;
+    if (g_vk.vkEnumerateInstanceVersion) g_vk.vkEnumerateInstanceVersion(&instanceVersion);
+    if (instanceVersion < VK_API_VERSION_1_3)
+        return fail(err, errlen, "Vulkan instance version %u.%u is older than 1.3",
+                    VK_API_VERSION_MAJOR(instanceVersion), VK_API_VERSION_MINOR(instanceVersion));
+
+    VkApplicationInfo app = {VK_STRUCTURE_TYPE_APPLICATION_INFO, NULL, "swiftcode-metal-host", 1, "swiftcode", 1,
+                             VK_API_VERSION_1_3};
+    const char *layers[] = {"VK_LAYER_KHRONOS_validation"};
+    VkInstanceCreateInfo ici = {VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO, NULL, 0, &app};
+    if (opts->validation || getenv("SWIFTCODE_VULKAN_VALIDATION")) {
+        ici.enabledLayerCount = 1;
+        ici.ppEnabledLayerNames = layers;
+    }
+    /* A second context made while another one is in use (opts->second)
+       writes no function into g_vk, which other threads are using: it
+       loads into a copy and fails unless every function is the one g_vk
+       already has (true when one driver serves both), so g_vk serves it. */
+    yvk_dispatch secondTable = g_vk;
+    yvk_dispatch *D = opts->second ? &secondTable : &g_vk;
+    VkResult r = g_vk.vkCreateInstance(&ici, NULL, &ctx->instance);
+    if (r == VK_ERROR_LAYER_NOT_PRESENT) {
+        ici.enabledLayerCount = 0;
+        r = g_vk.vkCreateInstance(&ici, NULL, &ctx->instance);
+    }
+    if (r != VK_SUCCESS) return fail(err, errlen, "vkCreateInstance failed (%d)", r);
+
+#define YVK_LOAD_I(name) \
+    D->name = (PFN_##name)g_vk.vkGetInstanceProcAddr(ctx->instance, #name); \
+    if (!D->name) { yvk_context_destroy(ctx); return fail(err, errlen, "missing instance function " #name); }
+    YVK_INSTANCE_FUNCTIONS(YVK_LOAD_I)
+#undef YVK_LOAD_I
+    if (opts->second && memcmp(&secondTable, &g_vk, sizeof g_vk) != 0) {
+        yvk_context_destroy(ctx);
+        return fail(err, errlen, "a second instance's functions differ from the first one's");
+    }
+
+    uint32_t count = 0;
+    g_vk.vkEnumeratePhysicalDevices(ctx->instance, &count, NULL);
+    if (count == 0) { yvk_context_destroy(ctx); return fail(err, errlen, "no Vulkan physical device"); }
+    VkPhysicalDevice devices[16];
+    if (count > 16) count = 16;
+    g_vk.vkEnumeratePhysicalDevices(ctx->instance, &count, devices);
+    int best = -1, bestScore = 0;
+    for (uint32_t i = 0; i < count; i++) {
+        VkPhysicalDeviceProperties p;
+        g_vk.vkGetPhysicalDeviceProperties(devices[i], &p);
+        int s = score_device(&p);
+        if (p.apiVersion < VK_API_VERSION_1_3) s = 0;
+        if (s > bestScore) { bestScore = s; best = (int)i; }
+    }
+    if (best < 0) { yvk_context_destroy(ctx); return fail(err, errlen, "no Vulkan 1.3 GPU"); }
+    ctx->physical = devices[best];
+    g_vk.vkGetPhysicalDeviceProperties(ctx->physical, &ctx->properties);
+    g_vk.vkGetPhysicalDeviceMemoryProperties(ctx->physical, &ctx->memory);
+
+    /* Queue family with graphics and compute. */
+    uint32_t nq = 0;
+    g_vk.vkGetPhysicalDeviceQueueFamilyProperties(ctx->physical, &nq, NULL);
+    VkQueueFamilyProperties qp[32];
+    if (nq > 32) nq = 32;
+    g_vk.vkGetPhysicalDeviceQueueFamilyProperties(ctx->physical, &nq, qp);
+    ctx->queueFamily = UINT32_MAX;
+    for (uint32_t i = 0; i < nq; i++) {
+        VkQueueFlags want = VK_QUEUE_GRAPHICS_BIT | VK_QUEUE_COMPUTE_BIT;
+        if ((qp[i].queueFlags & want) == want) { ctx->queueFamily = i; break; }
+    }
+    if (ctx->queueFamily == UINT32_MAX) { yvk_context_destroy(ctx); return fail(err, errlen, "no graphics+compute queue"); }
+
+    /* Extensions. */
+    uint32_t next = 0;
+    g_vk.vkEnumerateDeviceExtensionProperties(ctx->physical, NULL, &next, NULL);
+    VkExtensionProperties *exts = calloc(next ? next : 1, sizeof *exts);
+    g_vk.vkEnumerateDeviceExtensionProperties(ctx->physical, NULL, &next, exts);
+    const char *enable[32];
+    uint32_t nenable = 0;
+#define WANT(name) (has_extension(exts, next, name) ? (enable[nenable++] = name, 1) : 0)
+    int extHost = WANT(VK_EXT_EXTERNAL_MEMORY_HOST_EXTENSION_NAME);
+    int extFd = WANT(VK_KHR_EXTERNAL_MEMORY_FD_EXTENSION_NAME);
+    int extEds3 = WANT(VK_EXT_EXTENDED_DYNAMIC_STATE_3_EXTENSION_NAME);
+    int extBorder = WANT(VK_EXT_CUSTOM_BORDER_COLOR_EXTENSION_NAME);
+    int extDivisor = WANT(VK_EXT_VERTEX_ATTRIBUTE_DIVISOR_EXTENSION_NAME);
+    int extInterlock = WANT(VK_EXT_FRAGMENT_SHADER_INTERLOCK_EXTENSION_NAME);
+    int extWorkgroup = WANT(VK_KHR_WORKGROUP_MEMORY_EXPLICIT_LAYOUT_EXTENSION_NAME);
+    int extMaint5 = WANT(VK_KHR_MAINTENANCE_5_EXTENSION_NAME);
+    int extBary = WANT(VK_KHR_FRAGMENT_SHADER_BARYCENTRIC_EXTENSION_NAME);
+    int extLocalRead = WANT("VK_KHR_dynamic_rendering_local_read");
+    const char *cp = getenv("SWIFTCODE_GPU_CHECKPOINTS");
+    int extCheckpoints = (!cp || strcmp(cp, "0") != 0) ? WANT(VK_NV_DEVICE_DIAGNOSTIC_CHECKPOINTS_EXTENSION_NAME) : 0;
+    int extGPL = has_extension(exts, next, VK_KHR_PIPELINE_LIBRARY_EXTENSION_NAME) &&
+                 has_extension(exts, next, VK_EXT_GRAPHICS_PIPELINE_LIBRARY_EXTENSION_NAME);
+    if (extGPL && getenv("SWIFTCODE_VULKAN_NO_PIPELINE_LIBRARY")) extGPL = 0;
+    if (extGPL) {
+        enable[nenable++] = VK_KHR_PIPELINE_LIBRARY_EXTENSION_NAME;
+        enable[nenable++] = VK_EXT_GRAPHICS_PIPELINE_LIBRARY_EXTENSION_NAME;
+    }
+    (void)WANT(VK_EXT_SHADER_ATOMIC_FLOAT_EXTENSION_NAME);
+    (void)WANT(VK_EXT_DEPTH_CLIP_ENABLE_EXTENSION_NAME);
+    (void)WANT(VK_KHR_SHADER_NON_SEMANTIC_INFO_EXTENSION_NAME);
+#undef WANT
+    free(exts);
+
+    /* Query features. */
+    YVKDynamicRenderingLocalReadFeatures lr = {YVK_STRUCTURE_TYPE_DYNAMIC_RENDERING_LOCAL_READ_FEATURES};
+    VkPhysicalDeviceGraphicsPipelineLibraryFeaturesEXT gpl = {
+        VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_GRAPHICS_PIPELINE_LIBRARY_FEATURES_EXT};
+    VkPhysicalDeviceFragmentShaderBarycentricFeaturesKHR bary = {
+        VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FRAGMENT_SHADER_BARYCENTRIC_FEATURES_KHR};
+    VkPhysicalDeviceMaintenance5FeaturesKHR m5 = {VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_MAINTENANCE_5_FEATURES_KHR};
+    VkPhysicalDeviceWorkgroupMemoryExplicitLayoutFeaturesKHR wg = {
+        VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_WORKGROUP_MEMORY_EXPLICIT_LAYOUT_FEATURES_KHR};
+    VkPhysicalDeviceFragmentShaderInterlockFeaturesEXT il = {
+        VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FRAGMENT_SHADER_INTERLOCK_FEATURES_EXT};
+    VkPhysicalDeviceVertexAttributeDivisorFeaturesEXT div = {
+        VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VERTEX_ATTRIBUTE_DIVISOR_FEATURES_EXT};
+    VkPhysicalDeviceCustomBorderColorFeaturesEXT bc = {VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_CUSTOM_BORDER_COLOR_FEATURES_EXT};
+    VkPhysicalDeviceExtendedDynamicState3FeaturesEXT eds3 = {
+        VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_EXTENDED_DYNAMIC_STATE_3_FEATURES_EXT};
+    VkPhysicalDeviceVulkan13Features f13 = {VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_3_FEATURES};
+    VkPhysicalDeviceVulkan12Features f12 = {VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_2_FEATURES, &f13};
+    VkPhysicalDeviceVulkan11Features f11 = {VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_1_FEATURES, &f12};
+    VkPhysicalDeviceFeatures2 f2 = {VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2, &f11};
+    void **tail = &f13.pNext;
+#define CHAIN(cond, s) if (cond) { *tail = &(s); tail = &(s).pNext; }
+    CHAIN(extEds3, eds3)
+    CHAIN(extBorder, bc)
+    CHAIN(extDivisor, div)
+    CHAIN(extInterlock, il)
+    CHAIN(extWorkgroup, wg)
+    CHAIN(extMaint5, m5)
+    CHAIN(extBary, bary)
+    CHAIN(extLocalRead, lr)
+    CHAIN(extGPL, gpl)
+#undef CHAIN
+    g_vk.vkGetPhysicalDeviceFeatures2(ctx->physical, &f2);
+
+    yvk_features *F = &ctx->features;
+    F->bufferDeviceAddress = f12.bufferDeviceAddress;
+    F->descriptorIndexing = f12.descriptorIndexing && f12.runtimeDescriptorArray &&
+                            f12.descriptorBindingPartiallyBound &&
+                            f12.descriptorBindingSampledImageUpdateAfterBind &&
+                            f12.descriptorBindingStorageImageUpdateAfterBind &&
+                            f12.shaderSampledImageArrayNonUniformIndexing;
+    F->dynamicRendering = f13.dynamicRendering;
+    F->synchronization2 = f13.synchronization2;
+    F->timelineSemaphore = f12.timelineSemaphore;
+    F->maintenance4 = f13.maintenance4;
+    F->subgroupSizeControl = f13.subgroupSizeControl;
+    F->computeFullSubgroups = f13.computeFullSubgroups;
+    F->externalMemoryHost = extHost;
+    F->externalMemoryFd = extFd;
+    F->shaderFloat16 = f12.shaderFloat16;
+    F->shaderInt8 = f12.shaderInt8;
+    F->shaderInt16 = f2.features.shaderInt16;
+    F->shaderInt64 = f2.features.shaderInt64;
+    F->shaderFloat64 = f2.features.shaderFloat64;
+    F->storageBuffer8BitAccess = f12.storageBuffer8BitAccess;
+    F->storageBuffer16BitAccess = f11.storageBuffer16BitAccess;
+    F->storagePushConstant16 = f11.storagePushConstant16;
+    F->storageInputOutput16 = f11.storageInputOutput16;
+    F->scalarBlockLayout = f12.scalarBlockLayout;
+    F->vulkanMemoryModel = f12.vulkanMemoryModel;
+    F->samplerAnisotropy = f2.features.samplerAnisotropy;
+    F->samplerMirrorClampToEdge = f12.samplerMirrorClampToEdge;
+    F->dualSrcBlend = f2.features.dualSrcBlend;
+    F->logicOp = f2.features.logicOp;
+    F->independentBlend = f2.features.independentBlend;
+    F->depthClamp = f2.features.depthClamp;
+    F->occlusionQueryPrecise = f2.features.occlusionQueryPrecise;
+    F->depthBiasClamp = f2.features.depthBiasClamp;
+    F->fillModeNonSolid = f2.features.fillModeNonSolid;
+    F->wideLines = f2.features.wideLines;
+    F->largePoints = f2.features.largePoints;
+    F->shaderClipDistance = f2.features.shaderClipDistance;
+    F->multiDrawIndirect = f2.features.multiDrawIndirect;
+    F->drawIndirectFirstInstance = f2.features.drawIndirectFirstInstance;
+    F->fragmentStoresAndAtomics = f2.features.fragmentStoresAndAtomics;
+    F->vertexPipelineStoresAndAtomics = f2.features.vertexPipelineStoresAndAtomics;
+    F->imageCubeArray = f2.features.imageCubeArray;
+    F->textureCompressionBC = f2.features.textureCompressionBC;
+    F->textureCompressionETC2 = f2.features.textureCompressionETC2;
+    F->textureCompressionASTC_LDR = f2.features.textureCompressionASTC_LDR;
+    F->shaderStorageImageReadWithoutFormat = f2.features.shaderStorageImageReadWithoutFormat;
+    F->shaderStorageImageWriteWithoutFormat = f2.features.shaderStorageImageWriteWithoutFormat;
+    F->customBorderColors = extBorder && bc.customBorderColors;
+    F->extendedDynamicState3PolygonMode = extEds3 && eds3.extendedDynamicState3PolygonMode;
+    F->extendedDynamicState3DepthClamp = extEds3 && eds3.extendedDynamicState3DepthClampEnable;
+    F->vertexAttributeInstanceRateDivisor = extDivisor && div.vertexAttributeInstanceRateDivisor;
+    F->vertexAttributeInstanceRateZeroDivisor = extDivisor && div.vertexAttributeInstanceRateZeroDivisor;
+    F->fragmentShaderPixelInterlock = extInterlock && il.fragmentShaderPixelInterlock;
+    F->workgroupMemoryExplicitLayout = extWorkgroup && wg.workgroupMemoryExplicitLayout;
+    F->formatA8 = extMaint5 && m5.maintenance5;
+    F->dynamicRenderingLocalRead = extLocalRead && lr.dynamicRenderingLocalRead;
+    F->fragmentShaderBarycentric = extBary && bary.fragmentShaderBarycentric;
+    F->shaderDemoteToHelperInvocation = f13.shaderDemoteToHelperInvocation;
+    F->diagnosticCheckpoints = extCheckpoints;
+    const char *crp = getenv("SWIFTCODE_GPU_CAPTURE_REPLAY");
+    F->bufferCaptureReplay = f12.bufferDeviceAddressCaptureReplay && !(crp && strcmp(crp, "0") == 0);
+    if (!F->bufferCaptureReplay) f12.bufferDeviceAddressCaptureReplay = VK_FALSE;
+
+    const char *missing = NULL;
+    if (!F->bufferDeviceAddress) missing = "bufferDeviceAddress";
+    else if (!F->descriptorIndexing) missing = "descriptorIndexing (runtime arrays, partially bound, update after bind)";
+    else if (!F->dynamicRendering) missing = "dynamicRendering";
+    else if (!F->synchronization2) missing = "synchronization2";
+    else if (!F->timelineSemaphore) missing = "timelineSemaphore";
+    else if (!F->maintenance4) missing = "maintenance4";
+    else if (!F->subgroupSizeControl) missing = "subgroupSizeControl";
+    else if (!F->externalMemoryHost) missing = "VK_EXT_external_memory_host";
+    else if (!F->shaderInt64) missing = "shaderInt64";
+    if (missing) { yvk_context_destroy(ctx); return fail(err, errlen, "Vulkan device lacks %s", missing); }
+
+    /* Enable everything the device has, except robustness (performance;
+       Metal does not promise bounds checks) and features that change
+       allocation behaviour. */
+    f2.features.robustBufferAccess = VK_FALSE;
+    f12.bufferDeviceAddressMultiDevice = VK_FALSE;
+    f13.robustImageAccess = VK_FALSE;
+    f13.pipelineCreationCacheControl = f13.pipelineCreationCacheControl;
+
+    /* Properties: host pointer alignment, subgroup size, descriptor limits. */
+    VkPhysicalDeviceGraphicsPipelineLibraryPropertiesEXT gplp = {
+        VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_GRAPHICS_PIPELINE_LIBRARY_PROPERTIES_EXT};
+    VkPhysicalDeviceExternalMemoryHostPropertiesEXT hostp = {
+        VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_EXTERNAL_MEMORY_HOST_PROPERTIES_EXT, extGPL ? &gplp : NULL};
+    VkPhysicalDeviceVulkan12Properties p12 = {VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_2_PROPERTIES, &hostp};
+    VkPhysicalDeviceVulkan11Properties p11 = {VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_VULKAN_1_1_PROPERTIES, &p12};
+    VkPhysicalDeviceProperties2 p2 = {VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_PROPERTIES_2, &p11};
+    g_vk.vkGetPhysicalDeviceProperties2(ctx->physical, &p2);
+    ctx->hostPointerAlignment = hostp.minImportedHostPointerAlignment ? hostp.minImportedHostPointerAlignment : 4096;
+    ctx->subgroupSize = p11.subgroupSize;
+    F->graphicsPipelineLibrary = extGPL && gpl.graphicsPipelineLibrary && gplp.graphicsPipelineLibraryFastLinking &&
+                                 gplp.graphicsPipelineLibraryIndependentInterpolationDecoration;
+
+    uint32_t wantQueues = opts->queues ? opts->queues : 1;
+    if (wantQueues > qp[ctx->queueFamily].queueCount) wantQueues = qp[ctx->queueFamily].queueCount;
+    if (wantQueues > YVK_MAX_QUEUES) wantQueues = YVK_MAX_QUEUES;
+    if (wantQueues < 1) wantQueues = 1;
+    float prios[YVK_MAX_QUEUES];
+    for (uint32_t i = 0; i < YVK_MAX_QUEUES; i++) prios[i] = 1.0f;
+    VkDeviceQueueCreateInfo qci = {VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO, NULL, 0, ctx->queueFamily, wantQueues, prios};
+    VkDeviceCreateInfo dci = {VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO, &f2, 0, 1, &qci, 0, NULL, nenable, enable, NULL};
+    r = g_vk.vkCreateDevice(ctx->physical, &dci, NULL, &ctx->device);
+    if (r != VK_SUCCESS) { yvk_context_destroy(ctx); return fail(err, errlen, "vkCreateDevice failed (%d)", r); }
+
+#define YVK_LOAD_D(name) \
+    D->name = (PFN_##name)g_vk.vkGetDeviceProcAddr(ctx->device, #name); \
+    if (!D->name) { yvk_context_destroy(ctx); return fail(err, errlen, "missing device function " #name); }
+    YVK_DEVICE_FUNCTIONS(YVK_LOAD_D)
+#undef YVK_LOAD_D
+#define YVK_LOAD_O(name) D->name = (PFN_##name)g_vk.vkGetDeviceProcAddr(ctx->device, #name);
+    YVK_OPTIONAL_DEVICE_FUNCTIONS(YVK_LOAD_O)
+#undef YVK_LOAD_O
+    if (!D->vkGetMemoryHostPointerPropertiesEXT) {
+        yvk_context_destroy(ctx);
+        return fail(err, errlen, "missing vkGetMemoryHostPointerPropertiesEXT");
+    }
+    if (!F->extendedDynamicState3PolygonMode) D->vkCmdSetPolygonModeEXT = NULL;
+    if (!F->extendedDynamicState3DepthClamp) D->vkCmdSetDepthClampEnableEXT = NULL;
+    /* The "2" query needs VK_KHR_synchronization2 enabled as an extension on
+       some drivers (the Thor's resolves only the first); either serves. */
+    if (!F->diagnosticCheckpoints || !D->vkCmdSetCheckpointNV ||
+        (!D->vkGetQueueCheckpointData2NV && !D->vkGetQueueCheckpointDataNV)) {
+        F->diagnosticCheckpoints = 0;
+        D->vkCmdSetCheckpointNV = NULL;
+        D->vkGetQueueCheckpointDataNV = NULL;
+        D->vkGetQueueCheckpointData2NV = NULL;
+    }
+    if (opts->second && memcmp(&secondTable, &g_vk, sizeof g_vk) != 0) {
+        yvk_context_destroy(ctx);
+        return fail(err, errlen, "a second device's functions differ from the first one's");
+    }
+    ctx->queueCount = wantQueues;
+    for (uint32_t i = 0; i < wantQueues; i++) g_vk.vkGetDeviceQueue(ctx->device, ctx->queueFamily, i, &ctx->queues[i]);
+    ctx->queue = ctx->queues[0];
+
+    /* Bindless heap. */
+    const VkPhysicalDeviceLimits *L = &ctx->properties.limits;
+    uint32_t wantImages = opts->maxSampledImages ? opts->maxSampledImages : 65536;
+    uint32_t wantSamplers = opts->maxSamplers ? opts->maxSamplers : 4096;
+    /* As many storage slots as sampled ones: every texture's heap index has
+       an entry in both arrays (a kernel may write any texture). */
+    uint32_t wantStorage = opts->maxStorageImages ? opts->maxStorageImages : 65536;
+    ctx->heapSampledImages = min_u32(wantImages, min_u32(p12.maxDescriptorSetUpdateAfterBindSampledImages,
+                                                         p12.maxPerStageDescriptorUpdateAfterBindSampledImages));
+    ctx->heapSamplers = min_u32(wantSamplers, min_u32(p12.maxDescriptorSetUpdateAfterBindSamplers,
+                                                      p12.maxPerStageDescriptorUpdateAfterBindSamplers));
+    ctx->heapStorageImages = min_u32(wantStorage, min_u32(p12.maxDescriptorSetUpdateAfterBindStorageImages,
+                                                          p12.maxPerStageDescriptorUpdateAfterBindStorageImages));
+    uint32_t perStage = p12.maxPerStageUpdateAfterBindResources;
+    while (ctx->heapSampledImages + ctx->heapSamplers + ctx->heapStorageImages > perStage) {
+        ctx->heapSampledImages /= 2;
+        ctx->heapStorageImages /= 2;
+    }
+    (void)L;
+    VkDescriptorSetLayoutBinding binds[3] = {
+        {0, VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, ctx->heapSampledImages, VK_SHADER_STAGE_ALL, NULL},
+        {1, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, ctx->heapStorageImages, VK_SHADER_STAGE_ALL, NULL},
+        {2, VK_DESCRIPTOR_TYPE_SAMPLER, ctx->heapSamplers, VK_SHADER_STAGE_ALL, NULL}};
+    VkDescriptorBindingFlags bflags[3];
+    for (int i = 0; i < 3; i++)
+        bflags[i] = VK_DESCRIPTOR_BINDING_PARTIALLY_BOUND_BIT | VK_DESCRIPTOR_BINDING_UPDATE_AFTER_BIND_BIT |
+                    VK_DESCRIPTOR_BINDING_UPDATE_UNUSED_WHILE_PENDING_BIT;
+    VkDescriptorSetLayoutBindingFlagsCreateInfo bfi = {
+        VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_BINDING_FLAGS_CREATE_INFO, NULL, 3, bflags};
+    VkDescriptorSetLayoutCreateInfo dli = {VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO, &bfi,
+                                           VK_DESCRIPTOR_SET_LAYOUT_CREATE_UPDATE_AFTER_BIND_POOL_BIT, 3, binds};
+    r = g_vk.vkCreateDescriptorSetLayout(ctx->device, &dli, NULL, &ctx->heapLayout);
+    if (r != VK_SUCCESS) { yvk_context_destroy(ctx); return fail(err, errlen, "heap layout failed (%d)", r); }
+    VkDescriptorPoolSize sizes[3] = {{VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, ctx->heapSampledImages},
+                                     {VK_DESCRIPTOR_TYPE_SAMPLER, ctx->heapSamplers},
+                                     {VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, ctx->heapStorageImages}};
+    VkDescriptorPoolCreateInfo dpi = {VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO, NULL,
+                                      VK_DESCRIPTOR_POOL_CREATE_UPDATE_AFTER_BIND_BIT, 1, 3, sizes};
+    r = g_vk.vkCreateDescriptorPool(ctx->device, &dpi, NULL, &ctx->heapPool);
+    if (r != VK_SUCCESS) { yvk_context_destroy(ctx); return fail(err, errlen, "heap pool failed (%d)", r); }
+    VkDescriptorSetAllocateInfo dai = {VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO, NULL, ctx->heapPool, 1,
+                                       &ctx->heapLayout};
+    r = g_vk.vkAllocateDescriptorSets(ctx->device, &dai, &ctx->heapSet);
+    if (r != VK_SUCCESS) { yvk_context_destroy(ctx); return fail(err, errlen, "heap set failed (%d)", r); }
+
+    VkPushConstantRange pcr = {VK_SHADER_STAGE_ALL, 0, YVK_PUSH_CONSTANT_SIZE};
+    VkPipelineLayoutCreateInfo pli = {VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO, NULL, 0, 1, &ctx->heapLayout, 1,
+                                      &pcr};
+    r = g_vk.vkCreatePipelineLayout(ctx->device, &pli, NULL, &ctx->pipelineLayout);
+    if (r != VK_SUCCESS) { yvk_context_destroy(ctx); return fail(err, errlen, "pipeline layout failed (%d)", r); }
+
+    VkCommandPoolCreateInfo cpi = {VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO, NULL,
+                                   VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT, ctx->queueFamily};
+    r = g_vk.vkCreateCommandPool(ctx->device, &cpi, NULL, &ctx->commandPool);
+    if (r != VK_SUCCESS) { yvk_context_destroy(ctx); return fail(err, errlen, "command pool failed (%d)", r); }
+    return 0;
+}
+
+void yvk_context_destroy(yvk_context *ctx) {
+    if (ctx->device) {
+        g_vk.vkDeviceWaitIdle(ctx->device);
+        if (ctx->commandPool) g_vk.vkDestroyCommandPool(ctx->device, ctx->commandPool, NULL);
+        if (ctx->pipelineCache) g_vk.vkDestroyPipelineCache(ctx->device, ctx->pipelineCache, NULL);
+        if (ctx->pipelineLayout) g_vk.vkDestroyPipelineLayout(ctx->device, ctx->pipelineLayout, NULL);
+        if (ctx->heapPool) g_vk.vkDestroyDescriptorPool(ctx->device, ctx->heapPool, NULL);
+        if (ctx->heapLayout) g_vk.vkDestroyDescriptorSetLayout(ctx->device, ctx->heapLayout, NULL);
+        g_vk.vkDestroyDevice(ctx->device, NULL);
+    }
+    if (ctx->instance && g_vk.vkDestroyInstance) g_vk.vkDestroyInstance(ctx->instance, NULL);
+    memset(ctx, 0, sizeof *ctx);
+}
+
+int yvk_pipeline_cache_create(yvk_context *ctx, const void *data, size_t size) {
+    if (ctx->pipelineCache) {
+        g_vk.vkDestroyPipelineCache(ctx->device, ctx->pipelineCache, NULL);
+        ctx->pipelineCache = VK_NULL_HANDLE;
+    }
+    VkPipelineCacheCreateInfo ci = {VK_STRUCTURE_TYPE_PIPELINE_CACHE_CREATE_INFO, NULL, 0, data ? size : 0, data};
+    if (g_vk.vkCreatePipelineCache(ctx->device, &ci, NULL, &ctx->pipelineCache) == VK_SUCCESS) return 0;
+    /* Unusable data: start empty. */
+    ci.initialDataSize = 0;
+    ci.pInitialData = NULL;
+    return g_vk.vkCreatePipelineCache(ctx->device, &ci, NULL, &ctx->pipelineCache) == VK_SUCCESS ? 0 : -1;
+}
+
+VkResult yvk_pipeline_cache_data(yvk_context *ctx, void *data, size_t *size) {
+    if (!ctx->pipelineCache) { *size = 0; return VK_SUCCESS; }
+    return g_vk.vkGetPipelineCacheData(ctx->device, ctx->pipelineCache, size, data);
+}
+
+VkFormatFeatureFlags yvk_format_features(const yvk_context *ctx, VkFormat format) {
+    VkFormatProperties fp = {0};
+    g_vk.vkGetPhysicalDeviceFormatProperties(ctx->physical, format, &fp);
+    return fp.optimalTilingFeatures;
+}
+
+VkFormatFeatureFlags yvk_format_buffer_features(const yvk_context *ctx, VkFormat format) {
+    VkFormatProperties fp = {0};
+    g_vk.vkGetPhysicalDeviceFormatProperties(ctx->physical, format, &fp);
+    return fp.bufferFeatures;
+}
+
+/* ------------------------------------------------------------------ */
+/* Memory                                                              */
+/* ------------------------------------------------------------------ */
+
+static int32_t find_memory(const yvk_context *ctx, uint32_t bits, VkMemoryPropertyFlags want) {
+    for (uint32_t i = 0; i < ctx->memory.memoryTypeCount; i++)
+        if ((bits & (1u << i)) && (ctx->memory.memoryTypes[i].propertyFlags & want) == want) return (int32_t)i;
+    return -1;
+}
+
+static int buffer_create(yvk_context *ctx, VkDeviceSize size, yvk_memory_kind kind, void *hostPointer,
+                         uint64_t replay, yvk_buffer *out, char *err, size_t errlen);
+
+int yvk_buffer_create(yvk_context *ctx, VkDeviceSize size, yvk_memory_kind kind, void *hostPointer,
+                      yvk_buffer *out, char *err, size_t errlen) {
+    return buffer_create(ctx, size, kind, hostPointer, 0, out, err, errlen);
+}
+
+int yvk_buffer_recreate(yvk_context *ctx, VkDeviceSize size, yvk_memory_kind kind, void *hostPointer,
+                        uint64_t captureAddress, yvk_buffer *out, char *err, size_t errlen) {
+    if (captureAddress && ctx->features.bufferCaptureReplay &&
+        buffer_create(ctx, size, kind, hostPointer, captureAddress, out, err, errlen) == 0)
+        return 0;
+    return buffer_create(ctx, size, kind, hostPointer, 0, out, err, errlen);
+}
+
+static int buffer_create(yvk_context *ctx, VkDeviceSize size, yvk_memory_kind kind, void *hostPointer,
+                         uint64_t replay, yvk_buffer *out, char *err, size_t errlen) {
+    memset(out, 0, sizeof *out);
+    const int capture = ctx->features.bufferCaptureReplay != 0;
+    if (size == 0) size = 4;
+    VkExternalMemoryBufferCreateInfo ext = {VK_STRUCTURE_TYPE_EXTERNAL_MEMORY_BUFFER_CREATE_INFO, NULL,
+                                            VK_EXTERNAL_MEMORY_HANDLE_TYPE_HOST_ALLOCATION_BIT_EXT};
+    if (kind == YVK_MEMORY_IMPORT_HOST) {
+        if (!hostPointer || ((uintptr_t)hostPointer % ctx->hostPointerAlignment) != 0 ||
+            (size % ctx->hostPointerAlignment) != 0)
+            return fail(err, errlen, "host import of %p (+%llu) is not %llu-aligned", hostPointer,
+                        (unsigned long long)size, (unsigned long long)ctx->hostPointerAlignment);
+    }
+    /* Capture replay: the buffer's own opaque address is left to the
+       device (0); the memory's is what places the buffer. */
+    VkBufferOpaqueCaptureAddressCreateInfo bcap = {VK_STRUCTURE_TYPE_BUFFER_OPAQUE_CAPTURE_ADDRESS_CREATE_INFO,
+                                                   kind == YVK_MEMORY_IMPORT_HOST ? &ext : NULL, 0};
+    VkBufferCreateInfo bi = {VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO,
+                             capture ? (void *)&bcap : (kind == YVK_MEMORY_IMPORT_HOST ? (void *)&ext : NULL),
+                             capture ? VK_BUFFER_CREATE_DEVICE_ADDRESS_CAPTURE_REPLAY_BIT : 0,
+                             size,
+                             VK_BUFFER_USAGE_TRANSFER_SRC_BIT | VK_BUFFER_USAGE_TRANSFER_DST_BIT |
+                                 VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT | VK_BUFFER_USAGE_STORAGE_BUFFER_BIT |
+                                 VK_BUFFER_USAGE_INDEX_BUFFER_BIT | VK_BUFFER_USAGE_VERTEX_BUFFER_BIT |
+                                 VK_BUFFER_USAGE_INDIRECT_BUFFER_BIT | VK_BUFFER_USAGE_SHADER_DEVICE_ADDRESS_BIT,
+                             VK_SHARING_MODE_EXCLUSIVE, 0, NULL};
+    VkResult r = g_vk.vkCreateBuffer(ctx->device, &bi, NULL, &out->buffer);
+    if (r != VK_SUCCESS) return fail(err, errlen, "vkCreateBuffer(%llu) failed (%d)", (unsigned long long)size, r);
+    VkMemoryRequirements mr;
+    g_vk.vkGetBufferMemoryRequirements(ctx->device, out->buffer, &mr);
+    VkMemoryOpaqueCaptureAddressAllocateInfo mcap = {VK_STRUCTURE_TYPE_MEMORY_OPAQUE_CAPTURE_ADDRESS_ALLOCATE_INFO, NULL,
+                                                     replay};
+    VkMemoryAllocateFlagsInfo flags = {VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_FLAGS_INFO, replay ? &mcap : NULL,
+                                       VK_MEMORY_ALLOCATE_DEVICE_ADDRESS_BIT |
+                                           (capture ? VK_MEMORY_ALLOCATE_DEVICE_ADDRESS_CAPTURE_REPLAY_BIT : 0), 0};
+    VkImportMemoryHostPointerInfoEXT imp = {VK_STRUCTURE_TYPE_IMPORT_MEMORY_HOST_POINTER_INFO_EXT, NULL,
+                                            VK_EXTERNAL_MEMORY_HANDLE_TYPE_HOST_ALLOCATION_BIT_EXT, hostPointer};
+    VkMemoryAllocateInfo ai = {VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO, &flags, mr.size, 0};
+    int32_t type = -1;
+    switch (kind) {
+    case YVK_MEMORY_DEVICE:
+        type = find_memory(ctx, mr.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT |
+                                                       VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT |
+                                                       VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
+        if (type < 0) type = find_memory(ctx, mr.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+        break;
+    case YVK_MEMORY_HOST:
+        type = find_memory(ctx, mr.memoryTypeBits,
+                           VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
+        break;
+    case YVK_MEMORY_IMPORT_HOST: {
+        VkMemoryHostPointerPropertiesEXT hp = {VK_STRUCTURE_TYPE_MEMORY_HOST_POINTER_PROPERTIES_EXT};
+        r = g_vk.vkGetMemoryHostPointerPropertiesEXT(ctx->device, VK_EXTERNAL_MEMORY_HANDLE_TYPE_HOST_ALLOCATION_BIT_EXT,
+                                                     hostPointer, &hp);
+        if (r != VK_SUCCESS) {
+            g_vk.vkDestroyBuffer(ctx->device, out->buffer, NULL);
+            out->buffer = VK_NULL_HANDLE;
+            return fail(err, errlen, "vkGetMemoryHostPointerPropertiesEXT(%p) failed (%d)", hostPointer, r);
+        }
+        uint32_t bits = hp.memoryTypeBits & mr.memoryTypeBits;
+        type = find_memory(ctx, bits, VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
+        if (type < 0) type = find_memory(ctx, bits, 0);
+        if (replay) mcap.pNext = &imp; else flags.pNext = &imp;
+        ai.allocationSize = size;
+        break;
+    }
+    }
+    if (type < 0) {
+        g_vk.vkDestroyBuffer(ctx->device, out->buffer, NULL);
+        out->buffer = VK_NULL_HANDLE;
+        return fail(err, errlen, "no memory type for buffer (kind %d, bits 0x%x)", (int)kind, mr.memoryTypeBits);
+    }
+    ai.memoryTypeIndex = (uint32_t)type;
+    r = g_vk.vkAllocateMemory(ctx->device, &ai, NULL, &out->memory);
+    if (r != VK_SUCCESS) {
+        g_vk.vkDestroyBuffer(ctx->device, out->buffer, NULL);
+        out->buffer = VK_NULL_HANDLE;
+        return fail(err, errlen, "vkAllocateMemory(%llu, kind %d) failed (%d)", (unsigned long long)ai.allocationSize,
+                    (int)kind, r);
+    }
+    r = g_vk.vkBindBufferMemory(ctx->device, out->buffer, out->memory, 0);
+    if (r != VK_SUCCESS) {
+        yvk_buffer_destroy(ctx, out);
+        return fail(err, errlen, "vkBindBufferMemory failed (%d)", r);
+    }
+    if (kind == YVK_MEMORY_IMPORT_HOST) {
+        out->mapped = hostPointer;
+    } else if (ctx->memory.memoryTypes[type].propertyFlags & VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT) {
+        r = g_vk.vkMapMemory(ctx->device, out->memory, 0, VK_WHOLE_SIZE, 0, &out->mapped);
+        if (r != VK_SUCCESS) out->mapped = NULL;
+    }
+    out->size = size;
+    VkBufferDeviceAddressInfo da = {VK_STRUCTURE_TYPE_BUFFER_DEVICE_ADDRESS_INFO, NULL, out->buffer};
+    out->address = g_vk.vkGetBufferDeviceAddress(ctx->device, &da);
+    if (capture && g_vk.vkGetDeviceMemoryOpaqueCaptureAddress) {
+        VkDeviceMemoryOpaqueCaptureAddressInfo mi = {VK_STRUCTURE_TYPE_DEVICE_MEMORY_OPAQUE_CAPTURE_ADDRESS_INFO, NULL,
+                                                     out->memory};
+        out->captureAddress = g_vk.vkGetDeviceMemoryOpaqueCaptureAddress(ctx->device, &mi);
+    }
+    return 0;
+}
+
+void yvk_buffer_destroy(yvk_context *ctx, yvk_buffer *b) {
+    if (b->buffer) g_vk.vkDestroyBuffer(ctx->device, b->buffer, NULL);
+    if (b->memory) g_vk.vkFreeMemory(ctx->device, b->memory, NULL);
+    memset(b, 0, sizeof *b);
+}
+
+/* ------------------------------------------------------------------ */
+/* Images                                                              */
+/* ------------------------------------------------------------------ */
+
+int yvk_image_create(yvk_context *ctx, const yvk_image_info *info, yvk_image *out, char *err, size_t errlen) {
+    memset(out, 0, sizeof *out);
+    VkImageCreateInfo ii = {VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO, NULL, info->flags, info->type, info->format,
+                            {info->width ? info->width : 1, info->height ? info->height : 1,
+                             info->depth ? info->depth : 1},
+                            info->mipLevels ? info->mipLevels : 1, info->arrayLayers ? info->arrayLayers : 1,
+                            info->samples ? info->samples : VK_SAMPLE_COUNT_1_BIT, VK_IMAGE_TILING_OPTIMAL,
+                            info->usage, VK_SHARING_MODE_EXCLUSIVE, 0, NULL, VK_IMAGE_LAYOUT_UNDEFINED};
+    VkResult r = g_vk.vkCreateImage(ctx->device, &ii, NULL, &out->image);
+    if (r != VK_SUCCESS)
+        return fail(err, errlen, "vkCreateImage(format %d, %ux%ux%u, usage 0x%x) failed (%d)", info->format,
+                    ii.extent.width, ii.extent.height, ii.extent.depth, info->usage, r);
+    VkMemoryRequirements mr;
+    g_vk.vkGetImageMemoryRequirements(ctx->device, out->image, &mr);
+    int32_t type = find_memory(ctx, mr.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
+    if (type < 0) type = find_memory(ctx, mr.memoryTypeBits, 0);
+    VkMemoryAllocateInfo ai = {VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO, NULL, mr.size, (uint32_t)type};
+    r = g_vk.vkAllocateMemory(ctx->device, &ai, NULL, &out->memory);
+    if (r != VK_SUCCESS) {
+        g_vk.vkDestroyImage(ctx->device, out->image, NULL);
+        out->image = VK_NULL_HANDLE;
+        return fail(err, errlen, "image memory (%llu bytes) failed (%d)", (unsigned long long)mr.size, r);
+    }
+    r = g_vk.vkBindImageMemory(ctx->device, out->image, out->memory, 0);
+    if (r != VK_SUCCESS) {
+        yvk_image_destroy(ctx, out);
+        return fail(err, errlen, "vkBindImageMemory failed (%d)", r);
+    }
+    return 0;
+}
+
+void yvk_image_destroy(yvk_context *ctx, yvk_image *img) {
+    if (img->image) g_vk.vkDestroyImage(ctx->device, img->image, NULL);
+    if (img->memory) g_vk.vkFreeMemory(ctx->device, img->memory, NULL);
+    memset(img, 0, sizeof *img);
+}
+
+VkImageView yvk_view_create(yvk_context *ctx, const yvk_view_info *info, char *err, size_t errlen) {
+    VkImageViewUsageCreateInfo usage = {VK_STRUCTURE_TYPE_IMAGE_VIEW_USAGE_CREATE_INFO, NULL, info->usage};
+    VkImageViewCreateInfo vi = {VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO, info->usage ? &usage : NULL, 0, info->image,
+                                info->viewType, info->format, info->components,
+                                {info->aspect, info->baseLevel, info->levelCount ? info->levelCount : 1,
+                                 info->baseLayer, info->layerCount ? info->layerCount : 1}};
+    VkImageView view = VK_NULL_HANDLE;
+    VkResult r = g_vk.vkCreateImageView(ctx->device, &vi, NULL, &view);
+    if (r != VK_SUCCESS) {
+        fail(err, errlen, "vkCreateImageView(format %d, type %d, aspect 0x%x) failed (%d)", info->format,
+             info->viewType, info->aspect, r);
+        return VK_NULL_HANDLE;
+    }
+    return view;
+}
+
+static void heap_write(yvk_context *ctx, uint32_t binding, uint32_t index, VkDescriptorType type,
+                       VkImageView view, VkSampler sampler) {
+    VkDescriptorImageInfo ii = {sampler, view, VK_IMAGE_LAYOUT_GENERAL};
+    VkWriteDescriptorSet w = {VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET, NULL, ctx->heapSet, binding, index, 1, type, &ii,
+                              NULL, NULL};
+    g_vk.vkUpdateDescriptorSets(ctx->device, 1, &w, 0, NULL);
+}
+
+void yvk_heap_write_sampled(yvk_context *ctx, uint32_t index, VkImageView view) {
+    if (index < ctx->heapSampledImages) heap_write(ctx, 0, index, VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE, view, VK_NULL_HANDLE);
+}
+
+void yvk_heap_write_storage(yvk_context *ctx, uint32_t index, VkImageView view) {
+    if (index < ctx->heapStorageImages) heap_write(ctx, 1, index, VK_DESCRIPTOR_TYPE_STORAGE_IMAGE, view, VK_NULL_HANDLE);
+}
+
+void yvk_heap_write_sampler(yvk_context *ctx, uint32_t index, VkSampler sampler) {
+    if (index < ctx->heapSamplers) heap_write(ctx, 2, index, VK_DESCRIPTOR_TYPE_SAMPLER, VK_NULL_HANDLE, sampler);
+}
+
+/* ------------------------------------------------------------------ */
+/* Samplers                                                            */
+/* ------------------------------------------------------------------ */
+
+VkSampler yvk_sampler_create(yvk_context *ctx, const yvk_sampler_info *s, char *err, size_t errlen) {
+    VkSamplerCreateInfo si = {VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO, NULL, 0, s->magFilter, s->minFilter,
+                              s->mipmapMode, s->addressU, s->addressV, s->addressW, s->mipLodBias,
+                              s->anisotropyEnable && ctx->features.samplerAnisotropy, s->maxAnisotropy,
+                              s->compareEnable, s->compareOp, s->minLod, s->maxLod, s->borderColor,
+                              s->unnormalizedCoordinates};
+    VkSampler sampler = VK_NULL_HANDLE;
+    VkResult r = g_vk.vkCreateSampler(ctx->device, &si, NULL, &sampler);
+    if (r != VK_SUCCESS) {
+        fail(err, errlen, "vkCreateSampler failed (%d)", r);
+        return VK_NULL_HANDLE;
+    }
+    return sampler;
+}
+
+/* ------------------------------------------------------------------ */
+/* Pipelines                                                           */
+/* ------------------------------------------------------------------ */
+
+typedef struct stage_storage {
+    VkSpecializationMapEntry entries[64];
+    uint32_t data[64];
+    VkSpecializationInfo info;
+} stage_storage;
+
+static int make_stage(yvk_context *ctx, const yvk_shader_stage *s, VkShaderStageFlagBits bit,
+                      VkPipelineShaderStageCreateInfo *out, stage_storage *st, char *err, size_t errlen) {
+    VkShaderModuleCreateInfo mi = {VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO, NULL, 0, s->wordCount * 4, s->code};
+    VkShaderModule module;
+    VkResult r = g_vk.vkCreateShaderModule(ctx->device, &mi, NULL, &module);
+    if (r != VK_SUCCESS) return fail(err, errlen, "vkCreateShaderModule failed (%d)", r);
+    uint32_t n = s->constantCount > 64 ? 64 : s->constantCount;
+    for (uint32_t i = 0; i < n; i++) {
+        st->entries[i] = (VkSpecializationMapEntry){s->constants[i].id, i * 4, 4};
+        st->data[i] = s->constants[i].value;
+    }
+    st->info = (VkSpecializationInfo){n, st->entries, n * 4, st->data};
+    *out = (VkPipelineShaderStageCreateInfo){VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO, NULL, s->flags, bit,
+                                             module, s->entry ? s->entry : "main", n ? &st->info : NULL};
+    return 0;
+}
+
+VkPipeline yvk_compute_pipeline_create(yvk_context *ctx, const yvk_shader_stage *stage, char *err, size_t errlen) {
+    stage_storage st;
+    VkComputePipelineCreateInfo ci = {VK_STRUCTURE_TYPE_COMPUTE_PIPELINE_CREATE_INFO};
+    if (make_stage(ctx, stage, VK_SHADER_STAGE_COMPUTE_BIT, &ci.stage, &st, err, errlen) != 0) return VK_NULL_HANDLE;
+    ci.layout = ctx->pipelineLayout;
+    VkPipeline p = VK_NULL_HANDLE;
+    VkResult r = g_vk.vkCreateComputePipelines(ctx->device, ctx->pipelineCache, 1, &ci, NULL, &p);
+    g_vk.vkDestroyShaderModule(ctx->device, ci.stage.module, NULL);
+    if (r != VK_SUCCESS) {
+        fail(err, errlen, "vkCreateComputePipelines failed (%d)", r);
+        return VK_NULL_HANDLE;
+    }
+    return p;
+}
+
+/* The dynamic state every graphics pipeline (and library part) declares. */
+static uint32_t dynamic_states(const yvk_context *ctx, VkDynamicState *dyn) {
+    uint32_t ndyn = 0;
+    dyn[ndyn++] = VK_DYNAMIC_STATE_VIEWPORT;
+    dyn[ndyn++] = VK_DYNAMIC_STATE_SCISSOR;
+    dyn[ndyn++] = VK_DYNAMIC_STATE_CULL_MODE;
+    dyn[ndyn++] = VK_DYNAMIC_STATE_FRONT_FACE;
+    dyn[ndyn++] = VK_DYNAMIC_STATE_PRIMITIVE_TOPOLOGY;
+    dyn[ndyn++] = VK_DYNAMIC_STATE_PRIMITIVE_RESTART_ENABLE;
+    dyn[ndyn++] = VK_DYNAMIC_STATE_DEPTH_BIAS;
+    dyn[ndyn++] = VK_DYNAMIC_STATE_DEPTH_BIAS_ENABLE;
+    dyn[ndyn++] = VK_DYNAMIC_STATE_BLEND_CONSTANTS;
+    dyn[ndyn++] = VK_DYNAMIC_STATE_STENCIL_REFERENCE;
+    dyn[ndyn++] = VK_DYNAMIC_STATE_STENCIL_COMPARE_MASK;
+    dyn[ndyn++] = VK_DYNAMIC_STATE_STENCIL_WRITE_MASK;
+    dyn[ndyn++] = VK_DYNAMIC_STATE_STENCIL_TEST_ENABLE;
+    dyn[ndyn++] = VK_DYNAMIC_STATE_STENCIL_OP;
+    dyn[ndyn++] = VK_DYNAMIC_STATE_DEPTH_TEST_ENABLE;
+    dyn[ndyn++] = VK_DYNAMIC_STATE_DEPTH_WRITE_ENABLE;
+    dyn[ndyn++] = VK_DYNAMIC_STATE_DEPTH_COMPARE_OP;
+    if (ctx->features.extendedDynamicState3PolygonMode) dyn[ndyn++] = VK_DYNAMIC_STATE_POLYGON_MODE_EXT;
+    if (ctx->features.extendedDynamicState3DepthClamp) dyn[ndyn++] = VK_DYNAMIC_STATE_DEPTH_CLAMP_ENABLE_EXT;
+    return ndyn;
+}
+
+VkPipeline yvk_graphics_pipeline_create(yvk_context *ctx, const yvk_graphics_info *g, char *err, size_t errlen) {
+    VkPipelineShaderStageCreateInfo stages[2];
+    stage_storage st[2];
+    uint32_t nstages = 0;
+    if (make_stage(ctx, &g->vertex, VK_SHADER_STAGE_VERTEX_BIT, &stages[0], &st[0], err, errlen) != 0)
+        return VK_NULL_HANDLE;
+    nstages = 1;
+    if (g->fragment.code) {
+        if (make_stage(ctx, &g->fragment, VK_SHADER_STAGE_FRAGMENT_BIT, &stages[1], &st[1], err, errlen) != 0) {
+            g_vk.vkDestroyShaderModule(ctx->device, stages[0].module, NULL);
+            return VK_NULL_HANDLE;
+        }
+        nstages = 2;
+    }
+
+    VkVertexInputBindingDescription vb[YVK_MAX_VERTEX_BINDINGS];
+    VkVertexInputBindingDivisorDescriptionEXT dv[YVK_MAX_VERTEX_BINDINGS];
+    uint32_t ndiv = 0;
+    for (uint32_t i = 0; i < g->bindingCount && i < YVK_MAX_VERTEX_BINDINGS; i++) {
+        vb[i] = (VkVertexInputBindingDescription){g->bindings[i].binding, g->bindings[i].stride,
+                                                  g->bindings[i].inputRate};
+        if (g->bindings[i].inputRate == VK_VERTEX_INPUT_RATE_INSTANCE && g->bindings[i].divisor != 1) {
+            int ok = g->bindings[i].divisor == 0 ? ctx->features.vertexAttributeInstanceRateZeroDivisor
+                                                 : ctx->features.vertexAttributeInstanceRateDivisor;
+            if (ok) dv[ndiv++] = (VkVertexInputBindingDivisorDescriptionEXT){g->bindings[i].binding, g->bindings[i].divisor};
+        }
+    }
+    VkPipelineVertexInputDivisorStateCreateInfoEXT divs = {
+        VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_DIVISOR_STATE_CREATE_INFO_EXT, NULL, ndiv, dv};
+    VkPipelineVertexInputStateCreateInfo vis = {VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO,
+                                                ndiv ? &divs : NULL, 0, g->bindingCount, vb, g->attributeCount,
+                                                g->attributes};
+    VkPipelineInputAssemblyStateCreateInfo ias = {VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO, NULL, 0,
+                                                  g->topology, VK_FALSE};
+    VkPipelineViewportStateCreateInfo vps = {VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO, NULL, 0, 1, NULL, 1,
+                                             NULL};
+    VkPipelineRasterizationStateCreateInfo rs = {VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO};
+    rs.rasterizerDiscardEnable = g->rasterizerDiscard ? VK_TRUE : VK_FALSE;
+    rs.polygonMode = VK_POLYGON_MODE_FILL;
+    rs.cullMode = VK_CULL_MODE_NONE;
+    rs.frontFace = VK_FRONT_FACE_CLOCKWISE;
+    rs.lineWidth = 1.0f;
+    VkPipelineMultisampleStateCreateInfo ms = {VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO};
+    ms.rasterizationSamples = g->samples ? g->samples : VK_SAMPLE_COUNT_1_BIT;
+    ms.alphaToCoverageEnable = g->alphaToCoverage;
+    VkPipelineDepthStencilStateCreateInfo ds = {VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO};
+    ds.depthCompareOp = VK_COMPARE_OP_ALWAYS;
+    ds.minDepthBounds = 0.0f;
+    ds.maxDepthBounds = 1.0f;
+    VkPipelineColorBlendStateCreateInfo cbs = {VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO, NULL, 0,
+                                               VK_FALSE, VK_LOGIC_OP_COPY, g->colorCount, g->blend};
+    VkDynamicState dyn[24];
+    uint32_t ndyn = dynamic_states(ctx, dyn);
+    VkPipelineDynamicStateCreateInfo dys = {VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO, NULL, 0, ndyn, dyn};
+    VkPipelineRenderingCreateInfo pri = {VK_STRUCTURE_TYPE_PIPELINE_RENDERING_CREATE_INFO, NULL, 0, g->colorCount,
+                                         g->colorFormats, g->depthFormat, g->stencilFormat};
+    VkGraphicsPipelineCreateInfo gpi = {VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO, &pri, 0, nstages, stages,
+                                        &vis, &ias, NULL, &vps, &rs, &ms, &ds, &cbs, &dys, ctx->pipelineLayout};
+    VkPipeline p = VK_NULL_HANDLE;
+    VkResult r = g_vk.vkCreateGraphicsPipelines(ctx->device, ctx->pipelineCache, 1, &gpi, NULL, &p);
+    for (uint32_t i = 0; i < nstages; i++) g_vk.vkDestroyShaderModule(ctx->device, stages[i].module, NULL);
+    if (r != VK_SUCCESS) {
+        fail(err, errlen, "vkCreateGraphicsPipelines failed (%d)", r);
+        return VK_NULL_HANDLE;
+    }
+    return p;
+}
+
+
+/* ------------------------------------------------------------------ */
+/* Graphics pipeline libraries                                         */
+/* ------------------------------------------------------------------ */
+
+typedef struct library_state {
+    VkGraphicsPipelineLibraryCreateInfoEXT kind;
+    VkPipelineRenderingCreateInfo rendering;
+    VkDynamicState dyn[24];
+    VkPipelineDynamicStateCreateInfo dynamic;
+    VkGraphicsPipelineCreateInfo create;
+} library_state;
+
+static void library_begin(yvk_context *ctx, library_state *L, VkGraphicsPipelineLibraryFlagsEXT flags) {
+    memset(L, 0, sizeof *L);
+    L->kind = (VkGraphicsPipelineLibraryCreateInfoEXT){VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_LIBRARY_CREATE_INFO_EXT, NULL, flags};
+    L->rendering = (VkPipelineRenderingCreateInfo){VK_STRUCTURE_TYPE_PIPELINE_RENDERING_CREATE_INFO, &L->kind};
+    L->dynamic = (VkPipelineDynamicStateCreateInfo){VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO, NULL, 0,
+                                                     dynamic_states(ctx, L->dyn), L->dyn};
+    L->create = (VkGraphicsPipelineCreateInfo){VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO, &L->rendering,
+                                               VK_PIPELINE_CREATE_LIBRARY_BIT_KHR |
+                                                   VK_PIPELINE_CREATE_RETAIN_LINK_TIME_OPTIMIZATION_INFO_BIT_EXT};
+    L->create.pDynamicState = &L->dynamic;
+    L->create.layout = ctx->pipelineLayout;
+}
+
+static VkPipeline library_create(yvk_context *ctx, library_state *L, const char *what, char *err, size_t errlen) {
+    VkPipeline p = VK_NULL_HANDLE;
+    VkResult r = g_vk.vkCreateGraphicsPipelines(ctx->device, ctx->pipelineCache, 1, &L->create, NULL, &p);
+    if (r != VK_SUCCESS) {
+        fail(err, errlen, "%s library failed (%d)", what, r);
+        return VK_NULL_HANDLE;
+    }
+    return p;
+}
+
+VkPipeline yvk_library_vertex_input(yvk_context *ctx, const yvk_graphics_info *g, char *err, size_t errlen) {
+    library_state L;
+    library_begin(ctx, &L, VK_GRAPHICS_PIPELINE_LIBRARY_VERTEX_INPUT_INTERFACE_BIT_EXT);
+    VkVertexInputBindingDescription vb[YVK_MAX_VERTEX_BINDINGS];
+    VkVertexInputBindingDivisorDescriptionEXT dv[YVK_MAX_VERTEX_BINDINGS];
+    uint32_t ndiv = 0;
+    for (uint32_t i = 0; i < g->bindingCount && i < YVK_MAX_VERTEX_BINDINGS; i++) {
+        vb[i] = (VkVertexInputBindingDescription){g->bindings[i].binding, g->bindings[i].stride, g->bindings[i].inputRate};
+        if (g->bindings[i].inputRate == VK_VERTEX_INPUT_RATE_INSTANCE && g->bindings[i].divisor != 1) {
+            int ok = g->bindings[i].divisor == 0 ? ctx->features.vertexAttributeInstanceRateZeroDivisor
+                                                 : ctx->features.vertexAttributeInstanceRateDivisor;
+            if (ok) dv[ndiv++] = (VkVertexInputBindingDivisorDescriptionEXT){g->bindings[i].binding, g->bindings[i].divisor};
+        }
+    }
+    VkPipelineVertexInputDivisorStateCreateInfoEXT divs = {
+        VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_DIVISOR_STATE_CREATE_INFO_EXT, NULL, ndiv, dv};
+    VkPipelineVertexInputStateCreateInfo vis = {VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO,
+                                                ndiv ? &divs : NULL, 0, g->bindingCount, vb, g->attributeCount, g->attributes};
+    VkPipelineInputAssemblyStateCreateInfo ias = {VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO, NULL, 0,
+                                                  g->topology, VK_FALSE};
+    L.create.pVertexInputState = &vis;
+    L.create.pInputAssemblyState = &ias;
+    return library_create(ctx, &L, "vertex input", err, errlen);
+}
+
+VkPipeline yvk_library_pre_raster(yvk_context *ctx, const yvk_shader_stage *vertex, int rasterizerDiscard,
+                                  char *err, size_t errlen) {
+    library_state L;
+    library_begin(ctx, &L, VK_GRAPHICS_PIPELINE_LIBRARY_PRE_RASTERIZATION_SHADERS_BIT_EXT);
+    VkPipelineShaderStageCreateInfo stage;
+    stage_storage st;
+    if (make_stage(ctx, vertex, VK_SHADER_STAGE_VERTEX_BIT, &stage, &st, err, errlen) != 0) return VK_NULL_HANDLE;
+    VkPipelineViewportStateCreateInfo vps = {VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO, NULL, 0, 1, NULL, 1, NULL};
+    VkPipelineRasterizationStateCreateInfo rs = {VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO};
+    rs.rasterizerDiscardEnable = rasterizerDiscard ? VK_TRUE : VK_FALSE;
+    rs.polygonMode = VK_POLYGON_MODE_FILL;
+    rs.cullMode = VK_CULL_MODE_NONE;
+    rs.frontFace = VK_FRONT_FACE_CLOCKWISE;
+    rs.lineWidth = 1.0f;
+    L.create.stageCount = 1;
+    L.create.pStages = &stage;
+    L.create.pViewportState = &vps;
+    L.create.pRasterizationState = &rs;
+    VkPipeline p = library_create(ctx, &L, "pre-rasterization", err, errlen);
+    g_vk.vkDestroyShaderModule(ctx->device, stage.module, NULL);
+    return p;
+}
+
+VkPipeline yvk_library_fragment_shader(yvk_context *ctx, const yvk_shader_stage *fragment, VkSampleCountFlagBits samples,
+                                       char *err, size_t errlen) {
+    library_state L;
+    library_begin(ctx, &L, VK_GRAPHICS_PIPELINE_LIBRARY_FRAGMENT_SHADER_BIT_EXT);
+    VkPipelineShaderStageCreateInfo stage;
+    stage_storage st;
+    /* No fragment shader (code NULL): a part with no stage, for depth- and
+       stencil-only pipelines. */
+    int hasStage = fragment && fragment->code;
+    if (hasStage && make_stage(ctx, fragment, VK_SHADER_STAGE_FRAGMENT_BIT, &stage, &st, err, errlen) != 0) return VK_NULL_HANDLE;
+    VkPipelineMultisampleStateCreateInfo ms = {VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO};
+    ms.rasterizationSamples = samples ? samples : VK_SAMPLE_COUNT_1_BIT;
+    VkPipelineDepthStencilStateCreateInfo ds = {VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO};
+    ds.depthCompareOp = VK_COMPARE_OP_ALWAYS;
+    ds.maxDepthBounds = 1.0f;
+    L.create.stageCount = hasStage ? 1 : 0;
+    L.create.pStages = hasStage ? &stage : NULL;
+    L.create.pMultisampleState = &ms;
+    L.create.pDepthStencilState = &ds;
+    VkPipeline p = library_create(ctx, &L, "fragment shader", err, errlen);
+    if (hasStage) g_vk.vkDestroyShaderModule(ctx->device, stage.module, NULL);
+    return p;
+}
+
+VkPipeline yvk_library_fragment_output(yvk_context *ctx, const yvk_graphics_info *g, char *err, size_t errlen) {
+    library_state L;
+    library_begin(ctx, &L, VK_GRAPHICS_PIPELINE_LIBRARY_FRAGMENT_OUTPUT_INTERFACE_BIT_EXT);
+    L.rendering.colorAttachmentCount = g->colorCount;
+    L.rendering.pColorAttachmentFormats = g->colorFormats;
+    L.rendering.depthAttachmentFormat = g->depthFormat;
+    L.rendering.stencilAttachmentFormat = g->stencilFormat;
+    VkPipelineMultisampleStateCreateInfo ms = {VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO};
+    ms.rasterizationSamples = g->samples ? g->samples : VK_SAMPLE_COUNT_1_BIT;
+    ms.alphaToCoverageEnable = g->alphaToCoverage;
+    VkPipelineColorBlendStateCreateInfo cbs = {VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO, NULL, 0,
+                                               VK_FALSE, VK_LOGIC_OP_COPY, g->colorCount, g->blend};
+    L.create.pMultisampleState = &ms;
+    L.create.pColorBlendState = &cbs;
+    return library_create(ctx, &L, "fragment output", err, errlen);
+}
+
+VkPipeline yvk_library_link(yvk_context *ctx, const VkPipeline *libraries, uint32_t count, int optimize,
+                            char *err, size_t errlen) {
+    VkPipelineLibraryCreateInfoKHR li = {VK_STRUCTURE_TYPE_PIPELINE_LIBRARY_CREATE_INFO_KHR, NULL, count, libraries};
+    VkGraphicsPipelineCreateInfo ci = {VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO, &li,
+                                       optimize ? VK_PIPELINE_CREATE_LINK_TIME_OPTIMIZATION_BIT_EXT : 0};
+    ci.layout = ctx->pipelineLayout;
+    VkPipeline p = VK_NULL_HANDLE;
+    VkResult r = g_vk.vkCreateGraphicsPipelines(ctx->device, ctx->pipelineCache, 1, &ci, NULL, &p);
+    if (r != VK_SUCCESS) {
+        fail(err, errlen, "library link failed (%d)", r);
+        return VK_NULL_HANDLE;
+    }
+    return p;
+}
+
+/* ------------------------------------------------------------------ */
+/* Commands                                                            */
+/* ------------------------------------------------------------------ */
+
+VkCommandBuffer yvk_command_buffer_begin(yvk_context *ctx, char *err, size_t errlen) {
+    VkCommandBufferAllocateInfo ai = {VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO, NULL, ctx->commandPool,
+                                      VK_COMMAND_BUFFER_LEVEL_PRIMARY, 1};
+    VkCommandBuffer cb = VK_NULL_HANDLE;
+    VkResult r = g_vk.vkAllocateCommandBuffers(ctx->device, &ai, &cb);
+    if (r != VK_SUCCESS) {
+        fail(err, errlen, "vkAllocateCommandBuffers failed (%d)", r);
+        return VK_NULL_HANDLE;
+    }
+    VkCommandBufferBeginInfo bi = {VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO, NULL,
+                                   VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT};
+    r = g_vk.vkBeginCommandBuffer(cb, &bi);
+    if (r != VK_SUCCESS) {
+        g_vk.vkFreeCommandBuffers(ctx->device, ctx->commandPool, 1, &cb);
+        fail(err, errlen, "vkBeginCommandBuffer failed (%d)", r);
+        return VK_NULL_HANDLE;
+    }
+    return cb;
+}
+
+int yvk_command_buffer_restart(yvk_context *ctx, VkCommandBuffer cb) {
+    (void)ctx;
+    if (g_vk.vkResetCommandBuffer(cb, 0) != VK_SUCCESS) return -1;
+    VkCommandBufferBeginInfo bi = {VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO, NULL,
+                                   VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT};
+    return g_vk.vkBeginCommandBuffer(cb, &bi) == VK_SUCCESS ? 0 : -1;
+}
+
+void yvk_command_buffer_free(yvk_context *ctx, VkCommandBuffer cb) {
+    g_vk.vkFreeCommandBuffers(ctx->device, ctx->commandPool, 1, &cb);
+}
+
+static void attachment(VkRenderingAttachmentInfo *out, const yvk_attachment *a) {
+    *out = (VkRenderingAttachmentInfo){VK_STRUCTURE_TYPE_RENDERING_ATTACHMENT_INFO, NULL, a->view,
+                                       VK_IMAGE_LAYOUT_GENERAL,
+                                       a->resolveView ? a->resolveMode : VK_RESOLVE_MODE_NONE,
+                                       a->resolveView, VK_IMAGE_LAYOUT_GENERAL, a->load, a->store, a->clear};
+}
+
+void yvk_cmd_begin_rendering(VkCommandBuffer cb, const yvk_rendering_info *info) {
+    VkRenderingAttachmentInfo color[YVK_MAX_COLOR_ATTACHMENTS], depth, stencil;
+    uint32_t n = info->colorCount > YVK_MAX_COLOR_ATTACHMENTS ? YVK_MAX_COLOR_ATTACHMENTS : info->colorCount;
+    for (uint32_t i = 0; i < n; i++) attachment(&color[i], &info->color[i]);
+    attachment(&depth, &info->depth);
+    attachment(&stencil, &info->stencil);
+    VkRenderingInfo ri = {VK_STRUCTURE_TYPE_RENDERING_INFO, NULL, 0,
+                          {{(int32_t)info->x, (int32_t)info->y}, {info->width, info->height}},
+                          info->layerCount ? info->layerCount : 1, 0, n, color,
+                          info->depth.view ? &depth : NULL, info->stencil.view ? &stencil : NULL};
+    g_vk.vkCmdBeginRendering(cb, &ri);
+}
+
+void yvk_cmd_memory_barrier(VkCommandBuffer cb, VkPipelineStageFlags2 srcStages, VkAccessFlags2 srcAccess,
+                            VkPipelineStageFlags2 dstStages, VkAccessFlags2 dstAccess) {
+    VkMemoryBarrier2 b = {VK_STRUCTURE_TYPE_MEMORY_BARRIER_2, NULL, srcStages, srcAccess, dstStages, dstAccess};
+    VkDependencyInfo di = {VK_STRUCTURE_TYPE_DEPENDENCY_INFO, NULL, 0, 1, &b, 0, NULL, 0, NULL};
+    g_vk.vkCmdPipelineBarrier2(cb, &di);
+}
+
+void yvk_cmd_image_layout(VkCommandBuffer cb, VkImage image, VkImageAspectFlags aspect, VkImageLayout from,
+                          VkImageLayout to) {
+    VkImageMemoryBarrier2 b = {VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER_2, NULL,
+                               VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT, VK_ACCESS_2_MEMORY_WRITE_BIT,
+                               VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT,
+                               VK_ACCESS_2_MEMORY_READ_BIT | VK_ACCESS_2_MEMORY_WRITE_BIT, from, to,
+                               VK_QUEUE_FAMILY_IGNORED, VK_QUEUE_FAMILY_IGNORED, image,
+                               {aspect, 0, VK_REMAINING_MIP_LEVELS, 0, VK_REMAINING_ARRAY_LAYERS}};
+    VkDependencyInfo di = {VK_STRUCTURE_TYPE_DEPENDENCY_INFO, NULL, 0, 0, NULL, 0, NULL, 1, &b};
+    g_vk.vkCmdPipelineBarrier2(cb, &di);
+}
+
+VkResult yvk_submit(yvk_context *ctx, VkCommandBuffer cb, VkSemaphore signal, uint64_t value,
+                    VkSemaphore waitSemaphore, uint64_t waitValue) {
+    VkCommandBufferSubmitInfo cbi = {VK_STRUCTURE_TYPE_COMMAND_BUFFER_SUBMIT_INFO, NULL, cb, 0};
+    VkSemaphoreSubmitInfo sig = {VK_STRUCTURE_TYPE_SEMAPHORE_SUBMIT_INFO, NULL, signal, value,
+                                 VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT, 0};
+    VkSemaphoreSubmitInfo wait = {VK_STRUCTURE_TYPE_SEMAPHORE_SUBMIT_INFO, NULL, waitSemaphore, waitValue,
+                                  VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT, 0};
+    VkSubmitInfo2 si = {VK_STRUCTURE_TYPE_SUBMIT_INFO_2, NULL, 0, waitSemaphore ? 1u : 0u, &wait,
+                        cb ? 1u : 0u, &cbi, signal ? 1u : 0u, &sig};
+    return g_vk.vkQueueSubmit2(ctx->queue, 1, &si, VK_NULL_HANDLE);
+}
+
+VkResult yvk_submit_on(yvk_context *ctx, uint32_t queue, VkCommandBuffer cb, VkSemaphore signal, uint64_t value,
+                       const VkSemaphore *waits, const uint64_t *waitValues, uint32_t waitCount) {
+    if (queue >= ctx->queueCount) return VK_ERROR_UNKNOWN;
+    VkCommandBufferSubmitInfo cbi = {VK_STRUCTURE_TYPE_COMMAND_BUFFER_SUBMIT_INFO, NULL, cb, 0};
+    VkSemaphoreSubmitInfo sig = {VK_STRUCTURE_TYPE_SEMAPHORE_SUBMIT_INFO, NULL, signal, value,
+                                 VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT, 0};
+    VkSemaphoreSubmitInfo w[8];
+    if (waitCount > 8) return VK_ERROR_UNKNOWN;
+    for (uint32_t i = 0; i < waitCount; i++) {
+        VkSemaphoreSubmitInfo x = {VK_STRUCTURE_TYPE_SEMAPHORE_SUBMIT_INFO, NULL, waits[i], waitValues[i],
+                                   VK_PIPELINE_STAGE_2_ALL_COMMANDS_BIT, 0};
+        w[i] = x;
+    }
+    VkSubmitInfo2 si = {VK_STRUCTURE_TYPE_SUBMIT_INFO_2, NULL, 0, waitCount, waitCount ? w : NULL,
+                        cb ? 1u : 0u, &cbi, signal ? 1u : 0u, &sig};
+    return g_vk.vkQueueSubmit2(ctx->queues[queue], 1, &si, VK_NULL_HANDLE);
+}
+
+/* The user's window-system session, if any: the Wayland compositor named by
+   $WAYLAND_DISPLAY (or wayland-0) in $XDG_RUNTIME_DIR, else the X server of
+   $DISPLAY. Each library is opened at run time; nothing is linked. */
+typedef void *(*yvk_wl_connect_fn)(const char *);
+typedef void (*yvk_wl_disconnect_fn)(void *);
+typedef void *(*yvk_xcb_connect_fn)(const char *, int *);
+typedef int (*yvk_xcb_error_fn)(void *);
+typedef void (*yvk_xcb_disconnect_fn)(void *);
+typedef const void *(*yvk_xcb_setup_fn)(void *);
+typedef struct { void *data; int rem; int index; } yvk_xcb_screen_iterator;
+typedef yvk_xcb_screen_iterator (*yvk_xcb_roots_fn)(const void *);
+typedef VkBool32 (*yvk_wl_support_fn)(VkPhysicalDevice, uint32_t, void *);
+typedef VkBool32 (*yvk_xcb_support_fn)(VkPhysicalDevice, uint32_t, void *, uint32_t);
+
+int yvk_presents_to_session(const char *deviceName) {
+    char err[64];
+    if (yvk_load(err, sizeof err) != 0) return -1;
+    void *wl = NULL, *wlLib = NULL, *xcb = NULL, *xcbLib = NULL;
+    uint32_t visual = 0;
+    const char *runtime = getenv("XDG_RUNTIME_DIR");
+    if (runtime && *runtime) {
+        const char *name = getenv("WAYLAND_DISPLAY");
+        char path[512];
+        snprintf(path, sizeof path, "%s/%s", runtime, name && *name ? name : "wayland-0");
+        if (access(path, F_OK) == 0 && (wlLib = dlopen("libwayland-client.so.0", RTLD_NOW | RTLD_LOCAL))) {
+            yvk_wl_connect_fn connect = (yvk_wl_connect_fn)dlsym(wlLib, "wl_display_connect");
+            if (connect) wl = connect(name && *name ? name : "wayland-0");
+        }
+    }
+    const char *x = getenv("DISPLAY");
+    if (!wl && x && *x && (xcbLib = dlopen("libxcb.so.1", RTLD_NOW | RTLD_LOCAL))) {
+        yvk_xcb_connect_fn connect = (yvk_xcb_connect_fn)dlsym(xcbLib, "xcb_connect");
+        yvk_xcb_error_fn failed = (yvk_xcb_error_fn)dlsym(xcbLib, "xcb_connection_has_error");
+        yvk_xcb_setup_fn setup = (yvk_xcb_setup_fn)dlsym(xcbLib, "xcb_get_setup");
+        yvk_xcb_roots_fn roots = (yvk_xcb_roots_fn)dlsym(xcbLib, "xcb_setup_roots_iterator");
+        if (connect && failed && setup && roots) {
+            int screen = 0;
+            xcb = connect(NULL, &screen);
+            if (xcb && failed(xcb)) xcb = NULL; /* the failed connection is freed with the process */
+            if (xcb) {
+                yvk_xcb_screen_iterator it = roots(setup(xcb));
+                void (*next)(yvk_xcb_screen_iterator *) = (void (*)(yvk_xcb_screen_iterator *))dlsym(xcbLib, "xcb_screen_next");
+                for (int k = 0; k < screen && it.rem > 0 && next; k++) next(&it);
+                /* xcb_screen_t: root_visual is the u32 at byte 32 (the X11 protocol's SCREEN). */
+                if (it.data) memcpy(&visual, (char *)it.data + 32, 4);
+            }
+        }
+    }
+    int result = 0;
+    if (wl || xcb) {
+        const char *exts[2] = {"VK_KHR_surface", wl ? "VK_KHR_wayland_surface" : "VK_KHR_xcb_surface"};
+        VkApplicationInfo app = {VK_STRUCTURE_TYPE_APPLICATION_INFO, NULL, "swiftcode-display-check", 1, "swiftcode", 1,
+                                 VK_API_VERSION_1_3};
+        VkInstanceCreateInfo ici = {VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO, NULL, 0, &app, 0, NULL, 2, exts};
+        VkInstance instance = VK_NULL_HANDLE;
+        if (g_vk.vkCreateInstance(&ici, NULL, &instance) == VK_SUCCESS) {
+            PFN_vkEnumeratePhysicalDevices enumerate =
+                (PFN_vkEnumeratePhysicalDevices)g_vk.vkGetInstanceProcAddr(instance, "vkEnumeratePhysicalDevices");
+            PFN_vkGetPhysicalDeviceProperties properties =
+                (PFN_vkGetPhysicalDeviceProperties)g_vk.vkGetInstanceProcAddr(instance, "vkGetPhysicalDeviceProperties");
+            PFN_vkGetPhysicalDeviceQueueFamilyProperties families = (PFN_vkGetPhysicalDeviceQueueFamilyProperties)
+                g_vk.vkGetInstanceProcAddr(instance, "vkGetPhysicalDeviceQueueFamilyProperties");
+            yvk_wl_support_fn wlSupport = (yvk_wl_support_fn)
+                g_vk.vkGetInstanceProcAddr(instance, "vkGetPhysicalDeviceWaylandPresentationSupportKHR");
+            yvk_xcb_support_fn xcbSupport = (yvk_xcb_support_fn)
+                g_vk.vkGetInstanceProcAddr(instance, "vkGetPhysicalDeviceXcbPresentationSupportKHR");
+            PFN_vkDestroyInstance destroy = (PFN_vkDestroyInstance)g_vk.vkGetInstanceProcAddr(instance, "vkDestroyInstance");
+            if (enumerate && properties && families && (wl ? (void *)wlSupport : (void *)xcbSupport)) {
+                uint32_t n = 0;
+                enumerate(instance, &n, NULL);
+                VkPhysicalDevice devices[16];
+                if (n > 16) n = 16;
+                enumerate(instance, &n, devices);
+                for (uint32_t i = 0; i < n && !result; i++) {
+                    VkPhysicalDeviceProperties p;
+                    properties(devices[i], &p);
+                    if (deviceName && strcmp(deviceName, p.deviceName) != 0) continue;
+                    uint32_t nf = 0;
+                    families(devices[i], &nf, NULL);
+                    VkQueueFamilyProperties qf[32];
+                    if (nf > 32) nf = 32;
+                    families(devices[i], &nf, qf);
+                    for (uint32_t f = 0; f < nf && !result; f++) {
+                        if (!(qf[f].queueFlags & VK_QUEUE_GRAPHICS_BIT)) continue;
+                        result = wl ? wlSupport(devices[i], f, wl) == VK_TRUE : xcbSupport(devices[i], f, xcb, visual) == VK_TRUE;
+                    }
+                }
+            }
+            if (destroy) destroy(instance, NULL);
+        }
+    }
+    if (wl) ((yvk_wl_disconnect_fn)dlsym(wlLib, "wl_display_disconnect"))(wl);
+    if (xcb) {
+        yvk_xcb_disconnect_fn disconnect = (yvk_xcb_disconnect_fn)dlsym(xcbLib, "xcb_disconnect");
+        if (disconnect) disconnect(xcb);
+    }
+    return result;
+}
+
+/* An empty compute kernel (GLSL: layout(local_size_x = 1) in; void main() {}). */
+static const uint32_t kickKernel[] = {
+    0x07230203, 0x00010600, 0x0008000b, 0x0000000a, 0x00000000, 0x00020011, 0x00000001, 0x0006000b,
+    0x00000001, 0x4c534c47, 0x6474732e, 0x3035342e, 0x00000000, 0x0003000e, 0x00000000, 0x00000001,
+    0x0005000f, 0x00000005, 0x00000004, 0x6e69616d, 0x00000000, 0x00060010, 0x00000004, 0x00000011,
+    0x00000001, 0x00000001, 0x00000001, 0x00030003, 0x00000002, 0x000001cc, 0x00040005, 0x00000004,
+    0x6e69616d, 0x00000000, 0x00020013, 0x00000002, 0x00030021, 0x00000003, 0x00000002, 0x00040015,
+    0x00000006, 0x00000020, 0x00000000, 0x00040017, 0x00000007, 0x00000006, 0x00000003, 0x0004002b,
+    0x00000006, 0x00000008, 0x00000001, 0x0006002c, 0x00000007, 0x00000009, 0x00000008, 0x00000008,
+    0x00000008, 0x00050036, 0x00000002, 0x00000004, 0x00000000, 0x00000003, 0x000200f8, 0x00000005,
+    0x000100fd, 0x00010038,
+};
+
+VkResult yvk_kick(yvk_context *ctx, uint64_t timeoutNs) {
+    char err[256];
+    yvk_shader_stage st = {kickKernel, sizeof kickKernel / 4, "main", NULL, 0, 0};
+    VkPipeline pipe = yvk_compute_pipeline_create(ctx, &st, err, sizeof err);
+    if (!pipe) return VK_ERROR_INITIALIZATION_FAILED;
+    VkCommandBuffer cb = yvk_command_buffer_begin(ctx, err, sizeof err);
+    VkSemaphore tl = cb ? yvk_timeline_create(ctx, 0) : VK_NULL_HANDLE;
+    VkResult r = VK_ERROR_INITIALIZATION_FAILED;
+    if (cb && tl) {
+        g_vk.vkCmdBindPipeline(cb, VK_PIPELINE_BIND_POINT_COMPUTE, pipe);
+        g_vk.vkCmdDispatch(cb, 1, 1, 1);
+        g_vk.vkEndCommandBuffer(cb);
+        r = yvk_submit(ctx, cb, tl, 1, VK_NULL_HANDLE, 0);
+        if (r == VK_SUCCESS) r = yvk_timeline_wait(ctx, tl, 1, timeoutNs);
+        if (r == VK_SUCCESS) {
+            g_vk.vkDeviceWaitIdle(ctx->device);
+        }
+    }
+    if (r == VK_SUCCESS || r == VK_ERROR_DEVICE_LOST) {
+        if (cb) g_vk.vkFreeCommandBuffers(ctx->device, ctx->commandPool, 1, &cb);
+        if (tl) g_vk.vkDestroySemaphore(ctx->device, tl, NULL);
+        g_vk.vkDestroyPipeline(ctx->device, pipe, NULL);
+    }
+    /* On a timeout the objects are left to the context's destruction. */
+    return r;
+}
+
+void yvk_cmd_checkpoint(VkCommandBuffer cb, uint64_t marker) {
+    if (g_vk.vkCmdSetCheckpointNV) g_vk.vkCmdSetCheckpointNV(cb, (const void *)(uintptr_t)marker);
+}
+
+uint32_t yvk_queue_checkpoints(yvk_context *ctx, uint64_t *markers, uint64_t *stages, uint32_t max) {
+    return yvk_queue_checkpoints_on(ctx, 0, markers, stages, max);
+}
+
+uint32_t yvk_queue_checkpoints_on(yvk_context *ctx, uint32_t queue, uint64_t *markers, uint64_t *stages, uint32_t max) {
+    if (queue >= ctx->queueCount || !ctx->queues[queue]) return 0;
+    VkQueue q = ctx->queues[queue];
+    if (!g_vk.vkGetQueueCheckpointData2NV) {
+        if (!g_vk.vkGetQueueCheckpointDataNV) return 0;
+        uint32_t n = 0;
+        g_vk.vkGetQueueCheckpointDataNV(q, &n, NULL);
+        if (n == 0) return 0;
+        VkCheckpointDataNV *d = calloc(n, sizeof *d);
+        if (!d) return 0;
+        for (uint32_t i = 0; i < n; i++) d[i].sType = VK_STRUCTURE_TYPE_CHECKPOINT_DATA_NV;
+        g_vk.vkGetQueueCheckpointDataNV(q, &n, d);
+        uint32_t k = 0;
+        for (uint32_t i = 0; i < n && k < max; i++, k++) {
+            markers[k] = (uint64_t)(uintptr_t)d[i].pCheckpointMarker;
+            /* VkPipelineStageFlagBits: top (0x1) and bottom (0x2000) of pipe map to the 2 values. */
+            stages[k] = d[i].stage == VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT ? VK_PIPELINE_STAGE_2_TOP_OF_PIPE_BIT
+                      : d[i].stage == VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT ? VK_PIPELINE_STAGE_2_BOTTOM_OF_PIPE_BIT
+                      : (uint64_t)d[i].stage;
+        }
+        free(d);
+        return k;
+    }
+    uint32_t n = 0;
+    g_vk.vkGetQueueCheckpointData2NV(q, &n, NULL);
+    if (n == 0) return 0;
+    VkCheckpointData2NV *d = calloc(n, sizeof *d);
+    if (!d) return 0;
+    for (uint32_t i = 0; i < n; i++) d[i].sType = VK_STRUCTURE_TYPE_CHECKPOINT_DATA_2_NV;
+    g_vk.vkGetQueueCheckpointData2NV(q, &n, d);
+    uint32_t k = 0;
+    for (uint32_t i = 0; i < n && k < max; i++, k++) {
+        markers[k] = (uint64_t)(uintptr_t)d[i].pCheckpointMarker;
+        stages[k] = (uint64_t)d[i].stage;
+    }
+    free(d);
+    return k;
+}
+
+VkSemaphore yvk_timeline_create(yvk_context *ctx, uint64_t initial) {
+    VkSemaphoreTypeCreateInfo ti = {VK_STRUCTURE_TYPE_SEMAPHORE_TYPE_CREATE_INFO, NULL, VK_SEMAPHORE_TYPE_TIMELINE,
+                                    initial};
+    VkSemaphoreCreateInfo si = {VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO, &ti, 0};
+    VkSemaphore s = VK_NULL_HANDLE;
+    if (g_vk.vkCreateSemaphore(ctx->device, &si, NULL, &s) != VK_SUCCESS) return VK_NULL_HANDLE;
+    return s;
+}
+
+VkResult yvk_timeline_wait(yvk_context *ctx, VkSemaphore semaphore, uint64_t value, uint64_t timeoutNs) {
+    VkSemaphoreWaitInfo wi = {VK_STRUCTURE_TYPE_SEMAPHORE_WAIT_INFO, NULL, 0, 1, &semaphore, &value};
+    return g_vk.vkWaitSemaphores(ctx->device, &wi, timeoutNs);
+}
+
+uint64_t yvk_timeline_value(yvk_context *ctx, VkSemaphore semaphore) {
+    uint64_t v = 0;
+    g_vk.vkGetSemaphoreCounterValue(ctx->device, semaphore, &v);
+    return v;
+}
+
+VkResult yvk_timeline_query(yvk_context *ctx, VkSemaphore semaphore, uint64_t *value) {
+    *value = 0;
+    return g_vk.vkGetSemaphoreCounterValue(ctx->device, semaphore, value);
+}
+
+VkResult yvk_timeline_signal(yvk_context *ctx, VkSemaphore semaphore, uint64_t value) {
+    VkSemaphoreSignalInfo si = {VK_STRUCTURE_TYPE_SEMAPHORE_SIGNAL_INFO, NULL, semaphore, value};
+    return g_vk.vkSignalSemaphore(ctx->device, &si);
+}
+
+/* ------------------------------------------------------------------ */
+/* Helper processes                                                    */
+
+extern char **environ;
+
+int yvk_spawn_piped(const char *path, char *const argv[], int *pid, int *toChild, int *fromChild) {
+    int in[2], out[2];
+#if defined(__linux__)
+    if (pipe2(in, O_CLOEXEC) != 0) return errno;
+    if (pipe2(out, O_CLOEXEC) != 0) { int e = errno; close(in[0]); close(in[1]); return e; }
+#else
+    if (pipe(in) != 0) return errno;
+    if (pipe(out) != 0) { int e = errno; close(in[0]); close(in[1]); return e; }
+    fcntl(in[0], F_SETFD, FD_CLOEXEC); fcntl(in[1], F_SETFD, FD_CLOEXEC);
+    fcntl(out[0], F_SETFD, FD_CLOEXEC); fcntl(out[1], F_SETFD, FD_CLOEXEC);
+#endif
+    posix_spawn_file_actions_t fa;
+    posix_spawnattr_t attr;
+    posix_spawn_file_actions_init(&fa);
+    posix_spawnattr_init(&attr);
+    posix_spawn_file_actions_adddup2(&fa, in[0], 0);
+    posix_spawn_file_actions_adddup2(&fa, out[1], 1);
+#if defined(__linux__)
+    posix_spawn_file_actions_addclosefrom_np(&fa, 3);
+#elif defined(__APPLE__)
+    posix_spawnattr_setflags(&attr, POSIX_SPAWN_CLOEXEC_DEFAULT);
+    posix_spawn_file_actions_addinherit_np(&fa, 2);
+#endif
+    pid_t child = 0;
+    int r = posix_spawn(&child, path, &fa, &attr, argv, environ);
+    posix_spawn_file_actions_destroy(&fa);
+    posix_spawnattr_destroy(&attr);
+    close(in[0]);
+    close(out[1]);
+    if (r != 0) { close(in[1]); close(out[0]); return r; }
+    *pid = (int)child;
+    *toChild = in[1];
+    *fromChild = out[0];
+    return 0;
+}
+
+int yvk_write_all(int fd, const void *bytes, size_t length) {
+    sigset_t block, old;
+    sigemptyset(&block);
+    sigaddset(&block, SIGPIPE);
+    pthread_sigmask(SIG_BLOCK, &block, &old);
+    const char *p = bytes;
+    int result = 0;
+    while (length > 0) {
+        ssize_t n = write(fd, p, length);
+        if (n < 0) {
+            if (errno == EINTR) continue;
+            result = errno;
+            break;
+        }
+        p += n;
+        length -= (size_t)n;
+    }
+    if (result == EPIPE && !sigismember(&old, SIGPIPE)) {
+        /* Consume the SIGPIPE this thread raised before unblocking. */
+#if defined(__linux__)
+        struct timespec zero = {0, 0};
+        while (sigtimedwait(&block, NULL, &zero) == SIGPIPE) {}
+#else
+        sigset_t pending;
+        if (sigpending(&pending) == 0 && sigismember(&pending, SIGPIPE)) { int sig; sigwait(&block, &sig); }
+#endif
+    }
+    pthread_sigmask(SIG_SETMASK, &old, NULL);
+    return result;
+}
+
+int yvk_read_exactly(int fd, void *bytes, size_t length) {
+    char *p = bytes;
+    while (length > 0) {
+        ssize_t n = read(fd, p, length);
+        if (n < 0) {
+            if (errno == EINTR) continue;
+            return errno;
+        }
+        if (n == 0) return -1;
+        p += n;
+        length -= (size_t)n;
+    }
+    return 0;
+}
+
+void yvk_end_child(int pid) {
+    if (pid <= 0) return;
+    kill((pid_t)pid, SIGKILL);
+    while (waitpid((pid_t)pid, NULL, 0) < 0 && errno == EINTR) {}
+}

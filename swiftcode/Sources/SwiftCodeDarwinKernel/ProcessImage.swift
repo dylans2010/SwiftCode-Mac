@@ -1,0 +1,797 @@
+// Pure builders for the process image the VMM writes before boot
+// (`specs/simulator/stage3-contract.md` §2, §5, §6). Each returns bytes plus
+// the guest addresses the caller needs; none of them touches guest memory.
+
+#if canImport(Glibc)
+import Glibc
+#elseif canImport(Darwin)
+import Darwin
+#endif
+
+// MARK: - Fixed addresses
+
+/// The stage-3a guest virtual address map (`stage3-contract.md` §2).
+public enum Stage3Layout {
+    /// The guest page size in bytes (16 KiB).
+    public static let pageSize: UInt64 = 0x4000
+    /// The main stack: 8 MiB ending at `userStack`.
+    public static let userStack: UInt64 = 0x1_6FE0_0000
+    /// The main stack's size in bytes.
+    public static let stackSize: UInt64 = 8 << 20
+    /// The main stack's lowest address.
+    public static let stackBase: UInt64 = userStack - stackSize
+    /// The shared-region reservation (nothing else may be mapped here).
+    public static let sharedRegionStart: UInt64 = 0x1_8000_0000
+    /// The end of the shared-region reservation (exclusive).
+    public static let sharedRegionEnd: UInt64 = 0x3_0000_0000
+    /// Where `dyld_sim` is mapped.
+    public static let dyldSimBase: UInt64 = 0x3_0000_0000
+    /// First address for "anywhere" allocations.
+    public static let anonymousBase: UInt64 = 0x3_2000_0000
+    /// The read-only commpage (16 KiB).
+    public static let commpageRO: UInt64 = 0xF_FFFF_4000
+    /// The commpage that `stage3-contract.md` §6 fills (16 KiB; EL0 maps it read-only).
+    public static let commpageRW: UInt64 = 0xF_FFFF_C000
+    /// The main-thread block's page (`host-libraries.md` §8.3): one 16 KiB
+    /// EL0 RW page right after the SwiftCode host page.
+    public static let mainThreadPage: UInt64 = 0x3_1001_0000
+    /// The main-thread block page's size in bytes.
+    public static let mainThreadPageSize: UInt64 = 0x4000
+    /// Guest RAM size reported in the commpage and by `hw.memsize`: 1 GiB.
+    /// The VMM may set it once, before the first image (diagnostics,
+    /// `SWIFTCODE_GUEST_MEMSIZE`).
+    nonisolated(unsafe) public static var memorySize: UInt64 = 1 << 30
+}
+
+/// Offsets of the SwiftCode host page (`stage3-contract.md` §5).
+///
+/// Every address is a guest virtual address inside the 64 KiB page at
+/// `base`; every `…Size` is in bytes. The table in §5 says what each area
+/// holds and who writes it.
+public enum HostPageLayout {
+    public static let base: UInt64 = 0x3_1000_0000
+    public static let size: UInt64 = 0x1_0000
+    /// `_swiftcode_launch`, the EL0 entry.
+    public static let launchEntry: UInt64 = base
+    public static let code: UInt64 = base
+    public static let codeSize: UInt64 = 0x4000
+    public static let helpersTable: UInt64 = base + 0x4000
+    public static let helpersTableSize: UInt64 = 544
+    public static let helpersVersion: UInt64 = 18
+    public static let rwData: UInt64 = base + 0x8000
+    public static let rwDataSize: UInt64 = 0x8000
+    public static let errnoCell: UInt64 = base + 0x8000
+    public static let startGlueCell: UInt64 = base + 0x8008
+    public static let launchBlock: UInt64 = base + 0x8040
+    public static let allImageInfos: UInt64 = base + 0x8100
+    /// `infoArray`, `uuidArray`, and path strings (2 KiB).
+    public static let imageInfoStorage: UInt64 = base + 0x8300
+    public static let imageInfoStorageSize: UInt64 = 0x800
+    /// `sysctlbyname` and scratch space (4 KiB).
+    public static let scratch: UInt64 = base + 0x9000
+}
+
+/// The well-known Mach port names (`stage3-contract.md` §8).
+///
+/// `task`, `thread` and `host` are the names the self traps return.
+/// Dynamically allocated names start at `firstDynamic` and advance by
+/// `dynamicStep`.
+public enum WellKnownPort {
+    public static let task: UInt32 = 0x103
+    public static let thread: UInt32 = 0x203
+    public static let host: UInt32 = 0x303
+    /// The bootstrap port (`host-libraries.md` §10).
+    public static let bootstrap: UInt32 = 0x503
+    public static let firstDynamic: UInt32 = 0x1003
+    public static let dynamicStep: UInt32 = 0x100
+}
+
+// MARK: - Kernel argument block
+
+/// The block the kernel builds at the top of the main stack
+/// (`darwin-process-start.md` §1.3). From the lowest address up: the
+/// mach_header slot, `argc`, `argv[]` + NULL, `envp[]` + NULL, `apple[]` +
+/// NULL, then the string area, which ends exactly at `userStack`.
+public struct KernelArgumentBlock: Equatable, Sendable {
+    /// The bytes from `stackPointer` up to (not including) `userStack`.
+    public var bytes: [UInt8]
+    /// The block's lowest address: the mach_header slot. This is the SP the
+    /// kernel would hand over, and the launch block's `stackTop`. Not
+    /// rounded to 16 bytes.
+    public var stackPointer: UInt64
+    /// The guest address of the `argc` word, just above the mach_header slot.
+    public var argcAddress: UInt64 { stackPointer + 8 }
+    /// The guest address of `argv[0]`'s pointer slot.
+    public var argvAddress: UInt64
+    /// The guest address of `envp[0]`'s pointer slot.
+    public var envpAddress: UInt64
+    /// The guest address of `apple[0]`'s pointer slot.
+    public var appleAddress: UInt64
+    /// Start of the string area (`userStack − stringAreaSize`).
+    public var stringAreaAddress: UInt64
+    /// The number of `argv` strings.
+    public var argc: Int
+    /// Guest address of every string, in order.
+    public var argvStringAddresses: [UInt64]
+    /// Guest address of every `envp` string, in order.
+    public var envpStringAddresses: [UInt64]
+    /// Guest address of every `apple[]` string, in order (`apple[0]` first).
+    public var appleStringAddresses: [UInt64]
+
+    /// Builds the block.
+    /// - Parameters:
+    ///   - userStack: the stack top (16 KiB aligned); the last string padding byte is at `userStack − 1`.
+    ///   - argv, envp: the strings, without terminating NULs.
+    ///   - apple: the full `apple[]` list. `apple[0]` is the `executable_path=…` string,
+    ///     which the kernel stores first in the string area; the rest go after envp.
+    ///   - machHeader: the main executable's (slid) `mach_header_64` address.
+    public init(userStack: UInt64, argv: [String], envp: [String], apple: [String], machHeader: UInt64) {
+        precondition(!apple.isEmpty, "apple[0] (executable_path=) is required")
+        // String area, low to high.
+        var strings: [UInt8] = []
+        var appleOffsets: [Int] = [0]
+        strings += cString(apple[0])
+        strings.padTo(8)
+        var argvOffsets: [Int] = []
+        for s in argv { argvOffsets.append(strings.count); strings += cString(s) }
+        var envpOffsets: [Int] = []
+        for s in envp { envpOffsets.append(strings.count); strings += cString(s) }
+        strings.padTo(8)
+        for s in apple.dropFirst() { appleOffsets.append(strings.count); strings += cString(s) }
+        strings.padTo(8)
+
+        let stringBase = userStack - UInt64(strings.count)
+        let pointerWords = (argv.count + 1) + (envp.count + 1) + (apple.count + 1)
+        let sp = stringBase - UInt64(8 * pointerWords) - 16
+
+        argvStringAddresses = argvOffsets.map { stringBase + UInt64($0) }
+        envpStringAddresses = envpOffsets.map { stringBase + UInt64($0) }
+        appleStringAddresses = appleOffsets.map { stringBase + UInt64($0) }
+
+        var b: [UInt8] = []
+        b.reserveCapacity(Int(userStack - sp))
+        b.appendLE(machHeader)
+        b.appendLE(UInt64(argv.count))
+        for a in argvStringAddresses { b.appendLE(a) }
+        b.appendLE(UInt64(0))
+        for a in envpStringAddresses { b.appendLE(a) }
+        b.appendLE(UInt64(0))
+        for a in appleStringAddresses { b.appendLE(a) }
+        b.appendLE(UInt64(0))
+        b += strings
+
+        bytes = b
+        stackPointer = sp
+        argc = argv.count
+        argvAddress = sp + 16
+        envpAddress = argvAddress + UInt64(8 * (argv.count + 1))
+        appleAddress = envpAddress + UInt64(8 * (envp.count + 1))
+        stringAreaAddress = stringBase
+    }
+}
+
+// MARK: - apple[] strings
+
+/// The `apple[]` strings SwiftCode provides, in the kernel's order
+/// (`stage3-contract.md` §6, formats from `darwin-process-start.md` §1.4):
+/// `executable_path`, `stack_guard`, `malloc_entropy`, `ptr_munge`
+/// (non-zero), `main_stack`, `th_port`, `security_config`
+/// (`host-libraries.md` §8.6).
+public struct AppleStrings: Equatable, Sendable {
+    public var stackGuard: UInt64
+    public var mallocEntropy: (UInt64, UInt64)
+    public var ptrMunge: UInt64
+    /// The full list; element 0 is `executable_path=…`.
+    public var strings: [String]
+
+    public static func == (a: AppleStrings, b: AppleStrings) -> Bool {
+        a.strings == b.strings && a.stackGuard == b.stackGuard && a.ptrMunge == b.ptrMunge
+            && a.mallocEntropy.0 == b.mallocEntropy.0 && a.mallocEntropy.1 == b.mallocEntropy.1
+    }
+
+    /// - Parameters:
+    ///   - executablePath: the guest path of the executable.
+    ///   - mainStack: `main_stack=` values: top, usable size, allocation base,
+    ///     allocation size (the kernel's order; the default is the §2 stack
+    ///     with no separate guard).
+    ///   - threadPort: the main thread's port name (`th_port=`).
+    ///   - securityConfig: `security_config=` (always present, `0x0` in SwiftCode).
+    ///   - rng: the source of the three random keys.
+    public init<R: RandomNumberGenerator>(
+        executablePath: String,
+        mainStack: (top: UInt64, size: UInt64, allocBase: UInt64, allocSize: UInt64) =
+            (Stage3Layout.userStack, Stage3Layout.stackSize, Stage3Layout.stackBase, Stage3Layout.stackSize),
+        threadPort: UInt32 = WellKnownPort.thread,
+        securityConfig: UInt32 = 0,
+        using rng: inout R
+    ) {
+        // Bits 8–15 cleared so the guard contains a NUL byte.
+        stackGuard = rng.next() & ~UInt64(0xFF00)
+        mallocEntropy = (rng.next(), rng.next())
+        // The munge token must be non-zero (host-libraries.md §8.6).
+        let munge = rng.next()
+        ptrMunge = munge != 0 ? munge : 0x5943_4F44_455F_4D55
+        strings = [
+            "executable_path=" + executablePath,
+            "stack_guard=" + hxPadded(stackGuard, digits: 16),
+            "malloc_entropy=" + hx(mallocEntropy.0) + "," + hx(mallocEntropy.1),
+            "ptr_munge=" + hx(ptrMunge),
+            "main_stack=" + [mainStack.top, mainStack.size, mainStack.allocBase, mainStack.allocSize].map { hx($0) }
+                .joined(separator: ","),
+            "th_port=" + hx(threadPort),
+            "security_config=" + hx(securityConfig),
+        ]
+    }
+
+    /// The same, using the system random number generator.
+    public init(executablePath: String) {
+        var rng = SystemRandomNumberGenerator()
+        self.init(executablePath: executablePath, using: &rng)
+    }
+}
+
+// MARK: - Main-thread block
+
+/// The main thread's `pthread_t` + TSD block that the VMM builds before boot,
+/// standing in for the host dyld (`host-libraries.md` §8.3,
+/// `host-library-init.md` §5.1 and §9.1 A). `TPIDRRO_EL0` = `tsdBase`.
+public struct MainThreadBlock: Equatable, Sendable {
+    /// The block size (≥ `sizeof(struct pthread_s)` = 6368).
+    public static let byteCount = 8192
+    /// Byte offsets from the block start.
+    public enum Offset {
+        public static let errNo = 172
+        public static let stackAddr = 176
+        public static let stackBottom = 184
+        public static let threadID = 216
+        /// TSD slot 0; `TPIDRRO_EL0` points here.
+        public static let tsd = 224
+        public static func slot(_ k: Int) -> Int { tsd + 8 * k }
+    }
+
+    /// The block's guest address (16-byte aligned).
+    public var address: UInt64
+    public var bytes: [UInt8]
+    /// The initial `TPIDRRO_EL0`: block + 224.
+    public var tsdBase: UInt64 { address + UInt64(Offset.tsd) }
+
+    /// - Parameters:
+    ///   - address: where the block lives (16-byte aligned, EL0 RW).
+    ///   - threadID: `thread_id` (+216).
+    ///   - threadPort: slot 3, the Mach thread port name.
+    ///   - stackTop, stackSize: `stackaddr` (+176) = top, `stackbottom` (+184) = top − size.
+    ///   - qos: slot 4 (default `0x8FF`, LEGACY QoS; `host-libraries.md` §10).
+    ///   - ptrMunge: slot 7, the `ptr_munge=` token (0 leaves the slot empty).
+    public init(address: UInt64, threadID: UInt64 = 1, threadPort: UInt32 = WellKnownPort.thread,
+                stackTop: UInt64 = Stage3Layout.userStack, stackSize: UInt64 = Stage3Layout.stackSize,
+                qos: UInt64 = 0x8FF, ptrMunge: UInt64 = 0) {
+        precondition(address & 0xF == 0, "the main-thread block must be 16-byte aligned")
+        self.address = address
+        var b = [UInt8](repeating: 0, count: Self.byteCount)
+        b.putLE(stackTop, at: Offset.stackAddr)
+        b.putLE(stackTop - stackSize, at: Offset.stackBottom)
+        b.putLE(threadID, at: Offset.threadID)
+        b.putLE(address, at: Offset.slot(0))
+        b.putLE(address + UInt64(Offset.errNo), at: Offset.slot(1))
+        b.putLE(UInt64(threadPort), at: Offset.slot(3))
+        b.putLE(qos, at: Offset.slot(4))
+        b.putLE(ptrMunge, at: Offset.slot(7))
+        bytes = b
+    }
+}
+
+/// The `envp` of the simulated process (`stage3-contract.md` §6).
+public enum SimulatorEnvironment {
+    /// The environment strings, with every runtime path rooted at `runtimeRoot`
+    /// (the simulator runtime's root path).
+    public static func make(runtimeRoot: String) -> [String] {
+        [
+            "DYLD_ROOT_PATH=\(runtimeRoot)",
+            "SIMULATOR_ROOT=\(runtimeRoot)",
+            "IPHONE_SIMULATOR_ROOT=\(runtimeRoot)",
+            "DYLD_SHARED_CACHE_DIR=\(runtimeRoot)/System/Library/Caches/com.apple.dyld",
+            "HOME=/tmp",
+            "TMPDIR=/tmp/",
+            "PATH=\(runtimeRoot)/usr/bin:\(runtimeRoot)/bin",
+            "XPC_SIMULATOR_LAUNCHD_NAME=dev.swiftcode.sim",
+        ]
+    }
+}
+
+// MARK: - Commpage
+
+/// The guest's CPU count, N (`darwin-process-start.md`, "Guest CPU count"):
+/// the commpage, the `hw.*cpu*` sysctls, the workqueue parallelism, the
+/// cooperative pool width and `QOS_MAX_PARALLELISM` all use it.
+/// `SWIFTCODE_GUEST_CPUS=<n>` (1…64; a launcher setting) sets it; otherwise 1.
+/// One CPU is the measured default: N = 14 did not reach the home screen
+/// sooner on the Thor and kept the kernel lock busier (more parallel
+/// workers, more lock contention).
+public enum GuestCPUs {
+    /// The CPU count when `SWIFTCODE_GUEST_CPUS` is unset.
+    public static let defaultCount = 1
+    /// The guest's CPU count, read once from `SWIFTCODE_GUEST_CPUS` and clamped to 1…64.
+    public static let count: Int = {
+        if let raw = getenv("SWIFTCODE_GUEST_CPUS"), let n = Int(String(cString: raw)) { return min(64, max(1, n)) }
+        return defaultCount
+    }()
+}
+
+/// The guest's mach timebase (`darwin-process-start.md`, "Guest timebase").
+/// By default the guest sees Apple's arm64 timebase, 24 MHz
+/// (`mach_timebase_info` 125/3), whatever the host counter's frequency:
+/// Swift Concurrency converts its deadlines to mach ticks with that fixed
+/// ratio on Apple arm64 (swift `DispatchGlobalExecutor.cpp`,
+/// `platform_time`), so on a 1 GHz counter every `Task.sleep` deadline
+/// lands in the past and sleeping tasks spin. Guest mach time is then the
+/// host counter scaled (`scale`), served by traps −3/−4 only; the commpage
+/// advertises no user timebase (`USER_TIMEBASE` = 0).
+/// `SWIFTCODE_GUEST_TIMEBASE=host` gives the guest the host counter instead
+/// (`mach_timebase_info` = 10⁹ / `CNTFRQ_EL0`, `USER_TIMEBASE` = 1).
+public enum GuestTimebase {
+    /// Apple arm64's timebase frequency (125/3 ns per tick).
+    public static let appleFrequency: UInt64 = 24_000_000
+
+    /// True when the guest uses the host counter as is (`SWIFTCODE_GUEST_TIMEBASE=host`).
+    public static let usesHostCounter: Bool = {
+        guard let raw = getenv("SWIFTCODE_GUEST_TIMEBASE") else { return false }
+        return String(cString: raw).lowercased() == "host"
+    }()
+
+    /// The guest's tick frequency for a host counter of `hostFrequency` Hz.
+    public static func frequency(hostFrequency: UInt64) -> UInt64 {
+        usesHostCounter ? hostFrequency : appleFrequency
+    }
+
+    /// The fixed-point clock scale (`fast-traps.md` §3.2): mach time =
+    /// ⌊counter × multiplier / 2^shift⌋. The kernel's traps and the guest
+    /// library's in-place read use exactly this formula, so they agree.
+    public struct ClockScale: Equatable, Sendable {
+        public var multiplier: UInt64
+        public var shift: UInt64
+
+        public static let identity = ClockScale(multiplier: 1, shift: 0)
+
+        public init(multiplier: UInt64, shift: UInt64) {
+            self.multiplier = multiplier
+            self.shift = shift
+        }
+
+        /// The scale from a `from` Hz counter to `to` Hz ticks: identity when
+        /// equal, else the largest shift ≤ 64 whose multiplier
+        /// ⌈to × 2^shift / from⌉ fits 64 bits (rounded up, so whole
+        /// multiples of the ratio come out exact).
+        public init(from: UInt64, to: UInt64) {
+            guard from != to, from != 0, to != 0 else { self = .identity; return }
+            for s in stride(from: 64, through: 0, by: -1) {
+                // to × 2^s as (hi, lo).
+                let hi: UInt64 = s == 64 ? to : (s == 0 ? 0 : to >> (64 - s))
+                let lo: UInt64 = s == 64 ? 0 : to << s
+                guard hi < from else { continue }
+                let (q, r) = from.dividingFullWidth((hi, lo))
+                guard r == 0 || q < UInt64.max else { continue }
+                self.init(multiplier: r == 0 ? q : q + 1, shift: UInt64(s))
+                return
+            }
+            self = .identity
+        }
+
+        @inline(__always)
+        public func apply(_ ticks: UInt64) -> UInt64 {
+            if shift == 0 { return ticks &* multiplier }
+            let (hi, lo) = ticks.multipliedFullWidth(by: multiplier)
+            return shift == 64 ? hi : (hi << (64 - shift)) | (lo >> shift)
+        }
+    }
+
+    /// `ticks` of a `from` Hz counter as guest mach ticks of a `to` Hz
+    /// timebase (`ClockScale`; monotonic).
+    @inline(__always)
+    public static func scale(_ ticks: UInt64, from: UInt64, to: UInt64) -> UInt64 {
+        from == to ? ticks : ClockScale(from: from, to: to).apply(ticks)
+    }
+}
+
+/// The two commpage data pages (`darwin-process-start.md` §3, values from
+/// `stage3-contract.md` §6). Simulator code reads the legacy RW offsets, so
+/// both copies of the duplicated fields are filled.
+public struct CommpageBuilder: Equatable, Sendable {
+    /// RW-data page offsets (`_COMM_PAGE_…`).
+    public enum Offset {
+        public static let signature = 0x000
+        public static let cpuCapabilities64 = 0x010
+        public static let version = 0x01E
+        public static let cpuCapabilities = 0x020
+        public static let ncpus = 0x022
+        public static let userPageShift32 = 0x024
+        public static let userPageShift64 = 0x025
+        public static let cacheLineSize = 0x026
+        public static let cpuClusters = 0x02F
+        public static let memoryPressure = 0x030
+        public static let activeCPUs = 0x034
+        public static let physicalCPUs = 0x035
+        public static let logicalCPUs = 0x036
+        public static let kernelPageShift = 0x037
+        public static let memorySize = 0x038
+        public static let cpuFamily = 0x080
+        public static let devFirm = 0x084
+        public static let timebaseOffset = 0x088
+        public static let userTimebase = 0x090
+        public static let contHWClock = 0x091
+        public static let contTimebase = 0x098
+        public static let boottimeUsec = 0x0A0
+        public static let contHWTimebase = 0x0A8
+        public static let approxTime = 0x0C0
+        public static let approxTimeSupported = 0x0C8
+        /// SwiftCode-private flag byte in Darwin's UNUSED1 padding
+        /// (`fast-traps.md` §2; bits in `FastFlag`).
+        public static let fastFlags = 0x0F8
+        public static let newTimeOfDay = 0x120
+        public static let remoteTimeParams = 0x148
+        public static let dyldFlags = 0x160
+        public static let cpuToCluster = 0x200
+        /// SwiftCode-private credential block above `_COMM_PAGE_END`
+        /// (`fast-traps.md` §5): u32 uid, euid, gid, egid.
+        public static let credentials = 0x1000
+        /// SwiftCode-private clock scale (`fast-traps.md` §3.2): u64 multiplier
+        /// at 0x1010, u64 shift at 0x1018.
+        public static let clockMultiplier = 0x1010
+        public static let clockShift = 0x1018
+    }
+
+    /// Bits of the `Offset.fastFlags` byte (`fast-traps.md` §2).
+    public enum FastFlag {
+        /// The guest reads `CNTVCT_EL0` in place: every vCPU of every VM has
+        /// the system's counter offset (§3.1).
+        public static let directClock: UInt8 = 1
+        /// The credential calls answer from `Offset.credentials` (§5).
+        public static let credentialBlock: UInt8 = 2
+        /// Calls with a fixed kernel answer are answered in the library
+        /// (§5a): `madvise` advice 0…10 (success), other advice but 11
+        /// (EINVAL), `issetugid` (0).
+        public static let localCalls: UInt8 = 4
+        /// The library keeps the sysctl name-to-OID and `kern.boottime`
+        /// answers (§5a).
+        public static let sysctlCache: UInt8 = 8
+    }
+
+    /// The `NEWTIMEOFDAY_DATA` fields after `TimeStamp_tick`
+    /// (`darwin-process-start.md` §3.6, `fast-traps.md` §4).
+    public struct TimeOfDaySnapshot: Equatable, Sendable {
+        public var tick: UInt64
+        public var seconds: UInt64
+        /// The sub-second part as a 64-bit binary fraction.
+        public var fraction: UInt64
+        /// ⌊2^63 / frequency⌋ × 2.
+        public var scale: UInt64
+        public var ticksPerSecond: UInt64
+
+        /// The snapshot of calendar time (`seconds`, `nanoseconds`) taken at
+        /// mach time `tick`, for a counter of `frequency` Hz.
+        public init(tick: UInt64, seconds: Int64, nanoseconds: Int64, frequency: UInt64) {
+            let nsec = UInt64(clamping: min(max(nanoseconds, 0), 999_999_999))
+            self.tick = tick
+            self.seconds = UInt64(bitPattern: max(seconds, 0))
+            // ⌊nsec × 2^64 / 10^9⌋ (nsec < 10^9, so the quotient fits).
+            self.fraction = UInt64(1_000_000_000).dividingFullWidth((high: nsec, low: 0)).quotient
+            let f = max(frequency, 1)
+            self.scale = ((UInt64(1) << 63) / f) &* 2
+            self.ticksPerSecond = f
+        }
+
+        /// The calendar time this snapshot gives at mach time `now`, as
+        /// the guest library computes it (nil when the snapshot is stale or
+        /// invalid: the caller makes BSD 116).
+        public func timeval(at now: UInt64) -> (seconds: UInt64, microseconds: UInt32)? {
+            guard tick != 0 else { return nil }
+            let delta = now >= tick ? now - tick : 0
+            guard delta < ticksPerSecond else { return nil }
+            let (frac, wrapped) = fraction.addingReportingOverflow(delta &* scale)
+            let usec = frac.multipliedFullWidth(by: 1_000_000).high
+            return (seconds + (wrapped ? 1 : 0), UInt32(truncatingIfNeeded: usec))
+        }
+    }
+
+    /// Capability bits (`darwin-process-start.md` §3.5).
+    public enum Capability {
+        public static let cache32: UInt64 = 0x10
+        public static let cache64: UInt64 = 0x20
+        public static let cache128: UInt64 = 0x40
+        public static let fastThreadLocalStorage: UInt64 = 0x80
+        public static let hasAdvSIMD: UInt64 = 0x100
+        public static let hasVfp: UInt64 = 0x400
+        public static let hasEvent: UInt64 = 0x1000
+        public static let hasFMA: UInt64 = 0x2000
+        public static let up: UInt64 = 0x8000
+        public static let numCPUsShift: UInt64 = 16
+    }
+
+    public static let signatureText = "commpage 64-bit"
+    public static let layoutVersion: UInt16 = 3
+    /// `USER_TIMEBASE` = 1: `CNTVCT_EL0` after `isb`.
+    public static let userTimebaseSpec: UInt8 = 1
+    public static let remoteTimeSentinel: UInt64 = 0xFFFF_FFFF_FFFF_FFFC
+
+    public var cpuCount = UInt8(GuestCPUs.count)
+    /// The coherency line size (`hw.cachelinesize`; cpu-features.md §4.5).
+    public var cacheLineSize = UInt16(GuestCPUProfile.current.cacheLineSize)
+    public var memorySize: UInt64 = Stage3Layout.memorySize
+    public var pageShift: UInt8 = 14
+    /// Optional capability bits the guest vCPU really has: the installed
+    /// CPU profile's (cpu-features.md §4.4; 0 with `SWIFTCODE_CPU_FEATURES=off`
+    /// or before a profile is installed).
+    public var optionalCapabilities: UInt64 = GuestCPUProfile.current.commpageOptionalBits
+    public var bootTimeMicroseconds: UInt64 = 0
+    public var timebaseOffset: UInt64 = 0
+    /// `USER_TIMEBASE` (0x090): 1 when the guest's mach time is the counter
+    /// it can read (`GuestTimebase.usesHostCounter`), else 0 (traps only).
+    public var userTimebase: UInt8 = GuestTimebase.usesHostCounter ? CommpageBuilder.userTimebaseSpec : 0
+    /// The SwiftCode fast-path flags (`FastFlag`; 0 = every call traps).
+    public var fastFlags: UInt8 = 0
+    /// The first `NEWTIMEOFDAY_DATA` snapshot (nil = zero, "invalid").
+    public var timeOfDay: TimeOfDaySnapshot?
+    /// What `Offset.credentials` holds (uid, euid, gid, egid).
+    public var credentials = Credentials()
+    /// The clock scale at `Offset.clockMultiplier`/`clockShift`
+    /// (`fast-traps.md` §3.2; nil = zero, "no scaling").
+    public var clockScale: GuestTimebase.ClockScale?
+
+    /// The credential block's values (`fast-traps.md` §5).
+    public struct Credentials: Equatable, Sendable {
+        public var uid: UInt32 = 0, euid: UInt32 = 0, gid: UInt32 = 0, egid: UInt32 = 0
+        public init(uid: UInt32 = 0, euid: UInt32 = 0, gid: UInt32 = 0, egid: UInt32 = 0) {
+            self.uid = uid; self.euid = euid; self.gid = gid; self.egid = egid
+        }
+    }
+
+    public init() {}
+
+    public var capabilities: UInt64 {
+        var caps = Capability.fastThreadLocalStorage | Capability.hasVfp | Capability.hasEvent | Capability.hasFMA
+        caps |= UInt64(cpuCount) << Capability.numCPUsShift
+        if cpuCount == 1 { caps |= Capability.up }
+        switch cacheLineSize {
+        case 32: caps |= Capability.cache32
+        case 64: caps |= Capability.cache64
+        case 128: caps |= Capability.cache128
+        default: break
+        }
+        return caps | optionalCapabilities
+    }
+
+    /// The RW-data page (16 KiB), mapped EL0 read-only at `0xF_FFFF_C000`.
+    public func rwPage() -> [UInt8] {
+        var p = [UInt8](repeating: 0, count: Int(Stage3Layout.pageSize))
+        p.put(Array(Self.signatureText.utf8), at: Offset.signature)
+        p.putLE(capabilities, at: Offset.cpuCapabilities64)
+        p.putLE(Self.layoutVersion, at: Offset.version)
+        p.putLE(UInt32(truncatingIfNeeded: capabilities), at: Offset.cpuCapabilities)
+        p[Offset.userPageShift32] = pageShift
+        p[Offset.userPageShift64] = pageShift
+        p.putLE(cacheLineSize, at: Offset.cacheLineSize)
+        p[Offset.cpuClusters] = 1
+        p[Offset.ncpus] = cpuCount
+        p[Offset.activeCPUs] = cpuCount
+        p[Offset.physicalCPUs] = cpuCount
+        p[Offset.logicalCPUs] = cpuCount
+        p[Offset.kernelPageShift] = pageShift
+        p.putLE(memorySize, at: Offset.memorySize)
+        p.putLE(timebaseOffset, at: Offset.timebaseOffset)
+        p[Offset.userTimebase] = userTimebase
+        p.putLE(bootTimeMicroseconds, at: Offset.boottimeUsec)
+        p[Offset.fastFlags] = fastFlags
+        if let t = timeOfDay {
+            for (i, v) in [t.tick, t.seconds, t.fraction, t.scale, t.ticksPerSecond].enumerated() {
+                p.putLE(v, at: Offset.newTimeOfDay + 8 * i)
+            }
+        }
+        if let scale = clockScale {
+            p.putLE(scale.multiplier, at: Offset.clockMultiplier)
+            p.putLE(scale.shift, at: Offset.clockShift)
+        }
+        if fastFlags & FastFlag.credentialBlock != 0 {
+            for (i, v) in [credentials.uid, credentials.euid, credentials.gid, credentials.egid].enumerated() {
+                p.putLE(v, at: Offset.credentials + 4 * i)
+            }
+        }
+        p.putLE(Self.remoteTimeSentinel, at: Offset.remoteTimeParams)
+        // cpu_to_cluster: one 0 byte per vCPU (already zero).
+        return p
+    }
+
+    /// The RO-data page (16 KiB), mapped EL0 read-only at `0xF_FFFF_4000`.
+    public func roPage() -> [UInt8] {
+        var p = [UInt8](repeating: 0, count: Int(Stage3Layout.pageSize))
+        p[Offset.userPageShift32] = pageShift
+        p[Offset.userPageShift64] = pageShift
+        p[Offset.kernelPageShift] = pageShift
+        return p
+    }
+}
+
+// MARK: - dyld_all_image_infos
+
+/// The 368-byte LP64 `dyld_all_image_infos` (`dyld-sim-handoff.md` §4.5).
+public struct DyldAllImageInfos: Equatable, Sendable {
+    public static let byteCount = 368
+
+    public enum Offset {
+        public static let version = 0
+        public static let infoArrayCount = 4
+        public static let infoArray = 8
+        public static let notification = 16
+        public static let processDetachedFromSharedRegion = 24
+        public static let libSystemInitialized = 25
+        public static let dyldImageLoadAddress = 32
+        public static let uuidArrayCount = 88
+        public static let uuidArray = 96
+        public static let dyldAllImageInfosAddress = 104
+        public static let initialImageCount = 112
+        public static let sharedCacheSlide = 152
+        public static let sharedCacheUUID = 160
+        public static let sharedCacheBaseAddress = 176
+        public static let infoArrayChangeTimestamp = 184
+        public static let dyldPath = 192
+        public static let platform = 320
+    }
+
+    public var version: UInt32 = 17
+    public var infoArrayCount: UInt32 = 0
+    public var infoArray: UInt64 = 0
+    public var notification: UInt64 = 0
+    public var dyldImageLoadAddress: UInt64 = 0
+    public var uuidArrayCount: UInt64 = 0
+    public var uuidArray: UInt64 = 0
+    public var dyldAllImageInfosAddress: UInt64 = 0
+    public var initialImageCount: UInt64 = 0
+    public var sharedCacheSlide: UInt64 = 0
+    public var platform: UInt32 = 0
+
+    public init() {}
+
+    /// The contract's initial state (§6): version 17, one `infoArray` entry,
+    /// `notification` = the host page's `ret` stub, `dyldImageLoadAddress` =
+    /// `simMH`, `initialImageCount` = 1, `sharedCacheSlide` = 0. Every other
+    /// field is 0.
+    public static func initial(infoArray: UInt64, notification: UInt64, simMH: UInt64) -> DyldAllImageInfos {
+        var i = DyldAllImageInfos()
+        i.version = 17
+        i.infoArrayCount = 1
+        i.infoArray = infoArray
+        i.notification = notification
+        i.dyldImageLoadAddress = simMH
+        i.initialImageCount = 1
+        i.sharedCacheSlide = 0
+        return i
+    }
+
+    public func encoded() -> [UInt8] {
+        var b = [UInt8](repeating: 0, count: Self.byteCount)
+        b.putLE(version, at: Offset.version)
+        b.putLE(infoArrayCount, at: Offset.infoArrayCount)
+        b.putLE(infoArray, at: Offset.infoArray)
+        b.putLE(notification, at: Offset.notification)
+        b.putLE(dyldImageLoadAddress, at: Offset.dyldImageLoadAddress)
+        b.putLE(uuidArrayCount, at: Offset.uuidArrayCount)
+        b.putLE(uuidArray, at: Offset.uuidArray)
+        b.putLE(dyldAllImageInfosAddress, at: Offset.dyldAllImageInfosAddress)
+        b.putLE(initialImageCount, at: Offset.initialImageCount)
+        b.putLE(sharedCacheSlide, at: Offset.sharedCacheSlide)
+        b.putLE(platform, at: Offset.platform)
+        return b
+    }
+}
+
+/// The `infoArray` (and optional `uuidArray`) storage plus path strings,
+/// laid out at `base` (normally `HostPageLayout.imageInfoStorage`).
+/// `dyld_image_info` = {loadAddress, filePathPtr, modDate} (24 bytes);
+/// `dyld_uuid_info` = {loadAddress, uuid[16]} (24 bytes).
+public struct DyldImageInfoStorage: Equatable, Sendable {
+    public struct Image: Equatable, Sendable {
+        public var loadAddress: UInt64
+        public var path: String
+        public var modDate: UInt64
+        public var uuid: [UInt8]?
+        public init(loadAddress: UInt64, path: String, modDate: UInt64 = 0, uuid: [UInt8]? = nil) {
+            self.loadAddress = loadAddress
+            self.path = path
+            self.modDate = modDate
+            self.uuid = uuid
+        }
+    }
+
+    public var bytes: [UInt8]
+    public var infoArrayAddress: UInt64
+    public var infoArrayCount: UInt32
+    /// 0 when no image has a UUID.
+    public var uuidArrayAddress: UInt64
+    public var uuidArrayCount: UInt64
+
+    public init(base: UInt64, images: [Image]) {
+        let withUUID = images.filter { $0.uuid != nil }
+        let infoSize = 24 * images.count
+        let uuidSize = 24 * withUUID.count
+        let stringsOffset = infoSize + uuidSize
+        var b = [UInt8](repeating: 0, count: stringsOffset)
+        var strings: [UInt8] = []
+        for (i, image) in images.enumerated() {
+            let pathAddress = base + UInt64(stringsOffset + strings.count)
+            strings += cString(image.path)
+            b.putLE(image.loadAddress, at: 24 * i)
+            b.putLE(pathAddress, at: 24 * i + 8)
+            b.putLE(image.modDate, at: 24 * i + 16)
+        }
+        for (i, image) in withUUID.enumerated() {
+            let o = infoSize + 24 * i
+            b.putLE(image.loadAddress, at: o)
+            let uuid = Array((image.uuid ?? []).prefix(16))
+            b.put(uuid + [UInt8](repeating: 0, count: 16 - uuid.count), at: o + 8)
+        }
+        b += strings
+        b.padTo(8)
+        bytes = b
+        infoArrayAddress = base
+        infoArrayCount = UInt32(images.count)
+        uuidArrayAddress = withUUID.isEmpty ? 0 : base + UInt64(infoSize)
+        uuidArrayCount = UInt64(withUUID.count)
+    }
+}
+
+// MARK: - Launch block
+
+/// The 96-byte launch block at host page +0x8040 (`stage3-contract.md` §5).
+public struct LaunchBlock: Equatable, Sendable {
+    public static let byteCount = 96
+
+    public var prepareEntry: UInt64
+    public var argc: UInt64
+    public var argv: UInt64
+    public var envp: UInt64
+    public var apple: UInt64
+    public var mainMH: UInt64
+    public var simMH: UInt64
+    public var simSlide: UInt64
+    public var helpers: UInt64
+    public var startGlueAddr: UInt64
+    public var stackTop: UInt64
+    public var reserved: UInt64
+
+    public init(
+        prepareEntry: UInt64, argc: UInt64, argv: UInt64, envp: UInt64, apple: UInt64,
+        mainMH: UInt64, simMH: UInt64, simSlide: UInt64,
+        helpers: UInt64 = HostPageLayout.helpersTable,
+        startGlueAddr: UInt64 = HostPageLayout.startGlueCell,
+        stackTop: UInt64, reserved: UInt64 = 0
+    ) {
+        self.prepareEntry = prepareEntry
+        self.argc = argc
+        self.argv = argv
+        self.envp = envp
+        self.apple = apple
+        self.mainMH = mainMH
+        self.simMH = simMH
+        self.simSlide = simSlide
+        self.helpers = helpers
+        self.startGlueAddr = startGlueAddr
+        self.stackTop = stackTop
+        self.reserved = reserved
+    }
+
+    /// Fills `argc`/`argv`/`envp`/`apple`/`stackTop` from an argument block.
+    public init(prepareEntry: UInt64, arguments: KernelArgumentBlock, mainMH: UInt64, simMH: UInt64, simSlide: UInt64) {
+        self.init(prepareEntry: prepareEntry, argc: UInt64(arguments.argc), argv: arguments.argvAddress,
+                  envp: arguments.envpAddress, apple: arguments.appleAddress, mainMH: mainMH, simMH: simMH,
+                  simSlide: simSlide, stackTop: arguments.stackPointer)
+    }
+
+    public var words: [UInt64] {
+        [prepareEntry, argc, argv, envp, apple, mainMH, simMH, simSlide, helpers, startGlueAddr, stackTop, reserved]
+    }
+
+    public func encoded() -> [UInt8] {
+        var b: [UInt8] = []
+        b.reserveCapacity(Self.byteCount)
+        for w in words { b.appendLE(w) }
+        return b
+    }
+}
