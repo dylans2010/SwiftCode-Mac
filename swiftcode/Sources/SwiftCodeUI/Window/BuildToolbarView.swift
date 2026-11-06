@@ -1,5 +1,5 @@
 // Ported from Legacy `SwiftCode/Views/BuildToolbarView.swift` (main ab03f681; Dylan's own code, direct port authorised under MIT).
-// Staged only — not yet merged into swiftcode/Sources. See staging-wire/missing/DISPOSITIONS.md.
+// Landed in swiftcode/Sources by batch A6 (f56a21df); fixed by W-V2 (see verify/v2-missing/FIXES.md).
 // Verbatim except `.liquidGlass(...)` -> thinMaterial (see Adaptive notes).
 // BLOCKED references (left intact, owned by other scopes or unaudited):
 // RESOLVED by fix W-V2 (and A4 for the toolbar model):

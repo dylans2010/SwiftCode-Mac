@@ -3,9 +3,12 @@
 // Ported from Legacy `SwiftCode/Views/AI/AI New/ChatAIInterfaceView.swift` (SwiftCode-Mac migration, Views/UI worklist).
 // Worklist verdict: PARTIAL.
 // Missing behaviour ported: /explain quick command; /fix quick command; /plan quick command; chat-mode toggle
-// References legacy types absent from the destination and from this worklist (wiring/integration gaps): AssistantPrimaryButtonStyle, AssistantSectionHeader, ChatMessageBubble, SlashCommandList, TypingIndicatorBubble.
+// References legacy types absent from the destination and from this worklist (wiring/integration gaps): none remaining —
+// ChatMessageBubble / SlashCommandList / TypingIndicatorBubble / AssistantSectionHeader /
+// AssistantPrimaryButtonStyle / assistantGlassCard() landed in swiftcode-ide/ChatUIComponents.swift (S-FLAGS).
 // Static port only — no Swift toolchain here; build verification pending on Dylan's Mac.
 import SwiftUI
+import SwiftCodeAssistant
 
 struct ChatAIInterfaceView: View {
     @StateObject private var controller = ChatController.shared
@@ -53,9 +56,16 @@ struct ChatAIInterfaceView: View {
                 ScrollViewReader { proxy in
                     ScrollView {
                         LazyVStack(spacing: 12) {
-                            ForEach(controller.messages) { message in
-                                ChatMessageBubble(message: message)
-                                    .id(message.id)
+                            // Rebound (S-FLAGS): the production `ChatMessage`
+                            // (`SwiftCodeAssistant/Core.swift`) has no `id`
+                            // by design — do not add a stored `id` to it
+                            // (it would change its Equatable/Codable
+                            // behaviour for every provider). Iterate by
+                            // index instead; indices are stable here
+                            // because messages are only appended.
+                            ForEach(controller.messages.indices, id: \.self) { index in
+                                ChatMessageBubble(message: controller.messages[index])
+                                    .id(index)
                             }
 
                             if controller.isGenerating {
@@ -65,9 +75,10 @@ struct ChatAIInterfaceView: View {
                         .padding(2)
                     }
                     .onChange(of: controller.messages.count) { _, _ in
-                        if let last = controller.messages.last {
+                        let lastIndex = controller.messages.count - 1
+                        if lastIndex >= 0 {
                             withAnimation(.easeOut(duration: 0.25)) {
-                                proxy.scrollTo(last.id, anchor: .bottom)
+                                proxy.scrollTo(lastIndex, anchor: .bottom)
                             }
                         }
                     }

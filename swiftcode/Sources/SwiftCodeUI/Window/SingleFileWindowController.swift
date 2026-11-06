@@ -7,10 +7,37 @@ import SwiftCodeIDECore
 /// that an open workspace contains opens in that workspace's window
 /// instead (`SwiftCodeDocumentController`).
 @MainActor
-public final class SourceFileDocument: NSDocument {
+public final class SourceFileDocument: NSDocument, Identifiable {
     public static let typeName = "org.swiftcode.source-file"
 
     public override class var autosavesInPlace: Bool { false }
+
+    /// Editor-model state (W-V2 decision 2): `EditorViewModel`
+    /// (SwiftCodeEditorKit) and `DocumentCoordinator` (SwiftCodeIDECore) use
+    /// documents as values with a URL, in-memory text, dirty flag and
+    /// last-known disk date — the Legacy `SourceFileDocument` struct's shape —
+    /// while this class is the `NSDocument` the document machinery opens.
+    /// These members bridge the two. `url` reads through to `fileURL`, so
+    /// there is one source of truth and a save-as/move cannot desync them;
+    /// it is read-only because changing files rebuilds the document instead
+    /// (see `EditorViewModel.updateActiveConfigurationURLs`). All stored
+    /// members carry defaults so the inherited `NSDocument` initializers
+    /// (notably `init(contentsOf:ofType:)`, used by the window-identity
+    /// tests) keep working. The fallback URL below is only reachable for a
+    /// document created via bare `init()` and never given a file; no call
+    /// site does that.
+    public let id = UUID()
+    public var url: URL { fileURL ?? URL(fileURLWithPath: "") }
+    public var content = ""
+    public var isDirty = false
+    public var lastDiskModificationDate = Date()
+
+    public convenience init(url: URL, content: String, lastDiskModificationDate: Date) {
+        self.init()
+        self.fileURL = url
+        self.content = content
+        self.lastDiskModificationDate = lastDiskModificationDate
+    }
 
     /// The window controller, once made.
     public var fileWindowController: SingleFileWindowController? { windowControllers.first as? SingleFileWindowController }

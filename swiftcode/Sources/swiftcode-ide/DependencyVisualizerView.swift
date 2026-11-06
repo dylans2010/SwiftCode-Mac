@@ -1,5 +1,5 @@
 // Ported from Legacy `SwiftCode/Views/Utilities/DependencyManager/DependencyVisualizerView.swift` (main ab03f681; Dylan's own code, direct port authorised under MIT).
-// Staged only — not yet merged into swiftcode/Sources. See staging-wire/missing/DISPOSITIONS.md.
+// Landed in swiftcode/Sources by batch A6 (f56a21df); fixed by W-V2 (see verify/v2-missing/FIXES.md).
 // Verbatim except added imports (SwiftCodeIDEShell for ParsedDependency /
 // DependencyRequirementType / DependencyVisualNode, which already exist there;
 // SwiftCodeUI for ModernGroupBoxStyle).

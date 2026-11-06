@@ -1,5 +1,5 @@
 // Ported from Legacy `SwiftCode/Backend/Assist/AssistModels.swift` (commit d51a8f0d, Dylan's own code, direct port authorised under MIT).
-// Staged only — not yet merged into swiftcode/Sources. See staging-ma/assist-core/MANIFEST.md.
+// Landed in swiftcode/Sources by batch A6 (f56a21df); fixed by W-V2 (see verify/v2-missing/FIXES.md).
 // Scope: session / planning / tool-result / context-engine types, the v4
 // multi-goal types, and the component protocols they depend on.
 // Adaptations:

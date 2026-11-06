@@ -9,15 +9,19 @@ import Observation
 
 public struct LegacyProjectTemplate: Identifiable, Sendable {
     public let id: String
-    var name: String
-    var description: String
-    var icon: String
-    var iconColor: String
-    var files: [LegacyTemplateFile]
-    var tags: [String]
+    // Public: `ProjectTemplateView` (swiftcode-ide target) reads these
+    // through the manager's public `templates`; they were internal when
+    // Legacy was a single-module app (same rationale as
+    // ProjectSessionStore's deliberately-raised access).
+    public var name: String
+    public var description: String
+    public var icon: String
+    public var iconColor: String
+    public var files: [LegacyTemplateFile]
+    public var tags: [String]
 
     public struct LegacyTemplateFile: Sendable {
-        var relativePath: String
+        public var relativePath: String
         var content: @Sendable (String) -> String // takes project name, returns content
     }
 }
@@ -27,7 +31,7 @@ public struct LegacyProjectTemplate: Identifiable, Sendable {
 @MainActor
 @Observable
 public final class LegacyProjectTemplateManager {
-    static let shared = LegacyProjectTemplateManager()
+    public static let shared = LegacyProjectTemplateManager()
 
     public let templates: [LegacyProjectTemplate] = LegacyProjectTemplateManager.buildTemplates()
 

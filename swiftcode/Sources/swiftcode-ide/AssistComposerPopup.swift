@@ -13,7 +13,7 @@
 // UNRESOLVED DEPENDENCIES (no definition in the destination yet; resolve as the owning ports land):
 //   - AgentFileContext — UNOWNED (no worklist) (`SwiftCode/Backend/Assist/Functions/FileAgentHelper.swift`)
 //   - AssistConversationHistory — UNOWNED (no worklist) (`SwiftCode/Backend/Assist/AssistConversationHistory.swift`)
-//   - MCPServerManager — UNOWNED (no worklist) (`SwiftCode/Frameworks/Internal/MCP/MCPServerManager.swift`)
+//   - MCPServerManager — landed in SwiftCodeMCP (R-MCPSERVER, 2026-11-06), re-exported through SwiftCodeUI.
 //   - ProjectSessionStore — other agent (services-networking-cloud) (`SwiftCode/Services/ProjectSessionStore.swift`)
 // WIRING / REGISTRATION: Wire into the swiftcode-ide assistant UI (AssistantPane / AssistMainView) once the models it observes land. Remaining in-file work: @Observable adaptation (see ADAPTATIONS).
 
@@ -31,6 +31,7 @@ import SwiftUI
 import AppKit
 #endif
 import SwiftCodeAssistant
+import SwiftCodeUI
 
 public enum ComposerTriggerMode: Equatable {
     case resource(query: String) // @
@@ -203,7 +204,7 @@ public struct AssistComposerPopupView: View {
 
     @State private var selectedIndex: Int = 0
     @State private var selectedCategory: String = "All"
-    @State private var mcpServers: [MCPServer] = []
+    @State private var mcpServers: [MCPServerConfig] = []
     @State private var projectFiles: [URL] = []
     @State private var skillIndex = SkillIndex.shared
     // Wiring (wiring-views): `MetaSlashCommandManager` is a plain struct

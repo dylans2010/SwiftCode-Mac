@@ -345,6 +345,23 @@ public struct GitHubCommit: Sendable, Equatable, Decodable, Identifiable {
     }
 }
 
+/// A single commit with its changed files (`GET /repos/{owner}/{repo}/commits/{sha}`),
+/// for the diff preview (Legacy's `GitHubCommitDetailResponse`, ported from
+/// Legacy `GitHubService.swift:1241`). All keys are single words, so plain
+/// `Decodable` suffices — no snake-case conversion needed.
+public struct GitHubCommitDetailResponse: Decodable, Sendable {
+    public let sha: String
+    public let files: [GitHubCommitFile]?
+
+    public struct GitHubCommitFile: Decodable, Sendable {
+        public let filename: String
+        public let status: String
+        public let additions: Int
+        public let deletions: Int
+        public let patch: String?
+    }
+}
+
 /// One entry of a git tree (`/repos/{owner}/{repo}/git/trees/{ref}`).
 public struct GitHubTreeEntry: Sendable, Equatable, Decodable {
     public var path: String

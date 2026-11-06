@@ -1,4 +1,5 @@
 import AppKit
+import SwiftCodeAssistant
 import SwiftCodeCloud
 import SwiftCodeGoogleAuth
 import SwiftCodeIDECore

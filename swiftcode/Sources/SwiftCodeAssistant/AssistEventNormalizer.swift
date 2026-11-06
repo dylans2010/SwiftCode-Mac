@@ -1,5 +1,5 @@
 // Ported from Legacy `SwiftCode/Backend/Assist/AssistEventNormalizer.swift` (main ab03f681; Dylan's own code, direct port authorised under MIT).
-// Staged only — not yet merged into swiftcode/Sources. See staging-wire/missing/DISPOSITIONS.md.
+// Landed in swiftcode/Sources by batch A6 (f56a21df); fixed by W-V2 (see verify/v2-missing/FIXES.md).
 // Verbatim. BLOCKED references (left intact, owned by other scopes):
 // - AssistActivityGroup / ToolActivityItem / WorkerActivityItem / FileActivityItem /
 //   BuildActivityItem / TestActivityItem / TerminalActivityItem (Legacy

@@ -5,6 +5,7 @@
 
 import Foundation
 import Testing
+import SwiftCodeAssistant
 @testable import SwiftCodeGoogleAuth
 
 @Suite("AntigravityQuotaService", .serialized)

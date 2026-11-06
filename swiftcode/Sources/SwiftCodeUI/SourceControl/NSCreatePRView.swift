@@ -101,8 +101,8 @@ public struct NSCreatePRView: View {
     }
 
     /// Owner/repo parsing, verbatim logic from Legacy's
-    /// `GitHubRepositoryManager.parseRepoURL` (that manager is not ported;
-    /// the parse is local to this dialog).
+    /// `GitHubRepositoryManager.parseRepoURL` (manager now ported in
+    /// SwiftCodeGitHub; the parse stays local to this dialog).
     private func parseRepoURL(_ urlString: String) throws -> (owner: String, repo: String) {
         let cleaned = urlString
             .trimmingCharacters(in: .whitespacesAndNewlines)

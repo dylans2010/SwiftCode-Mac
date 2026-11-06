@@ -35,6 +35,7 @@ extension AssistToolRegistry {
         register(AssistDeleteDirectoryTool())
         register(AssistInsertCodeBlockTool())
         register(AssistMultiFileEditTool())
+        register(AssistReplaceInFileTool())
         // Finder
         register(AssistOpenInFinderTool())
         register(AssistRevealInFinderTool())

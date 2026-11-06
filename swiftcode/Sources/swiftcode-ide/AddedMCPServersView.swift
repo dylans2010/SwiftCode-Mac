@@ -3,7 +3,7 @@
 // Ported from Legacy `SwiftCode/Views/Settings/AddedMCPServersView.swift` (SwiftCode-Mac migration, Views/UI worklist).
 // Worklist verdict: PARTIAL.
 // Missing behaviour ported: per-server status; Connect/Disconnect; Browse Tools; refresh capabilities
-// References legacy types absent from the destination and from this worklist (wiring/integration gaps): MCPServerManager, MCPServerStatus.
+// MCP client types (MCPServerManager, MCPServerStatus) landed in SwiftCodeMCP and are re-exported through SwiftCodeUI (MCPExport.swift, R-MCPSERVER, 2026-11-06).
 // Static port only — no Swift toolchain here; build verification pending on Dylan's Mac.
 import SwiftCodeUI
 import SwiftUI
@@ -11,8 +11,8 @@ import SwiftUI
 @MainActor
 struct AddedMCPServersView: View {
     @Bindable var manager: MCPServerManager
-    let onEdit: (MCPServer) -> Void
-    let onViewTools: (MCPServer) -> Void
+    let onEdit: (MCPServerConfig) -> Void
+    let onViewTools: (MCPServerConfig) -> Void
 
     var body: some View {
         VStack(spacing: 16) {

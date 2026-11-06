@@ -3,7 +3,7 @@
 // Ported from Legacy `SwiftCode/Views/Settings/AddMCPServerView.swift` (SwiftCode-Mac migration, Views/UI worklist).
 // Worklist verdict: PARTIAL.
 // Missing behaviour ported: quick presets (GitHub Copilot etc.); test-connection; tools browser sheet; MCP logs view; live server status (connected/connecting) and tool counts
-// References legacy types absent from the destination and from this worklist (wiring/integration gaps): MCPAuthenticationType, MCPLogSeverity, MCPServerManager, MCPServerMetadata, MCPToolSchema, MCPTransport.
+// MCP client types (MCPServerManager, MCPServerConfig, MCPLoggingManager, MCPServerMetadata, MCPToolSchema, MCPTransport, MCPAuthenticationType) landed in SwiftCodeMCP (R-MCPSERVER, 2026-11-06).
 // Static port only — no Swift toolchain here; build verification pending on Dylan's Mac.
 import SwiftCodeMCP
 import SwiftUI
@@ -28,10 +28,10 @@ public struct AddMCPServerView: View {
 
     // Active sheet states
     @State private var showAddServerSheet = false
-    @State private var editingServer: MCPServer? = nil
+    @State private var editingServer: MCPServerConfig? = nil
 
     // Tools browser states
-    @State private var browsingServer: MCPServer? = nil
+    @State private var browsingServer: MCPServerConfig? = nil
     @State private var showToolsBrowser = false
 
     public init() {}
@@ -146,7 +146,7 @@ public struct AddMCPServerView: View {
 struct ServerConfigFormView: View {
     @Environment(\.dismiss) private var dismiss
     let manager: MCPServerManager
-    let serverToEdit: MCPServer?
+    let serverToEdit: MCPServerConfig?
 
     // Form fields
     @State private var displayName = ""
@@ -164,7 +164,7 @@ struct ServerConfigFormView: View {
     @State private var testResult: String? = nil
     @State private var testSuccess: Bool? = nil
     @State private var testMetadata: MCPServerMetadata? = nil
-    @State private var testTools: [MCPTool] = []
+    @State private var testTools: [MCPRemoteTool] = []
     @State private var showLogsSheet = false
 
     var body: some View {
@@ -501,7 +501,7 @@ struct ServerConfigFormView: View {
         }
     }
 
-    private func constructServerObject(id: UUID) -> MCPServer {
+    private func constructServerObject(id: UUID) -> MCPServerConfig {
         let trimmedArgs = launchArguments.split(separator: ",").map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }.filter { !$0.isEmpty }
 
         var mappedEnv: [String: String] = [:]
@@ -518,7 +518,7 @@ struct ServerConfigFormView: View {
             }
         }
 
-        return MCPServer(
+        return MCPServerConfig(
             id: id,
             displayName: displayName.trimmingCharacters(in: .whitespacesAndNewlines),
             transport: transport,
@@ -583,7 +583,7 @@ struct ServerConfigFormView: View {
 
 struct ToolsBrowserSheet: View {
     @Environment(\.dismiss) private var dismiss
-    let server: MCPServer
+    let server: MCPServerConfig
 
     var body: some View {
         NavigationStack {

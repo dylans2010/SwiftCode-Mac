@@ -1,5 +1,8 @@
 // Ported from Legacy `SwiftCode/Backend/Git/GitHubService.swift` (Audit E §5 partial entry; H-E5).
-// Types ported here: NoRedirectDelegate, GitHubRepo, WorkflowRun, GitHubAsset, GitHubTreeResponse, WorkflowJob.
+// (H-GH note, batch 9: the six Legacy-internal model types formerly declared here
+//  NoRedirectDelegate, GitHubRepo, WorkflowRun, GitHubAsset, GitHubTreeResponse,
+//  WorkflowJob - were deleted as unused; the public service uses GitHubClient's
+//  production models. GitHubTreeEntry lives in GitHubModels.swift.)
 // GitHubService itself (H-GH): the public service class below, delegating REST to GitHubClient
 // and implementing fetchRepositories / fetchDiscussions / createBranchRef / pushProject /
 // pushFileData / initializeGitHubRepository on GitHubRESTTransport. DiscussionThread /
@@ -7,85 +10,6 @@
 
 import Foundation
 
-private final class NoRedirectDelegate: NSObject, URLSessionTaskDelegate {
-    func urlSession(
-        _ session: URLSession,
-        task: URLSessionTask,
-        willPerformHTTPRedirection response: HTTPURLResponse,
-        newRequest request: URLRequest
-    ) async -> URLRequest? {
-        nil // Don't follow redirects
-    }
-}
-
-struct GitHubRepo: Decodable {
-    let id: Int
-    let name: String
-    let fullName: String
-    let htmlUrl: String
-    let cloneUrl: String
-
-    enum CodingKeys: String, CodingKey {
-        case id, name
-        case fullName = "full_name"
-        case htmlUrl = "html_url"
-        case cloneUrl = "clone_url"
-    }
-}
-
-struct WorkflowRun: Identifiable, Decodable {
-    let id: Int
-    let name: String?
-    let status: String
-    let conclusion: String?
-    let htmlUrl: String
-    let createdAt: Date
-    let updatedAt: Date
-    let runNumber: Int
-    let headBranch: String?
-    let actor: GitHubUser?
-
-    var statusBadge: String {
-        switch conclusion ?? status {
-        case "success": return "checkmark.circle.fill"
-        case "failure": return "xmark.circle.fill"
-        case "cancelled": return "slash.circle.fill"
-        case "in_progress": return "clock.fill"
-        default: return "circle"
-        }
-    }
-
-    var isRunning: Bool {
-        status == "in_progress" || status == "queued"
-    }
-}
-
-struct GitHubAsset: Identifiable, Decodable {
-    let id: Int
-    let name: String
-    let browserDownloadUrl: String
-    let size: Int
-}
-
-struct GitHubTreeResponse: Decodable {
-    let sha: String
-    let tree: [GitHubTreeEntry]
-}
-
-struct WorkflowJob: Identifiable, Decodable {
-    let id: Int
-    let runId: Int
-    let status: String
-    let conclusion: String?
-    let startedAt: Date?
-    let completedAt: Date?
-    let name: String
-    let steps: [GitHubWorkflowStep]?
-
-    var isRunning: Bool {
-        status == "in_progress" || status == "queued"
-    }
-}
 
 // MARK: - GitHubService
 
@@ -163,6 +87,47 @@ public final class GitHubService: @unchecked Sendable {
         let detail = try await client().getRepository(owner: owner, repo: repo)
         if (detail.size ?? 0) == 0 { return true }
         return try await client().listBranches(owner: owner, repo: repo).isEmpty
+    }
+
+    // MARK: - Repository metadata (GitHubRepositoryManager backing)
+
+    /// Thin authenticated passthroughs over `GitHubClient`, added so
+    /// `GitHubRepositoryManager` (the port of Legacy's manager, whose
+    /// `GitHubAPIBackend` was never ported) can be backed by the shared
+    /// service's token instead of constructing an unauthenticated client.
+
+    /// `GET /repos/{owner}/{repo}` (Legacy's `GitHubAPIBackend.getRepository`).
+    public func getRepository(owner: String, repo: String) async throws -> GitHubRepository {
+        try requireToken()
+        return try await client().getRepository(owner: owner, repo: repo)
+    }
+
+    /// `GET /repos/{owner}/{repo}/branches` (Legacy's `GitHubAPIBackend.listBranches`).
+    public func listBranches(owner: String, repo: String) async throws -> [GitHubBranch] {
+        try requireToken()
+        return try await client().listBranches(owner: owner, repo: repo)
+    }
+
+    /// `POST /user/repos` (Legacy's `GitHubAPIBackend.createRepository`).
+    /// Returns `GitHubRepository`, the production equivalent of Legacy's
+    /// five-field `GitHubRepo`.
+    public func createRepository(name: String, description: String, isPrivate: Bool) async throws -> GitHubRepository {
+        try requireToken()
+        return try await client().createRepository(name: name, description: description, isPrivate: isPrivate)
+    }
+
+    /// `GET /repos/{owner}/{repo}/git/trees/{branch}?recursive=1`
+    /// (Legacy's `GitHubAPIBackend.getRepoTree`).
+    public func getRepoTree(owner: String, repo: String, branch: String = "main") async throws -> [GitHubTreeEntry] {
+        try requireToken()
+        return try await client().getRepoTree(owner: owner, repo: repo, ref: branch)
+    }
+
+    /// `GET /repos/{owner}/{repo}/contents/{path}` as decoded text
+    /// (Legacy's `GitHubAPIBackend.getFileContent`, which returned `String`).
+    public func getFileText(owner: String, repo: String, path: String, ref: String? = nil) async throws -> String {
+        try requireToken()
+        return try await client().getFileText(owner: owner, repo: repo, path: path, ref: ref)
     }
 
     /// Creates the `README.md` initial commit (Legacy's
@@ -271,6 +236,20 @@ public final class GitHubService: @unchecked Sendable {
     public func listCommits(owner: String, repo: String, branch: String = "main", perPage: Int = 10) async throws -> [GitHubCommit] {
         try requireToken()
         return try await client().listCommits(owner: owner, repo: repo, branch: branch, perPage: perPage)
+    }
+
+    // MARK: - Commit detail (GitHubCommitDetailView backing)
+
+    /// `GET /repos/{owner}/{repo}/commits/{sha}` — the commit's changed
+    /// files with their patches, for the diff preview (Legacy's
+    /// `GitHubService.fetchCommitDetail`).
+    public func fetchCommitDetail(owner: String, repo: String, sha: String) async throws -> GitHubCommitDetailResponse {
+        try requireToken()
+        let transport = transport()
+        let request = transport.request(
+            path: "repos/\(transport.encode(owner))/\(transport.encode(repo))/commits/\(transport.encode(sha))"
+        )
+        return try await transport.perform(request)
     }
 
     /// The named branch, or `nil` when it does not exist (Legacy's

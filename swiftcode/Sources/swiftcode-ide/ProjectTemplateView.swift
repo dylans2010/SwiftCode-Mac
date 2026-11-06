@@ -13,8 +13,11 @@ import SwiftUI
 
 struct ProjectTemplateView: View {
     @Environment(ProjectSessionStore.self) private var sessionStore
-    @StateObject private var templateManager = ProjectTemplateManager.shared
-    @State private var selectedTemplate: ProjectTemplate?
+    // `LegacyProjectTemplateManager` is @Observable, not ObservableObject,
+    // so @StateObject cannot hold it; @State holds the @Observable
+    // reference instead (same pattern as ModelLinkInstallGuideView).
+    @State private var templateManager = ProjectTemplateManager.shared
+    @State private var selectedTemplate: LegacyProjectTemplate?
     @State private var showApplyConfirm = false
     @State private var applyResult: String?
     @State private var showResultAlert = false
@@ -151,7 +154,9 @@ struct ProjectTemplateView: View {
 
         isInitializingRepo = true
 
-        Task {
+        // @MainActor: the Legacy-signature `applyTemplate` overload and
+        // `Project.directoryURL` are both MainActor-isolated.
+        Task { @MainActor in
             do {
                 try templateManager.applyTemplate(template, to: project)
 
@@ -173,7 +178,7 @@ struct ProjectTemplateView: View {
                     directoryURL: directoryURL
                 ) { @Sendable log in
                     Task { @MainActor in
-                        LogManager.shared.logDeployment("[GitHub Init] \(log)")
+                        DeploymentLogStore.shared.logDeployment("[GitHub Init] \(log)")
                     }
                 }
 
@@ -197,7 +202,7 @@ struct ProjectTemplateView: View {
 // MARK: - Template Row
 
 private struct TemplateRowView: View {
-    let template: ProjectTemplate
+    let template: LegacyProjectTemplate
     let isSelected: Bool
     let onSelect: () -> Void
 
@@ -208,6 +213,9 @@ private struct TemplateRowView: View {
         case "green": return .green
         case "cyan": return .cyan
         case "purple": return .purple
+        case "indigo": return .indigo
+        case "yellow": return .yellow
+        case "gray": return .gray
         default: return .secondary
         }
     }
@@ -255,7 +263,7 @@ private struct TemplateRowView: View {
 // MARK: - Template Detail
 
 private struct TemplateDetailView: View {
-    let template: ProjectTemplate
+    let template: LegacyProjectTemplate
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {

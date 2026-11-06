@@ -2,8 +2,9 @@
 // Created by MCP-DEP (2026-11-06, decision (b) in staging-wire/mcp-dep/DISPOSITIONS.md).
 // The registry mechanics moved to SwiftCodeAssistant, which cannot import this
 // target, so the tools defined HERE enrol themselves through this function.
-// The 17 types below are exactly the `registerAllTools()` entries whose types
-// exist in the tree (checked 2026-11-06); the other ~274 entries reference
+// The 19 types below are exactly the `registerAllTools()` entries whose types
+// exist in the tree (checked 2026-11-06; +2 in this wave:
+// `AssistFetchDocumentationTool`, `AssistGitHubRepoTool`); the other ~272 entries reference
 // tools that exist nowhere yet and enrol via register(_:) as they land.
 // Wiring: call `AssistToolRegistry.shared.registerMCPTools()` once at MCP
 // startup (e.g. from MCPServer initialisation) — no call site is added here
@@ -20,7 +21,9 @@ extension AssistToolRegistry {
         register(AssistContextSnapshotTool())
         register(AssistConversationContextTool())
         register(AssistExplainCodeTool())
+        register(AssistFetchDocumentationTool())
         register(AssistFixArtboardsTool())
+        register(AssistGitHubRepoTool())
         register(AssistSaveToMemoryTool())
         register(AssistSwiftASTInspectorTool())
         register(AssistTakeScreenshotTool())

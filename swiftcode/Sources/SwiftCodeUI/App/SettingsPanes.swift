@@ -1,6 +1,7 @@
 import AppKit
 import SwiftUI
 import UniformTypeIdentifiers
+import SwiftCodeAssistant
 import SwiftCodeCloud
 import SwiftCodeCompletion
 import SwiftCodeGoogleAuth

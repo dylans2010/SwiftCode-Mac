@@ -1,3 +1,11 @@
+// MOVED by fix W-V2 (A6 slice) from SwiftCodeCloud/AppConfig.swift — no content change
+// except this note. Why: LLMService (SwiftCodeAssistant) reads AppConfig.shared at
+// three sites (openRouterAPIKey / geminiAPIKey / swiftCloudAPIURL) and Assistant
+// cannot depend on SwiftCodeCloud (Cloud already depends on Assistant — a cycle).
+// AppConfig is a leaf Foundation-only config struct with no Cloud dependencies, and
+// its only production user is LLMService, so it belongs in the lower target.
+// SwiftCodeCloud keeps seeing it through its existing SwiftCodeAssistant dependency.
+
 import Foundation
 
 /// Centralized backend configuration, ported from Legacy's

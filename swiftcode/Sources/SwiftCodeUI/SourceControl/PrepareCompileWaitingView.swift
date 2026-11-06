@@ -6,6 +6,9 @@
 // Legacy source: in-repo SwiftCode-Legacy/ lacks this file; ported from the earlier staging copy at ~/SwiftCode-Migration-Workspace/staging/SwiftCode/Views/Build/PrepareCompileWaitingView.swift (derived from Legacy).
 // Static port only — no Swift toolchain here; build verification pending on Dylan's Mac.
 import SwiftUI
+import SwiftCodeGitHub
+import SwiftCodeIDECore
+import SwiftCodeMCP
 
 struct PrepareCompileWaitingView: View {
     let project: Project

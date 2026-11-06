@@ -41,3 +41,18 @@ public typealias ExtV2State = ExtensionState
 
 /// Extension metadata (registry record). See the file header.
 public typealias ExtV2ExtensionMetadata = ExtensionMetadata
+
+/// Extension identity (`publisher.name`). Legacy `ExtV2Identity` is the
+/// production `ExtensionIdentity` (same fields, same init — verified in
+/// `Models.swift:6`).
+public typealias ExtV2Identity = ExtensionIdentity
+
+/// Capability vocabulary. Legacy `ExtV2Capability` is the production
+/// `ExtensionCapability` (same 12 cases, same `displayName` — verified in
+/// `Capabilities.swift:5`).
+public typealias ExtV2Capability = ExtensionCapability
+
+/// JSON value vocabulary. Legacy `ExtV2JSONValue` is the production
+/// `JSONValue` (same seven cases, same decode order — verified in
+/// `JSONValue.swift:9`).
+public typealias ExtV2JSONValue = JSONValue

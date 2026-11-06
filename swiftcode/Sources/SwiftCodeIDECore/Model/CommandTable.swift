@@ -459,6 +459,8 @@ public enum CommandTable {
                 c("Show Coding Assistant", "⌘0", "showCodingAssistant:"),
                 // Wiring (wiring-views): the workspace's Collaboration window.
                 c("Show Collaboration…", "", "showCollaboration:"),
+                // Wiring (W-DEVTOOLS-HUB): the workspace's DevTools hub sheet (WorkspaceView.swift).
+                c("Show Developer Tools…", "", "showDevTools:"),
                 c("Show Navigator", "", "toggleNavigator:"),
                 c("Filter in Navigator", "⌥⌘J", "filterInNavigator:"),
             ]),

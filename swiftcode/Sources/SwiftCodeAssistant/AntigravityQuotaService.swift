@@ -1,3 +1,7 @@
+// Moved from SwiftCodeGoogleAuth by R-GOOGLE-MOVE (W-V2 decision 1, 2026-11-06):
+// SwiftCodeAssistant cannot depend on SwiftCodeGoogleAuth, so the types AssistManager
+// needs live here. Self-contained: no SwiftCodeGoogleAuth dependencies. AntigravityPlanTier moves with it.
+
 // Ported from Legacy (Dylan's own SwiftCode code, MIT-authorised direct port):
 //   SwiftCode/Services/AntigravityQuotaService.swift
 // Adapted for SwiftCode: Plan tiers + 5h/weekly usage windows + the local IDE-sidecar quota probe. SwiftUI/Combine removed (@Observable + hex colour strings instead); the sidecar probe is labelled honestly in-code (it probes a local sidecar, not the Antigravity SDK).

@@ -1,13 +1,13 @@
 // Ported from Legacy `SwiftCode/Backend/Assist/AssistSDKSessionRunner.swift` (main ab03f681; Dylan's own code, direct port authorised under MIT).
-// Staged only — not yet merged into swiftcode/Sources. See staging-wire/missing/DISPOSITIONS.md.
-// Verbatim. BLOCKED references (left intact, owned by other scopes):
+// Landed in swiftcode/Sources by batch A6 (f56a21df); fixed by W-V2 (see verify/v2-missing/FIXES.md).
+// Verbatim. All staging-time blocks below are RESOLVED (see notes):
 // - AssistProviderSelection / AgentModelAdapter: RESOLVED by fix W-V2 — both landed
 //   in SwiftCodeAssistant (AssistProviderConfiguration.swift, AgentModelAdapter.swift).
 // - AssistToolRegistry: RESOLVED by wiring (G-W23) — moved from SwiftCodeMCP into
 //   SwiftCodeAssistant (see AssistToolRegistry.swift header).
 // RESOLVED on main 555d2a31 (A3 landed after staging): AssistModelManager
-// (@Observable; .shared, selectedModelID — note its body calls AgentModelAdapter,
-// which is still missing), AssistToolResultFormatter
+// (@Observable; .shared, selectedModelID — its body calls AgentModelAdapter,
+// landed by W-V2), AssistToolResultFormatter
 // (modelFacingPayload(toolId:result:)), HermesSessionRunner.
 // - AssistModelDiscoveryService.shared: RESOLVED by fix W-V2 — `.shared` now exists
 //   (backed by the default secret store; the host populates it via discoverAllModels)

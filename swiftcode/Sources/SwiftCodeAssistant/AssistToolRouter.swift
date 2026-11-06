@@ -1,18 +1,15 @@
 // Ported from Legacy `SwiftCode/Backend/Assist/AssistToolRouter.swift` (main ab03f681; Dylan's own code, direct port authorised under MIT).
-// Staged only — not yet merged into swiftcode/Sources. See staging-wire/missing/DISPOSITIONS.md.
-// Verbatim. BLOCKED references (left intact, owned by other scopes):
-// - AssistTool / AssistToolRegistry: exist in SwiftCodeMCP since main 555d2a31
-//   (A3 landed them after this port was staged; registry has shared, allTools,
-//   getToolSchemas, toolsForCapability, compactCapabilityRepresentation, getHealth,
-//   validate, resolve, getTool; AssistTool has all fields the router reads —
-//   capability, riskLevel, isReadOnly, isMutating, outputFormat,
-//   requiredPermission, prerequisites, supportedOperations, knownLimitations,
-//   canChainResult, isDestructive, resourceScope, parametersSchema) — but
-//   SwiftCodeAssistant has no SwiftCodeMCP dependency, so this file still cannot
-//   compile in SwiftCodeAssistant as-is. Coordinator decision: move the router to
-//   SwiftCodeMCP, move the registry into SwiftCodeAssistant, or add the dependency
-//   (SwiftCodeAssistant must stay Linux-buildable — check MCP's platform constraints).
-// - UserIntent (Legacy `Backend/Assist/AssistIntentClassifier.swift`, unaudited; not on main).
+// Landed in swiftcode/Sources by batch A6 (f56a21df); fixed by W-V2 (see verify/v2-missing/FIXES.md).
+// Verbatim. RESOLVED by MCP-DEP decision (b): AssistTool / AssistToolRegistry were
+// MOVED out of SwiftCodeMCP into SwiftCodeAssistant (commit 1615438c) — this file now
+// resolves in-target (registry has shared, allTools, getToolSchemas,
+// toolsForCapability, compactCapabilityRepresentation, getHealth, validate, resolve,
+// getTool; AssistTool has all fields the router reads — capability, riskLevel,
+// isReadOnly, isMutating, outputFormat, requiredPermission, prerequisites,
+// supportedOperations, knownLimitations, canChainResult, isDestructive, resourceScope,
+// parametersSchema). Do NOT add a SwiftCodeMCP dependency to SwiftCodeAssistant and do
+// NOT move the registry back — the MCP dependency would be a cycle.
+// UserIntent resolved by W-V2 (AssistIntentModels.swift, Wave 1).
 // Resolved in-destination: AgentSessionStatus (all cases the router switches on exist
 // in AgentSessionState.swift).
 // Wiring: the model-prompt builder (serializeToolSchemas / compactCapabilitySummary)

@@ -110,7 +110,7 @@ let package = Package(
         .target(name: "SwiftCodeSubprocess"),
         .testTarget(name: "SwiftCodeSubprocessTests", dependencies: ["SwiftCodeSubprocess"]),
         // The coding assistant's model providers, conversations and prompts (specs/ide/coding-assistant.md)
-        .target(name: "SwiftCodeAssistant", dependencies: ["SwiftCodeSubprocess", .product(name: "Crypto", package: "swift-crypto")], resources: [.copy("Resources/System Assets"), .copy("Resources/SDKHosts"), .copy("Resources/ReverseBridge.mjs")]),
+        .target(name: "SwiftCodeAssistant", dependencies: ["SwiftCodeSubprocess", "SwiftCodeBuild", .product(name: "Crypto", package: "swift-crypto")], resources: [.copy("Resources/System Assets"), .copy("Resources/SDKHosts"), .copy("Resources/ReverseBridge.mjs")]),
         .testTarget(name: "SwiftCodeAssistantTests", dependencies: ["SwiftCodeAssistant", "SwiftCodeSubprocess"]),
         // GitHub: the api.github.com client shared by the assistant's
         // GitHub tools and the settings pane.
@@ -139,7 +139,7 @@ let package = Package(
         // SwiftCodeSDKStudio holds the Studio UI models separately because
         // they need SwiftCodeSDK and SwiftCodeExtensions both, which would be a
         // dependency cycle inside a single target.
-        .target(name: "SwiftCodeSDK", dependencies: ["SwiftCodeExtensions", "SwiftCodeSubprocess", "SwiftCodeAssistant", "SwiftCodeBuild",
+        .target(name: "SwiftCodeSDK", dependencies: ["SwiftCodeExtensions", "SwiftCodeSubprocess", "SwiftCodeAssistant", "SwiftCodeBuild", "SwiftCodeIDECore",
                                                  .product(name: "Crypto", package: "swift-crypto")],
                 resources: [.copy("Resources/SwiftCodeSDK.json")]),
         .target(name: "SwiftCodeSDKStudio", dependencies: ["SwiftCodeSDK", "SwiftCodeExtensions"]),
@@ -221,7 +221,7 @@ package.targets += [
     .target(name: "SwiftCodeDeviceUI", dependencies: ["SwiftCodeDisplayStream", "SwiftCodeSimFeatures", "SwiftCodeDeviceModel"]),
     .testTarget(name: "SwiftCodeDeviceUITests", dependencies: ["SwiftCodeDeviceUI", "SwiftCodeDeviceModel", "SwiftCodeDisplayStream"]),
     .executableTarget(name: "swiftcode-sim-viewer", dependencies: ["SwiftCodeRelease", "SwiftCodeDisplayStream", "SwiftCodeSimFeatures", "SwiftCodeDeviceModel", "SwiftCodeDeviceUI", "SwiftCodeRemoteViewer", "SwiftCodeSimLink"]),
-    .target(name: "SwiftCodeUI", dependencies: ["SwiftCodeMCP", "SwiftCodeIDECore", "SwiftCodeCompletion", "SwiftCodePreviews", "SwiftCodeProject", "SwiftCodeWorkspace", "SwiftCodeSettings", "SwiftCodeBuild", "SwiftCodeDebug", "SwiftCodeLanguage", "SwiftCodeXcodebuild", "SwiftCodeSubprocess", "SwiftCodeAssistant", "SwiftCodeGitHub", "SwiftCodeExtensions", "SwiftCodeSimFeatures", "SwiftCodeDeviceModel", "SwiftCodeDeviceUI", "SwiftCodeProfiler", "SwiftCodeCloud", "SwiftCodeGoogleAuth", "SwiftCodePaywall", "SwiftCodeSDK", "SwiftCodeHealthStore",
+    .target(name: "SwiftCodeUI", dependencies: ["SwiftCodeMCP", "SwiftCodeIDECore", "SwiftCodeCompletion", "SwiftCodePreviews", "SwiftCodeProject", "SwiftCodeWorkspace", "SwiftCodeSettings", "SwiftCodeBuild", "SwiftCodeDebug", "SwiftCodeLanguage", "SwiftCodeXcodebuild", "SwiftCodeSubprocess", "SwiftCodeAssistant", "SwiftCodeGitHub", "SwiftCodeExtensions", "SwiftCodeSimFeatures", "SwiftCodeDeviceModel", "SwiftCodeDeviceUI", "SwiftCodeProfiler", "SwiftCodeCloud", "SwiftCodeGoogleAuth", "SwiftCodePaywall", "SwiftCodeSDK", "SwiftCodeHealthStore", "SwiftCodeIDEShell",
                                              // Bulk wave: Connect + Collaboration families.
                                              "SwiftCodeConnect", "SwiftCodeCollaboration",
                                              // Gap-closure: the VM console (VirtualMachineRegistry)

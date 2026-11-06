@@ -1,3 +1,9 @@
+// Moved from SwiftCodeGoogleAuth by R-GOOGLE-MOVE (W-V2 decision 1, 2026-11-06):
+// SwiftCodeAssistant cannot depend on SwiftCodeGoogleAuth, so the types AssistManager
+// needs live here. Still in SwiftCodeGoogleAuth (follow-up move): GoogleCloudSDKBridge, GoogleCloudSDKProcess,
+// GoogleCloudSDKEvent, GoogleCloudSDKToolExecutionRequest (and transitively GoogleCloudSDKTransport,
+// GoogleCloudSDKMessage, GoogleCloudSDKError).
+
 //
 //  GoogleCloudSDKRuntime.swift
 //  SwiftCode
@@ -59,7 +65,6 @@ import Foundation
 import Observation
 import os
 
-import SwiftCodeAssistant
 
 private let logger = Logger(subsystem: "com.swiftcode.GoogleCloudSDK", category: "GoogleCloudSDKRuntime")
 

@@ -7,6 +7,7 @@ import AppKit
 import UniformTypeIdentifiers
 #endif
 import SwiftCodeAssistant
+import SwiftCodeGitHub
 import SwiftCodeIDECore
 import SwiftCodeIDEShell
 import SwiftCodeRelease
@@ -35,8 +36,8 @@ struct SwiftCodeIDEApp: App {
     init() {
         // Legacy `SwiftCodeApp`: --run-assist-tests runs the Assist v3 runtime
         // test suite, prints the report, and exits 0 (all passed) / 1. Checked
-        // first, before any shell setup, exactly as Legacy did. Landed with
-        // the AssistRuntimeTestSuite subset (SwiftCodeAssistant) by F1B.
+        // first, before any shell setup, exactly as Legacy did. Full suite
+        // landed (SwiftCodeAssistant) by H-TEST, building on F1B's subset.
         if CommandLine.arguments.contains("--run-assist-tests") {
             Task { @MainActor in
                 let report = await AssistRuntimeTestSuite.shared.runAllTests()
@@ -60,6 +61,9 @@ struct SwiftCodeIDEApp: App {
         // `.macDesktopOptimized()` views read). The registry's
         // `registerDefaults()` is an empty no-op in Legacy and stays one.
         StylingBootstrap.initialize()
+        // WIRING (H-E flag, batch 9): GitHubService needs its token provider
+        // at startup, or authed calls throw .missingToken.
+        GitHubService.shared.configure(tokenProvider: { defaultSecretStore().readString(SecretAccount.githubToken) })
         // The models' Copy commands (Debug ▸ Console ▸ Copy Row) write here.
         ShellPasteboard.writer = { ShellClipboard.copy($0) }
         #if os(Linux)

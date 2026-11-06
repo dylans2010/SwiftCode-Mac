@@ -15,6 +15,8 @@ struct WorkspaceView: View {
     @Bindable var model: WorkspaceShellModel
     var app: ShellAppModel
     @Environment(\.colorScheme) private var scheme
+    /// View ▸ Navigators ▸ Show Developer Tools… (`showDevTools:` in CommandTable): the DevTools hub sheet.
+    @State private var isDevToolsShown = false
 
     var body: some View {
         let c = ShellColors(scheme)
@@ -41,7 +43,17 @@ struct WorkspaceView: View {
         .modifier(LanguageSheets(model: model, app: app))
         .modifier(SourceControlDialogs(scm: model.sourceControl))
         .modifier(AssistantPrompts(assistant: model.assistant))
+        .sheet(isPresented: $isDevToolsShown) { DevToolsMainView() }
+        .onReceive(NotificationCenter.default.publisher(for: .showDevTools)) { _ in isDevToolsShown = true }
     }
+}
+
+/// Posted to open the DevTools hub sheet (`.showDevTools`): the menu item's
+/// `showDevTools:` action (`WorkspaceWindowController+DevTools.swift`, mirroring
+/// `showCollaboration:`) posts it through the responder chain. See `CommandTable`
+/// View ▸ Navigators.
+extension Notification.Name {
+    static let showDevTools = Notification.Name("com.swiftcode.showDevTools")
 }
 
 // MARK: - Toolbar bands

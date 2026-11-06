@@ -2,6 +2,8 @@
 // Types ported here: FrameworkConfig, DeploymentTargets.
 
 import Foundation
+import SwiftCodeGitHub
+import SwiftCodeIDECore
 
 struct FrameworkConfig {
     let name: String
@@ -55,12 +57,21 @@ final class DeploymentTargets: @unchecked Sendable {
 
             // Step 4: Upload project codebase files
             logHandler("Uploading project files to repository")
+            // Rewired (S-FLAGS): the ported `GitHubService.pushProject`
+            // takes collected `files: [(path, data)]`, not a `Project` —
+            // the Legacy call shape `pushProject(project, owner:repo:...)`
+            // does not exist in production. Files are collected from the
+            // project's `FileNode` tree exactly as Legacy's
+            // `GitHubRepositoryManager.pushProject` did (text files only;
+            // files that cannot be read as UTF-8 are skipped).
+            let projectDir = await project.directoryURL
+            let files = collectProjectFiles(from: project.files, projectDir: projectDir)
             try await GitHubService.shared.pushProject(
-                project,
                 owner: owner,
                 repo: repo,
+                branch: "main",
                 commitMessage: "Deployment update: \(Date().formatted())",
-                branch: "main"
+                files: files
             )
 
             // Step 5: Confirm readiness
@@ -72,6 +83,25 @@ final class DeploymentTargets: @unchecked Sendable {
             logHandler("Suggestion: Check your GitHub Personal Access Token permissions (needs 'repo' scope).")
             throw error
         }
+    }
+
+    /// Collects the project's files as `(path, data)` pairs for the Git
+    /// Data API push, walking the `FileNode` tree exactly as Legacy's
+    /// `GitHubRepositoryManager.pushProject` did (`collectFiles`). Only
+    /// files readable as UTF-8 text are included — binary and unreadable
+    /// files are skipped, as Legacy did.
+    private func collectProjectFiles(from nodes: [FileNode], projectDir: URL) -> [(path: String, data: Data)] {
+        var collected: [(path: String, data: Data)] = []
+        for node in nodes {
+            if node.isDirectory {
+                collected += collectProjectFiles(from: node.children, projectDir: projectDir)
+                continue
+            }
+            let fileURL = projectDir.appendingPathComponent(node.path)
+            guard let content = try? String(contentsOf: fileURL, encoding: .utf8) else { continue }
+            collected.append((path: node.path, data: Data(content.utf8)))
+        }
+        return collected
     }
 
     /// Detects the framework used in the project.

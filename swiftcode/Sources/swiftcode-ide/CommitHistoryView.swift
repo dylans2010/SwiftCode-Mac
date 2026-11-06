@@ -1,7 +1,13 @@
 // Ported from Legacy `SwiftCode/Views/GitHub/Legacy/CommitHistoryView.swift` (Audit E §5 partial entry; H-E5).
 // Types ported here: CommitHistoryView, CommitNotification.
+// Rewire (S-FLAGS): the detail sheet is bound to `GitHubCommitDetailView` (ported from Legacy's
+// GitHub-API `CommitDetailView` in this same wave) — the `CommitDetailView(commit:owner:repo:)` init
+// does not exist, and the same-named view in `SourceControlEditor.swift` is a shell-model view
+// (`detail:scm:model:colors:`) that cannot be constructed from `(commit, owner, repo)`.
 
 import SwiftUI
+import SwiftCodeGitHub
+import SwiftCodeUI
 
 @MainActor
 struct CommitHistoryView: View {
@@ -110,7 +116,7 @@ struct CommitHistoryView: View {
             Task { await loadHistory() }
         }
         .sheet(item: $selectedCommit) { commit in
-            CommitDetailView(commit: commit, owner: owner, repo: repo)
+            GitHubCommitDetailView(commit: commit, owner: owner, repo: repo)
         }
         .sheet(isPresented: $showAmendSheet) {
             amendSheet

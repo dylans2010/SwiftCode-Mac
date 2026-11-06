@@ -1,11 +1,8 @@
 // Ported from Legacy `SwiftCode/Backend/Assist/OpenCodeSDKProvider.swift` (main ab03f681; Dylan's own code, direct port authorised under MIT).
-// Staged only — not yet merged into swiftcode/Sources. See staging-wire/missing/DISPOSITIONS.md.
-// Verbatim except for one noted blocked call (below). BLOCKED references:
-// - OpenCodeConfiguration.load(): no load() exists in the destination —
-//   OpenCodeConfiguration (AssistModelRouting.swift) reads from AssistantSettings
-//   via init(settings:) instead. The default parameter keeps the Legacy call;
-//   the coordinator must add a load() (or re-wire the default to the settings
-//   store) before this compiles.
+// Landed in swiftcode/Sources by batch A6 (f56a21df); fixed by W-V2 (see verify/v2-missing/FIXES.md).
+// Verbatim. BLOCKED references at staging — all RESOLVED:
+// - OpenCodeConfiguration.load(): RESOLVED by fix W-V2 — load() landed in
+//   OpenCodeConfiguration+Load.swift (Wave 1).
 // - BufferWrapper / SDKRuntimeManager / SDKProvider: staged in this same batch
 //   (SDKRuntimeManager.swift).
 // Resolved in-destination: OpenCodeModelID.parse, OpenCodeConfiguration

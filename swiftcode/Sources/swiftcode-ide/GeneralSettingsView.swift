@@ -16,9 +16,9 @@
 //     with the enum (SwiftCodeAssistant must stay SwiftUI-free /
 //     Linux-buildable), so Legacy's `tintColor` mapping is re-declared
 //     as an extension below.
-//   - `ThemeManager` is KEPT (it does not exist in production —
-//     `NativeSettingsViews` and `CodeColoringTheme` already dangle on
-//     it).
+//   - `ThemeManager` / `AppTheme` / `ThemeColors` MOVED to
+//     `SwiftCodeUI/Editor/ThemeManager.swift` (SwiftCodeUI must own
+//     them: `NativeSettingsViews` and `CodeColoringTheme` use them).
 //
 // Adaptations (behaviour preserved unless noted):
 //   - `AppSettings` is `@Observable` in production, so Legacy's
@@ -157,136 +157,6 @@ struct SettingsCardSection<Header: View, Content: View, Footer: View>: View {
         }
         .groupBoxStyle(ModernGroupBoxStyle())
     }
-}
-
-struct ThemeColors: Codable, Equatable {
-    var background: String
-    var editorText: String
-    var syntaxKeyword: String
-    var syntaxString: String
-    var syntaxComment: String
-    var syntaxType: String
-    var accent: String
-    var toolbar: String
-    var panelBackground: String
-}
-
-struct AppTheme: Identifiable, Codable, Equatable {
-    var id: String
-    var name: String
-    var isBuiltIn: Bool
-    var colors: ThemeColors
-
-    static let light = AppTheme(
-        id: "light", name: "Light", isBuiltIn: true,
-        colors: ThemeColors(
-            background: "#FFFFFF", editorText: "#000000",
-            syntaxKeyword: "#AD3DA4", syntaxString: "#C41A16",
-            syntaxComment: "#007400", syntaxType: "#3900A0",
-            accent: "#007AFF", toolbar: "#F2F2F7", panelBackground: "#F5F5F5"
-        )
-    )
-    static let dark = AppTheme(
-        id: "dark", name: "Dark", isBuiltIn: true,
-        colors: ThemeColors(
-            background: "#1A1A2E", editorText: "#DCDCDC",
-            syntaxKeyword: "#FC5FA3", syntaxString: "#FC6A5D",
-            syntaxComment: "#6C7986", syntaxType: "#5DD8FF",
-            accent: "#FF9500", toolbar: "#1C1C1E", panelBackground: "#242430"
-        )
-    )
-    static let monokai = AppTheme(
-        id: "monokai", name: "Monokai", isBuiltIn: true,
-        colors: ThemeColors(
-            background: "#272822", editorText: "#F8F8F2",
-            syntaxKeyword: "#F92672", syntaxString: "#E6DB74",
-            syntaxComment: "#75715E", syntaxType: "#66D9EF",
-            accent: "#A6E22E", toolbar: "#1E1F1C", panelBackground: "#3E3D32"
-        )
-    )
-    static let dracula = AppTheme(
-        id: "dracula", name: "Dracula", isBuiltIn: true,
-        colors: ThemeColors(
-            background: "#282A36", editorText: "#F8F8F2",
-            syntaxKeyword: "#FF79C6", syntaxString: "#F1FA8C",
-            syntaxComment: "#6272A4", syntaxType: "#8BE9FD",
-            accent: "#BD93F9", toolbar: "#21222C", panelBackground: "#343746"
-        )
-    )
-    static let oneDark = AppTheme(
-        id: "one_dark", name: "One Dark", isBuiltIn: true,
-        colors: ThemeColors(
-            background: "#282C34", editorText: "#ABB2BF",
-            syntaxKeyword: "#C678DD", syntaxString: "#98C379",
-            syntaxComment: "#5C6370", syntaxType: "#61AFEF",
-            accent: "#E06C75", toolbar: "#21252B", panelBackground: "#2C313A"
-        )
-    )
-    static let solarized = AppTheme(
-        id: "solarized", name: "Solarized Dark", isBuiltIn: true,
-        colors: ThemeColors(
-            background: "#002B36", editorText: "#839496",
-            syntaxKeyword: "#859900", syntaxString: "#2AA198",
-            syntaxComment: "#586E75", syntaxType: "#268BD2",
-            accent: "#B58900", toolbar: "#073642", panelBackground: "#073642"
-        )
-    )
-
-    static let builtIns: [AppTheme] = [.light, .dark, .monokai, .dracula, .oneDark, .solarized]
-}
-
-
-// MARK: - Theme Manager
-
-@Observable
-@MainActor
-final class ThemeManager {
-    static let shared = ThemeManager()
-
-    var customThemes: [AppTheme] = [] {
-        didSet { save() }
-    }
-
-    private let defaultsKey = "customThemes"
-
-    private init() { load() }
-
-    var allThemes: [AppTheme] { AppTheme.builtIns + customThemes }
-    var themes: [AppTheme] { allThemes }
-
-    func theme(for id: String) -> AppTheme? {
-        allThemes.first { $0.id == id }
-    }
-
-    func add(_ theme: AppTheme) {
-        var mutable = theme
-        mutable.isBuiltIn = false
-        customThemes.append(mutable)
-    }
-
-    func update(_ theme: AppTheme) {
-        if let idx = customThemes.firstIndex(where: { $0.id == theme.id }) {
-            customThemes[idx] = theme
-        }
-    }
-
-    func delete(_ theme: AppTheme) {
-        customThemes.removeAll { $0.id == theme.id }
-    }
-
-    private func save() {
-        if let data = try? JSONEncoder().encode(customThemes) {
-            UserDefaults.standard.set(data, forKey: defaultsKey)
-        }
-    }
-
-    private func load() {
-        guard let data = UserDefaults.standard.data(forKey: defaultsKey),
-              let decoded = try? JSONDecoder().decode([AppTheme].self, from: data) else { return }
-        customThemes = decoded
-    }
-
-    func reset() { customThemes = [] }
 }
 
 // MARK: - Custom Agent Connection Models

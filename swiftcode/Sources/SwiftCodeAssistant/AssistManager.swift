@@ -1,20 +1,8 @@
 // Ported from Legacy `SwiftCode/Backend/Assist/AssistManager.swift` (main ab03f681; Dylan's own code, direct port authorised under MIT).
-// Staged only — not yet merged into swiftcode/Sources. See staging-wire/missing/DISPOSITIONS.md.
+// Landed in SwiftCodeAssistant by batch A6 (f56a21df); fixed by W-V2 (see verify/v2-missing/FIXES.md).
 // ADAPTATION (destination convention, TasksAIPlanner.swift): Combine is unavailable
 // on Linux, so `import Combine` -> `import Observation`, ObservableObject/@Published
 // -> @Observable with plain stored vars. Behaviour unchanged.
-// BLOCKED references (left intact, owned by other scopes; checked against main
-// 555d2a31, 2026-11-06 — A3 landed several of these after this port was staged):
-// RESOLVED on main 555d2a31 (SwiftCodeAssistant): AssistSession, AssistAgentSession,
-//   AssistAPI (configure(context:)), AssistPermissionsManager, AssistGitManager
-//   (init(project:workspaceRoot:)), AssistModelManager (@Observable; .shared,
-//   selectedModelID, lastFallbackMessage exist), AssistModelOption,
-//   AssistToolActivityFormatter (format/extractFilePath/determineFileOperation).
-//   CodeReviewInternalResult now exists in SwiftCodeMCP (fields status/summary/
-//   strengths/issues/recommendedFixes/userSee/confidence) — target-level block:
-//   SwiftCodeAssistant does not depend on SwiftCodeMCP. AssistAgent also exists in
-//   SwiftCodeAssistant, but its init takes registry: AssistToolRegistry — the MCP
-//   type — so constructing it from here is still blocked (same target-level issue).
 // RESOLVED by wiring (G-W23): AssistTool / AssistToolRegistry MOVED from
 //   SwiftCodeMCP into SwiftCodeAssistant (Foundation-only, Linux-buildable;
 //   the ~295-type bulk `registerAllTools()` list was not moved — see that
@@ -22,36 +10,41 @@
 //   from SwiftCodeMCP via `registerMCPTools()`. `observeFallbackState()`
 //   reworked from Combine `$lastFallbackMessage` to Observation
 //   (`withObservationTracking`, see that function).
-// STILL BLOCKED:
-// - LLMService (1,413 lines, unowned; needs OpenRouterClient / OpenRouterService /
-//   InternalLoggingManager — see W-V2 FIXES.md): provider()/retrieveAPIKey()/
-//   streamChat() call sites below.
-// - SCCloudConfiguration / SCCloudModelClient / AlternativeKeyManager: do not exist
-//   anywhere in the destination (see W-V2 FIXES.md for the port plan).
-// - GoogleAccountAuthService / AntigravityQuotaService / GoogleCloudSDKSession /
-//   GoogleCloudSDKRuntime: exist in SwiftCodeGoogleAuth, which SwiftCodeAssistant
-//   does not (and cannot, per its dependency list) depend on — target-level block.
-// - GoogleCloudSDKConfiguration: does not exist anywhere in the destination.
-// - ProjectSessionStore: RESOLVED by fix W-V2 via AssistProject (see that file) —
-//   the manager now reads `activeProject`, set by the IDE shell. AssistFileSystem
-//   concrete class is COVERED-by-design (superseded by MCP tools) — buildContext()
-//   still constructs it; the coordinator must reconcile with AssistContextBuilder's
-//   MCP rewire (see that file's header).
 // RESOLVED by fix W-V2: AssistMemoryGraph / AssistModelProvider /
 //   AssistExecutionFunctions / TerminalApprovalRequest / AgentFileContext /
-//   AssistTaskEnvelope (all landed in SwiftCodeAssistant).
-// - AppSettings (24 uses: useSwiftCodeCloudModel, selectedAssistModelID,
-//   assistUseProviderModels, isMetaAssist, assistGoogleAuthMode,
-//   alternativeKeysEnabled, isGoogleCloudAssist, ...): no AppSettings exists in the
-//   destination — settings live in Preferences/AssistantSettings (SwiftCodeIDECore),
-//   which SwiftCodeAssistant cannot depend on. Some keys exist there
-//   (e.g. useSwiftCodeCloudModel); the coordinator must re-wire these reads.
-// - SCCloudConfiguration / SCCloudModelClient / AlternativeKeyManager: do not exist
-//   anywhere in the destination.
-// - GoogleAccountAuthService / AntigravityQuotaService / GoogleCloudSDKSession /
-//   GoogleCloudSDKRuntime: exist in SwiftCodeGoogleAuth, which SwiftCodeAssistant
-//   does not (and cannot, per its dependency list) depend on — target-level block.
-// - GoogleCloudSDKConfiguration: does not exist anywhere in the destination.
+//   AssistTaskEnvelope / AssistWorkingDirectoryStore / UserIntent /
+//   AssistProviderSelection / AgentModelAdapter / AssistActivityModels /
+//   OpenCodeConfiguration.load() / AssistModelDiscoveryService.shared —
+//   all landed in SwiftCodeAssistant. SCCloudConfiguration / SCCloudModelClient /
+//   AlternativeKeyManager landed in SwiftCodeAssistant (CryptoKit -> swift-crypto
+//   `Crypto`, Darwin-only fingerprint material guarded). LLMService +
+//   OpenRouterClient / OpenRouterService / OpenRouterRequestBuilder /
+//   InternalLoggingManager (Combine -> Observation) / FoundationModels wrapper
+//   landed in SwiftCodeAssistant (parallel agent; W-V2 fixed their Combine /
+//   NaturalLanguage / AppConfig issues — AppConfig MOVED here from SwiftCodeCloud).
+//   AppSettings exists in SwiftCodeAssistant (useSwiftCodeCloudModel,
+//   selectedAssistModelID, ...). CodeReviewInternalResult / TerminalApprovalRequest
+//   exist in SwiftCodeAssistant. ProjectSessionStore: RESOLVED via AssistProject
+//   (see that file) — the manager now reads `activeProject`, set by the IDE shell.
+//   AssistFileSystem concrete class is COVERED-by-design (superseded by MCP tools) —
+//   buildContext() still constructs it; the coordinator must reconcile with
+//   AssistContextBuilder's MCP rewire (see that file's header).
+// RESOLVED by R-GOOGLE-MOVE (W-V2 decision 1): GoogleAccountAuthService /
+//   AntigravityQuotaService / GoogleCloudSDKSession / GoogleCloudSDKRuntime
+//   MOVED from SwiftCodeGoogleAuth into SwiftCodeAssistant (same filenames);
+//   GoogleCloudSDKConfiguration already lives in SwiftCodeAssistant.
+// STILL BLOCKED (follow-up move needed): the moved files still reference
+//   GoogleAuth-only helpers (GoogleTokenClient, GoogleOAuthConfiguration,
+//   GoogleOAuthTokens, GooglePKCE, GoogleLoopbackServer, GoogleAuthError,
+//   GoogleAmbientCredentials; GoogleCloudSDKBridge, GoogleCloudSDKProcess,
+//   GoogleCloudSDKEvent, GoogleCloudSDKToolExecutionRequest, GoogleCloudSDKAttachment)
+//   — those helpers must move to SwiftCodeAssistant next, or the moved files
+//   do not compile. Also: `fetchAntigravityCredentialsFromKeychain()` is called
+//   on GoogleAccountAuthService below (2 sites) but is defined as a static on
+//   GoogleAmbientCredentials, not on the service — pre-existing, still unresolved.
+// - AssistAgent init previously took the MCP AssistToolRegistry; the registry has
+//   since moved into SwiftCodeAssistant — confirm the call site below compiles
+//   (not verified here: no Swift toolchain in this environment).
 // Resolved in-destination: AssistContext, SystemIndexService, SystemIndexBudgetResult,
 // SystemIndexRequestLedger, AssistMessage, AssistExecutionPlan, AssistNoticeLevel,
 // ServerErrorDetail, ModelContextSection, ContextPressureState, plus this batch's

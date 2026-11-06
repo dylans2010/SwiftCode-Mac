@@ -3,12 +3,13 @@
 // Ported from Legacy `SwiftCode/Views/Utilities/Operations/AppKit/OperationsWindowController.swift` (SwiftCode-Mac migration, Views/UI worklist).
 // Worklist verdict: PARTIAL.
 // Missing behaviour ported: standalone Operations window; AppKit toolbar and split-view window management
-// References types from module(s) not in this target's Package.swift dependencies: SwiftCodeIDEShell — add the dependency in Package.swift or rebind at wiring time; not imported here.
-// References legacy types absent from this target (wiring/integration gaps):
-// OperationsSidebarView + OperationsWorkspaceView are both ported now, but into
-// swiftcode-ide (Sidebar by P-UTIL, Workspace by H-E) — unreachable from
-// SwiftCodeUI, so :164/:175 still do not resolve. Needs the 16 Operations panel
-// views migrated into a library module, or a rebind of this window controller.
+// MOVED (batch 9, H-E flag): SwiftCodeUI/Window -> swiftcode-ide/ — the
+// OperationsSidebarView + OperationsWorkspaceView it hosts live in swiftcode-ide
+// (Sidebar by P-UTIL, Workspace by H-E), unreachable from SwiftCodeUI, so the
+// :164/:175 references could not resolve there. In swiftcode-ide they resolve.
+// STILL OPEN: OperationsWindowManager.shared.showWindow() has zero callers —
+// the Operations window exists but nothing opens it yet; needs a menu item
+// (same pattern as the DevTools hub entry point) in a wiring pass.
 // Static port only — no Swift toolchain here; build verification pending on Dylan's Mac.
 import SwiftCodeLanguage
 import AppKit
