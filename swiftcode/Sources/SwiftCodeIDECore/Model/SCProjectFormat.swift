@@ -11,11 +11,16 @@ import Crypto
 /// `version.json` + `integrity.json` + `Sources/` + `Assets/` + `Resources/`.
 ///
 /// Honest limits, stated plainly:
-/// - ZIP archives are NOT supported: Legacy zipped/unzipped packages with
-///   ZIPFoundation, which is not a dependency of this target, and the
-///   destination has no ZIP reader/writer here. `SCProjectValidator` and
-///   `SCProjectCoordinator` reject a single-file (archive) URL instead of
-///   pretending to read it. Directory packages work fully.
+/// - ZIP archives are supported through the system tools, not
+///   ZIPFoundation (which is not a dependency of this target):
+///   `SCProjectArchive` zips with `/usr/bin/ditto -c -k` on macOS
+///   (`zip` elsewhere) and unzips with `ditto -x -k` (`unzip`
+///   elsewhere). `SCProjectCoordinator.exportProjectArchive` /
+///   `importProjectArchive`, `getManifest(for:)`, and
+///   `SCProjectValidator.validate(packageURL:)` all accept a
+///   single-file archive URL exactly as Legacy's
+///   `ProjectCoordinator` / `ProjectValidator` did (unpack to a temp
+///   directory first). Directory packages work fully, unchanged.
 /// - Hashing uses swift-crypto (`Crypto`) instead of Legacy's CryptoKit,
 ///   so this code builds on Linux too; the digests are the same SHA-256 /
 ///   SHA-512 values.
@@ -52,6 +57,57 @@ public enum SCProjectError: LocalizedError, Sendable {
         case .pathNotFound: return "The project folder could not be found."
         case .timeout: return "The project took too long to load. Please try again."
         case .cancelled: return "Project loading was cancelled."
+        }
+    }
+
+    /// Logs a package error (Legacy `ProjectErrorManager.logError`).
+    public static func logError(_ error: Error) {
+        print("[SCProject] Error: \(error.localizedDescription)")
+    }
+}
+
+/// ZIP archive support for `.scproj` packages (Legacy
+/// `ProjectCoordinator` / `ProjectValidator` used ZIPFoundation's
+/// `FileManager.zipItem` / `unzipItem`; this target has no ZIP
+/// dependency, so the same operations go through the system tools).
+public enum SCProjectArchive {
+    /// Zips the directory at `sourceURL` into a single archive file
+    /// at `destinationURL` (overwriting it when present).
+    public static func zipItem(at sourceURL: URL, to destinationURL: URL) throws {
+        let fm = FileManager.default
+        try? fm.removeItem(at: destinationURL)
+        #if os(macOS)
+        try run("/usr/bin/ditto", ["-c", "-k", "--sequesterRsrc", "--keepParent", sourceURL.path, destinationURL.path])
+        #else
+        try run("/usr/bin/zip", ["-r", "-q", destinationURL.path, "."], currentDirectory: sourceURL)
+        #endif
+    }
+
+    /// Unpacks the archive at `sourceURL` into the directory at
+    /// `destinationURL` (created when missing).
+    public static func unzipItem(at sourceURL: URL, to destinationURL: URL) throws {
+        try FileManager.default.createDirectory(at: destinationURL, withIntermediateDirectories: true)
+        #if os(macOS)
+        try run("/usr/bin/ditto", ["-x", "-k", sourceURL.path, destinationURL.path])
+        #else
+        try run("/usr/bin/unzip", ["-q", sourceURL.path, "-d", destinationURL.path])
+        #endif
+    }
+
+    private static func run(_ executable: String, _ arguments: [String], currentDirectory: URL? = nil) throws {
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: executable)
+        process.arguments = arguments
+        if let currentDirectory { process.currentDirectoryURL = currentDirectory }
+        do {
+            try process.run()
+        } catch {
+            throw SCProjectError.ioError(error)
+        }
+        process.waitUntilExit()
+        guard process.terminationStatus == 0 else {
+            throw SCProjectError.ioError(NSError(domain: "SwiftCode.SCProjectArchive", code: Int(process.terminationStatus),
+                                                 userInfo: [NSLocalizedDescriptionKey: "\(executable) failed with status \(process.terminationStatus)."]))
         }
     }
 }
@@ -352,9 +408,9 @@ public final class SCProjectIntegrityManager: Sendable {
     }
 }
 
-/// Full package validation (Legacy `ProjectValidator`). Directory packages
-/// only: a single-file URL is a zipped archive, which this target cannot
-/// open (see the file header).
+/// Full package validation (Legacy `ProjectValidator`). A
+/// single-file URL is a zipped archive: it is unpacked to a temp
+/// directory and validated there, exactly as Legacy did.
 public final class SCProjectValidator: Sendable {
     public static let shared = SCProjectValidator()
     private init() {}
@@ -363,7 +419,12 @@ public final class SCProjectValidator: Sendable {
         var isDir: ObjCBool = false
         let exists = FileManager.default.fileExists(atPath: packageURL.path, isDirectory: &isDir)
         if exists, !isDir.boolValue {
-            throw SCProjectError.corruptedPackage("Zipped .scproj archives are not supported: open the package as a directory.")
+            let tempDir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+            try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
+            defer { try? FileManager.default.removeItem(at: tempDir) }
+            try SCProjectArchive.unzipItem(at: packageURL, to: tempDir)
+            try validate(packageURL: tempDir)
+            return
         }
         guard SCProjectPackageManager.shared.validatePackageStructure(at: packageURL) else {
             throw SCProjectError.corruptedPackage("Invalid directory structure")
@@ -680,8 +741,10 @@ public final class SCProjectDeserializer: Sendable {
 
 // MARK: - Coordination / progress managers
 
-/// Import/export orchestration (Legacy `ProjectCoordinator`). Directory
-/// packages only; see the file header for the ZIP limit.
+/// Import/export orchestration (Legacy `ProjectCoordinator`).
+/// Directory packages are exported/imported in place; the `*Archive`
+/// variants produce and consume single-file ZIP archives, exactly as
+/// Legacy's `exportProject` / `importProject` did.
 public final class SCProjectCoordinator: Sendable {
     public static let shared = SCProjectCoordinator()
     private init() {}
@@ -723,11 +786,51 @@ public final class SCProjectCoordinator: Sendable {
         return project
     }
 
+    /// Exports `project` as a single-file ZIP archive at
+    /// `destinationURL` (Legacy `ProjectCoordinator.exportProject`:
+    /// serialize into a temp folder, then zip it).
+    public func exportProjectArchive(_ project: SCProject, to destinationURL: URL) async throws {
+        let fm = FileManager.default
+        let tempDir = fm.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try fm.createDirectory(at: tempDir, withIntermediateDirectories: true)
+        defer { try? fm.removeItem(at: tempDir) }
+        let packageTempDir = tempDir.appendingPathComponent(project.name + ".scproj")
+        try fm.createDirectory(at: packageTempDir, withIntermediateDirectories: true)
+        try await SCProjectSerializer.shared.serialize(project: project, to: packageTempDir)
+        try SCProjectArchive.zipItem(at: packageTempDir, to: destinationURL)
+    }
+
+    /// Imports a single-file ZIP archive (or a directory package,
+    /// which takes the existing `importProject` path) into
+    /// `projectsRoot` (Legacy `ProjectCoordinator.importProject`:
+    /// unpack to a temp folder first, then import from there).
+    public func importProjectArchive(from packageURL: URL, into projectsRoot: URL) async throws -> SCProject {
+        var isDir: ObjCBool = false
+        let exists = FileManager.default.fileExists(atPath: packageURL.path, isDirectory: &isDir)
+        guard exists, !isDir.boolValue else {
+            return try await importProject(from: packageURL, into: projectsRoot)
+        }
+        let tempDir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: tempDir) }
+        try SCProjectArchive.unzipItem(at: packageURL, to: tempDir)
+        return try await importProject(from: tempDir, into: projectsRoot)
+    }
+
     public func validateProject(at packageURL: URL) throws {
         try SCProjectValidator.shared.validate(packageURL: packageURL)
     }
 
     public func getManifest(for packageURL: URL) throws -> ProjectManifest {
+        var isDir: ObjCBool = false
+        if FileManager.default.fileExists(atPath: packageURL.path, isDirectory: &isDir), !isDir.boolValue {
+            let tempDir = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+            try FileManager.default.createDirectory(at: tempDir, withIntermediateDirectories: true)
+            defer { try? FileManager.default.removeItem(at: tempDir) }
+            try SCProjectArchive.unzipItem(at: packageURL, to: tempDir)
+            let manifestData = try SCProjectFileManager.shared.readFile(at: tempDir.appendingPathComponent("manifest.json"))
+            return try SCProjectJSONManager.shared.decode(ProjectManifest.self, from: manifestData)
+        }
         let manifestData = try SCProjectFileManager.shared.readFile(at: packageURL.appendingPathComponent("manifest.json"))
         return try SCProjectJSONManager.shared.decode(ProjectManifest.self, from: manifestData)
     }

@@ -110,9 +110,25 @@ public struct GitHubClient: Sendable {
     /// hidden an expired token as "file does not exist"; this port
     /// only treats 404 as missing. Used to decide whether
     /// `pushFile` creates or updates.
-    public func getFileSHA(owner: String, repo: String, path: String) async throws -> String? {
+    /// `POST /repos/{owner}/{repo}/git/refs`: creates `branch` from
+    /// `from` (default `main`). Throws when the branch already exists
+    /// or the base branch cannot be resolved (Legacy
+    /// `ProjectBuilderManager.triggerRemoteGeneration` creates the
+    /// `build-project` branch this way and ignores an already-exists
+    /// failure).
+    public func createBranch(owner: String, repo: String, branch: String, from baseBranch: String = "main") async throws {
         try validateRepo(owner: owner, repo: repo)
-        let (data, http) = try await performRaw(request(path: "repos/\(encode(owner))/\(encode(repo))/contents/\(encode(path))"))
+        struct RefResponse: Decodable { struct Object: Decodable { var sha: String }; var object: Object }
+        let base: RefResponse = try await perform(request(path: "repos/\(encode(owner))/\(encode(repo))/git/ref/heads/\(encode(baseBranch))"))
+        struct CreateRefBody: Encodable { var ref: String; var sha: String }
+        let payload = try jsonBody(CreateRefBody(ref: "refs/heads/\(branch)", sha: base.object.sha))
+        let _: RefResponse = try await perform(request(path: "repos/\(encode(owner))/\(encode(repo))/git/refs", method: "POST", body: payload))
+    }
+
+    public func getFileSHA(owner: String, repo: String, path: String, ref: String? = nil) async throws -> String? {
+        try validateRepo(owner: owner, repo: repo)
+        let query = ref.map { [URLQueryItem(name: "ref", value: $0)] } ?? []
+        let (data, http) = try await performRaw(request(path: "repos/\(encode(owner))/\(encode(repo))/contents/\(encode(path))", query: query))
         if http.statusCode == 404 { return nil }
         try validate(http, data: data)
         do {

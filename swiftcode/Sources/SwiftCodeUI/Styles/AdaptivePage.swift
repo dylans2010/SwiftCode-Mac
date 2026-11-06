@@ -1,16 +1,15 @@
-// Ported from Legacy `SwiftCode/UI/Styles/Styling/AdaptivePage.swift` (main ab03f681; Dylan's own code, direct port authorised under MIT).
-// Staged only — not yet merged into swiftcode/Sources. See staging-wire/missing/DISPOSITIONS.md.
-// Verbatim except `.liquidGlass(...)` -> `.background(.thinMaterial, in:
-// RoundedRectangle(...))`: no liquidGlass modifier exists in the destination
-// (Legacy LiquidGlass.swift is PARTIAL, another scope); this is the destination's
-// own card treatment (WorkersMainView.swift precedent).
-// Wiring: the app root must inject AdaptiveLayoutEngine.shared as an
-// environmentObject (MacDesktopOptimizedModifier reads it) and wrap pages in
-// AdaptivePage/AdaptiveDashboardPage/AdaptiveEditorPage/AdaptiveSettingsPage;
-// AdaptiveGrid/AdaptiveSplitLayout/AdaptiveSheet are used directly by callers.
-
 import SwiftUI
+#if canImport(AppKit)
+import AppKit
+#endif
 
+/// Adaptive page (Legacy
+/// `SwiftCode/UI/Styles/Styling/AdaptivePage.swift`, Dylan's own code,
+/// ported under MIT). Direct port except the screen metrics: Legacy
+/// read `NSScreen.main?.backingScaleFactor` and
+/// `NSApp.keyWindow?.styleMask`, which need AppKit, so those reads
+/// are `#if canImport(AppKit)`-guarded (scale 1.0, not fullscreen
+/// elsewhere).
 public struct AdaptivePage<Content: View>: View {
     let content: Content
     @Environment(\.colorScheme) var colorScheme
@@ -36,13 +35,21 @@ public struct AdaptivePage<Content: View>: View {
     }
 
     private func updateMetrics(size: CGSize) {
-        DispatchQueue.main.async {
+        #if canImport(AppKit)
+        let scale = NSScreen.main?.backingScaleFactor ?? 1.0
+        let isFullscreen = NSApp.keyWindow?.styleMask.contains(.fullScreen) ?? false
+        #else
+        let scale: CGFloat = 1.0
+        let isFullscreen = false
+        #endif
+        let appearance: AdaptiveWindowMetrics.Appearance = colorScheme == .dark ? .dark : .light
+        Task { @MainActor in
             AdaptiveLayoutEngine.shared.updateMetrics(
                 width: size.width,
                 height: size.height,
-                scale: NSScreen.main?.backingScaleFactor ?? 1.0,
-                isFullscreen: NSApp.keyWindow?.styleMask.contains(.fullScreen) ?? false,
-                appearance: colorScheme == .dark ? .dark : .light
+                scale: scale,
+                isFullscreen: isFullscreen,
+                appearance: appearance
             )
         }
     }

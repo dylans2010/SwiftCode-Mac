@@ -285,6 +285,11 @@ public final class ExtensionManager {
     public func setEnabled(extensionId: String, enabled: Bool) {
         guard let index = installed.firstIndex(where: { $0.id == extensionId }) else { return }
         if !enabled { deactivate(extensionId: extensionId) }
+        // Re-enabling clears a quarantine (Legacy
+        // `SDKExtensionManager.clearQuarantine`): the user inspected
+        // the problem and asked for another chance, so the extension
+        // gets a fresh crash budget too.
+        if enabled { hostManager.clearQuarantine(for: extensionId) }
         installed[index].isEnabled = enabled
         installed[index].updatedAt = Date()
         persistInstalled()
@@ -327,6 +332,7 @@ public final class ExtensionManager {
             let contribution = try await hostManager.activate(installed: record, workspaceRoot: workspaceRoot,
                                                               settings: settings)
             contributions[extensionId] = contribution
+            registerAssistCommands(for: record, contribution: contribution)
             refreshInstalled()
             return contribution
         case .native:
@@ -348,6 +354,19 @@ public final class ExtensionManager {
             ])
             contributions[extensionId] = contribution
             return contribution
+        }
+    }
+
+    /// Registers each of a `.vscode` extension's contribution
+    /// commands with the assistant, so `use_extension` can call
+    /// them (Legacy `ExtV2Manager.registerAssistCommands`, called
+    /// from `activate` for `.vscode` kind). Registration requires
+    /// the `.assistTools` grant; `AssistBridge.register` returns
+    /// false (and logs) when it is not granted.
+    private func registerAssistCommands(for record: InstalledExtension, contribution: ExtensionContribution) {
+        for command in contribution.commands {
+            let descriptor = AssistBridge.descriptor(for: command, extensionId: record.id)
+            _ = AssistBridge.register(descriptor, permissions: permissions)
         }
     }
 

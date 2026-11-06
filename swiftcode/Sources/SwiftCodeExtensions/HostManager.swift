@@ -313,11 +313,43 @@ public final class ExtensionHostManager {
         commandOwners[command]
     }
 
+    /// Quarantined extensions (id → reason): an extension whose
+    /// host crashed `maxConsecutiveHostCrashes` times in a row stays
+    /// stopped until the user re-enables it (Legacy
+    /// `SDKExtensionManager` quarantine). Legacy persisted the
+    /// quarantine across launches in `.host-state.json`; this target
+    /// has no such store, so a quarantine lasts for the process
+    /// lifetime — the same scope as the crash counter it derives from.
+    private(set) var quarantined: [String: String] = [:]
+
+    /// Whether `extensionId` is quarantined (isolated after repeated
+    /// host crashes).
+    public func isQuarantined(_ extensionId: String) -> Bool {
+        quarantined[extensionId] != nil
+    }
+
+    /// Why `extensionId` was quarantined, if it was.
+    public func quarantineReason(for extensionId: String) -> String? {
+        quarantined[extensionId]
+    }
+
+    /// Clears a quarantine (user action via re-enable). The crash
+    /// budget is reset too: the user inspected the problem and asked
+    /// for another chance, so the extension gets a fresh retry budget
+    /// (Legacy `SDKExtensionManager.clearQuarantine`).
+    public func clearQuarantine(for extensionId: String) {
+        guard quarantined.removeValue(forKey: extensionId) != nil else { return }
+        consecutiveCrashes.removeValue(forKey: extensionId)
+    }
+
     public func activate(installed: InstalledExtension, workspaceRoot: URL?,
                          settings: ExtensionSettings) async throws -> ExtensionContribution {
         let id = installed.id
         if let existing = contributions[id], isRunning(extensionId: id) {
             return existing // A second activate() returns the existing contribution.
+        }
+        if let reason = quarantined[id] {
+            throw SwiftCodeExtensionError.host("Extension '\(id)' is quarantined: \(reason) Re-enable it to try again.")
         }
         if (consecutiveCrashes[id] ?? 0) >= ResourceLimits.maxConsecutiveHostCrashes {
             throw SwiftCodeExtensionError.host(
@@ -415,6 +447,23 @@ public final class ExtensionHostManager {
         DiagnosticsService.shared.error(
             "Extension host for '\(extensionId)' exited unexpectedly (status \(status)).",
             extensionId: extensionId)
+        // A host that crashed `maxConsecutiveHostCrashes` times in a
+        // row is quarantined: it stays stopped until the user
+        // re-enables it (Legacy `SDKExtensionManager`, which also
+        // quarantined on a package-digest change on disk — that
+        // trigger has no destination equivalent, since no digest is
+        // recorded here; see the disposition).
+        if (consecutiveCrashes[extensionId] ?? 0) >= ResourceLimits.maxConsecutiveHostCrashes {
+            quarantine(extensionId: extensionId, reason: "It crashed \(consecutiveCrashes[extensionId] ?? 0) times in a row and was quarantined to protect stability. Last exit code: \(status).")
+        }
+    }
+
+    /// Quarantines an extension: it stays stopped until the user
+    /// re-enables it (which clears the quarantine) or reinstalls
+    /// it. Contributions are removed.
+    private func quarantine(extensionId: String, reason: String) {
+        quarantined[extensionId] = reason
+        DiagnosticsService.shared.error("Extension '\(extensionId)' was quarantined: \(reason)", extensionId: extensionId)
     }
 
     private func requireNode20(nodeURL: URL) async throws {

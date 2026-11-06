@@ -12,6 +12,9 @@ import SwiftCodeAssistant
 /// * `target` ← `targetContent` / `old_string` / `old_str` / `find`
 /// * `replacement` ← `replacementContent` / `new_string` / `new_str` / `replace`
 /// * `command` ← `cmd`
+/// * `source` ← `sourcePath` (Legacy `file_copy` / `file_move`)
+/// * `destination` ← `destinationPath` (Legacy `file_copy` / `file_move`)
+/// * `newName` ← `newPath` (Legacy `file_rename` passes a path)
 ///
 /// Plus one per-tool Legacy alias verified live:
 /// `AssistDataMutationTools` reads `input["path"] ?? input["csvPath"]`,
@@ -50,6 +53,9 @@ public enum MCPParameterAliases {
         ("target", ["targetContent", "old_string", "old_str", "find"]),
         ("replacement", ["replacementContent", "new_string", "new_str", "replace"]),
         ("command", ["cmd"]),
+        ("source", ["sourcePath"]),
+        ("destination", ["destinationPath"]),
+        ("newName", ["newPath"]),
     ]
 
     /// Aliases for one canonical name, or [] when it has none.

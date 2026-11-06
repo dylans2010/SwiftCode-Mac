@@ -1,18 +1,16 @@
-// Ported from Legacy `SwiftCode/UI/Styles/Styling/MacDesktopOptimized.swift` (main ab03f681; Dylan's own code, direct port authorised under MIT).
-// Staged only — not yet merged into swiftcode/Sources. See staging-wire/missing/DISPOSITIONS.md.
-// Verbatim except `.liquidGlass(...)` -> `.background(.thinMaterial, in:
-// RoundedRectangle(...))`: no liquidGlass modifier exists in the destination
-// (Legacy LiquidGlass.swift is PARTIAL, another scope); this is the destination's
-// own card treatment (WorkersMainView.swift precedent).
-// Wiring: the app root must inject AdaptiveLayoutEngine.shared as an
-// environmentObject (MacDesktopOptimizedModifier reads it) and wrap pages in
-// AdaptivePage/AdaptiveDashboardPage/AdaptiveEditorPage/AdaptiveSettingsPage;
-// AdaptiveGrid/AdaptiveSplitLayout/AdaptiveSheet are used directly by callers.
-
 import SwiftUI
 
+/// Desktop-optimised view modifiers (Legacy
+/// `SwiftCode/UI/Styles/Styling/MacDesktopOptimized.swift`, Dylan's own
+/// code, ported under MIT).
+///
+/// Adapted: Legacy read the engine with `@EnvironmentObject`;
+/// there is no Combine / `EnvironmentObject` in this codebase, so
+/// the modifiers read it with `@Environment(AdaptiveLayoutEngine.self)`
+/// (installed by `StylingBootstrap.configureEnvironment`). The
+/// `.liquidGlass(...)` styles come from `SwiftCodeUI`'s `LiquidGlass`.
 public struct MacDesktopOptimizedModifier: ViewModifier {
-    @EnvironmentObject var layoutEngine: AdaptiveLayoutEngine
+    @Environment(AdaptiveLayoutEngine.self) var layoutEngine
 
     public func body(content: Content) -> some View {
         content
@@ -22,20 +20,20 @@ public struct MacDesktopOptimizedModifier: ViewModifier {
 }
 
 public struct SourceControlEmbeddedModifier: ViewModifier {
-    @EnvironmentObject var layoutEngine: AdaptiveLayoutEngine
+    @Environment(AdaptiveLayoutEngine.self) var layoutEngine
 
     public func body(content: Content) -> some View {
         content
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .padding(16)
-            .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+            .liquidGlass(style: .standard, cornerRadius: 12)
             .clipped()
             .environment(\.adaptiveMetrics, layoutEngine.metrics)
     }
 }
 
 public struct SimulatorWorkspaceEmbeddedModifier: ViewModifier {
-    @EnvironmentObject var layoutEngine: AdaptiveLayoutEngine
+    @Environment(AdaptiveLayoutEngine.self) var layoutEngine
 
     public func body(content: Content) -> some View {
         content

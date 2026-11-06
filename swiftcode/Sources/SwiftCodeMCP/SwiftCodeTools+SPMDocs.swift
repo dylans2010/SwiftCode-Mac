@@ -78,7 +78,7 @@ extension SwiftCodeMCPHost {
             tool("swift_package_manager", "Swift Package Manager",
                  "Inspects, resolves, updates, and validates Swift Package Manager (SPM) dependencies.",
                  input: Schema.object(["workspace": Schema.workspace,
-                                       "action": Schema.string("Action to perform: 'resolve', 'update', 'status', 'dump_manifest', 'describe'."),
+                                       "action": Schema.string("Action to perform: 'resolve', 'update', 'status', 'dump_manifest', 'describe', or any other single-token 'swift package' subcommand (e.g. 'clean', 'reset', 'show-dependencies')."),
                                        "packageDir": Schema.string("Workspace-relative directory containing Package.swift (defaults to workspace root).")],
                                       required: ["action"]),
                  annotations: execution) { h, call in
@@ -219,7 +219,16 @@ extension SwiftCodeMCPHost {
         case "dump_manifest": arguments.append("dump-package")
         case "describe": arguments.append("describe")
         default:
-            throw MCPToolError("Unsupported action '\(action)'. Valid: resolve, update, status, dump_manifest, describe")
+            // Legacy passed other `swift package` subcommands through.
+            // Only a single token of letters, digits, `_`, and `-` is
+            // accepted, so no flags or shell metacharacters can be
+            // smuggled in as the action.
+            let token = action.lowercased()
+            let allowed = CharacterSet(charactersIn: "abcdefghijklmnopqrstuvwxyz0123456789_-")
+            guard !token.isEmpty, token.unicodeScalars.allSatisfy({ allowed.contains($0) }) else {
+                throw MCPToolError("Unsupported action '\(action)'. Valid: resolve, update, status, dump_manifest, describe, or a single-token 'swift package' subcommand.")
+            }
+            arguments.append(token)
         }
         guard let run = (await Task.detached {
             Self.terminalRunFixed("/usr/bin/swift", arguments, workingDirectory: targetDir, timeout: 300)

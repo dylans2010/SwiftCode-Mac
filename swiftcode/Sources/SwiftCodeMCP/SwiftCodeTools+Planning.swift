@@ -184,8 +184,10 @@ extension SwiftCodeMCPHost {
                                                        "assistRecommended": Schema.boolean("Whether the assistant recommends this choice.")],
                                                       required: ["choice"]),
                                         "Available choices for the user. Each choice must have 'choice' (string) and 'assistRecommended' (boolean) fields."),
-                                       "userSpecification": Schema.boolean("Whether the user may provide a free-form response.")],
-                                      required: ["question", "allowsMultipleAnswers", "choices"]),
+                                       "userSpecification": Schema.boolean("Whether the user may provide a free-form response."),
+                                       "input_type": Schema.string("Legacy form: 'text' for a free-form question or 'selection' for a choice question. 'text' implies userSpecification=true; 'selection' reads its options from 'options'."),
+                                       "options": Schema.array(Schema.str, "Legacy form: the choice strings for a 'selection' input_type question.")],
+                                      required: ["question"]),
                  output: Schema.output(["questionId": Schema.str, "question": Schema.str, "status": Schema.str,
                                         "allowsMultipleAnswers": Schema.bool, "userSpecification": Schema.bool,
                                         "choices": Schema.array(Schema.anyObject, "The choices as presented.")])) { h, call in
@@ -374,8 +376,20 @@ extension SwiftCodeMCPHost {
         } catch {
             throw MCPToolError("Failed to explain \(path): \(error.localizedDescription)")
         }
-        let explanation = PlanningSupport.staticExplanation(of: content, at: fileReadingRelativePath(of: url, in: s))
-        return .structured(["explanation": .string(explanation)], summary: "Static analysis for \(path)")
+        // Legacy explained code with the model. Try the LLM first;
+        // when no provider is usable, fall back to the static
+        // explanation and say so — a static outline is not a model
+        // explanation, and must not be presented as one.
+        let systemPrompt = "Explain the code below in detail: what it does, how its parts fit together, and anything surprising or risky. Be concrete and cite the code."
+        do {
+            let completion = try await llmToolComplete(systemPrompt: systemPrompt, userText: content, toolName: "intel_explain_code",
+                                                       failureNote: "Falling back to static analysis.")
+            return .structured(["explanation": .string(completion.text)], summary: "Explanation for \(path)")
+        } catch let error as MCPToolError {
+            let staticExplanation = PlanningSupport.staticExplanation(of: content, at: fileReadingRelativePath(of: url, in: s))
+            let explanation = staticExplanation + "\n\n_Note: no LLM was available (\(error.message)), so this is a static structural outline, not a model explanation._"
+            return .structured(["explanation": .string(explanation)], summary: "Static analysis for \(path) (no LLM available)")
+        }
     }
 
     func generateTests(_ call: MCPToolCall) async throws -> MCPToolResult {
@@ -414,7 +428,7 @@ extension SwiftCodeMCPHost {
             throw MCPToolError("Missing required argument: 'question' must be a non-empty string.")
         }
         let allowsMultiple = call.bool("allowsMultipleAnswers") ?? false
-        let userSpec = call.bool("userSpecification") ?? false
+        var userSpec = call.bool("userSpecification") ?? false
         var choices: [PlanningQuestionChoice] = []
         if let choicesRaw = call.arguments["choices"]?.array {
             for raw in choicesRaw {
@@ -425,10 +439,36 @@ extension SwiftCodeMCPHost {
                 }
             }
         }
+        // Legacy's `ask_user` form: `input_type` + `options` instead of
+        // `choices`. `text` means a free-form question (userSpecification
+        // is implied); `selection` takes its choices from `options`.
+        if let inputType = call.arguments["input_type"]?.string?.lowercased() {
+            switch inputType {
+            case "text":
+                userSpec = true
+            case "selection":
+                let options = call.strings("options") ?? []
+                choices = options.map { PlanningQuestionChoice(choice: $0, assistRecommended: false) }
+            default:
+                throw MCPToolError("Unknown input_type '\(inputType)': expected 'text' or 'selection'.")
+            }
+        }
         if choices.isEmpty && !userSpec {
             throw MCPToolError("At least one choice is required when userSpecification is false.")
         }
-        let questionId = UUID().uuidString
+        let questionUUID = UUID()
+        let questionId = questionUUID.uuidString
+        // Register the question so the answer flow exists: the IDE's
+        // question UI calls `PendingQuestionStore.submitAnswer` with
+        // this id, and an agent turn can suspend on `awaitAnswer`
+        // until then. The tool itself still returns immediately with
+        // status pending and never blocks.
+        let inputType: AgentPendingQuestion.InputType = userSpec && choices.isEmpty
+            ? .text
+            : .selection(options: choices.map { $0.choice })
+        await PendingQuestionStore.shared.register(
+            AgentPendingQuestion(id: questionUUID, question: question, inputType: inputType),
+            allowsMultipleAnswers: allowsMultiple, userSpecification: userSpec)
         let choicesJSON: [AnyJSON] = choices.map {
             ["choice": .string($0.choice), "assistRecommended": .bool($0.assistRecommended)]
         }

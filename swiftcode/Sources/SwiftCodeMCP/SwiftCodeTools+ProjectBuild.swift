@@ -129,7 +129,8 @@ extension SwiftCodeMCPHost {
                  "Executes test suites and test plans using xcodebuild test with proper platform targeting.",
                  input: Schema.object(["workspace": Schema.workspace,
                                        "scheme": Schema.string("The scheme to test. Defaults to the project's first listed scheme."),
-                                       "testPlan": Schema.string("Optional name of the test plan to execute.")]),
+                                       "testPlan": Schema.string("Optional name of the test plan to execute."),
+                                       "projectPath": Schema.string("Legacy form: workspace-relative path of a Swift package directory to test with '/usr/bin/swift test' instead of the open workspace's schemes. When absent, tests run on the open workspace as before.")]),
                  output: Schema.output(["status": Schema.str, "duration": Schema.str, "diagnostics_count": Schema.int]),
                  annotations: execution) { h, call in
                 try await h.projectBuildTest(call)
@@ -259,6 +260,13 @@ extension SwiftCodeMCPHost {
 
     func projectBuildTest(_ call: MCPToolCall) async throws -> MCPToolResult {
         let s = try session(for: call)
+        // Legacy's `project_test` accepts a `projectPath`: run
+        // `/usr/bin/swift test` in that package directory instead of
+        // the open workspace's scheme-based test run.
+        if let projectPath = call.arguments["projectPath"]?.string,
+           !projectPath.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            return try await projectBuildTestPackage(call, projectPath: projectPath)
+        }
         try applyScheme(call.string("scheme"), destination: nil, to: s)
         if let plan = call.string("testPlan") {
             guard s.testPlanNames.contains(plan) else {
@@ -286,6 +294,44 @@ extension SwiftCodeMCPHost {
         }
         return .structured(["status": .string(status), "duration": .string(String(format: "%.2fs", duration)),
                             "diagnostics_count": .int(s.displayedIssues.count)],
+                           summary: summary)
+    }
+
+    /// `project_test` with a `projectPath`: runs `/usr/bin/swift
+    /// test` in that package directory (Legacy's form) and reports
+    /// the passed/failed test-case counts parsed from the output
+    /// (`Test Case '…' passed/failed` lines), with the run's tail
+    /// when it fails.
+    private func projectBuildTestPackage(_ call: MCPToolCall, projectPath: String) async throws -> MCPToolResult {
+        let s = try session(for: call)
+        let dir = try resolveFileReadingPath(projectPath, in: s)
+        guard FileManager.default.fileExists(atPath: dir.appendingPathComponent("Package.swift").path) else {
+            throw MCPToolError("Package.swift not found at \(dir.path). 'projectPath' must be a Swift package directory inside the workspace.")
+        }
+        guard FileManager.default.fileExists(atPath: "/usr/bin/swift") else {
+            throw MCPToolError("Swift not found at /usr/bin/swift.")
+        }
+        let started = Date()
+        guard let run = (await Task.detached {
+            Self.terminalRunFixed("/usr/bin/swift", ["test"], workingDirectory: dir, timeout: 600)
+        }.value) else {
+            throw MCPToolError("Failed to execute swift test: could not start /usr/bin/swift.")
+        }
+        let duration = Date().timeIntervalSince(started)
+        if run.timedOut {
+            throw MCPToolError("swift test timed out after 600 seconds in \(projectPath).")
+        }
+        let output = run.stdout + "\n" + run.stderr
+        let passed = output.components(separatedBy: "\n").filter { $0.contains("Test Case ") && $0.contains(" passed") }.count
+        let failed = output.components(separatedBy: "\n").filter { $0.contains("Test Case ") && $0.contains(" failed") }.count
+        let status = run.exitCode == 0 && failed == 0 ? "Passed" : "Failed"
+        var summary = "Tests \(status) (\(String(format: "%.2fs", duration))): \(passed) passed, \(failed) failed — swift test in \(projectPath)."
+        if status == "Failed" {
+            let tail = output.components(separatedBy: "\n").suffix(20).joined(separator: "\n")
+            summary += "\nLast log lines:\n" + tail
+        }
+        return .structured(["status": .string(status), "duration": .string(String(format: "%.2fs", duration)),
+                            "diagnostics_count": .int(failed), "passed": .int(passed), "failed": .int(failed)],
                            summary: summary)
     }
 

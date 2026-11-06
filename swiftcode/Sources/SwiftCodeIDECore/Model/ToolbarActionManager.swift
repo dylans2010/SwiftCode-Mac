@@ -1,0 +1,264 @@
+import Foundation
+
+/// Toolbar action → sheet destination routing (Legacy
+/// `SwiftCode/Core/ToolbarActionManager.swift`, Dylan's own code,
+/// ported under MIT).
+///
+/// One fix versus Legacy: Legacy's switch listed `"build_logs"`
+/// twice (first → `.buildLogs`, later → `.xcodeBuildLogs`); the
+/// second case was unreachable because the first match always won,
+/// so it is dropped here.
+
+/// Central manager that maps toolbar button IDs to their correct destination.
+@MainActor
+final class ToolbarActionManager {
+    static let shared = ToolbarActionManager()
+    private init() {}
+
+    public enum SheetDestination: String, Identifiable {
+        case fileNavigator
+        case gistManager
+        case aiAgent
+        case buildStatus
+        case gitHub
+        case codeSearch
+        case errorsPanel
+        case dependencyManager
+        case commandPalette
+        case goToLine
+        case symbolNavigator
+        case diffViewer
+        case toolbarCustomization
+        case projectSettings
+        case buildLogs
+        case minimapSettings
+        case sfSymbolsBrowser
+        case settings
+        case terminal
+        case codeReview
+        case gitHistory
+        case filePreview
+        case gitHubIssues
+        case complexityAnalyzer
+        case symbolOutline
+        case localSimulation
+        case simulatorMain
+        case pluginManager
+        case searchDocumentation
+        case snippetsLibrary
+        case codeRefactoring
+        case errorDiagnostics
+        case extensionMarketplace
+        case codeIntelligence
+        case crashLogAnalyzer
+        case projectDependencyGraph
+        case symbolIndex
+        case codeMetrics
+        case documentationBrowser
+        case workspaceProfiles
+        case assetManager
+        case debugTools
+        case deployments
+        case codingDictionary
+        case testTools
+        case collaboration
+        case assistView
+        case devTools
+        case sourceControl
+        case ciBuild
+        case licensesAdd
+        case appDetailsInfo
+        case personalDocumentation
+        case mainTools
+        case visualUIBuilder
+        case databaseExplorer
+        case projectInspector
+        case localizationManager
+        case deviceConnect
+        case virtualization
+
+        // Sidebar & Inspector additions
+        case debugSessions
+        case bookmarksSidebar
+        case breakpointsSidebar
+        case debugInspectorSidebar
+        case workflowsSidebar
+        case testsSidebar
+        case workflowEditor
+        case xcodeBuildSettings
+        case xcodeBuildLogs
+        case appleDeveloperAccount
+        case ipaBuild
+
+        var id: String { rawValue }
+
+        var isPro: Bool {
+            switch self {
+            case .deployments, .documentationBrowser, .debugTools, .extensionMarketplace, .deviceConnect:
+                return true
+            default:
+                return false
+            }
+        }
+    }
+
+    func destination(for toolId: String) -> SheetDestination? {
+        if let directDestination = SheetDestination(rawValue: toolId) {
+            return directDestination
+        }
+
+        switch toolId {
+        case "file_navigator":
+            return .fileNavigator
+        case "code_search", "project_index", "project_analyzer":
+            return .codeSearch
+        case "symbol_navigator":
+            return .symbolNavigator
+        case "go_to_line":
+            return .goToLine
+
+        case "ai_code_gen":
+            return .aiAgent
+
+        case "build_trigger", "build_status":
+            return .buildStatus
+        case "build_logs":
+            return .buildLogs
+
+        case "github_actions":
+            return .gitHub
+
+        case "errors_viewer":
+            return .errorsPanel
+
+        case "dependency_manager", "install_dependency":
+            return .dependencyManager
+        case "gist_manager":
+            return .gistManager
+        case "project_settings":
+            return .projectSettings
+
+        case "command_palette":
+            return .commandPalette
+        case "diff_viewer":
+            return .diffViewer
+        case "minimap_settings":
+            return .minimapSettings
+        case "sf_symbols_browser":
+            return .sfSymbolsBrowser
+
+        case "terminal":
+            return .terminal
+        case "code_review":
+            return .codeReview
+        case "git_history":
+            return .gitHistory
+        case "file_preview":
+            return .filePreview
+        case "github_issues":
+            return .gitHubIssues
+        case "complexity_analyzer":
+            return .complexityAnalyzer
+        case "symbol_outline":
+            return .symbolOutline
+        case "local_simulation":
+            return .localSimulation
+        case "simulator", "simulator_main":
+            return .simulatorMain
+        case "plugin_manager":
+            return .pluginManager
+        case "search_documentation":
+            return .searchDocumentation
+        case "snippets_library":
+            return .snippetsLibrary
+        case "code_refactoring":
+            return .codeRefactoring
+        case "error_diagnostics":
+            return .errorDiagnostics
+        case "extension_marketplace":
+            return .extensionMarketplace
+        case "code_intelligence":
+            return .codeIntelligence
+        case "crash_log_analyzer":
+            return .crashLogAnalyzer
+        case "project_dependency_graph":
+            return .projectDependencyGraph
+        case "symbol_index":
+            return .symbolIndex
+        case "code_metrics":
+            return .codeMetrics
+        case "documentation_browser":
+            return .documentationBrowser
+        case "workspace_profiles":
+            return .workspaceProfiles
+        case "asset_manager":
+            return .assetManager
+        case "debug_tools":
+            return .debugTools
+        case "deployments":
+            return .deployments
+        case "codingDictionary", "coding_dictionary":
+            return .codingDictionary
+        case "run_tests":
+            return .testTools
+        case "collaboration":
+            return .collaboration
+        case "assist_view":
+            return .assistView
+        case "dev_tools":
+            return .devTools
+        case "source_control":
+            return .sourceControl
+        case "ci_build":
+            return .ciBuild
+        case "licenses_add":
+            return .licensesAdd
+        case "app_details_info", "app_details":
+            return .appDetailsInfo
+        case "personal_documentation":
+            return .personalDocumentation
+        case "main_tools":
+            return .mainTools
+        case "visual_ui_builder", "visualUIBuilder":
+            return .visualUIBuilder
+        case "database_explorer", "databaseExplorer":
+            return .databaseExplorer
+        case "project_inspector", "projectInspector":
+            return .projectInspector
+        case "localization_manager", "localizationManager":
+            return .localizationManager
+        case "device_connect", "deviceConnect", "device_connect_kit":
+            return .deviceConnect
+        case "virtualization":
+            return .virtualization
+
+        case "debug_sessions":
+            return .debugSessions
+        case "bookmarks_sidebar":
+            return .bookmarksSidebar
+        case "breakpoints_sidebar":
+            return .breakpointsSidebar
+        case "debug_inspector_sidebar":
+            return .debugInspectorSidebar
+        case "workflows_sidebar":
+            return .workflowsSidebar
+        case "tests_sidebar":
+            return .testsSidebar
+        case "workflow_editor":
+            return .workflowEditor
+        case "build_settings", "xcode_build_settings", "xcodeBuildSettings":
+            return .xcodeBuildSettings
+        case "xcode_build_logs", "xcodeBuildLogs":
+            return .xcodeBuildLogs
+        case "ipa_builder", "ipaBuild":
+            return .ipaBuild
+        case "sf_symbols", "sf_symbols_browser", "sfSymbolsBrowser":
+            return .sfSymbolsBrowser
+        case "apple_developer_account":
+            return .appleDeveloperAccount
+
+        default:
+            return nil
+        }
+    }
+}

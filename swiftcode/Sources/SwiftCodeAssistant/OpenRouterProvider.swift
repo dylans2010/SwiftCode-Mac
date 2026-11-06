@@ -119,16 +119,28 @@ public struct OpenRouterProvider: AssistantProvider {
     }
 
     /// `data[].id` of a `/models` body, with `name` as the display name
-    /// (falling back to the id when it is absent or empty) and
-    /// `context_length` as the context window when reported. Entries
+    /// (falling back to the id when it is absent or empty),
+    /// `context_length` as the context window when reported, and the
+    /// OpenRouter `description` and `pricing` fields when reported
+    /// (Legacy `OpenRouterModel.description` / `.pricing`). Entries
     /// without an `id` are skipped. Server order is preserved.
     static func parseModels(_ body: Data) -> [ModelInfo] {
         guard let o = JSON.object(body), let list = o["data"] as? [[String: Any]] else { return [] }
         return list.compactMap { m in
             guard let id = m["id"] as? String else { return nil }
             let name = m["name"] as? String
+            var pricing: ModelInfo.ModelPricing?
+            if let rawPricing = m["pricing"] as? [String: Any] {
+                let prompt = rawPricing["prompt"] as? String
+                let completion = rawPricing["completion"] as? String
+                if prompt != nil || completion != nil {
+                    pricing = ModelInfo.ModelPricing(prompt: prompt, completion: completion)
+                }
+            }
             return ModelInfo(id: id, displayName: (name?.isEmpty == false) ? name : id,
-                             contextWindow: JSON.int(m["context_length"]))
+                             contextWindow: JSON.int(m["context_length"]),
+                             description: m["description"] as? String,
+                             pricing: pricing)
         }
     }
 

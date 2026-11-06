@@ -1,22 +1,26 @@
-// Ported from Legacy `SwiftCode/UI/Styles/Styling/AdaptiveLayoutEngine.swift` (main ab03f681; Dylan's own code, direct port authorised under MIT).
-// Staged only — not yet merged into swiftcode/Sources. See staging-wire/missing/DISPOSITIONS.md.
-// Verbatim except `.liquidGlass(...)` -> `.background(.thinMaterial, in:
-// RoundedRectangle(...))`: no liquidGlass modifier exists in the destination
-// (Legacy LiquidGlass.swift is PARTIAL, another scope); this is the destination's
-// own card treatment (WorkersMainView.swift precedent).
-// Wiring: the app root must inject AdaptiveLayoutEngine.shared as an
-// environmentObject (MacDesktopOptimizedModifier reads it) and wrap pages in
-// AdaptivePage/AdaptiveDashboardPage/AdaptiveEditorPage/AdaptiveSettingsPage;
-// AdaptiveGrid/AdaptiveSplitLayout/AdaptiveSheet are used directly by callers.
-
 import SwiftUI
-import Combine
+import Observation
 
+/// Adaptive layout engine (Legacy
+/// `SwiftCode/UI/Styles/Styling/AdaptiveLayoutEngine.swift`, Dylan's own
+/// code, ported under MIT).
+///
+/// Adapted: Legacy used `ObservableObject` + Combine (`@Published`,
+/// `@EnvironmentObject`); no Combine exists anywhere in
+/// `swiftcode-ide` / `SwiftCodeUI` / `SwiftCodeIDECore`, so this is
+/// `@Observable` (Observation framework) and is read with
+/// `@Environment(AdaptiveLayoutEngine.self)` (see
+/// `MacDesktopOptimized.swift`) and installed with
+/// `.environment(AdaptiveLayoutEngine.shared)` (see
+/// `StylingBootstrap.configureEnvironment`). The update rule is
+/// Legacy's: metrics are replaced only when the width/height moved
+/// by more than 1pt, fullscreen changed, or the appearance changed.
+@Observable
 @MainActor
-public final class AdaptiveLayoutEngine: ObservableObject {
+public final class AdaptiveLayoutEngine {
     public static let shared = AdaptiveLayoutEngine()
 
-    @Published public var metrics = AdaptiveWindowMetrics()
+    public var metrics = AdaptiveWindowMetrics()
 
     private init() {}
 

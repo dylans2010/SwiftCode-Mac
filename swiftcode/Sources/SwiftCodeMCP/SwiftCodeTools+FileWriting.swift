@@ -158,7 +158,7 @@ extension SwiftCodeMCPHost {
                  "Renames a file at the specified path.",
                  input: Schema.object(["workspace": Schema.workspace,
                                        "oldPath": Schema.string("Workspace-relative path of the existing file."),
-                                       "newName": Schema.string("New file name (a single path component, not a path) within the same directory.")],
+                                       "newName": Schema.string("New file name (a single path component) within the same directory, or a workspace-relative path to move the file (Legacy 'newPath' form).")],
                                       required: ["oldPath", "newName"]),
                  output: Schema.output(["path": Schema.str]),
                  annotations: safeMutation, writes: true) { h, call in
@@ -197,8 +197,9 @@ extension SwiftCodeMCPHost {
                                        "path": Schema.string("The relative path to the file to modify."),
                                        "target": Schema.string("The exact existing text snippet to find and replace."),
                                        "replacement": Schema.string("The new text snippet to insert in place of the target."),
-                                       "allowMultiple": Schema.boolean("Whether to replace multiple occurrences if found (default false).")],
-                                      required: ["path", "target", "replacement"]),
+                                       "allowMultiple": Schema.boolean("Whether to replace multiple occurrences if found (default false)."),
+                                       "edits": Schema.array(Schema.anyObject, "Legacy form: array of {search, replace} edits applied sequentially to the file. Either 'edits' or 'target' + 'replacement' is required.")],
+                                      required: ["path"]),
                  output: Schema.output(["path": Schema.str, "diff": Schema.str]),
                  annotations: safeMutation, writes: true) { h, call in
                 try await h.replaceInFile(call)
@@ -510,9 +511,16 @@ extension SwiftCodeMCPHost {
     func createFile(_ call: MCPToolCall) async throws -> MCPToolResult {
         let s = try session(for: call)
         let raw = try fileReadingRequiredString(call, "path")
-        let content = call.arguments["content"]?.string ?? ""
+        var content = call.arguments["content"]?.string ?? ""
         let overwrite = call.bool("overwrite") ?? false
         let url = try resolveFileReadingPath(raw, in: s)
+        // Legacy's filesystem layer prepends the Swift file header to
+        // `.swift` creates (`NewFileComment.generateHeader`); the
+        // header carries the file name, the workspace's display name
+        // as the project, and the current user as the author.
+        if url.pathExtension == "swift" {
+            content = NewFileComment.generateHeader(filename: url.lastPathComponent, projectName: s.model.displayName, userName: NSUserName()) + content
+        }
         guard !FileManager.default.fileExists(atPath: url.path) || overwrite else {
             throw MCPToolError("File already exists at \(raw). Set overwrite=true to replace it.")
         }
@@ -596,17 +604,25 @@ extension SwiftCodeMCPHost {
         let s = try session(for: call)
         guard let oldPath = call.arguments["oldPath"]?.string else { throw MCPToolError("Missing required parameter: oldPath") }
         guard let newName = call.arguments["newName"]?.string else { throw MCPToolError("Missing required parameter: newName") }
-        // `newName` must be a single path component: it must not escape
-        // the directory via "/", "..", an empty name, or a NUL byte.
-        if newName.isEmpty || newName.contains("/") || newName.contains("..") || newName.contains("\0") || newName == "." {
-            throw MCPToolError("Invalid newName '\(newName)': must be a single file name, not a path.")
+        // `newName` is usually a single path component, but Legacy's
+        // `file_rename` also passes a workspace-relative path (via the
+        // `newPath` alias) to move the file: a `newName` containing "/"
+        // is resolved as a workspace-relative destination instead.
+        // Either form must not escape via "..", an empty name, or a NUL byte.
+        if newName.isEmpty || newName.contains("..") || newName.contains("\0") || newName == "." {
+            throw MCPToolError("Invalid newName '\(newName)': must be a file name or a workspace-relative path.")
         }
         let oldURL = try resolveFileReadingPath(oldPath, in: s)
         let root = Self.folder(of: s.model)
         guard oldURL.path != root.path else {
             throw MCPToolError("Failed to rename file: Cannot rename the workspace root.")
         }
-        let newURL = oldURL.deletingLastPathComponent().appendingPathComponent(newName)
+        let newURL: URL
+        if newName.contains("/") {
+            newURL = try resolveFileReadingPath(newName, in: s)
+        } else {
+            newURL = oldURL.deletingLastPathComponent().appendingPathComponent(newName)
+        }
         guard newURL.path != oldURL.path else {
             throw MCPToolError("Rename is a no-op: newName matches the current file name.")
         }
@@ -703,8 +719,27 @@ extension SwiftCodeMCPHost {
     func replaceInFile(_ call: MCPToolCall) async throws -> MCPToolResult {
         let s = try session(for: call)
         guard let raw = call.arguments["path"]?.string else { throw MCPToolError("Missing required parameter: 'path'") }
-        guard let target = call.arguments["target"]?.string else { throw MCPToolError("Missing required parameter: 'target'") }
-        guard let replacement = call.arguments["replacement"]?.string else { throw MCPToolError("Missing required parameter: 'replacement'") }
+        // Legacy's `code_replace` also accepts an `edits` array of
+        // `{search, replace}` pairs, applied sequentially; the schema
+        // requires only `path`, and the handler enforces that either
+        // `edits` or `target` + `replacement` is present.
+        let edits: [(search: String, replace: String)]
+        if let editsJSON = call.arguments["edits"]?.array {
+            var parsed: [(search: String, replace: String)] = []
+            for (index, editJSON) in editsJSON.enumerated() {
+                let edit = editJSON.object ?? [:]
+                guard let search = edit["search"]?.string, !search.isEmpty else {
+                    throw MCPToolError("Edit #\(index + 1) is missing a non-empty 'search'.")
+                }
+                parsed.append((search: search, replace: edit["replace"]?.string ?? ""))
+            }
+            guard !parsed.isEmpty else { throw MCPToolError("Missing required parameter: 'edits' must not be empty, or pass 'target' + 'replacement'.") }
+            edits = parsed
+        } else {
+            guard let target = call.arguments["target"]?.string else { throw MCPToolError("Missing required parameter: 'target' (or 'edits')") }
+            guard let replacement = call.arguments["replacement"]?.string else { throw MCPToolError("Missing required parameter: 'replacement' (or 'edits')") }
+            edits = [(search: target, replace: replacement)]
+        }
         let allowMultiple = call.bool("allowMultiple") ?? false
         // Legacy rejects any '..' in the path textually, before resolving.
         if raw.contains("..") {
@@ -719,14 +754,19 @@ extension SwiftCodeMCPHost {
         }
         // Exact-match semantics: the occurrence count decides. Zero is a
         // failure, more than one is a failure unless allowMultiple.
-        let occurrences = original.components(separatedBy: target).count - 1
-        guard occurrences > 0 else {
-            throw MCPToolError("Target snippet not found in '\(raw)'. Please re-read the file with 'file_read' to inspect the exact existing lines before attempting replacement. Target snippet was: '\(target)'")
+        // Each `edits` entry is checked against the text the previous
+        // edits produced, in order.
+        var modified = original
+        for edit in edits {
+            let occurrences = modified.components(separatedBy: edit.search).count - 1
+            guard occurrences > 0 else {
+                throw MCPToolError("Target snippet not found in '\(raw)'. Please re-read the file with 'file_read' to inspect the exact existing lines before attempting replacement. Target snippet was: '\(edit.search)'")
+            }
+            guard occurrences == 1 || allowMultiple else {
+                throw MCPToolError("Target snippet matched \(occurrences) times in '\(raw)'. Provide more surrounding lines to uniquely identify the location, or pass 'allowMultiple: true'. Snippet was: '\(edit.search)'")
+            }
+            modified = modified.replacingOccurrences(of: edit.search, with: edit.replace)
         }
-        guard occurrences == 1 || allowMultiple else {
-            throw MCPToolError("Target snippet matched \(occurrences) times in '\(raw)'. Provide more surrounding lines to uniquely identify the location, or pass 'allowMultiple: true'. Snippet was: '\(target)'")
-        }
-        let modified = original.replacingOccurrences(of: target, with: replacement)
         let rel = fileReadingRelativePath(of: url, in: s)
         try await commit(MCPChange(tool: call.name, path: url.path, relativePath: rel, original: original, proposed: modified,
                                    summary: "Replace in \(rel)"), call: call, session: s)

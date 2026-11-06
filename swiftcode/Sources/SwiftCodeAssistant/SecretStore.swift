@@ -10,13 +10,41 @@ import Darwin
 
 /// Where the assistant keeps secrets (API keys, OAuth tokens). Values never
 /// go to user defaults, logs or the workspace (coding-assistant.md §6).
+///
+/// Gap closure (Legacy `KeychainService`): `accounts` enumeration plus
+/// `contains(key:)` and `clearAllCredentials()` on the protocol, so the
+/// Legacy helpers exist against the real keychain / 0600-file stores.
 public protocol SecretStore: Sendable {
     func read(_ account: String) throws -> Data?
     func write(_ data: Data, for account: String) throws
     func delete(_ account: String) throws
+    /// Every account held, for `clearAllCredentials()` (Legacy
+    /// `KeychainService.clearAllCredentials()`). Stores that cannot
+    /// enumerate return [] and clear only the known accounts.
+    var accounts: [String] { get }
 }
 
 extension SecretStore {
+    /// No enumeration: the store holds nothing this process can list.
+    public var accounts: [String] { [] }
+
+    /// Whether a secret is stored for `key` (Legacy
+    /// `KeychainService.contains(key:)`).
+    public func contains(key: String) -> Bool {
+        (try? read(key)) != nil
+    }
+
+    /// Deletes every stored credential (Legacy
+    /// `KeychainService.clearAllCredentials()`), from the store
+    /// itself. Legacy also cleared an insecure file fallback cache
+    /// (`secure_credentials_cache.json` in Application Support) and
+    /// base64 UserDefaults entries; that cache is deliberately not
+    /// replicated — the keychain / 0600-file store is the only copy,
+    /// so clearing it clears everything.
+    public func clearAllCredentials() {
+        for account in accounts { try? delete(account) }
+    }
+
     public func readString(_ account: String) -> String? {
         (try? read(account)).flatMap { $0 }.map { String(decoding: $0, as: UTF8.self) }
     }
@@ -161,6 +189,19 @@ public struct KeychainSecretStore: SecretStore {
         let s = SecItemDelete(query(account) as CFDictionary)
         guard s == errSecSuccess || s == errSecItemNotFound else { throw SecretStoreError.keychain(s) }
     }
+
+    public var accounts: [String] {
+        let q: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: service,
+            kSecReturnAttributes as String: true,
+            kSecMatchLimit as String: kSecMatchLimitAll,
+        ]
+        var out: CFTypeRef?
+        guard SecItemCopyMatching(q as CFDictionary, &out) == errSecSuccess,
+              let items = out as? [[String: Any]] else { return [] }
+        return items.compactMap { $0[kSecAttrAccount as String] as? String }.sorted()
+    }
 }
 #endif
 
@@ -213,5 +254,11 @@ public struct FileSecretStore: SecretStore {
     public func delete(_ account: String) throws {
         let url = fileURL(account)
         if FileManager.default.fileExists(atPath: url.path) { try FileManager.default.removeItem(at: url) }
+    }
+
+    /// File names are the safe-mapped account names (the mapping is
+    /// idempotent, so deleting by a listed name removes its file).
+    public var accounts: [String] {
+        (try? FileManager.default.contentsOfDirectory(atPath: directory.path))?.sorted() ?? []
     }
 }

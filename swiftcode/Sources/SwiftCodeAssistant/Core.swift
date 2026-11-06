@@ -81,10 +81,32 @@ public struct ModelInfo: Codable, Sendable, Equatable, Hashable {
     public var displayName: String
     /// The model's context window in tokens, when the provider reports it.
     public var contextWindow: Int?
-    public init(id: String, displayName: String? = nil, contextWindow: Int? = nil) {
+    /// The provider's description of the model, when it reports one
+    /// (Legacy `OpenRouterModel.description`).
+    public var description: String?
+    /// Per-token pricing, when the provider reports it (Legacy
+    /// `OpenRouterModel.pricing`).
+    public var pricing: ModelPricing?
+
+    /// Per-token pricing as reported by the provider. The values are
+    /// the provider's raw strings (Legacy kept them as strings, e.g.
+    /// `"0.0000015"` dollars per token), not a converted amount.
+    public struct ModelPricing: Codable, Sendable, Equatable, Hashable {
+        public var prompt: String?
+        public var completion: String?
+        public init(prompt: String? = nil, completion: String? = nil) {
+            self.prompt = prompt
+            self.completion = completion
+        }
+    }
+
+    public init(id: String, displayName: String? = nil, contextWindow: Int? = nil,
+                description: String? = nil, pricing: ModelPricing? = nil) {
         self.id = id
         self.displayName = displayName ?? id
         self.contextWindow = contextWindow
+        self.description = description
+        self.pricing = pricing
     }
 }
 

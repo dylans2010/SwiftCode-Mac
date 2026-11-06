@@ -1,15 +1,11 @@
-// Ported from Legacy `SwiftCode/UI/Styles/Styling/AdaptiveBreakpoints.swift` (main ab03f681; Dylan's own code, direct port authorised under MIT).
-// Staged only — not yet merged into swiftcode/Sources. See staging-wire/missing/DISPOSITIONS.md.
-// Verbatim except `.liquidGlass(...)` -> `.background(.thinMaterial, in:
-// RoundedRectangle(...))`: no liquidGlass modifier exists in the destination
-// (Legacy LiquidGlass.swift is PARTIAL, another scope); this is the destination's
-// own card treatment (WorkersMainView.swift precedent).
-// Wiring: the app root must inject AdaptiveLayoutEngine.shared as an
-// environmentObject (MacDesktopOptimizedModifier reads it) and wrap pages in
-// AdaptivePage/AdaptiveDashboardPage/AdaptiveEditorPage/AdaptiveSettingsPage;
-// AdaptiveGrid/AdaptiveSplitLayout/AdaptiveSheet are used directly by callers.
-
 import SwiftUI
+
+/// Adaptive breakpoints (Legacy
+/// `SwiftCode/UI/Styles/Styling/AdaptiveBreakpoints.swift`, Dylan's own
+/// code, ported under MIT). Direct port: compact 0 / regular 1024 /
+/// large 1440 / professional 1920 / ultra-wide 2560, with per-breakpoint
+/// columns (1/2/3/4/6), padding (16/20/24/32/40), and spacing
+/// (12/16/20/24/32).
 
 public enum AdaptiveBreakpoint: String, CaseIterable, Comparable, Sendable {
     case compactDesktop

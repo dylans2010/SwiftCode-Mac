@@ -366,11 +366,12 @@ public final class SCCloudModelCache: @unchecked Sendable {
 }
 
 /// Fair-use gate: at most `limit` requests per rolling `window`.
-/// Timestamps live in memory only (Legacy persisted them to Application
-/// Support so the quota survived restarts; this host's quota therefore
-/// resets on restart — the backend enforces the same limit
-/// independently via the fingerprint header, so the cap itself is not
-/// bypassed).
+/// Timestamps persist to UserDefaults (Legacy `LLMService` kept its
+/// SwiftCloud count in UserDefaults so the quota survived restarts;
+/// the same keys are used here), so the quota survives restarts. The
+/// backend enforces the same limit independently via the fingerprint
+/// header, so the cap itself is not bypassed either way. The daily
+/// bound stays 10 (backend-enforced), not Legacy's 15.
 public final class SCCloudRateLimiter: @unchecked Sendable {
     public static let shared = SCCloudRateLimiter()
 
@@ -380,14 +381,28 @@ public final class SCCloudRateLimiter: @unchecked Sendable {
         public let retryAfter: TimeInterval?
     }
 
+    private static let timestampsKey = "sccloud.rateLimiter.timestamps"
+
     private let lock = NSLock()
-    private var timestamps: [Date] = []
+    private var timestamps: [Date] = Self.loadTimestamps()
     private let limit: Int
     private let window: TimeInterval
 
     public init(limit: Int = SCCloudProvider.dailyRequestLimit, window: TimeInterval = SCCloudProvider.rateLimitWindow) {
         self.limit = limit
         self.window = window
+    }
+
+    private static func loadTimestamps() -> [Date] {
+        guard let data = UserDefaults.standard.data(forKey: timestampsKey),
+              let dates = try? JSONDecoder().decode([Date].self, from: data) else { return [] }
+        return dates
+    }
+
+    private func persistTimestampsLocked() {
+        if let data = try? JSONEncoder().encode(timestamps) {
+            UserDefaults.standard.set(data, forKey: Self.timestampsKey)
+        }
     }
 
     /// Evaluates the gate WITHOUT consuming quota.
@@ -410,6 +425,7 @@ public final class SCCloudRateLimiter: @unchecked Sendable {
         timestamps.append(Date())
         let cutoff = Date().addingTimeInterval(-window * 2)
         timestamps = timestamps.filter { $0 > cutoff }
+        persistTimestampsLocked()
     }
 
     public var remainingToday: Int { checkGate().remaining }

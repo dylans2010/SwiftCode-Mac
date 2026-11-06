@@ -6,6 +6,12 @@ import Glibc
 #elseif canImport(Darwin)
 import Darwin
 #endif
+#if canImport(ApplicationServices)
+import ApplicationServices
+#endif
+#if canImport(AppKit)
+import AppKit
+#endif
 
 /// The ported Legacy Agentic data / environment / secrets / UI /
 /// profiling tool family (Wave 8, slice G).
@@ -244,22 +250,27 @@ extension SwiftCodeMCPHost {
                 try await h.agenticDataOpenBrowser(call)
             },
             tool("browser_automation", "Browser Automation",
-                 "Executes a browser automation script.",
+                 "Evaluates a JavaScript snippet in the front tab of Safari (macOS).",
                  input: Schema.object(["workspace": Schema.workspace,
-                                       "script": Schema.string("Browser automation script to execute.")],
+                                       "script": Schema.string("JavaScript to evaluate in Safari's front document. The result is returned as text."),
+                                       "url": Schema.string("Optional URL to open in Safari before evaluating the script.")],
                                       required: ["script"]),
                  annotations: external, writes: true) { h, call in
-                try h.agenticDataBrowserAutomation(call)
+                try await h.agenticDataBrowserAutomation(call)
             },
             tool("ui_inspector", "UI Inspector",
-                 "Inspects the UI hierarchy.",
-                 input: Schema.object(["workspace": Schema.workspace]),
+                 "Inspects the UI hierarchy of a running macOS application through the accessibility API.",
+                 input: Schema.object(["workspace": Schema.workspace,
+                                       "app": Schema.string("Bundle identifier or process name of the app to inspect. Default: the frontmost app."),
+                                       "maxDepth": Schema.integer("Maximum tree depth to walk. Default: 6, maximum: 10.")]),
                  annotations: .read) { h, call in
                 try h.agenticDataUIInspector(call)
             },
             tool("accessibility_inspector", "Accessibility Inspector",
-                 "Inspects accessibility properties.",
-                 input: Schema.object(["workspace": Schema.workspace]),
+                 "Inspects accessibility properties of a running macOS application through the accessibility API.",
+                 input: Schema.object(["workspace": Schema.workspace,
+                                       "app": Schema.string("Bundle identifier or process name of the app to inspect. Default: the frontmost app."),
+                                       "maxDepth": Schema.integer("Maximum tree depth to walk. Default: 6, maximum: 10.")]),
                  annotations: .read) { h, call in
                 try h.agenticDataAccessibilityInspector(call)
             },
@@ -1588,35 +1599,145 @@ extension SwiftCodeMCPHost {
         return .text("Opened \(trimmed)")
     }
 
-    /// `browser_automation` (honestly failing): Legacy's `run`
-    /// was a stub that returned a hardcoded string and executed
-    /// nothing. There is no browser automation driver in SwiftCode's
-    /// MCP host, so the tool validates its input and then fails
-    /// naming the prerequisite instead of pretending to run a
-    /// script.
-    func agenticDataBrowserAutomation(_ call: MCPToolCall) throws -> MCPToolResult {
-        _ = try fileReadingRequiredString(call, "script")
-        throw MCPToolError("browser_automation needs a browser automation driver (a WebDriver or Playwright session driving a real browser), which SwiftCode's MCP host does not have; no script was executed.")
+    /// `browser_automation`: evaluates `script` as JavaScript in
+    /// Safari's front document via AppleScript (`osascript`, macOS
+    /// only), after the same approval gate `open_browser` uses.
+    /// Legacy's `run` was a stub that returned a hardcoded string
+    /// and executed nothing; there is still no WebDriver/Playwright
+    /// driver here, so Safari JavaScript evaluation is the real
+    /// automation path this host can offer. An optional `url` opens
+    /// in Safari first. On Linux the tool fails honestly: there is
+    /// no Safari to drive.
+    func agenticDataBrowserAutomation(_ call: MCPToolCall) async throws -> MCPToolResult {
+        let script = try fileReadingRequiredString(call, "script")
+        let s = try session(for: call)
+        try await terminalApproveChange(tool: call.name, summary: "Run JavaScript in Safari's front tab", in: s, call: call)
+        #if os(macOS)
+        if let url = call.arguments["url"]?.string, !url.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            guard let run = await archiveRunFixed("/usr/bin/osascript", ["-e", "tell application \"Safari\" to open location \"" + url + "\""]) else {
+                throw MCPToolError("Failed to open \(url) in Safari: could not start osascript.")
+            }
+            guard run.exitCode == 0 else {
+                throw MCPToolError("Failed to open \(url) in Safari: \((run.stdout + run.stderr).trimmingCharacters(in: .whitespacesAndNewlines))")
+            }
+        }
+        // Escape the script into one AppleScript string literal.
+        let escaped = script.replacingOccurrences(of: "\\", with: "\\\\").replacingOccurrences(of: "\"", with: "\\\"")
+        let source = "tell application \"Safari\" to do JavaScript \"" + escaped + "\" in front document"
+        guard let run = await archiveRunFixed("/usr/bin/osascript", ["-e", source]) else {
+            throw MCPToolError("Failed to run JavaScript in Safari: could not start osascript.")
+        }
+        if run.timedOut {
+            throw MCPToolError("Running JavaScript in Safari timed out after 120 seconds.")
+        }
+        guard run.exitCode == 0 else {
+            throw MCPToolError("Safari JavaScript failed: \((run.stdout + run.stderr).trimmingCharacters(in: .whitespacesAndNewlines))")
+        }
+        return .text(run.stdout.trimmingCharacters(in: .whitespacesAndNewlines))
+        #else
+        _ = script
+        throw MCPToolError("browser_automation needs Safari on macOS; there is no browser to drive on this system. No script was executed.")
+        #endif
     }
 
-    /// `ui_inspector` (honestly failing): Legacy returned a
-    /// hardcoded string. Inspecting a UI hierarchy needs a live
-    /// target application with accessibility access, which the
-    /// headless MCP host does not have.
+    /// `ui_inspector`: walks the accessibility tree of a running
+    /// macOS app with `AXUIElement` and returns role/title/value
+    /// per node (depth- and node-capped). Legacy returned a hardcoded
+    /// string; this reads the live hierarchy. Requires the host to
+    /// be trusted for accessibility (`AXIsProcessTrusted()`); when
+    /// it is not, the tool fails naming the permission instead of
+    /// returning invented UI.
     func agenticDataUIInspector(_ call: MCPToolCall) throws -> MCPToolResult {
         _ = try session(for: call)
-        throw MCPToolError("ui_inspector needs a live target application with accessibility access to inspect its UI hierarchy, which SwiftCode's MCP host does not have; no UI was inspected.")
+        return try agenticDataInspectAccessibility(call, detailed: false)
     }
 
-    /// `accessibility_inspector` (honestly failing): Legacy
-    /// returned a hardcoded string. Reading accessibility
-    /// properties needs a live target application and
-    /// accessibility permission, which the headless MCP host
-    /// does not have.
+    /// `accessibility_inspector`: the same live `AXUIElement` walk
+    /// as `ui_inspector`, plus the accessibility attributes Legacy
+    /// never read (subrole, help, enabled, focused, min/max value).
     func agenticDataAccessibilityInspector(_ call: MCPToolCall) throws -> MCPToolResult {
         _ = try session(for: call)
-        throw MCPToolError("accessibility_inspector needs a live target application and accessibility permission to read its accessibility properties, which SwiftCode's MCP host does not have; no accessibility properties were read.")
+        return try agenticDataInspectAccessibility(call, detailed: true)
     }
+
+    /// Shared accessibility-tree walk for `ui_inspector` /
+    /// `accessibility_inspector`. `detailed` adds the extra
+    /// accessibility attributes.
+    private func agenticDataInspectAccessibility(_ call: MCPToolCall, detailed: Bool) throws -> MCPToolResult {
+        #if canImport(ApplicationServices) && os(macOS)
+        guard AXIsProcessTrusted() else {
+            throw MCPToolError("Accessibility access is not granted to SwiftCode: enable it in System Settings → Privacy & Security → Accessibility, then retry. No UI was inspected.")
+        }
+        let maxDepth = min(max(call.arguments["maxDepth"]?.int ?? 6, 1), 10)
+        let pid = try agenticDataTargetPID(call)
+        let appElement = AXUIElementCreateApplication(pid)
+        var lines: [String] = []
+        var nodeCount = 0
+        agenticDataWalkAX(appElement, depth: 0, maxDepth: maxDepth, detailed: detailed, lines: &lines, nodeCount: &nodeCount)
+        if lines.isEmpty {
+            throw MCPToolError("No accessible UI elements were found for the target application.")
+        }
+        let capped = nodeCount >= 500 ? "\n(Stopped at 500 nodes; pass a smaller maxDepth for a narrower tree.)" : ""
+        return .text(lines.joined(separator: "\n") + capped)
+        #else
+        _ = detailed
+        throw MCPToolError("UI inspection needs the macOS accessibility API (ApplicationServices), which is not available on this system. No UI was inspected.")
+        #endif
+    }
+
+    #if canImport(ApplicationServices) && os(macOS)
+    /// The pid of the app to inspect: `app` names a bundle
+    /// identifier or process name, or the frontmost app when absent.
+    private func agenticDataTargetPID(_ call: MCPToolCall) throws -> pid_t {
+        #if canImport(AppKit)
+        let apps = NSWorkspace.shared.runningApplications
+        if let name = call.arguments["app"]?.string, !name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            if let app = apps.first(where: { $0.bundleIdentifier == name || $0.localizedName == name }) {
+                return app.processIdentifier
+            }
+            throw MCPToolError("No running application matches '\(name)'.")
+        }
+        guard let frontmost = NSWorkspace.shared.frontmostApplication else {
+            throw MCPToolError("No frontmost application is running to inspect.")
+        }
+        return frontmost.processIdentifier
+        #else
+        throw MCPToolError("UI inspection needs AppKit to find the target application, which is not available here.")
+        #endif
+    }
+
+    /// One node's attribute, or nil when the element does not have it.
+    private func agenticDataAXValue(_ element: AXUIElement, _ attribute: String) -> AnyObject? {
+        var value: AnyObject?
+        guard AXUIElementCopyAttributeValue(element, attribute as CFString, &value) == .success else { return nil }
+        return value
+    }
+
+    /// Depth-first walk of one accessibility subtree, appending one
+    /// indented line per node. Stops at `maxDepth` and at 500 nodes.
+    private func agenticDataWalkAX(_ element: AXUIElement, depth: Int, maxDepth: Int, detailed: Bool,
+                                   lines: inout [String], nodeCount: inout Int) {
+        guard depth <= maxDepth, nodeCount < 500 else { return }
+        nodeCount += 1
+        let indent = String(repeating: "  ", count: depth)
+        var parts: [String] = []
+        if let role = agenticDataAXValue(element, kAXRoleAttribute as String) as? String { parts.append(role) }
+        if let title = agenticDataAXValue(element, kAXTitleAttribute as String) as? String, !title.isEmpty { parts.append("\"" + title + "\"") }
+        if let value = agenticDataAXValue(element, kAXValueAttribute as String) as? String, !value.isEmpty { parts.append("value=\"" + value + "\"") }
+        if detailed {
+            if let subrole = agenticDataAXValue(element, kAXSubroleAttribute as String) as? String, !subrole.isEmpty { parts.append("subrole=\(subrole)") }
+            if let help = agenticDataAXValue(element, kAXHelpAttribute as String) as? String, !help.isEmpty { parts.append("help=\"" + help + "\"") }
+            if let enabled = agenticDataAXValue(element, kAXEnabledAttribute as String) as? Bool { parts.append("enabled=\(enabled)") }
+            if let focused = agenticDataAXValue(element, kAXFocusedAttribute as String) as? Bool, focused { parts.append("focused") }
+        }
+        if !parts.isEmpty { lines.append(indent + parts.joined(separator: " ")) }
+        guard let children = agenticDataAXValue(element, kAXChildrenAttribute as String) as? [AXUIElement] else { return }
+        for child in children {
+            agenticDataWalkAX(child, depth: depth + 1, maxDepth: maxDepth, detailed: detailed, lines: &lines, nodeCount: &nodeCount)
+            guard nodeCount < 500 else { return }
+        }
+    }
+    #endif
 }
 
 // MARK: - Handlers: profilers, network, crashes

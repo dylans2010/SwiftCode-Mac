@@ -1,15 +1,9 @@
-// Ported from Legacy `SwiftCode/UI/Styles/Styling/AdaptiveWindowMetrics.swift` (main ab03f681; Dylan's own code, direct port authorised under MIT).
-// Staged only — not yet merged into swiftcode/Sources. See staging-wire/missing/DISPOSITIONS.md.
-// Verbatim except `.liquidGlass(...)` -> `.background(.thinMaterial, in:
-// RoundedRectangle(...))`: no liquidGlass modifier exists in the destination
-// (Legacy LiquidGlass.swift is PARTIAL, another scope); this is the destination's
-// own card treatment (WorkersMainView.swift precedent).
-// Wiring: the app root must inject AdaptiveLayoutEngine.shared as an
-// environmentObject (MacDesktopOptimizedModifier reads it) and wrap pages in
-// AdaptivePage/AdaptiveDashboardPage/AdaptiveEditorPage/AdaptiveSettingsPage;
-// AdaptiveGrid/AdaptiveSplitLayout/AdaptiveSheet are used directly by callers.
-
 import SwiftUI
+
+/// Window metrics + environment key (Legacy
+/// `SwiftCode/UI/Styles/Styling/AdaptiveWindowMetrics.swift`, Dylan's own
+/// code, ported under MIT). Direct port; `adaptiveMetrics` is read by
+/// `AdaptiveGrid` and written by `MacDesktopOptimizedModifier`.
 
 public struct AdaptiveWindowMetrics: Sendable {
     public var windowWidth: CGFloat = 0
