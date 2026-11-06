@@ -13,6 +13,18 @@
 // (GitHubService.listIssues) can be sourced here; the graph shows only real stored items
 // and real stored relationships, and the header says so honestly. If a repository link is
 // ever added to the coordinator, add real git nodes then — never restore hardcoded ones.
+// Cleanup (2026-11-06, A5): AnalyticsView no longer fabricates numbers. The hardcoded
+// Mon–Sun bar heights, "Average 120 words/day", "+3.2% vs last period", the
+// 50 + 5-per-document health formula, the "34 tokens" card, and the hardcoded
+// directory percentages are deleted. Every value now comes from the PersonalDoc
+// store: word counts from stored documents' markdownSource, per-day bars from
+// documents' updatedAt, growth from createdAt, quality as the share of
+// documents with content, AI usage as the count of stored AI insights, and top
+// areas as document counts by module kind. Token usage is recorded nowhere in
+// the store (PersonalDocStore.logEvent exists but no caller ever records token
+// usage), so no token number is shown — the card says so instead of inventing
+// one. A document's words are attributed to the day it was last edited
+// (updatedAt); the chart caption says so.
 import SwiftCodeIDEShell
 import SwiftCodeUI
 import SwiftUI
@@ -432,7 +444,12 @@ public struct AnalyticsView: View {
     @State private var timeRange = "Monthly"
     @State private var totalDocs = 0
     @State private var writingCount = 0
-    @State private var healthScore = 84
+    @State private var averageWordsPerDay = 0
+    @State private var growthDescription = "No documents yet"
+    @State private var completenessScore = 0
+    @State private var aiInsightCount = 0
+    @State private var chartBars: [(label: String, words: Int)] = []
+    @State private var topModules: [(name: String, share: Double)] = []
 
     public init(coordinator: PersonalDocumentationCoordinator) {
         self.coordinator = coordinator
@@ -446,7 +463,7 @@ public struct AnalyticsView: View {
                     VStack(alignment: .leading, spacing: 4) {
                         Text("Personal Productivity Analytics")
                             .font(.title2.bold())
-                        Text("Live code and knowledge indexing metrics.")
+                        Text("Computed from this project's stored documents.")
                             .foregroundStyle(.secondary)
                     }
                     Spacer()
@@ -462,11 +479,13 @@ public struct AnalyticsView: View {
                 Divider()
 
                 // Key Performance Cards - Fully Adaptive Grid
+                // Every value is computed from the store in loadAnalytics();
+                // nothing here is a hardcoded number.
                 LazyVGrid(columns: [GridItem(.adaptive(minimum: 200, maximum: 400), spacing: 16)], spacing: 16) {
-                    analyticsCard(title: "Documentation Growth", value: "\(totalDocs) notes", desc: "+3.2% vs last period", icon: "doc.text.fill", color: .blue)
-                    analyticsCard(title: "Active Writing Work", value: "\(writingCount) additions", desc: "Average 120 words/day", icon: "pencil.line", color: .green)
-                    analyticsCard(title: "Documentation Quality", value: "\(healthScore) / 100", desc: "Based on completeness", icon: "checkmark.seal.fill", color: .purple)
-                    analyticsCard(title: "AI Project Usage", value: "34 tokens", desc: "LLM contextual reasoning", icon: "sparkles", color: .indigo)
+                    analyticsCard(title: "Documentation Growth", value: "\(totalDocs) notes", desc: growthDescription, icon: "doc.text.fill", color: .blue)
+                    analyticsCard(title: "Active Writing Work", value: "\(writingCount) additions", desc: "Average \(averageWordsPerDay) words/day", icon: "pencil.line", color: .green)
+                    analyticsCard(title: "Documentation Quality", value: "\(completenessScore) / 100", desc: "Documents with content", icon: "checkmark.seal.fill", color: .purple)
+                    analyticsCard(title: "AI Project Usage", value: "\(aiInsightCount) insights", desc: "AI analyses stored · token usage is not recorded", icon: "sparkles", color: .indigo)
                 }
 
                 // Complex layout blocks - Adaptive stack (horizontal on wide screen, vertical on narrow)
@@ -486,21 +505,33 @@ public struct AnalyticsView: View {
         .onAppear {
             loadAnalytics()
         }
+        .onChange(of: timeRange) { _, _ in
+            loadAnalytics()
+        }
     }
 
     private var statisticsGraphModule: some View {
         GroupBox {
             VStack(alignment: .leading, spacing: 16) {
-                HStack(alignment: .bottom, spacing: 12) {
-                    barGraphic(day: "Mon", height: 40)
-                    barGraphic(day: "Tue", height: 75)
-                    barGraphic(day: "Wed", height: 110)
-                    barGraphic(day: "Thu", height: 85)
-                    barGraphic(day: "Fri", height: 140)
-                    barGraphic(day: "Sat", height: 30)
-                    barGraphic(day: "Sun", height: 20)
+                if chartBars.isEmpty || chartBars.allSatisfy({ $0.words == 0 }) {
+                    ContentUnavailableView {
+                        Label("No writing activity", systemImage: "chart.bar.fill")
+                    } description: {
+                        Text("No documents were edited in this period.")
+                    }
+                    .frame(height: 180)
+                } else {
+                    let maxWords = max(1, chartBars.map { $0.words }.max() ?? 1)
+                    HStack(alignment: .bottom, spacing: 12) {
+                        ForEach(chartBars, id: \.label) { bar in
+                            barGraphic(day: bar.label, height: CGFloat(bar.words) / CGFloat(maxWords) * 140, words: bar.words)
+                        }
+                    }
+                    .frame(height: 180)
+                    Text(chartCaption)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
                 }
-                .frame(height: 180)
             }
         } label: {
             Label("Knowledge Writing Activity", systemImage: "chart.bar.fill")
@@ -509,16 +540,34 @@ public struct AnalyticsView: View {
         .groupBoxStyle(ModernGroupBoxStyle())
     }
 
+    /// What the bars count: a document's words are attributed to the day it
+    /// was last edited, because the store keeps only the current text plus
+    /// createdAt/updatedAt — there is no per-day edit history to sum exactly.
+    private var chartCaption: String {
+        switch timeRange {
+        case "Weekly": return "Words in documents last edited each day this week."
+        case "Monthly": return "Words in documents last edited each week this month."
+        default: return "Words in documents last edited each month (last 6 months)."
+        }
+    }
+
     private var statisticsDirectoryModule: some View {
         GroupBox {
             VStack(alignment: .leading, spacing: 12) {
-                directoryProgressRow(name: "Views/Utilities/NSPersonalDocumentation", percentage: 0.85)
-                directoryProgressRow(name: "Backend/AI", percentage: 0.60)
-                directoryProgressRow(name: "ViewModels", percentage: 0.45)
-                directoryProgressRow(name: "Core/AI/Agent", percentage: 0.30)
+                if topModules.isEmpty {
+                    ContentUnavailableView {
+                        Label("No documents yet", systemImage: "folder.fill")
+                    } description: {
+                        Text("Document counts by area will appear here.")
+                    }
+                } else {
+                    ForEach(topModules, id: \.name) { module in
+                        directoryProgressRow(name: module.name, percentage: module.share)
+                    }
+                }
             }
         } label: {
-            Label("Top Documented Directories", systemImage: "folder.fill")
+            Label("Top Documented Areas", systemImage: "folder.fill")
                 .foregroundStyle(.green)
         }
         .groupBoxStyle(ModernGroupBoxStyle())
@@ -557,12 +606,17 @@ public struct AnalyticsView: View {
         .groupBoxStyle(ModernGroupBoxStyle())
     }
 
-    private func barGraphic(day: String, height: CGFloat) -> some View {
+    private func barGraphic(day: String, height: CGFloat, words: Int) -> some View {
         VStack {
             Spacer()
+            if words > 0 {
+                Text("\(words)")
+                    .font(.caption2)
+                    .foregroundStyle(.secondary)
+            }
             RoundedRectangle(cornerRadius: 4)
                 .fill(Color.blue)
-                .frame(width: 28, height: height)
+                .frame(width: 28, height: max(height, words > 0 ? 4 : 0))
             Text(day)
                 .font(.caption2)
                 .foregroundStyle(.secondary)
@@ -595,10 +649,90 @@ public struct AnalyticsView: View {
     }
 
     private func loadAnalytics() {
-        if let docs = try? coordinator.documents.fetchDocuments() {
-            totalDocs = docs.count
-            writingCount = docs.reduce(0) { $0 + $1.markdownSource.components(separatedBy: .whitespacesAndNewlines).count } / 150
-            healthScore = min(100, 50 + docs.count * 5)
+        guard let docs = try? coordinator.documents.fetchDocuments() else { return }
+        let calendar = Calendar.current
+        let now = Date()
+        totalDocs = docs.count
+        writingCount = docs.reduce(0) { $0 + $1.markdownSource.components(separatedBy: .whitespacesAndNewlines).count } / 150
+
+        // Real average words/day: total stored words over the real span the
+        // store covers, from the earliest document's creation to today.
+        let totalWords = docs.reduce(0) { $0 + wordCount($1.markdownSource) }
+        if let earliest = docs.map({ $0.createdAt }).min() {
+            let days = max(1, calendar.dateComponents([.day], from: calendar.startOfDay(for: earliest), to: calendar.startOfDay(for: now)).day ?? 1)
+            averageWordsPerDay = totalWords / days
+        } else {
+            averageWordsPerDay = 0
+        }
+
+        // Real growth: documents actually created in the last 30 days.
+        let thirtyDaysAgo = calendar.date(byAdding: .day, value: -30, to: now) ?? now
+        let recentCount = docs.filter { $0.createdAt >= thirtyDaysAgo }.count
+        growthDescription = "\(recentCount) created in the last 30 days"
+
+        // Real quality: share of documents that contain any text. (The old
+        // `50 + docs.count * 5` formula invented a score from a count.)
+        let withContent = docs.filter { !$0.markdownSource.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }.count
+        completenessScore = totalDocs == 0 ? 0 : (withContent * 100) / totalDocs
+
+        // AI usage: the store keeps generated AI insights (PersonalDocAIInsight),
+        // so their count is the real AI-usage figure. Token counts are recorded
+        // nowhere — no token number is shown anywhere in this view.
+        aiInsightCount = coordinator.store.insights.count
+
+        chartBars = bars(for: timeRange, documents: docs, calendar: calendar, now: now)
+
+        // Real top areas: document counts by module kind, as a share of all docs.
+        var counts: [String: Int] = [:]
+        for doc in docs { counts[doc.moduleKind.rawValue, default: 0] += 1 }
+        topModules = counts.sorted { $0.value > $1.value }.prefix(4).map {
+            (name: $0.key, share: totalDocs == 0 ? 0 : Double($0.value) / Double(totalDocs))
+        }
+    }
+
+    /// Non-empty whitespace-separated words in a document body.
+    private func wordCount(_ text: String) -> Int {
+        text.components(separatedBy: .whitespacesAndNewlines).filter { !$0.isEmpty }.count
+    }
+
+    /// Real per-period writing bars for the selected time range. A document's
+    /// words are attributed to the day it was last edited (updatedAt) — the
+    /// store keeps no per-day edit history, so this is the closest real
+    /// attribution available; see chartCaption.
+    private func bars(for range: String, documents: [PersonalDocDocument], calendar: Calendar, now: Date) -> [(label: String, words: Int)] {
+        switch range {
+        case "Weekly":
+            var weekCalendar = calendar
+            weekCalendar.firstWeekday = 2 // Monday
+            guard let weekStart = weekCalendar.date(from: weekCalendar.dateComponents([.yearForWeekOfYear, .weekOfYear], from: now)) else { return [] }
+            let weekdaySymbols = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
+            return (0..<7).map { offset in
+                let day = weekCalendar.date(byAdding: .day, value: offset, to: weekStart) ?? now
+                let words = documents
+                    .filter { weekCalendar.isDate($0.updatedAt, inSameDayAs: day) }
+                    .reduce(0) { $0 + wordCount($1.markdownSource) }
+                return (label: weekdaySymbols[offset], words: words)
+            }
+        case "Monthly":
+            guard let monthStart = calendar.date(from: calendar.dateComponents([.year, .month], from: now)),
+                  let weekCount = calendar.range(of: .weekOfMonth, in: .month, for: now)?.count else { return [] }
+            return (1...weekCount).map { week in
+                let words = documents.filter {
+                    calendar.component(.weekOfMonth, from: $0.updatedAt) == week
+                        && calendar.isDate($0.updatedAt, equalTo: monthStart, toGranularity: .month)
+                }.reduce(0) { $0 + wordCount($1.markdownSource) }
+                return (label: "W\(week)", words: words)
+            }
+        default: // Lifetime: last 6 calendar months.
+            let formatter = DateFormatter()
+            formatter.dateFormat = "MMM"
+            return (0..<6).reversed().map { back in
+                let month = calendar.date(byAdding: .month, value: -back, to: now) ?? now
+                let words = documents.filter {
+                    calendar.isDate($0.updatedAt, equalTo: month, toGranularity: .month)
+                }.reduce(0) { $0 + wordCount($1.markdownSource) }
+                return (label: formatter.string(from: month), words: words)
+            }
         }
     }
 }
