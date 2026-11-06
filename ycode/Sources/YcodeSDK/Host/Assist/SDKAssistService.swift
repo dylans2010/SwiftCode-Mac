@@ -78,6 +78,24 @@ public actor SDKAssistService {
 
     // MARK: - Sessions
 
+    /// The tool IDs the extension's LIVE grants allow right now
+    /// (Wave 17, Slice B): the same snapshot computation as
+    /// `createSession`, re-run against the current grants. The
+    /// tool runner asks this on every `executeTool`, so a revoked
+    /// grant closes the path even for a session created before the
+    /// revocation. The session snapshot is still the ceiling —
+    /// live grants can only narrow it, never extend it.
+    public func liveAllowedToolIDs(for extensionID: String) -> [String] {
+        let granted = Set(permissions.grantedCapabilities(for: extensionID))
+        var allowed: [String] = []
+        for capability in SDKCapabilityID.allCases {
+            let mapped = ExtensionCapability.v2Capabilities(for: capability)
+            guard !mapped.isEmpty, mapped.allSatisfy({ granted.contains($0) }) else { continue }
+            allowed.append(capability.rawValue)
+        }
+        return allowed.sorted()
+    }
+
     /// Creates a session. Snapshots the extension's ACTIVE grants as
     /// `allowedToolIDs`: an SDK capability is allowed only when ALL of
     /// its mapped v2 capabilities are currently granted (conservative,
@@ -89,19 +107,12 @@ public actor SDKAssistService {
     ) async throws -> SDKAssistSession {
         try await requireAssistEntitlement(key: key, extensionID: extensionID)
         try validate(options: options)
-        let granted = Set(permissions.grantedCapabilities(for: extensionID))
-        var allowed: [String] = []
-        for capability in SDKCapabilityID.allCases {
-            let mapped = ExtensionCapability.v2Capabilities(for: capability)
-            guard !mapped.isEmpty, mapped.allSatisfy({ granted.contains($0) }) else { continue }
-            allowed.append(capability.rawValue)
-        }
         let session = SDKAssistSession(
             extensionID: extensionID,
             title: options.title,
             systemPrompt: options.systemPrompt,
             model: options.model,
-            allowedToolIDs: allowed.sorted()
+            allowedToolIDs: liveAllowedToolIDs(for: extensionID)
         )
         sessions[session.id] = StoredSession(session: session, keyID: key.id)
         return session

@@ -361,6 +361,21 @@ final class MetaTurnState: @unchecked Sendable {
 public actor MetaAssistTurnExecutor {
     public static let shared = MetaAssistTurnExecutor()
 
+    /// The default turn budget (Wave 17): 300 seconds. Legacy's
+    /// `MetaAssistProvider` had no turn timeout at all
+    /// (verified: zero "timeout" hits in Legacy's provider
+    /// source). 300s is Legacy's own default for long-running
+    /// work (`ReverseManager`'s `timeoutSeconds`, 300) and sits
+    /// between the 15s skills-list timeout (a quick listing) and
+    /// no bound at all. A coding turn runs tools and long
+    /// generations, so the 30s CLI default
+    /// (`MuseCodeCLIHelper.runCommand`) would kill real turns.
+    /// A turn that exceeds the budget is cancelled, the Muse
+    /// host is stopped, and `MuseCodeCLIError.turnTimeout` is
+    /// thrown — a turn never hangs and never fabricates a
+    /// result. 0 disables the timeout.
+    public static let defaultTurnTimeout: TimeInterval = 300
+
     public private(set) var activeSessionID: String?
     public private(set) var activeWorkspaceRoot: String?
     public private(set) var activeTurnID: String?
@@ -514,6 +529,11 @@ public actor MetaAssistTurnExecutor {
     ///     `requestPermission` decides approvals. Nil means
     ///     every approval is denied (`abort`).
     ///   - knownToolIDs: Ycode MCP tool ids for name resolution.
+    ///   - turnTimeoutSeconds: the longest the turn may run
+    ///     (`defaultTurnTimeout`); a turn that exceeds it is
+    ///     cancelled, the host is stopped, and
+    ///     `MuseCodeCLIError.turnTimeout` is thrown. 0 disables
+    ///     the timeout.
     public func executeTurn(
         prompt: String,
         history: [ChatMessage] = [],
@@ -526,6 +546,7 @@ public actor MetaAssistTurnExecutor {
         proxyBaseURL: String? = nil,
         attachment: AgentAttachment? = nil,
         knownToolIDs: Set<String> = [],
+        turnTimeoutSeconds: TimeInterval = Self.defaultTurnTimeout,
         onEvent: @escaping @Sendable (ChatEvent) -> Void
     ) async throws {
         guard let executable else { throw MuseCodeCLIError.executableNotFound }
@@ -563,10 +584,39 @@ public actor MetaAssistTurnExecutor {
                         }
                     }
                 }
+                if turnTimeoutSeconds > 0 {
+                    // The turn budget (Wave 17). The timer races
+                    // the turn's own completion on `claimResume`,
+                    // so whichever wins settles the continuation
+                    // exactly once. On timeout the host is stopped
+                    // outright: `cancelTurn` cannot be relied on
+                    // against an unresponsive host (its
+                    // `sendCommand` has no timeout of its own and
+                    // would wait forever for a reply), while
+                    // `stopHost` terminates the process and fails
+                    // every pending request, so the runTurn task
+                    // unwinds instead of hanging. The executor's
+                    // session state is cleared in the `catch`
+                    // below, since a stopped host has no session
+                    // to resume. A timer that fires after a
+                    // normally completed turn loses the race and
+                    // does nothing.
+                    Task {
+                        try? await Task.sleep(nanoseconds: UInt64(turnTimeoutSeconds * 1_000_000_000))
+                        guard !Task.isCancelled else { return }
+                        if state.claimResume() {
+                            await bridge.stopHost()
+                            continuation.resume(throwing: MuseCodeCLIError.turnTimeout(seconds: turnTimeoutSeconds))
+                        }
+                    }
+                }
             }
         } catch {
             await bridge.setNotificationHandler(nil)
             lastTurnUnmappedToolNames = state.lock.withLock { state.unmapped }
+            if case MuseCodeCLIError.turnTimeout = error {
+                resetSession()
+            }
             throw error
         }
         lastTurnUnmappedToolNames = state.lock.withLock { state.unmapped }

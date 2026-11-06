@@ -96,6 +96,11 @@ public enum MuseCodeCLIError: Error, LocalizedError, Sendable, Equatable {
     case executionFailed(exitCode: Int32, stderr: String)
     case timeout
     case cancelled
+    /// A Meta turn ran longer than its budget (Wave 17:
+    /// `MetaAssistTurnExecutor.defaultTurnTimeout`). Legacy had
+    /// no turn timeout; a timed-out turn is cancelled, the Muse
+    /// host is stopped, and no result is produced.
+    case turnTimeout(TimeInterval)
 
     public var errorDescription: String? {
         switch self {
@@ -107,6 +112,13 @@ public enum MuseCodeCLIError: Error, LocalizedError, Sendable, Equatable {
             return "CLI execution failed with code \(code): \(stderr)"
         case .timeout:
             return "CLI command timed out."
+        case .turnTimeout(let seconds):
+            // "timed out" is deliberate: the Wave 15 router's
+            // `classify(error:)` maps it to `.timeout`, so a
+            // timed-out turn is quarantined as a timeout and —
+            // with "Automatically Switch Models" off — never
+            // silently substituted.
+            return "The Meta turn timed out after \(Int(seconds)) seconds. The Muse host was stopped, so the turn produced no result."
         case .cancelled:
             return "CLI operation was cancelled."
         }

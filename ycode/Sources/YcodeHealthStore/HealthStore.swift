@@ -122,6 +122,56 @@ public final class SQLiteDatabase {
     public var changes: Int { Int(sqlite3_changes(db)) }
     public var lastInsertRowID: Int64 { sqlite3_last_insert_rowid(db) }
 
+    /// Runs one statement with bound values; returns its column names
+    /// and rows. `query` cannot serve a database browser: a `SELECT`
+    /// result is meaningless without its column names, and arbitrary
+    /// SQL has no table to take them from. (Wave 17, Slice C: the
+    /// SQLite Explorer's SQL editor runs through here; table browsing
+    /// takes its names from `PRAGMA table_info` instead.)
+    public func queryWithColumns(_ sql: String, _ args: [Value] = []) throws -> (columns: [String], rows: [[Value]]) {
+        var stmt: OpaquePointer?
+        guard sqlite3_prepare_v2(db, sql, -1, &stmt, nil) == SQLITE_OK else {
+            throw HealthStoreError.sqlite(String(cString: sqlite3_errmsg(db)) + " in: " + sql)
+        }
+        defer { sqlite3_finalize(stmt) }
+        let transient = unsafeBitCast(-1, to: sqlite3_destructor_type.self)
+        for (i, a) in args.enumerated() {
+            let n = Int32(i + 1)
+            switch a {
+            case .null: sqlite3_bind_null(stmt, n)
+            case .int(let v): sqlite3_bind_int64(stmt, n, v)
+            case .real(let v): sqlite3_bind_double(stmt, n, v)
+            case .text(let v): sqlite3_bind_text(stmt, n, v, -1, transient)
+            case .blob(let v): v.withUnsafeBytes { _ = sqlite3_bind_blob(stmt, n, $0.baseAddress, Int32(v.count), transient) }
+            }
+        }
+        var columns: [String] = []
+        for c in 0..<sqlite3_column_count(stmt) {
+            columns.append(sqlite3_column_name(stmt, c).map { String(cString: $0) } ?? "")
+        }
+        var rows: [[Value]] = []
+        while true {
+            let rc = sqlite3_step(stmt)
+            if rc == SQLITE_DONE { break }
+            guard rc == SQLITE_ROW else { throw HealthStoreError.sqlite(String(cString: sqlite3_errmsg(db)) + " in: " + sql) }
+            var row: [Value] = []
+            for c in 0..<sqlite3_column_count(stmt) {
+                switch sqlite3_column_type(stmt, c) {
+                case SQLITE_INTEGER: row.append(.int(sqlite3_column_int64(stmt, c)))
+                case SQLITE_FLOAT: row.append(.real(sqlite3_column_double(stmt, c)))
+                case SQLITE_TEXT: row.append(.text(String(cString: sqlite3_column_text(stmt, c))))
+                case SQLITE_BLOB:
+                    let n = Int(sqlite3_column_bytes(stmt, c))
+                    let p = sqlite3_column_blob(stmt, c)
+                    row.append(.blob(n > 0 && p != nil ? [UInt8](UnsafeRawBufferPointer(start: p, count: n)) : []))
+                default: row.append(.null)
+                }
+            }
+            rows.append(row)
+        }
+        return (columns, rows)
+    }
+
     public func transaction<T>(_ body: () throws -> T) throws -> T {
         try execute("BEGIN IMMEDIATE")
         do {

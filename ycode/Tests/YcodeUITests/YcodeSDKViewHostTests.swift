@@ -35,6 +35,8 @@ final class YcodeSDKViewHostTests: XCTestCase {
         func showSymbolLibrary() throws { try record("showSymbolLibrary") }
         func showLivePreview() throws { try record("showLivePreview") }
         func showCodingAssistant() throws { try record("showCodingAssistant") }
+        func showCodingDictionary() throws { try record("showCodingDictionary") }
+        func showDatabaseExplorer() throws { try record("showDatabaseExplorer") }
     }
 
     // MARK: - Helpers
@@ -74,6 +76,8 @@ final class YcodeSDKViewHostTests: XCTestCase {
             ("symbols.browse", "showSymbolLibrary"),
             ("preview.live", "showLivePreview"),
             (SDKAssistUIOpener.assistMainViewID, "showCodingAssistant"),
+            ("dictionary.open", "showCodingDictionary"),
+            ("db.ExploreView", "showDatabaseExplorer"),
         ]
         for (viewID, surface) in cases {
             let (host, actions) = makeHost()
@@ -86,9 +90,7 @@ final class YcodeSDKViewHostTests: XCTestCase {
 
     func testUnavailableWindowsThrowWithReason() async {
         let cases: [(viewID: String, reason: String)] = [
-            ("db.ExploreView", "no SQLite database browser"),
             ("docs.search", "no documentation browser"),
-            ("dictionary.open", "no coding dictionary"),
             ("sandbox.view", "no integrated terminal"),
             ("deployConsole.view", "no deployments console"),
             ("ci.VisualWF", "no visual-workflow"),
@@ -108,6 +110,7 @@ final class YcodeSDKViewHostTests: XCTestCase {
         let working: Set<String> = [
             "deviceconnect.open", "simulator.view", "uibuilder.open",
             "symbols.browse", "preview.live",
+            "dictionary.open", "db.ExploreView",
         ]
         let unavailable = Set(YcodeSDKViewHost.unavailableReasons.keys)
         XCTAssertTrue(working.isDisjoint(with: unavailable))

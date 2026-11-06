@@ -44,13 +44,46 @@ public struct MCPChange: Sendable, Equatable {
     public var original: String?
     public var proposed: String
     public var summary: String
-    public init(tool: String, path: String, relativePath: String, original: String?, proposed: String, summary: String) {
+    /// Who asked for the change, when the caller is an SDK extension
+    /// rather than the host (Wave 17, Slice B). The review UI shows
+    /// this so the user knows an extension — not the host agent —
+    /// requested the write. Nil means the host itself.
+    public var caller: MCPToolCaller?
+    public init(tool: String, path: String, relativePath: String, original: String?, proposed: String, summary: String,
+                caller: MCPToolCaller? = nil) {
         self.tool = tool
         self.path = path
         self.relativePath = relativePath
         self.original = original
         self.proposed = proposed
         self.summary = summary
+        self.caller = caller
+    }
+
+    /// A copy of this change attributed to `caller` (the server's
+    /// `run` stamps the caller's identity onto every change the
+    /// review closure sees).
+    public func settingCaller(_ caller: MCPToolCaller?) -> MCPChange {
+        var copy = self
+        copy.caller = caller
+        return copy
+    }
+}
+
+/// Who is calling a tool, when the caller is an SDK extension rather
+/// than the host (Wave 17, Slice B). `allowedToolIDs` is the caller's
+/// grant snapshot as canonical MCP tool names — the SDK tool runner
+/// maps the session's capability snapshot to these names, so this
+/// server never sees capability IDs. `nil` on a call means the host
+/// itself, and host calls are unchanged.
+public struct MCPToolCaller: Sendable, Equatable {
+    /// The extension's id (the session's `extensionID`).
+    public var extensionID: String
+    /// Canonical MCP tool names this caller may run.
+    public var allowedToolIDs: Set<String>
+    public init(extensionID: String, allowedToolIDs: Set<String>) {
+        self.extensionID = extensionID
+        self.allowedToolIDs = allowedToolIDs
     }
 }
 
@@ -62,12 +95,19 @@ public struct MCPToolCall: Sendable {
     /// Asks the write policy about one change (write tools call it before
     /// writing; true: go ahead).
     public var approve: @Sendable (MCPChange) async -> Bool
+    /// Who is calling, when the caller is an SDK extension rather than
+    /// the host (Wave 17, Slice B). `run` grant-checks it before any
+    /// approval UI and stamps it onto every change the review closure
+    /// sees. Nil means the host itself.
+    public var caller: MCPToolCaller?
     public init(name: String, arguments: [String: AnyJSON], progress: MCPProgress = .none,
-                approve: @escaping @Sendable (MCPChange) async -> Bool = { _ in true }) {
+                approve: @escaping @Sendable (MCPChange) async -> Bool = { _ in true },
+                caller: MCPToolCaller? = nil) {
         self.name = name
         self.arguments = arguments
         self.progress = progress
         self.approve = approve
+        self.caller = caller
     }
 
     public func string(_ key: String) -> String? { arguments[key]?.string.flatMap { $0.isEmpty ? nil : $0 } }
@@ -601,6 +641,14 @@ public final class MCPServer: @unchecked Sendable {
     /// Runs a tool under the write policy; failures become `isError` results.
     public func run(_ tool: MCPTool, _ call: MCPToolCall) async -> MCPToolResult {
         if let problem = tool.argumentProblem(call.arguments) { return .error("\(tool.name): \(problem)") }
+        // Extension callers are grant-checked BEFORE the write policy
+        // runs, so an ungranted tool is refused before any approval UI
+        // appears — the user is never asked about a change the
+        // extension may not make. Host calls (`caller == nil`) skip
+        // this check, as before.
+        if let caller = call.caller, !caller.allowedToolIDs.contains(tool.name) {
+            return .error("Tool '\(tool.name)' is not approved for extension '\(caller.extensionID)'.")
+        }
         var call = call
         if tool.writes {
             switch writePolicy {
@@ -609,7 +657,16 @@ public final class MCPServer: @unchecked Sendable {
             case .allow:
                 call.approve = { _ in true }
             case .review(let ask):
-                call.approve = ask
+                // The review closure sees the change attributed to
+                // its extension caller, so the proposal UI can show
+                // who requested the write. A granted write is asked
+                // exactly as a host write would be — same closure,
+                // same question, no auto-allow.
+                if let caller = call.caller {
+                    call.approve = { change in await ask(change.settingCaller(caller)) }
+                } else {
+                    call.approve = ask
+                }
             }
         } else {
             call.approve = { _ in false }

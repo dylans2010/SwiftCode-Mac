@@ -161,6 +161,12 @@ public struct MetaAssistProvider: AssistantProvider {
     /// Lives in `AssistantSettings.metaReasoningEffort`; the
     /// `/effort` slash command updates it through the host.
     public var reasoningEffort: String
+    /// The longest a turn may run before it is cancelled and
+    /// the host stopped (Wave 17:
+    /// `MetaAssistTurnExecutor.defaultTurnTimeout`). Lives in
+    /// `AssistantSettings.metaTurnTimeoutSeconds`; the host
+    /// passes it through, never a second default.
+    public var turnTimeoutSeconds: TimeInterval
     /// The agent-mode attachment, when the host attached one
     /// (see `AgentAttachable`). Its `requestPermission` decides
     /// the host's approval requests; without it every approval
@@ -183,6 +189,7 @@ public struct MetaAssistProvider: AssistantProvider {
         locator: CLIToolLocator = CLIToolLocator(),
         homeDirectory: String = FileManager.default.homeDirectoryForCurrentUser.path,
         reasoningEffort: String = "high",
+        turnTimeoutSeconds: TimeInterval = MetaAssistTurnExecutor.defaultTurnTimeout,
         attachment: AgentAttachment? = nil,
         knownToolIDs: Set<String> = [],
         proxyBaseURL: String? = nil,
@@ -192,6 +199,7 @@ public struct MetaAssistProvider: AssistantProvider {
         self.locator = locator
         self.homeDirectory = homeDirectory
         self.reasoningEffort = reasoningEffort
+        self.turnTimeoutSeconds = turnTimeoutSeconds
         self.attachment = attachment
         self.knownToolIDs = knownToolIDs
         self.proxyBaseURL = proxyBaseURL
@@ -296,6 +304,7 @@ public struct MetaAssistProvider: AssistantProvider {
                     proxyBaseURL: provider.proxyBaseURL,
                     attachment: provider.attachment,
                     knownToolIDs: provider.knownToolIDs,
+                    turnTimeoutSeconds: provider.turnTimeoutSeconds,
                     onEvent: { out.yield($0) }
                 )
             } catch let error as MuseCodeCLIError {

@@ -81,6 +81,15 @@ public struct AssistantSettings: Codable, Sendable, Equatable {
     /// `"high"`). The `/effort` slash command updates it through
     /// the host; the provider reads it at `send` time.
     public var metaReasoningEffort = "high"
+    /// The longest a Meta turn may run before Ycode stops the
+    /// Muse host and fails it (Wave 17:
+    /// `MetaAssistTurnExecutor.defaultTurnTimeout`, 300s).
+    /// Legacy had no turn timeout; the value is the budget, not
+    /// a deadline the host is expected to hit. 0 disables the
+    /// timeout. No Settings UI yet — the coordinator (or a
+    /// later slice) adds the control; the default applies
+    /// until then.
+    public var metaTurnTimeoutSeconds: TimeInterval = MetaAssistTurnExecutor.defaultTurnTimeout
     /// "Gemini Key Rotation" (Wave 16: Legacy
     /// `AppSettings.alternativeKeysEnabled`, default false). When
     /// on, a rate-limited Gemini turn rotates to the next stored
@@ -89,6 +98,28 @@ public struct AssistantSettings: Codable, Sendable, Equatable {
     /// only happens when Dylan has stored alternative keys and
     /// switched this on.
     public var alternativeKeysEnabled = false
+    /// "Use Other Models with Meta SDK" (Wave 17: Legacy
+    /// `AppSettings.otherModelsWithMetaSDK`, UserDefaults
+    /// `assist.otherModelsWithMetaSDK`, default false). When on,
+    /// a Meta turn runs through the local other-models proxy
+    /// (`MuseOtherModelsProxyController`) instead of Meta's own
+    /// models: the resolved other model serves the Muse host.
+    public var metaUseOtherModels = false
+    /// "Use SwiftCode Cloud Model with Meta SDK" (Wave 17:
+    /// Legacy `AppSettings.swiftCodeCloudWithMetaSDK`,
+    /// UserDefaults `assist.swiftCodeCloudWithMetaSDK`, default
+    /// false). Same proxy path as `metaUseOtherModels`, for the
+    /// cloud model. Either toggle turns other-model mode on.
+    public var metaUseCloudModelWithMeta = false
+    /// The explicitly selected other model for the Meta bridge
+    /// (Wave 17: Legacy `AppSettings.metaSelectedOtherModelID`,
+    /// UserDefaults `assist.metaSelectedOtherModelID`, default
+    /// ""). Empty means "resolve one" (`MuseOtherModelsBridge.
+    /// resolveActiveModel`).
+    public var metaSelectedOtherModelID = ""
+    /// The provider of the explicitly selected other model
+    /// (Wave 17: Legacy `metaSelectedOtherModelProvider`).
+    public var metaSelectedOtherModelProvider = ""
 
     public init() {}
 
@@ -123,7 +154,12 @@ public struct AssistantSettings: Codable, Sendable, Equatable {
         onlyUseFreeModels = (try? c.decode(Bool.self, forKey: .onlyUseFreeModels)) ?? d.onlyUseFreeModels
         useSwiftCodeCloudModel = (try? c.decode(Bool.self, forKey: .useSwiftCodeCloudModel)) ?? d.useSwiftCodeCloudModel
         metaReasoningEffort = (try? c.decode(String.self, forKey: .metaReasoningEffort)) ?? d.metaReasoningEffort
+        metaTurnTimeoutSeconds = (try? c.decode(TimeInterval.self, forKey: .metaTurnTimeoutSeconds)) ?? d.metaTurnTimeoutSeconds
         alternativeKeysEnabled = (try? c.decode(Bool.self, forKey: .alternativeKeysEnabled)) ?? d.alternativeKeysEnabled
+        metaUseOtherModels = (try? c.decode(Bool.self, forKey: .metaUseOtherModels)) ?? d.metaUseOtherModels
+        metaUseCloudModelWithMeta = (try? c.decode(Bool.self, forKey: .metaUseCloudModelWithMeta)) ?? d.metaUseCloudModelWithMeta
+        metaSelectedOtherModelID = (try? c.decode(String.self, forKey: .metaSelectedOtherModelID)) ?? d.metaSelectedOtherModelID
+        metaSelectedOtherModelProvider = (try? c.decode(String.self, forKey: .metaSelectedOtherModelProvider)) ?? d.metaSelectedOtherModelProvider
     }
 }
 
@@ -183,7 +219,8 @@ public struct AssistantBackends: Sendable {
             }
             return SCCloudProvider(baseURL: settings.scCloudURL, fingerprint: fingerprint)
         case .metaAssist:
-            return MetaAssistProvider(locator: locator, reasoningEffort: settings.metaReasoningEffort)
+            return MetaAssistProvider(locator: locator, reasoningEffort: settings.metaReasoningEffort,
+                                      turnTimeoutSeconds: settings.metaTurnTimeoutSeconds)
         }
     }
 

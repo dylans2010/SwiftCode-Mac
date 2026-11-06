@@ -25,6 +25,12 @@ extension WorkspaceWindowController: YcodeMCPHostDelegate {
         let h = YcodeMCPHost(server: MCPServer(name: "ycode", version: MCPCommand.ycodeVersion, title: "Ycode"), session: session)
         h.delegate = self
         agentModeHolder.host = h
+        // Wave 17, Slice B: publish the window's server for
+        // extension tool calls (`YcodeSDKToolRunner`). Its policy
+        // is read-only until the window publishes a review-policy
+        // server, so extension reads run live and extension writes
+        // are refused honestly. Last window wins.
+        YcodeSDKToolServerRegistry.current = h.server
         return h
     }
 

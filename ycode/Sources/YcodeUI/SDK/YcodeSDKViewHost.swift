@@ -34,11 +34,16 @@ import YcodeSDK
 //   - `assist.main`         → Coding Assistant pane
 //                             (`revealCodingAssistant()`; not one of
 //                             the 12, but the same seam serves it)
+//   - `dictionary.open`     → Coding Dictionary window (Wave 17,
+//                             Slice C: generated per query through
+//                             the host's configured text provider;
+//                             Legacy shipped no term data to port)
+//   - `db.ExploreView`      → SQLite Explorer window (Wave 17,
+//                             Slice C: open a SQLite file, browse
+//                             tables/rows, run SQL — over Ycode's
+//                             existing `SQLiteDatabase`)
 //   Honestly unavailable (no hostable surface in Ycode):
-//   - `db.ExploreView`      → no SQLite browser exists
 //   - `docs.search`         → no DocC documentation browser exists
-//   - `dictionary.open`     → no coding dictionary; Legacy's was
-//                             LLM-generated with no term data to port
 //   - `sandbox.view`        → no integrated terminal (the debug
 //                             console is output-only)
 //   - `deployConsole.view`  → no deployments console / providers
@@ -80,6 +85,10 @@ public protocol SDKViewSurfaceActions: AnyObject {
     func showLivePreview() throws
     /// Reveals the Coding Assistant pane.
     func showCodingAssistant() throws
+    /// Shows the Coding Dictionary window (Wave 17, Slice C).
+    func showCodingDictionary() throws
+    /// Shows the SQLite Explorer window (Wave 17, Slice C).
+    func showDatabaseExplorer() throws
 }
 
 /// The live surface actions: the key workspace window's own
@@ -142,6 +151,19 @@ public final class WorkspaceSDKViewSurfaceActions: SDKViewSurfaceActions {
         wc.revealCodingAssistant()
     }
 
+    /// Neither window needs a project — Legacy's dictionary and
+    /// database explorer are both standalone — so these two actions
+    /// do NOT go through the workspace-window gate above. They open
+    /// their own windows directly; the dictionary generates entries
+    /// per query and the explorer asks for a file.
+    public func showCodingDictionary() throws {
+        CodingDictionaryWindowManager.shared.showWindow()
+    }
+
+    public func showDatabaseExplorer() throws {
+        SQLiteExplorerWindowManager.shared.showWindow()
+    }
+
     /// The active project's first .storyboard/.xib, deterministically
     /// by path. Build outputs and dependency trees are not descended
     /// into; at most 64 candidates are collected. `nil` when the
@@ -178,9 +200,7 @@ public final class YcodeSDKViewHost: SDKViewHost, @unchecked Sendable {
     /// reason each one cannot be opened. The single source of truth
     /// for the honestly-unavailable set (mirrored in the slice spec).
     public static let unavailableReasons: [String: String] = [
-        "db.ExploreView": "Ycode has no SQLite database browser. The only SQLite client in the IDE serves the Health store, not a browsable explorer.",
         "docs.search": "Ycode has no documentation browser. Quick Help covers the symbol under the cursor; there is no DocC bookshelf surface to open.",
-        "dictionary.open": "Ycode has no coding dictionary. Legacy's dictionary generated its definitions through the host LLM service and shipped no term data to port.",
         "sandbox.view": "Ycode has no integrated terminal. The debug console is output-only; opening it as a shell would misrepresent it.",
         "deployConsole.view": "Ycode has no deployments console. No Netlify, Vercel, or GitHub Pages deployment surface exists in the IDE.",
         "ci.VisualWF": "Ycode has no visual-workflow or CI dashboard. Builds run through the build system; no workflow canvas exists.",
@@ -195,9 +215,13 @@ public final class YcodeSDKViewHost: SDKViewHost, @unchecked Sendable {
 
     public func open(viewID: String) async throws {
         switch viewID {
-        case "db.ExploreView", "docs.search", "dictionary.open", "sandbox.view",
+        case "docs.search", "sandbox.view",
              "deployConsole.view", "ci.VisualWF", "virtualization.view":
             throw Self.unavailableError(viewID: viewID)
+        case "db.ExploreView":
+            try await actions.showDatabaseExplorer()
+        case "dictionary.open":
+            try await actions.showCodingDictionary()
         case "deviceconnect.open":
             try await actions.showDevices()
         case "simulator.view":
@@ -267,6 +291,7 @@ public enum YcodeSDKInstaller {
         SDKActiveWorkspaceRegistry.shared.provider = YcodeActiveWorkspaceProvider()
         let backend = SDKAssistHostBackend.shared
         await backend.install(resolver: YcodeSDKAssistResolver())
+        await backend.install(toolRunner: YcodeSDKToolRunner())
         await SDKAssistService.shared.backend = backend
         await SDKBootstrap.bootstrapIfNeeded()
     }

@@ -31,8 +31,15 @@ import YcodeAssistant
 //     session only. Caller A cannot see caller B's results because
 //     the service enforces session ownership BEFORE calling this
 //     backend, and this backend never retains anything to leak.
-//   - `executeTool` is NOT attached (see below): it throws
-//     `.serviceUnavailable` with the exact reason.
+//   - `executeTool` runs through the installed grant-enforcing
+//     tool runner (`SDKAssistToolRunning`, Wave 17, Slice B — see
+//     `SDKAssistToolRunner.swift`): the backend checks the closed
+//     session, the session snapshot, and the live grants, then the
+//     runner maps the capability to its MCP tools and runs one
+//     through the host's existing approval flow with the
+//     extension's caller identity attached. No runner installed
+//     means `.serviceUnavailable`, exactly as before — never a
+//     fabricated tool result.
 //
 // Entitlement and ownership are NOT re-checked here on purpose: the
 // service checks the verified-key entitlement and the session
@@ -98,6 +105,12 @@ public actor SDKAssistHostBackend: SDKAssistBackend {
         "Answer the user's message directly. You are replying on behalf of an IDE extension; you have no tools and no access to the user's files or conversation."
 
     private var resolver: (any SDKAssistProviderResolving)?
+    /// The grant-enforcing tool runner (Wave 17, Slice B), installed
+    /// by the host UI at startup alongside the provider resolver.
+    /// Nil means `executeTool` throws `.serviceUnavailable` — the
+    /// backend never runs a tool without a runner that enforces the
+    /// caller's grants through the host's approval flow.
+    private var toolRunner: (any SDKAssistToolRunning)?
 
     public init(resolver: (any SDKAssistProviderResolving)? = nil) {
         self.resolver = resolver
@@ -106,6 +119,12 @@ public actor SDKAssistHostBackend: SDKAssistBackend {
     /// Installs the host provider resolver (called once at startup).
     public func install(resolver: any SDKAssistProviderResolving) {
         self.resolver = resolver
+    }
+
+    /// Installs the grant-enforcing tool runner (called once at
+    /// startup, by the host UI). Replaces any previous runner.
+    public func install(toolRunner: any SDKAssistToolRunning) {
+        self.toolRunner = toolRunner
     }
 
     // MARK: - Completion
@@ -159,22 +178,73 @@ public actor SDKAssistHostBackend: SDKAssistBackend {
         }
     }
 
-    // MARK: - Tool execution (NOT attached)
+    // MARK: - Tool execution (grant-enforcing runner)
 
-    /// Tool execution for extensions is NOT attached. There is no
-    /// tool runner reachable from the SDK host that enforces the
-    /// extension's granted capabilities: YcodeSDK does not depend on
-    /// YcodeMCP, and the MCP tool runner's approval gate
-    /// (`MCPWritePolicy` / `approve`) has no extension caller
-    /// identity. Attaching it would let an extension drive host tools
-    /// outside its grant snapshot. Throws `.serviceUnavailable` with
-    /// the exact reason — never a fabricated tool result.
+    /// Executes one tool call through the installed grant-enforcing
+    /// runner (Wave 17, Slice B). The checks run in this order, and
+    /// every refusal happens BEFORE any approval UI appears and
+    /// BEFORE any tool runs:
+    ///   1. Closed session → `.invalidArgument`.
+    ///   2. No runner installed → `.serviceUnavailable` (the exact
+    ///      pre-Wave-17 behaviour: never a fabricated result).
+    ///   3. Tool not in the session's snapshot `allowedToolIDs` →
+    ///      `.permissionDenied` (the snapshot is the ceiling, fixed
+    ///      at session creation from the ACTIVE grants).
+    ///   4. Tool no longer in the extension's LIVE grants →
+    ///      `.permissionDenied` (a revoked grant closes the path
+    ///      even for a session created before the revocation).
+    ///   5. The runner maps the capability to its MCP tools,
+    ///      re-checks the named tool against the snapshot, and runs
+    ///      it through the host's existing approval flow with the
+    ///      extension's caller identity attached — a granted write
+    ///      still asks the user exactly as a host write would.
+    /// Caller isolation holds because the session — and its
+    /// snapshot — belongs to exactly one extension: caller A
+    /// cannot run with caller B's grants (the service enforces
+    /// session ownership before this backend is reached, and this
+    /// backend never runs a tool outside the passed session's
+    /// snapshot). Runner failures are mapped to a generic
+    /// `.serviceUnavailable` (the runner's message never crosses
+    /// the extension boundary); `SDKError`s pass through.
     public func executeTool(session: SDKAssistSession, call: SDKAssistToolCall) async throws -> SDKAssistToolResult {
-        throw SDKError(
-            code: .serviceUnavailable,
-            message: "Assist is not available for extensions right now.",
-            suggestion: "Tool execution for extensions is not attached: no tool runner reachable from the SDK host enforces the extension's granted capabilities."
-        )
+        guard !session.isClosed else {
+            throw SDKError(code: .invalidArgument, message: "The Assist session is closed.")
+        }
+        guard let runner = toolRunner else {
+            throw SDKError(
+                code: .serviceUnavailable,
+                message: "Assist is not available for extensions right now.",
+                suggestion: "Tool execution for extensions is not attached: no tool runner reachable from the SDK host enforces the extension's granted capabilities."
+            )
+        }
+        guard session.allowedToolIDs.contains(call.toolName) else {
+            throw SDKError(code: .permissionDenied, message: "The tool is not approved for this session.")
+        }
+        if let live = await runner.liveAllowedToolIDs(for: session.extensionID),
+           !live.contains(call.toolName) {
+            throw SDKError(code: .permissionDenied, message: "The tool is not approved for this session.")
+        }
+        do {
+            return try await runner.runTool(session: session, call: call)
+        } catch let error as SDKError {
+            throw error
+        } catch {
+            let failure = SDKError(
+                code: .serviceUnavailable,
+                message: "Assist is not available for extensions right now.",
+                suggestion: "The host tool runner could not run the tool."
+            )
+            await SDKDeveloperLogger.shared.log(
+                error: failure,
+                diagnostics: [
+                    "tool": call.toolName,
+                    "session": session.id.uuidString,
+                    "underlying": String(describing: type(of: error)),
+                ],
+                context: ["extension": session.extensionID]
+            )
+            throw failure
+        }
     }
 
     // MARK: - Private

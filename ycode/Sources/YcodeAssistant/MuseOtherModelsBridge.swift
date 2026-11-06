@@ -60,6 +60,13 @@ import Foundation
 //     block parser (`MuseToolCallParser`, Legacy's
 //     `parseAndExecuteToolCalls` minus the execution — parsing
 //     only, names normalized through `MetaToolNameNormalizer`).
+//   * Wave 17, Slice B: the proxy lifecycle now has an owner
+//     (`MuseOtherModelsProxyController`, at the end of this
+//     file). `MuseLocalProxyServer.start` falls back to any
+//     free loopback port when the requested one is taken
+//     (Legacy's `NWListener(..., on: .any)`) and restarts when
+//     the active model changes instead of returning a stale
+//     proxy for the old model.
 
 // MARK: - Model resolution
 
@@ -486,14 +493,31 @@ public final class MuseLocalProxyServer: @unchecked Sendable {
         return out.isEmpty ? [ChatMessage(.user, "Hello")] : out
     }
 
-    /// Starts the proxy for one active model. A running proxy is
-    /// returned as-is (Legacy `ensureLocalProxyServerStarted`).
+    /// Starts the proxy for one active model. A running proxy for
+    /// the SAME model is returned as-is (Legacy
+    /// `ensureLocalProxyServerStarted`); a running proxy for a
+    /// DIFFERENT model is stopped and restarted, so the catalog
+    /// and the `streamChat` closure always match the active model.
+    ///
+    /// Port fallback (Legacy's `NWListener(..., on: .any)` when
+    /// 19855 was taken): the requested port is tried first, then
+    /// any free loopback port (`LoopbackServer` port 0). Only when
+    /// both fail does this throw — never a silent fallback to a
+    /// direct model run.
     public func start(active: MuseOtherModelResolution, port: UInt16 = Self.defaultPort, streamChat: @escaping StreamChat) throws -> URL {
-        if let existing = lock.withLock({ server }).map({ URL(string: $0.baseURL)! }) {
-            return existing
+        if let existing = lock.withLock({ server }), lock.withLock({ _active }) == active {
+            return URL(string: existing.baseURL)!
         }
-        let server = try LoopbackServer(port: port) { request in
-            Self.handle(request: request, active: active, streamChat: streamChat)
+        stop()
+        let server: LoopbackServer
+        do {
+            server = try LoopbackServer(port: port) { request in
+                Self.handle(request: request, active: active, streamChat: streamChat)
+            }
+        } catch {
+            server = try LoopbackServer(port: 0) { request in
+                Self.handle(request: request, active: active, streamChat: streamChat)
+            }
         }
         lock.withLock {
             self.server = server
@@ -568,5 +592,103 @@ public final class MuseLocalProxyServer: @unchecked Sendable {
             return "\"\(string)\""
         }
         return String(json.dropFirst().dropLast())
+    }
+}
+
+// MARK: - Other-models proxy lifecycle (Wave 17, Slice B)
+//
+// The mode switch Legacy checked at turn time in
+// `MetaAssistProvider.executeTurn` — `otherModelsWithMetaSDK ||
+// swiftCodeCloudWithMetaSDK` — had no Ycode owner: the proxy
+// existed, `MetaAssistProvider.proxyBaseURL` was constructor-only,
+// and nothing ever started a proxy. This controller is that
+// owner. The host (`CodingAssistantModel`) calls it when a Meta
+// turn starts: `enable` when other-model mode is on, `disable`
+// when it is off or the provider is not Meta.
+//
+// Honest failures, and deliberately NOT Legacy's fallbacks: a
+// missing `muse` binary throws `.museNotFound` (Legacy fell back
+// to a direct `executeTurn` through `LLMService`, which has no
+// Ycode equivalent and whose approval bypass must not be
+// recreated); a proxy that cannot bind any port throws
+// `.proxyUnavailable`. Neither failure ever silently runs the
+// turn on Meta's own models instead.
+
+/// Why the other-models proxy could not start.
+public enum MuseOtherModelsProxyError: Error, Sendable, Equatable, LocalizedError {
+    /// No `muse` executable was found: other-model mode cannot
+    /// run without the Muse host it points at.
+    case museNotFound
+    /// No loopback port could be bound (the default port is taken
+    /// AND no free port could be bound). The string is the
+    /// underlying bind error's description.
+    case proxyUnavailable(String)
+
+    public var errorDescription: String? {
+        switch self {
+        case .museNotFound:
+            return "Other-model mode needs the 'muse' CLI executable, which was not found. Install the Muse Code CLI and sign in once by running `muse` in Terminal."
+        case .proxyUnavailable(let detail):
+            return "The other-models proxy could not start: \(detail)"
+        }
+    }
+}
+
+/// Owns the other-models proxy's lifetime for the whole process
+/// (one proxy, one active model — the same sharing Legacy's
+/// `MuseOtherModelsBridge.shared` had). Serialized by actor
+/// isolation: concurrent turns cannot race a restart.
+///
+/// The host owns the mode decision; this controller only owns
+/// the server. `enable` is idempotent for the same model
+/// (returns the running URL) and restarts for a different one,
+/// so `proxyBaseURL` always tracks the running proxy's real URL.
+public actor MuseOtherModelsProxyController {
+    public static let shared = MuseOtherModelsProxyController()
+
+    private let proxy = MuseLocalProxyServer()
+
+    public init() {}
+
+    /// Whether the proxy is running (other-model mode is on).
+    public var isEnabled: Bool { proxy.isRunning }
+    /// The running proxy's real URL, or nil when it is stopped.
+    /// The host hands this to the provider as `proxyBaseURL`.
+    public var proxyBaseURL: String? { proxy.serverURL?.absoluteString }
+    /// The model the running proxy serves, or nil when stopped.
+    public var activeModel: MuseOtherModelResolution? { proxy.activeModel }
+
+    /// The mode predicate (Legacy `executeTurn`'s
+    /// `isOtherActive`): either toggle turns other-model mode on.
+    public static func isOtherModelModeEnabled(
+        otherModelsWithMetaSDK: Bool,
+        swiftCodeCloudWithMetaSDK: Bool
+    ) -> Bool {
+        otherModelsWithMetaSDK || swiftCodeCloudWithMetaSDK
+    }
+
+    /// Starts the proxy for `resolution` (or returns the running
+    /// one when it already serves that model). Throws
+    /// `.museNotFound` when `executable` is nil and
+    /// `.proxyUnavailable` when no port can be bound.
+    @discardableResult
+    public func enable(
+        resolution: MuseOtherModelResolution,
+        executable: URL?,
+        port: UInt16 = MuseLocalProxyServer.defaultPort,
+        streamChat: @escaping MuseLocalProxyServer.StreamChat
+    ) throws -> URL {
+        guard executable != nil else { throw MuseOtherModelsProxyError.museNotFound }
+        do {
+            return try proxy.start(active: resolution, port: port, streamChat: streamChat)
+        } catch {
+            throw MuseOtherModelsProxyError.proxyUnavailable(error.localizedDescription)
+        }
+    }
+
+    /// Stops the proxy (mode off, or the provider is no longer
+    /// Meta). A stopped proxy reports no URL and serves nothing.
+    public func disable() {
+        proxy.stop()
     }
 }

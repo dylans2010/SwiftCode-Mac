@@ -53,6 +53,16 @@ public final class CodingAssistantModel {
     /// records unmapped names instead of claiming they exist.
     /// Nil means no catalogue: never invent ids.
     public var mcpToolIDsProvider: (() -> Set<String>)?
+    /// Meta slash commands (Wave 17): the catalog the composer
+    /// intercepts when Assist with Meta is the active provider.
+    /// There is no slash menu or palette in Ycode yet — a command
+    /// is recognised when the sent text starts with a known
+    /// command name (`/effort low`, `/clear`, …); anything else
+    /// starting with `/` is sent to the model as-is. The
+    /// terminal-skill capture runs once, on first use, so
+    /// `muse skills list` is never spawned just for opening the
+    /// pane.
+    public var metaSlashCommands = MetaSlashCommandManager()
     /// Agent changes waiting for review, by message and code-block index.
     struct AgentEditKey: Hashable { var message: UUID; var block: Int }
     private var pendingAgentEdits: [AgentEditKey: (conversation: UUID, proposed: String, done: CheckedContinuation<Bool, Never>)] = [:]
@@ -105,6 +115,16 @@ public final class CodingAssistantModel {
     /// The chosen model, or the provider's first.
     public var modelID: String? {
         let chosen = settings.model(for: providerKind)
+        // Wave 17: a stored Meta model is used verbatim (Legacy:
+        // `AppSettings.metaAssistModelID` was the provider's
+        // model, empty meaning the default). The availability
+        // list is a fallback catalog, not authoritative — the
+        // bridge may offer models it lacks (`muse-swift-2.0` is
+        // a `/model` choice but not in the catalog) — so a
+        // stored Meta choice is never replaced by the first
+        // discovered model. The provider fails honestly if the
+        // host does not know the id.
+        if providerKind == .metaAssist, let chosen, !chosen.isEmpty { return chosen }
         let models = availability[providerKind]?.models ?? []
         if let chosen, models.isEmpty || models.contains(where: { $0.id == chosen }) { return chosen }
         return models.first?.id
@@ -254,6 +274,20 @@ public final class CodingAssistantModel {
     public func send(_ text: String, attachments: [Attachment] = [], newConversationTitle: String? = nil, in target: UUID? = nil) -> UUID? {
         let prompt = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !prompt.isEmpty else { return nil }
+        // Wave 17: a Meta slash command typed at the composer is
+        // intercepted here — the only place slash commands enter
+        // the host (there is no slash menu or palette yet; see
+        // `handleMetaSlashCommand`). `.inserted` leaves the text
+        // in the input for editing, `.handled` posts the effect's
+        // result, and anything else is sent to the model as-is.
+        switch handleMetaSlashCommand(prompt) {
+        case .notACommand:
+            break
+        case .inserted:
+            return nil
+        case .handled(let id):
+            return id
+        }
         var id = target.flatMap { conversation($0)?.id } ?? selected.map(\.id) ?? newConversation().id
         if newConversationTitle != nil {
             id = newConversation().id
@@ -309,18 +343,97 @@ public final class CodingAssistantModel {
         let limit = settings.contextLimit, options = settings.context, root = workspaceRoot, generation = settings.generation
         let knownWindow = availability[kind]?.models.first { $0.id == model }?.contextWindow
         running[id] = Task { [weak self] in
+            // Wave 17, Slice B: the other-model mode switch. Legacy
+            // checked `otherModelsWithMetaSDK ||
+            // swiftCodeCloudWithMetaSDK` at turn time in
+            // `MetaAssistProvider.executeTurn` and started the local
+            // proxy there, passing its URL as `--base-url`. Ycode
+            // does the same here, where the provider is built: when
+            // Meta is the provider and either toggle is on, the
+            // proxy starts for the resolved other model and the
+            // provider's `proxyBaseURL` tracks the running proxy's
+            // real URL; the turn's model becomes the resolved other
+            // model (the proxy's catalog serves exactly that one).
+            // When mode is off — or the provider is not Meta — a
+            // running proxy stops. A start failure (missing `muse`
+            // binary, no bindable port) fails this turn honestly:
+            // it is caught below and shown, never silently run on
+            // Meta's own models.
+            var effectiveProvider = provider
+            var effectiveModel = model
+            do {
+                if kind == .metaAssist, let metaProvider = provider as? MetaAssistProvider, let self {
+                    if MuseOtherModelsProxyController.isOtherModelModeEnabled(
+                        otherModelsWithMetaSDK: self.settings.metaUseOtherModels,
+                        swiftCodeCloudWithMetaSDK: self.settings.metaUseCloudModelWithMeta)
+                    {
+                        var discovered: [AssistCandidateModel] = []
+                        for (discoveredKind, avail) in self.availability {
+                            for info in avail.models {
+                                discovered.append(AssistCandidateModel(
+                                    id: info.id, displayName: info.displayName, provider: discoveredKind,
+                                    modelIdentifier: info.id, contextWindow: info.contextWindow ?? 128_000))
+                            }
+                        }
+                        let resolution = MuseOtherModelsBridge.resolveActiveModel(
+                            selectedOtherModelID: self.settings.metaSelectedOtherModelID,
+                            selectedOtherModelProvider: self.settings.metaSelectedOtherModelProvider,
+                            generalModelID: model ?? "",
+                            discovered: discovered,
+                            customEndpoints: [],
+                            cloudModelIDs: [],
+                            onlyUseFree: self.settings.onlyUseFreeModels)
+                        let backends = self.services.backends(self.prefs)
+                        let streamChat: MuseLocalProxyServer.StreamChat = { streamModelID, messages, systemPrompt in
+                            AsyncThrowingStream { continuation in
+                                let task = Task {
+                                    do {
+                                        let streamProvider = backends.provider(forModelID: streamModelID)
+                                        let chatRequest = ChatRequest(
+                                            model: streamModelID, instructions: systemPrompt, messages: messages,
+                                            workingDirectory: nil, generation: .assistantDefault)
+                                        for try await event in streamProvider.send(chatRequest) {
+                                            if case .text(let delta) = event { continuation.yield(delta) }
+                                            if case .finished = event { break }
+                                        }
+                                        continuation.finish()
+                                    } catch {
+                                        continuation.finish(throwing: error)
+                                    }
+                                }
+                                continuation.onTermination = { _ in task.cancel() }
+                            }
+                        }
+                        let url = try await MuseOtherModelsProxyController.shared.enable(
+                            resolution: resolution, executable: metaProvider.executableURL(), streamChat: streamChat)
+                        var updated = metaProvider
+                        updated.proxyBaseURL = url.absoluteString
+                        effectiveProvider = updated
+                        effectiveModel = resolution.modelID
+                        self.appendActivity(id, "Other-model mode: \(resolution.displayName) via local proxy")
+                    } else {
+                        await MuseOtherModelsProxyController.shared.disable()
+                    }
+                } else {
+                    await MuseOtherModelsProxyController.shared.disable()
+                }
+            } catch {
+                let stopped = Task.isCancelled || error is CancellationError || HTTPCancellation.matches(error)
+                self?.finish(id, error: stopped ? "Stopped." : Self.describe(error))
+                return
+            }
             var window = knownWindow
-            if window == nil, let model { window = await provider.contextWindow(model: model) }
+            if window == nil, let effectiveModel { window = await effectiveProvider.contextWindow(model: effectiveModel) }
             let budget = min(limit, window ?? limit)
             let built = PromptBuilder.build(history: history, prompt: prompt, attachments: attachments, context: context,
                                             options: options, contextTokens: budget, instructions: instructions)
-            let request = ChatRequest(model: model, instructions: built.instructions, messages: built.messages,
+            let request = ChatRequest(model: effectiveModel, instructions: built.instructions, messages: built.messages,
                                       contextTokens: kind == .ollama ? budget : nil, workingDirectory: root, generation: generation)
             if !built.omitted.isEmpty {
                 self?.appendActivity(id, "Left out to fit the context: " + built.omitted.joined(separator: ", "))
             }
             do {
-                for try await event in provider.send(request) {
+                for try await event in effectiveProvider.send(request) {
                     guard let self else { return }
                     switch event {
                     case .text(let t): appendText(id, t)
@@ -347,6 +460,122 @@ public final class CodingAssistantModel {
     }
 
     public func stopAll() { for id in Array(running.keys) { stop(id) } }
+
+    // MARK: Meta slash commands (Wave 17)
+
+    /// What intercepting a typed slash command produced.
+    public enum MetaSlashCommandHandling: Sendable, Equatable {
+        /// Not a Meta slash command: send the text normally.
+        case notACommand
+        /// The command text belongs back in the input (Legacy:
+        /// `executeCommand` returned the command string for the
+        /// composer to keep). The caller keeps the field.
+        case inserted
+        /// The effect was applied and its result posted in this
+        /// conversation.
+        case handled(UUID)
+    }
+
+    /// Intercepts a Meta slash command typed at the composer.
+    /// Only when Assist with Meta is the active provider, and
+    /// only when the first token is a known command name
+    /// (built-in or captured terminal skill): anything else —
+    /// including `/usr/bin/...` paths — is sent to the model
+    /// as-is, exactly as Legacy's popup only offered known
+    /// commands. Effect commands (`/effort`, `/model`, `/clear`,
+    /// `/login`) are applied through
+    /// `MetaSlashCommandEffectApplier` and the result is posted
+    /// as an assistant message; other commands (including
+    /// terminal skills and commands without their argument, like
+    /// a bare `/effort`) are left in the input, as Legacy put
+    /// the command string back into the composer.
+    @discardableResult
+    public func handleMetaSlashCommand(_ text: String) -> MetaSlashCommandHandling {
+        guard providerKind == .metaAssist else { return .notACommand }
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard trimmed.hasPrefix("/") else { return .notACommand }
+        let firstSpace = trimmed.firstIndex(where: { $0.isWhitespace }) ?? trimmed.endIndex
+        let name = String(trimmed[..<firstSpace]).lowercased()
+        guard let command = metaSlashCommands.commands.first(where: { $0.name.lowercased() == name }) else {
+            return .notACommand
+        }
+        let argument = firstSpace < trimmed.endIndex
+            ? String(trimmed[trimmed.index(after: firstSpace)...]).trimmingCharacters(in: .whitespacesAndNewlines)
+            : nil
+        // Terminal skills join the catalog on first use, so the
+        // next command can match them; the built-ins match at
+        // once. Fire-and-forget: a missing binary or a failed
+        // capture leaves the built-ins untouched.
+        if metaSlashCommands.lastCapturedAt == nil { refreshMetaSlashCommands() }
+        let (_, effect) = metaSlashCommands.executeCommand(command, argument: argument?.isEmpty == true ? nil : argument)
+        guard let effect else { return .inserted }
+        if case .insertText = effect { return .inserted }
+
+        let knownModels = Set(MetaAssistProvider.fallbackModels.map(\.modelId))
+            .union(availability[.metaAssist]?.models.map(\.id) ?? [])
+        var outcome = MetaSlashCommandEffectApplier.apply(effect, settings: settings, knownModelIDs: knownModels)
+        if case .startLogin = effect,
+           let meta = services.provider(.metaAssist, prefs: prefs) as? MetaAssistProvider, meta.hasCredentials() {
+            // Already signed in: the instruction would be a lie.
+            outcome.message = "Assist with Meta is already signed in."
+        }
+        if outcome.settings != settings {
+            prefs.codingAssistant = outcome.settings
+            notify(.status)
+        }
+        if case .setModel(let modelID) = effect {
+            // A live session keeps its model until told
+            // otherwise; the next turn uses the stored one.
+            Task { try? await MetaAssistTurnExecutor.shared.switchModel(modelID: modelID) }
+        }
+        if outcome.clearsSession {
+            // Legacy `clearChat`: cancel the active work first,
+            // then clear. The old conversation stays in the
+            // library — Ycode never deletes a transcript
+            // implicitly — and the result is posted in the fresh
+            // one.
+            let runningID = selectedID
+            if let runningID { stop(runningID) }
+            Task {
+                await MetaAssistTurnExecutor.shared.cancelTurn()
+                await MetaAssistTurnExecutor.shared.resetSession()
+            }
+            let fresh = newConversation()
+            postSlashCommandResult(commandText: trimmed, result: outcome.message, in: fresh.id)
+            return .handled(fresh.id)
+        }
+        let id = selected.map(\.id) ?? newConversation().id
+        postSlashCommandResult(commandText: trimmed, result: outcome.message, in: id)
+        return .handled(id)
+    }
+
+    /// Captures terminal skills (`muse skills list`) into the
+    /// slash-command catalog, once. A missing binary leaves the
+    /// built-ins untouched.
+    private func refreshMetaSlashCommands() {
+        guard let meta = services.provider(.metaAssist, prefs: prefs) as? MetaAssistProvider,
+              let executable = meta.executableURL() else { return }
+        Task { [weak self] in
+            guard let self else { return }
+            await self.metaSlashCommands.captureCommandsFromTerminal(executable: executable)
+        }
+    }
+
+    /// Posts a slash command and its effect's result as a
+    /// completed user/assistant pair, so the effect is visible
+    /// in the transcript (Legacy only logged it).
+    private func postSlashCommandResult(commandText: String, result: String, in id: UUID) {
+        update(id) { c in
+            if c.messages.isEmpty { c.title = Conversation.title(fromPrompt: commandText) }
+            c.provider = providerKind
+            c.model = modelID
+            c.messages.append(ConversationMessage(role: .user, text: commandText))
+            c.messages.append(ConversationMessage(role: .assistant, text: result, source: sourceLabel, isComplete: true))
+        }
+        notify(.list)
+        notify(.transcript(id))
+        save()
+    }
 
     /// The coding tools (Editor ▸ Show Coding Tools): a new conversation
     /// with the tool's prompt and the selection or file attached.
