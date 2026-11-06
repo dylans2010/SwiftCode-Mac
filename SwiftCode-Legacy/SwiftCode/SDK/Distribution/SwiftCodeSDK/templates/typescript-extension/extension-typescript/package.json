@@ -1,0 +1,1 @@
+{"dependencies":{"@swiftcode/sdk":"__SDK_FILE_URL__"},"devDependencies":{"@types/node":"26.6.5","typescript":"7.0.2"},"name":"__ID_SLUG__","private":true,"scripts":{"build":"tsc -p tsconfig.json","test":"node --test","typecheck":"tsc --noEmit -p tsconfig.json"},"type":"module","version":"__EXTENSION_VERSION__"}

@@ -1,0 +1,721 @@
+import Foundation
+import os
+
+// MARK: - Assist v3 Canonical Model Abstraction & Capabilities
+
+public struct ModelCapabilities: OptionSet, Sendable, Codable {
+    public let rawValue: Int
+
+    public init(rawValue: Int) {
+        self.rawValue = rawValue
+    }
+
+    public static let toolCalling        = ModelCapabilities(rawValue: 1 << 0)
+    public static let streaming          = ModelCapabilities(rawValue: 1 << 1)
+    public static let structuredOutput   = ModelCapabilities(rawValue: 1 << 2)
+    public static let reasoning          = ModelCapabilities(rawValue: 1 << 3)
+    public static let vision             = ModelCapabilities(rawValue: 1 << 4)
+    public static let largeContext       = ModelCapabilities(rawValue: 1 << 5)
+    public static let parallelToolCalls  = ModelCapabilities(rawValue: 1 << 6)
+    public static let codeGeneration     = ModelCapabilities(rawValue: 1 << 7)
+    public static let systemInstructions = ModelCapabilities(rawValue: 1 << 8)
+    public static let subagents          = ModelCapabilities(rawValue: 1 << 9)
+    public static let backgroundExecution = ModelCapabilities(rawValue: 1 << 10)
+
+    public static let longContext: ModelCapabilities = .largeContext
+
+    public static let standardCloud: ModelCapabilities = [
+        .toolCalling, .streaming, .structuredOutput, .largeContext, .codeGeneration, .systemInstructions, .subagents
+    ]
+
+    public static let advancedReasoning: ModelCapabilities = [
+        .toolCalling, .streaming, .structuredOutput, .reasoning, .largeContext, .parallelToolCalls, .codeGeneration, .systemInstructions, .subagents
+    ]
+
+    public static let localFoundation: ModelCapabilities = [
+        .codeGeneration, .structuredOutput
+    ]
+}
+
+public typealias AssistModelCapabilities = ModelCapabilities
+
+public struct ModelSpecification: Identifiable, Sendable, Codable {
+    public let id: String
+    public let displayName: String
+    public let provider: AssistModelProvider
+    public let contextWindowTokens: Int
+    public let capabilities: ModelCapabilities
+    public let defaultTemperature: Double
+
+    public init(
+        id: String,
+        displayName: String,
+        provider: AssistModelProvider,
+        contextWindowTokens: Int = 128_000,
+        capabilities: ModelCapabilities = .standardCloud,
+        defaultTemperature: Double = 0.2
+    ) {
+        self.id = id
+        self.displayName = displayName
+        self.provider = provider
+        self.contextWindowTokens = contextWindowTokens
+        self.capabilities = capabilities
+        self.defaultTemperature = defaultTemperature
+    }
+}
+
+// MARK: - Canonical Model Adapter
+
+@MainActor
+public final class AgentModelAdapter: Sendable {
+    public static let shared = AgentModelAdapter()
+    private let logger = Logger(subsystem: "com.swiftcode.app", category: "AgentModelAdapter")
+
+    private init() {}
+
+    /// Canonical registry of known model specifications & capabilities
+    public func specification(for modelId: String) -> ModelSpecification {
+        // OpenCode first: a stored `opencode:anthropic/claude-…` id would
+        // otherwise match the `claude`/`anthropic` branches below and be
+        // misreported (and misrouted) as a direct Anthropic model.
+        // Context is a conservative 128k default: the underlying OpenCode
+        // model's true limit varies, and specification() is synchronous
+        // so it cannot consult the server's catalog here.
+        if let openCode = OpenCodeModelID.parse(modelId) {
+            return ModelSpecification(
+                id: modelId,
+                displayName: openCode.displayName,
+                provider: .openCode,
+                contextWindowTokens: 128_000,
+                capabilities: .standardCloud
+            )
+        }
+
+        let lower = modelId.lowercased()
+
+        if lower.contains("claude") || lower.contains("anthropic") {
+            let displayName: String
+            if lower.contains("3-7") || lower.contains("3.7") {
+                displayName = "Claude 3.7 Sonnet"
+            } else if lower.contains("haiku") {
+                displayName = "Claude 3.5 Haiku"
+            } else if lower.contains("opus") {
+                displayName = "Claude 3 Opus"
+            } else {
+                displayName = "Claude 3.5 Sonnet"
+            }
+            return ModelSpecification(
+                id: modelId,
+                displayName: displayName,
+                provider: .anthropic,
+                contextWindowTokens: 200_000,
+                capabilities: [.toolCalling, .streaming, .structuredOutput, .vision, .largeContext, .codeGeneration, .systemInstructions, .subagents]
+            )
+        } else if lower.contains("gpt") || lower.contains("o1") || lower.contains("o3") || lower.contains("chatgpt") || lower.contains("openai") {
+            let displayName: String
+            if lower.contains("o3-mini") {
+                displayName = "o3-mini"
+            } else if lower.contains("o1") {
+                displayName = "o1"
+            } else if lower.contains("gpt-4o-mini") {
+                displayName = "GPT-4o Mini"
+            } else {
+                displayName = "GPT-4o"
+            }
+            return ModelSpecification(
+                id: modelId,
+                displayName: displayName,
+                provider: .openAI,
+                contextWindowTokens: 128_000,
+                capabilities: [.toolCalling, .streaming, .structuredOutput, .vision, .largeContext, .parallelToolCalls, .codeGeneration, .systemInstructions, .subagents]
+            )
+        } else if lower.contains("gemini") {
+            let displayName = lower.contains("flash") ? "Gemini 3.8 Flash" : "Gemini 3.8 Pro"
+            return ModelSpecification(
+                id: modelId,
+                displayName: displayName,
+                provider: .gemini,
+                contextWindowTokens: 1_000_000,
+                capabilities: [.toolCalling, .streaming, .structuredOutput, .largeContext, .codeGeneration, .systemInstructions, .subagents]
+            )
+        } else if lower.contains("mistral") || lower.contains("codestral") || lower.contains("pixtral") {
+            let displayName = lower.contains("codestral") ? "Codestral" : "Mistral Large"
+            return ModelSpecification(
+                id: modelId,
+                displayName: displayName,
+                provider: .mistral,
+                contextWindowTokens: 128_000,
+                capabilities: [.toolCalling, .streaming, .structuredOutput, .largeContext, .codeGeneration, .systemInstructions, .subagents]
+            )
+        } else if lower.contains("deepseek") {
+            return ModelSpecification(
+                id: modelId,
+                displayName: "DeepSeek V3",
+                provider: .openRouter,
+                contextWindowTokens: 64_000,
+                capabilities: [.toolCalling, .streaming, .structuredOutput, .largeContext, .codeGeneration, .systemInstructions, .subagents]
+            )
+        } else if lower.contains("codex") {
+            return ModelSpecification(
+                id: modelId,
+                displayName: "Codex Local Bridge",
+                provider: .codex,
+                contextWindowTokens: 32_000,
+                capabilities: [.codeGeneration, .structuredOutput]
+            )
+        } else if lower.contains("ollama") || lower.contains("lmstudio") {
+            return ModelSpecification(
+                id: modelId,
+                displayName: modelId,
+                provider: .openAI,
+                contextWindowTokens: 32_000,
+                capabilities: [.toolCalling, .streaming, .codeGeneration, .systemInstructions]
+            )
+        } else if lower.contains("afm 3 core") || lower.contains("afm-3-core") || lower.contains("apple") || lower.contains("foundation") {
+            return ModelSpecification(
+                id: modelId,
+                displayName: "Apple Foundation Models",
+                provider: .openRouter,
+                contextWindowTokens: 8_192,
+                capabilities: .localFoundation
+            )
+        }
+
+        return ModelSpecification(
+            id: modelId,
+            displayName: modelId,
+            provider: .openRouter,
+            contextWindowTokens: 128_000,
+            capabilities: .standardCloud
+        )
+    }
+
+    public func contextBudget(for modelId: String) -> AgentModelContextBudget {
+        let spec = specification(for: modelId)
+        return AgentModelContextBudget(
+            modelId: modelId,
+            contextWindowTokens: spec.contextWindowTokens
+        )
+    }
+
+    public func estimatedTokenCount(for text: String, modelId: String) -> Int {
+        return contextBudget(for: modelId).estimatedTokenCount(for: text)
+    }
+
+    public func fitsContext(_ text: String, modelId: String) -> Bool {
+        return contextBudget(for: modelId).fitsContext(estimatedTokens: estimatedTokenCount(for: text, modelId: modelId))
+    }
+
+    /// Normalizes outgoing prompt structure based on model capabilities
+    public func normalizePrompt(systemPrompt: String, userInstructions: String, for modelId: String) -> String {
+        let spec = specification(for: modelId)
+
+        if spec.capabilities.contains(.systemInstructions) {
+            return "\(systemPrompt)\n\n# TASK EXECUTION INSTRUCTIONS\n\(userInstructions)"
+        } else {
+            // Merge system prompt into user instruction block for models without native system support
+            return "SYSTEM DIRECTIVES:\n\(systemPrompt)\n\nUSER REQUEST:\n\(userInstructions)"
+        }
+    }
+
+    /// Robust JSON extraction and recovery algorithm that repairs malformed outputs, strips fences, and locates boundaries.
+    public func extractJSON(from response: String) -> [String: Any]? {
+        let trimmed = response.trimmingCharacters(in: .whitespacesAndNewlines)
+
+        // 1. Direct JSON attempt
+        if let data = trimmed.data(using: .utf8),
+           let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
+            return json
+        }
+
+        // 2. Fenced Markdown block extraction (```json ... ``` or ``` ...)
+        let patterns = ["```json", "```JSON", "```"]
+        for pattern in patterns {
+            if let startRange = trimmed.range(of: pattern) {
+                let afterStart = trimmed[startRange.upperBound...]
+                if let endRange = afterStart.range(of: "```") {
+                    let block = afterStart[..<endRange.lowerBound].trimmingCharacters(in: .whitespacesAndNewlines)
+                    if let data = block.data(using: .utf8),
+                       let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
+                        return json
+                    }
+                }
+            }
+        }
+
+        // 3. Regex boundary scanner ({ ... })
+        if let firstBrace = trimmed.firstIndex(of: "{"),
+           let lastBrace = trimmed.lastIndex(of: "}"),
+           firstBrace < lastBrace {
+            let block = String(trimmed[firstBrace...lastBrace])
+            if let data = block.data(using: .utf8),
+               let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
+                return json
+            }
+
+            // 4. Recovery: Sanitize trailing commas and missing quotes
+            let sanitized = sanitizeJSONString(block)
+            if let data = sanitized.data(using: .utf8),
+               let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
+                return json
+            }
+        }
+
+        return nil
+    }
+
+    /// Sanitizes trailing commas and common syntax mistakes produced by LLMs.
+    private func sanitizeJSONString(_ raw: String) -> String {
+        var cleaned = raw
+        // Remove trailing commas before closing braces/brackets
+        cleaned = cleaned.replacingOccurrences(of: ",\\s*}", with: "}", options: .regularExpression)
+        cleaned = cleaned.replacingOccurrences(of: ",\\s*]", with: "]", options: .regularExpression)
+        return cleaned
+    }
+
+    /// Dispatches prompt with exponential backoff and rate limit recovery.
+    public func queryModel(
+        prompt: String,
+        modelId: String,
+        maxRetries: Int = 3
+    ) async throws -> String {
+        var currentAttempt = 0
+        var lastError: Error?
+
+        while currentAttempt < maxRetries {
+            currentAttempt += 1
+            do {
+                let response = try await LLMService.shared.generateResponse(
+                    prompt: prompt,
+                    useContext: false,
+                    modelOverride: modelId
+                )
+                if !response.isEmpty {
+                    OfflineFallbackManager.shared.recordSuccess(for: modelId)
+                    return response
+                }
+            } catch {
+                lastError = error
+                let errorDesc = error.localizedDescription.lowercased()
+
+                if errorDesc.contains("rate limit") || errorDesc.contains("429") || errorDesc.contains("overloaded") {
+                    let backoff = Double(currentAttempt * 2)
+                    logger.warning("Rate limit / transient error on attempt \(currentAttempt). Backing off for \(backoff)s...")
+                    try? await Task.sleep(nanoseconds: UInt64(backoff * 1_000_000_000))
+                    continue
+                }
+
+                if OfflineFallbackManager.shared.isFallbackPermitted {
+                    logger.warning("Remote model query failed. Routing to Offline Fallback Provider...")
+                    return try await OfflineFallbackManager.shared.handleFallbackQuery(
+                        prompt: prompt,
+                        originalModelId: modelId,
+                        error: error
+                    )
+                }
+
+                throw error
+            }
+        }
+
+        if let finalErr = lastError, OfflineFallbackManager.shared.isFallbackPermitted {
+            logger.warning("Retries exhausted for remote model query. Triggering Offline Fallback Provider...")
+            return try await OfflineFallbackManager.shared.handleFallbackQuery(
+                prompt: prompt,
+                originalModelId: modelId,
+                error: finalErr
+            )
+        }
+
+        throw lastError ?? NSError(domain: "AgentModelAdapter", code: 500, userInfo: [NSLocalizedDescriptionKey: "Failed after \(maxRetries) attempts."])
+    }
+
+    /// Streams each model delta to the Assist execution loop instead of waiting for a
+    /// complete response. The agent response is still validated as one complete JSON
+    /// object before any tool is allowed to execute.
+    public func streamQueryModel(prompt: String, modelId: String, attachments: [AIMessageAttachment]? = nil, systemPrompt: String = "", directory: String? = nil) async throws -> AsyncThrowingStream<String, Error> {
+        // OpenCode seam. The caller (AssistAgentSession) passes SwiftCode's
+        // real system prompt and the workspace root; OpenCodeClient sends
+        // the system prompt in the prompt's `system` field and the turn
+        // prompt as a text part, names the `swiftcode` agent, and streams
+        // back text deltas. What comes back is parsed by the session
+        // exactly like any other provider's output: a JSON tool request is
+        // validated against the registry, permission-checked, executed by
+        // SwiftCode's tools, and its result is fed back on the next turn.
+        // OpenCode never executes tools on SwiftCode's behalf (its client
+        // fails a run closed if a tool part appears on the stream).
+        // `systemPrompt`/`directory` are intentionally ignored for other
+        // providers, preserving their existing behaviour byte for byte.
+        if let openCode = OpenCodeModelID.parse(modelId) {
+            return try await OpenCodeClient.shared.streamPrompt(
+                prompt: prompt,
+                systemPrompt: systemPrompt.isEmpty ? nil : systemPrompt,
+                model: OpenCodeModel(providerID: openCode.providerID, modelID: openCode.modelID),
+                directory: directory
+            )
+        }
+
+        return AsyncThrowingStream { continuation in
+            let task = Task {
+                do {
+                    try await LLMService.shared.streamChat(
+                        messages: [AIMessage(role: .user, content: prompt, attachments: attachments)],
+                        model: modelId,
+                        systemPrompt: "",
+                        onToken: { token in continuation.yield(token) }
+                    )
+                    continuation.finish()
+                } catch {
+                    continuation.finish(throwing: error)
+                }
+            }
+            continuation.onTermination = { @Sendable _ in task.cancel() }
+        }
+    }
+
+    /// Extracts a complete JSON string value from an in-progress JSON response. This is
+    /// used to reveal the selected tool as soon as its identifier is fully streamed,
+    /// without attempting to execute incomplete arguments.
+    public func extractStreamedStringValue(named key: String, from partialJSON: String) -> String? {
+        let keyToken = "\"\(key)\""
+        guard let keyRange = partialJSON.range(of: keyToken) else { return nil }
+
+        var cursor = keyRange.upperBound
+        while cursor < partialJSON.endIndex, partialJSON[cursor].isWhitespace {
+            cursor = partialJSON.index(after: cursor)
+        }
+        guard cursor < partialJSON.endIndex, partialJSON[cursor] == ":" else { return nil }
+        cursor = partialJSON.index(after: cursor)
+
+        while cursor < partialJSON.endIndex, partialJSON[cursor].isWhitespace {
+            cursor = partialJSON.index(after: cursor)
+        }
+        guard cursor < partialJSON.endIndex, partialJSON[cursor] == "\"" else { return nil }
+
+        let valueStart = cursor
+        cursor = partialJSON.index(after: cursor)
+        var isEscaped = false
+        while cursor < partialJSON.endIndex {
+            let character = partialJSON[cursor]
+            if isEscaped {
+                isEscaped = false
+            } else if character == "\\" {
+                isEscaped = true
+            } else if character == "\"" {
+                let literal = String(partialJSON[valueStart...cursor])
+                guard let data = literal.data(using: .utf8) else { return nil }
+                return try? JSONDecoder().decode(String.self, from: data)
+            }
+            cursor = partialJSON.index(after: cursor)
+        }
+        return nil
+    }
+}
+
+// MARK: - Assist v4 Offline Model Fallback Provider
+
+public enum ModelFailureClassification: String, Codable, Sendable {
+    case networkInterruption = "Network Interruption"
+    case dnsFailure = "DNS Resolution Failure"
+    case connectionTimeout = "Connection Timeout"
+    case providerOutage = "Remote Provider Outage"
+    case transportFailure = "Transport Protocol Failure"
+    case quotaExhaustion = "Remote Quota Exhausted"
+    case missingCredentials = "Credentials Unavailable"
+    case unknown = "Unknown Failure"
+}
+
+public struct ModelFallbackState: Identifiable, Codable, Sendable {
+    public let id: UUID
+    public let primaryModel: String
+    public let fallbackModel: String
+    public let reason: ModelFailureClassification
+    public let errorDetails: String
+    public let activatedAt: Date
+    public var deactivatedAt: Date?
+    public var contextRehydrated: Bool
+    public var continuationSuccessful: Bool
+    public var requestsHandled: Int
+
+    public init(
+        id: UUID = UUID(),
+        primaryModel: String,
+        fallbackModel: String,
+        reason: ModelFailureClassification,
+        errorDetails: String,
+        activatedAt: Date = Date(),
+        deactivatedAt: Date? = nil,
+        contextRehydrated: Bool = true,
+        continuationSuccessful: Bool = true,
+        requestsHandled: Int = 1
+    ) {
+        self.id = id
+        self.primaryModel = primaryModel
+        self.fallbackModel = fallbackModel
+        self.reason = reason
+        self.errorDetails = errorDetails
+        self.activatedAt = activatedAt
+        self.deactivatedAt = deactivatedAt
+        self.contextRehydrated = contextRehydrated
+        self.continuationSuccessful = continuationSuccessful
+        self.requestsHandled = requestsHandled
+    }
+}
+
+public struct ModelHealthEntry: Codable, Sendable {
+    public let modelId: String
+    public var consecutiveFailures: Int
+    public var lastFailureAt: Date?
+    public var lastSuccessAt: Date?
+    public var totalRequests: Int
+    public var totalFailures: Int
+    public var isInCooldown: Bool
+    public var cooldownUntil: Date?
+
+    public init(modelId: String) {
+        self.modelId = modelId
+        self.consecutiveFailures = 0
+        self.lastFailureAt = nil
+        self.lastSuccessAt = nil
+        self.totalRequests = 0
+        self.totalFailures = 0
+        self.isInCooldown = false
+        self.cooldownUntil = nil
+    }
+
+    public mutating func recordSuccess() {
+        consecutiveFailures = 0
+        lastSuccessAt = Date()
+        totalRequests += 1
+        isInCooldown = false
+        cooldownUntil = nil
+    }
+
+    public mutating func recordFailure() {
+        consecutiveFailures += 1
+        lastFailureAt = Date()
+        totalRequests += 1
+        totalFailures += 1
+    }
+
+    public mutating func activateCooldown(until date: Date) {
+        isInCooldown = true
+        cooldownUntil = date
+    }
+
+    public func isHealthy(failureThreshold: Int = 3, cooldownDuration: TimeInterval = 300) -> Bool {
+        if isInCooldown, let until = cooldownUntil {
+            if Date() < until { return false }
+            return consecutiveFailures < failureThreshold
+        }
+        return consecutiveFailures < failureThreshold
+    }
+}
+
+@Observable
+@MainActor
+public final class OfflineFallbackManager: Sendable {
+    public static let shared = OfflineFallbackManager()
+    private let logger = Logger(subsystem: "com.swiftcode.app", category: "OfflineFallbackManager")
+
+    public var isActive: Bool {
+        return currentState != nil && currentState?.deactivatedAt == nil
+    }
+
+    public var currentState: ModelFallbackState?
+    public var fallbackHistory: [ModelFallbackState] = []
+    public var modelHealth: [String: ModelHealthEntry] = [:]
+
+    public var isFallbackPermitted: Bool {
+        get {
+            if UserDefaults.standard.object(forKey: "assist.offlineFallbackEnabled") == nil {
+                return true
+            }
+            return UserDefaults.standard.bool(forKey: "assist.offlineFallbackEnabled")
+        }
+        set {
+            UserDefaults.standard.set(newValue, forKey: "assist.offlineFallbackEnabled")
+        }
+    }
+
+    public init() {}
+
+    public func healthEntry(for modelId: String) -> ModelHealthEntry {
+        if let entry = modelHealth[modelId] {
+            return entry
+        }
+        return ModelHealthEntry(modelId: modelId)
+    }
+
+    public func recordSuccess(for modelId: String) {
+        var entry = healthEntry(for: modelId)
+        entry.recordSuccess()
+        modelHealth[modelId] = entry
+    }
+
+    public func recordFailure(for modelId: String) {
+        var entry = healthEntry(for: modelId)
+        entry.recordFailure()
+        if entry.consecutiveFailures >= 3 {
+            entry.activateCooldown(until: Date().addingTimeInterval(300))
+        }
+        modelHealth[modelId] = entry
+    }
+
+    public func shouldFallback(for modelId: String) -> Bool {
+        let entry = healthEntry(for: modelId)
+        return !entry.isHealthy()
+    }
+
+    public func resetHealth(for modelId: String) {
+        modelHealth.removeValue(forKey: modelId)
+    }
+
+    public func classify(error: Error) -> ModelFailureClassification {
+        let nsError = error as NSError
+        let desc = error.localizedDescription.lowercased()
+
+        if nsError.domain == NSURLErrorDomain && (nsError.code == NSURLErrorCannotFindHost || nsError.code == NSURLErrorDNSLookupFailed) {
+            return .dnsFailure
+        }
+        if desc.contains("cannot find host") || desc.contains("dns") || desc.contains("nodename nor servname provided") {
+            return .dnsFailure
+        }
+
+        if nsError.domain == NSURLErrorDomain && (nsError.code == NSURLErrorTimedOut) {
+            return .connectionTimeout
+        }
+        if desc.contains("timed out") || desc.contains("timeout") {
+            return .connectionTimeout
+        }
+
+        if nsError.domain == NSURLErrorDomain && (
+            nsError.code == NSURLErrorNotConnectedToInternet ||
+            nsError.code == NSURLErrorNetworkConnectionLost ||
+            nsError.code == NSURLErrorCannotConnectToHost
+        ) {
+            return .networkInterruption
+        }
+        if desc.contains("not connected to internet") || desc.contains("connection lost") || desc.contains("offline") {
+            return .networkInterruption
+        }
+
+        if desc.contains("500") || desc.contains("502") || desc.contains("503") || desc.contains("504") || desc.contains("bad gateway") || desc.contains("service unavailable") {
+            return .providerOutage
+        }
+
+        if desc.contains("429") || desc.contains("quota exceeded") || desc.contains("rate limit") {
+            return .quotaExhaustion
+        }
+
+        if desc.contains("api key") || desc.contains("missing credentials") || nsError.code == 401 {
+            return .missingCredentials
+        }
+
+        return .unknown
+    }
+
+    public func selectBestLocalFallback() -> (modelId: String, displayName: String) {
+        if FoundationModels.shared.isEnabled {
+            let model = FoundationModels.shared.selectedModel
+            return (model.rawValue, "Apple Foundation Models (\(model.rawValue))")
+        }
+        return (AppleFoundationModel.afm3Core.rawValue, "Apple Foundation Models (On-Device AFM 3 Core)")
+    }
+
+    public func handleFallbackQuery(
+        prompt: String,
+        originalModelId: String,
+        error: Error
+    ) async throws -> String {
+        let classification = classify(error: error)
+        let localCandidate = selectBestLocalFallback()
+
+        recordFailure(for: originalModelId)
+
+        logger.warning("[Fallback] Triggering offline fallback for \(originalModelId) due to \(classification.rawValue): \(error.localizedDescription)")
+
+        if var active = currentState, active.deactivatedAt == nil {
+            active.requestsHandled += 1
+            currentState = active
+        } else {
+            let newState = ModelFallbackState(
+                primaryModel: originalModelId,
+                fallbackModel: localCandidate.displayName,
+                reason: classification,
+                errorDetails: error.localizedDescription,
+                activatedAt: Date(),
+                contextRehydrated: true,
+                continuationSuccessful: true,
+                requestsHandled: 1
+            )
+            currentState = newState
+            fallbackHistory.append(newState)
+
+            DiagnosticEventBus.shared.logEvent(
+                component: "OfflineFallbackManager",
+                severity: "WARNING",
+                category: "fallback_transition",
+                message: "Remote connection lost (\(classification.rawValue)). Switched to local fallback: \(localCandidate.displayName). Context preserved."
+            )
+        }
+
+        let originalFMEnabled = FoundationModels.shared.isEnabled
+        FoundationModels.shared.isEnabled = true
+        defer {
+            FoundationModels.shared.isEnabled = originalFMEnabled
+        }
+
+        let rehydratedPrompt = rehydratePromptForLocalContext(prompt: prompt)
+
+        do {
+            let response = try await FoundationModels.shared.generatePrivateResponse(prompt: rehydratedPrompt)
+            logger.info("[Fallback] Local fallback successfully generated response (\(response.count) chars)")
+            return response
+        } catch {
+            logger.error("[Fallback] Local fallback query failed: \(error.localizedDescription)")
+            currentState?.continuationSuccessful = false
+            throw error
+        }
+    }
+
+    public func fallbackTransitionMessage(for classification: ModelFailureClassification, fallbackModel: String) -> String {
+        return "Model fallback activated: \(classification.rawValue). Switched to \(fallbackModel). Context preserved."
+    }
+
+    private func rehydratePromptForLocalContext(prompt: String) -> String {
+        if prompt.count <= 16_000 {
+            return prompt
+        }
+
+        var compactPrompt = prompt
+        if let historyStart = prompt.range(of: "# HISTORY OF RECENT TOOL EXECUTION RESULTS"),
+           let activeFilesStart = prompt.range(of: "# ACTIVE FILE CONTENTS") {
+            let sub = prompt[historyStart.lowerBound..<activeFilesStart.lowerBound]
+            if sub.count > 4000 {
+                let recentPortion = String(sub.suffix(2000))
+                compactPrompt = prompt.replacingOccurrences(
+                    of: String(sub),
+                    with: "# HISTORY OF RECENT TOOL EXECUTION RESULTS (COMPACTED)\n[Prior steps truncated for local model buffer]\n" + recentPortion
+                )
+            }
+        }
+
+        return compactPrompt
+    }
+
+    public func deactivateFallback(reason: String = "Remote connectivity restored") {
+        guard var active = currentState, active.deactivatedAt == nil else { return }
+        active.deactivatedAt = Date()
+        currentState = active
+
+        logger.info("[Fallback] Deactivated fallback: \(reason)")
+        DiagnosticEventBus.shared.logEvent(
+            component: "OfflineFallbackManager",
+            severity: "INFO",
+            category: "fallback_recovery",
+            message: "Restored primary remote model: \(active.primaryModel). Reason: \(reason)"
+        )
+    }
+}
+

@@ -1,0 +1,204 @@
+import SwiftUI
+
+public struct AddArtboardSheet: View {
+    @Environment(\.dismiss) private var dismiss
+    let onAdd: (String, String, String, Bool, String, Double, Bool, String) -> Void
+
+    @State private var name: String = "MyCustomView"
+    @State private var selectedDevice: String = "iPhone 16 Pro"
+    @State private var availableDevices: [String] = []
+    @State private var appearance: String = "System"
+    @State private var isPortrait: Bool = true
+    @State private var dynamicTypeSize: String = "Medium"
+    @State private var previewScale: Double = 1.0
+    @State private var showSafeAreas: Bool = true
+    @State private var showingCodeEditor = false
+    @State private var sourceCode: String = """
+import SwiftUI
+
+struct MyCustomView: View {
+    @State private var count = 0
+    @State private var isSparkling = false
+
+    var body: some View {
+        NavigationStack {
+            VStack(spacing: 20) {
+                Spacer()
+
+                Image(systemName: isSparkling ? "sparkles" : "sparkle")
+                    .font(.system(size: 70))
+                    .foregroundColor(.purple)
+                    .symbolEffect(.bounce, value: isSparkling)
+                    .onTapGesture {
+                        isSparkling.toggle()
+                    }
+
+                Text("Custom Compiled Artboard")
+                    .font(.title)
+                    .bold()
+
+                Text("This view is rendered dynamically from your source code using the Preview Engine!")
+                    .multilineTextAlignment(.center)
+                    .font(.body)
+                    .foregroundColor(.secondary)
+                    .padding(.horizontal)
+
+                HStack {
+                    Button(action: {
+                        count += 1
+                    }) {
+                        Text("Tapped \\(count) Times")
+                    }
+                    .buttonStyle(.borderedProminent)
+                }
+                .padding(.top, 10)
+
+                Spacer()
+            }
+            .padding()
+            .navigationTitle("Custom View")
+        }
+    }
+}
+
+#Preview("MyCustomView Preview") {
+    MyCustomView()
+}
+"""
+
+    public init(onAdd: @escaping (String, String, String, Bool, String, Double, Bool, String) -> Void) {
+        self.onAdd = onAdd
+    }
+
+    public var body: some View {
+        VStack(spacing: 0) {
+            HStack {
+                Text("Add Custom Artboard")
+                    .font(.headline)
+                Spacer()
+                Button("Cancel") {
+                    dismiss()
+                }
+                .buttonStyle(.plain)
+            }
+            .padding()
+            .liquidGlass(style: .subtle, cornerRadius: 0)
+
+            Divider()
+
+            Form {
+                Section(header: Text("Layout Configurations").font(.subheadline.bold())) {
+                    TextField("Artboard Name", text: $name)
+                        .textFieldStyle(.roundedBorder)
+
+                    Picker("Target Device", selection: $selectedDevice) {
+                        if availableDevices.isEmpty {
+                            Text("iPhone 16 Pro").tag("iPhone 16 Pro")
+                            Text("iPad Pro").tag("iPad Pro")
+                            Text("Apple Watch").tag("Apple Watch")
+                            Text("Apple Vision Pro").tag("Apple Vision Pro")
+                        } else {
+                            ForEach(availableDevices, id: \.self) { devName in
+                                Text(devName).tag(devName)
+                            }
+                        }
+                    }
+                    .task {
+                        let sims = await BuildDestinationResolver.shared.fetchAvailableSimulators()
+                        let names = sims.map { $0.name }
+                        if !names.isEmpty {
+                            var unique = Array(Set(names)).sorted()
+                            if !unique.contains(selectedDevice) {
+                                unique.insert(selectedDevice, at: 0)
+                            }
+                            availableDevices = unique
+                        }
+                    }
+
+                    Picker("Appearance", selection: $appearance) {
+                        Text("Light").tag("Light")
+                        Text("Dark").tag("Dark")
+                        Text("System").tag("System")
+                    }
+
+                    Picker("Orientation", selection: Binding(
+                        get: { isPortrait ? "Portrait" : "Landscape" },
+                        set: { isPortrait = ($0 == "Portrait") }
+                    )) {
+                        Text("Portrait").tag("Portrait")
+                        Text("Landscape").tag("Landscape")
+                    }
+
+                    Picker("Dynamic Type Size", selection: $dynamicTypeSize) {
+                        Text("Small").tag("Small")
+                        Text("Medium").tag("Medium")
+                        Text("Large").tag("Large")
+                        Text("Extra Large").tag("Extra Large")
+                    }
+
+                    VStack(alignment: .leading) {
+                        HStack {
+                            Text("Preview Scale")
+                            Spacer()
+                            Text(String(format: "%.2f", previewScale))
+                                .foregroundColor(.secondary)
+                        }
+                        Slider(value: $previewScale, in: 0.5...1.5, step: 0.1)
+                    }
+
+                    Toggle("Safe Area Enabled", isOn: $showSafeAreas)
+                }
+                .padding(.bottom, 12)
+
+                Section(header: Text("SwiftUI Source Code").font(.subheadline.bold())) {
+                    VStack(alignment: .leading, spacing: 10) {
+                        Text("Edit the custom SwiftUI source code for this artboard in a dedicated editor.")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+
+                        Button(action: {
+                            showingCodeEditor = true
+                        }) {
+                            Label("Edit Artboard Source Code...", systemImage: "doc.text.fill")
+                        }
+                        .buttonStyle(.bordered)
+
+                        Text(sourceCode)
+                            .font(.system(.caption, design: .monospaced))
+                            .lineLimit(8)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .padding(8)
+                            .background(Color.secondary.opacity(0.05))
+                            .cornerRadius(6)
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 6)
+                                    .stroke(Color.secondary.opacity(0.15), lineWidth: 1)
+                            )
+                    }
+                }
+            }
+            .formStyle(.grouped)
+            .padding()
+
+            Divider()
+
+            HStack {
+                Spacer()
+                Button("Add Artboard") {
+                    onAdd(name, selectedDevice, appearance, isPortrait, dynamicTypeSize, previewScale, showSafeAreas, sourceCode)
+                    dismiss()
+                }
+                .buttonStyle(.borderedProminent)
+                .controlSize(.large)
+            }
+            .padding()
+            .background(Color(NSColor.windowBackgroundColor))
+        }
+        .frame(width: 550, height: 680)
+        .sheet(isPresented: $showingCodeEditor) {
+            CodeForArtboard(initialSource: sourceCode) { updatedCode in
+                sourceCode = updatedCode
+            }
+        }
+    }
+}

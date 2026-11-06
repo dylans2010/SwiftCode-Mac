@@ -1,0 +1,38 @@
+import Foundation
+
+public struct GitCommit: Identifiable, Sendable, Codable {
+    public let id: String // Hash
+    public let author: String
+    public let email: String
+    public let date: Date
+    public let message: String
+    public let parentHashes: [String]
+
+    public var sha: String { id }
+
+    public var subject: String {
+        message.components(separatedBy: .newlines).first ?? message
+    }
+
+    public var body: String {
+        let lines = message.components(separatedBy: .newlines)
+        guard lines.count > 1 else { return "" }
+        return lines.dropFirst().joined(separator: "\n").trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    public var dateString: String {
+        let formatter = DateFormatter()
+        formatter.dateStyle = .short
+        formatter.timeStyle = .short
+        return formatter.string(from: date)
+    }
+
+    public init(hash: String, author: String, email: String, date: Date, message: String, parentHashes: [String]) {
+        self.id = hash
+        self.author = author
+        self.email = email
+        self.date = date
+        self.message = message
+        self.parentHashes = parentHashes
+    }
+}

@@ -1,0 +1,256 @@
+import Foundation
+
+public actor GitService {
+    public static let shared = GitService()
+
+    private var gitURL: URL {
+        get async {
+            if let customPath = await PreferencesStore.shared.get(forKey: "git_executable_path") as? String {
+                return URL(fileURLWithPath: customPath)
+            }
+
+            // Try common paths to find a direct git executable that might not be a wrapper
+            let commonPaths = [
+                "/usr/local/bin/git",
+                "/opt/homebrew/bin/git",
+                "/Library/Developer/CommandLineTools/usr/bin/git",
+                "/usr/bin/git"
+            ]
+
+            for path in commonPaths {
+                if FileManager.default.isExecutableFile(atPath: path) {
+                    return URL(fileURLWithPath: path)
+                }
+            }
+
+            return URL(fileURLWithPath: "/usr/bin/git")
+        }
+    }
+
+    public func isGitInstalled() async -> Bool {
+        let url = await gitURL
+        return FileManager.default.isExecutableFile(atPath: url.path)
+    }
+
+    public func getStatus(for repositoryURL: URL) async throws -> GitStatusSnapshot {
+        let result = try await ProcessRunnerTool.shared.run(
+            executableURL: await gitURL,
+            arguments: ["status", "--porcelain=v2", "--branch"],
+            workingDirectory: repositoryURL
+        )
+
+        guard result.exitCode == 0 else {
+            throw AppError.gitError(result.stderr)
+        }
+
+        return await GitPorcelainParser.shared.parseStatus(result.stdout, repositoryURL: repositoryURL)
+    }
+
+    public func stage(path: URL, repositoryURL: URL) async throws {
+        let relPath = path.path.replacingOccurrences(of: repositoryURL.path + "/", with: "")
+        let result = try await ProcessRunnerTool.shared.run(
+            executableURL: await gitURL,
+            arguments: ["add", relPath],
+            workingDirectory: repositoryURL
+        )
+        if result.exitCode != 0 { throw AppError.gitError(result.stderr) }
+    }
+
+    public func unstage(path: URL, repositoryURL: URL) async throws {
+        let relPath = path.path.replacingOccurrences(of: repositoryURL.path + "/", with: "")
+        let result = try await ProcessRunnerTool.shared.run(
+            executableURL: await gitURL,
+            arguments: ["restore", "--staged", relPath],
+            workingDirectory: repositoryURL
+        )
+        if result.exitCode != 0 { throw AppError.gitError(result.stderr) }
+    }
+
+    public func discardChanges(path: URL, repositoryURL: URL) async throws {
+        let relPath = path.path.replacingOccurrences(of: repositoryURL.path + "/", with: "")
+        _ = try? await ProcessRunnerTool.shared.run(
+            executableURL: await gitURL,
+            arguments: ["restore", relPath],
+            workingDirectory: repositoryURL
+        )
+        _ = try? await ProcessRunnerTool.shared.run(
+            executableURL: await gitURL,
+            arguments: ["clean", "-f", relPath],
+            workingDirectory: repositoryURL
+        )
+    }
+
+    public func commit(message: String, repositoryURL: URL) async throws {
+        let result = try await ProcessRunnerTool.shared.run(
+            executableURL: await gitURL,
+            arguments: ["commit", "-m", message],
+            workingDirectory: repositoryURL
+        )
+        if result.exitCode != 0 { throw AppError.gitError(result.stderr) }
+    }
+
+    public func clone(remoteURL: URL, destinationURL: URL, token: String?) async throws {
+        var env = ProcessInfo.processInfo.environment
+        if let token = token {
+            env["GIT_TERMINAL_PROMPT"] = "0"
+        }
+
+        let result = try await ProcessRunnerTool.shared.run(
+            executableURL: await gitURL,
+            arguments: ["clone", remoteURL.absoluteString, destinationURL.path],
+            environment: env
+        )
+        if result.exitCode != 0 { throw AppError.gitError(result.stderr) }
+    }
+
+    public func getLog(repositoryURL: URL) async throws -> [GitCommit] {
+        let result = try await ProcessRunnerTool.shared.run(
+            executableURL: await gitURL,
+            arguments: ["log", "--pretty=format:%H|%P|%an|%ae|%at|%s", "-n", "100"],
+            workingDirectory: repositoryURL
+        )
+        if result.exitCode != 0 { throw AppError.gitError(result.stderr) }
+
+        return result.stdout.components(separatedBy: .newlines).compactMap { line in
+            let parts = line.components(separatedBy: "|")
+            guard parts.count == 6 else { return nil }
+            let parentHashes = parts[1].components(separatedBy: " ").filter { !$0.isEmpty }
+            return GitCommit(
+                hash: parts[0],
+                author: parts[2],
+                email: parts[3],
+                date: Date(timeIntervalSince1970: Double(parts[4]) ?? 0),
+                message: parts[5],
+                parentHashes: parentHashes
+            )
+        }
+    }
+
+    public func getBranches(repositoryURL: URL) async throws -> [GitBranch] {
+        let result = try await ProcessRunnerTool.shared.run(
+            executableURL: await gitURL,
+            arguments: ["branch", "-a", "--format=%(refname:short)|%(HEAD)|%(upstream:short)"],
+            workingDirectory: repositoryURL
+        )
+        if result.exitCode != 0 { throw AppError.gitError(result.stderr) }
+
+        return result.stdout.components(separatedBy: .newlines).compactMap { line in
+            let parts = line.components(separatedBy: "|")
+            guard parts.count == 3 else { return nil }
+            let name = parts[0]
+            let isCurrent = parts[1] == "*"
+            let tracking = parts[2].trimmingCharacters(in: .whitespacesAndNewlines)
+            let trackingRemote = tracking.isEmpty ? nil : tracking
+            return GitBranch(name: name, isCurrent: isCurrent, isRemote: name.hasPrefix("origin/"), trackingRemote: trackingRemote)
+        }
+    }
+
+    public func createBranch(name: String, repositoryURL: URL) async throws {
+        let result = try await ProcessRunnerTool.shared.run(
+            executableURL: await gitURL,
+            arguments: ["checkout", "-b", name],
+            workingDirectory: repositoryURL
+        )
+        if result.exitCode != 0 { throw AppError.gitError(result.stderr) }
+    }
+
+    public func checkout(branch: String, repositoryURL: URL) async throws {
+        let result = try await ProcessRunnerTool.shared.run(
+            executableURL: await gitURL,
+            arguments: ["checkout", branch],
+            workingDirectory: repositoryURL
+        )
+        if result.exitCode != 0 { throw AppError.gitError(result.stderr) }
+    }
+
+    public func deleteBranch(name: String, repositoryURL: URL) async throws {
+        let result = try await ProcessRunnerTool.shared.run(
+            executableURL: await gitURL,
+            arguments: ["branch", "-d", name],
+            workingDirectory: repositoryURL
+        )
+        if result.exitCode != 0 { throw AppError.gitError(result.stderr) }
+    }
+
+    public func getDiff(repositoryURL: URL) async throws -> [GitDiffHunk] {
+        let result = try await ProcessRunnerTool.shared.run(
+            executableURL: await gitURL,
+            arguments: ["diff"],
+            workingDirectory: repositoryURL
+        )
+        if result.exitCode != 0 { throw AppError.gitError(result.stderr) }
+        return parseDiff(result.stdout)
+    }
+
+    public func rollback(to sha: String, repositoryURL: URL) async throws {
+        let result = try await ProcessRunnerTool.shared.run(
+            executableURL: await gitURL,
+            arguments: ["reset", "--hard", sha],
+            workingDirectory: repositoryURL
+        )
+        if result.exitCode != 0 { throw AppError.gitError(result.stderr) }
+    }
+
+    public func forcePush(branch: String, repositoryURL: URL) async throws {
+        let result = try await ProcessRunnerTool.shared.run(
+            executableURL: await gitURL,
+            arguments: ["push", "origin", branch, "--force"],
+            workingDirectory: repositoryURL
+        )
+        if result.exitCode != 0 { throw AppError.gitError(result.stderr) }
+    }
+
+    public func push(repositoryURL: URL) async throws {
+        // Run git push
+        var result = try await ProcessRunnerTool.shared.run(
+            executableURL: await gitURL,
+            arguments: ["push"],
+            workingDirectory: repositoryURL
+        )
+        if result.exitCode != 0 {
+            // Check if it's because of no upstream branch
+            let stderr = result.stderr.lowercased()
+            if stderr.contains("no upstream") || stderr.contains("set-upstream") {
+                // Get current branch
+                let branchResult = try await ProcessRunnerTool.shared.run(
+                    executableURL: await gitURL,
+                    arguments: ["branch", "--show-current"],
+                    workingDirectory: repositoryURL
+                )
+                let branch = branchResult.stdout.trimmingCharacters(in: .whitespacesAndNewlines)
+                if branchResult.exitCode == 0, !branch.isEmpty {
+                    // Try pushing with -u origin branch
+                    result = try await ProcessRunnerTool.shared.run(
+                        executableURL: await gitURL,
+                        arguments: ["push", "-u", "origin", branch],
+                        workingDirectory: repositoryURL
+                    )
+                }
+            }
+        }
+        if result.exitCode != 0 { throw AppError.gitError(result.stderr) }
+    }
+
+    private func parseDiff(_ output: String) -> [GitDiffHunk] {
+        var hunks: [GitDiffHunk] = []
+        let lines = output.components(separatedBy: .newlines)
+        var currentHeader: String?
+        var currentLines: [String] = []
+
+        for line in lines {
+            if line.hasPrefix("@@ ") {
+                if let header = currentHeader {
+                    hunks.append(GitDiffHunk(header: header, lines: currentLines))
+                }
+                currentHeader = line
+                currentLines = []
+            } else if currentHeader != nil {
+                currentLines.append(line)
+            }
+        }
+        if let header = currentHeader {
+            hunks.append(GitDiffHunk(header: header, lines: currentLines))
+        }
+        return hunks
+    }
+}

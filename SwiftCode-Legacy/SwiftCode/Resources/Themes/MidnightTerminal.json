@@ -1,0 +1,13 @@
+{
+  "id": "midnight-terminal",
+  "name": "Midnight Terminal",
+  "background": "#000000",
+  "foreground": "#00FF00",
+  "keywordColor": "#00FF00",
+  "stringColor": "#00FF00",
+  "commentColor": "#004400",
+  "numberColor": "#00FF00",
+  "typeColor": "#00FF00",
+  "accentColor": "#00FF00",
+  "isBuiltIn": true
+}

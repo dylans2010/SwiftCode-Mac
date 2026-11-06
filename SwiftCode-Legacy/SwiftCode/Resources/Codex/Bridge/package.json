@@ -1,0 +1,9 @@
+{
+  "name": "swiftcode-codex-bridge",
+  "version": "1.0.0",
+  "description": "SwiftCode OpenAI Codex Node Bridge",
+  "main": "bridge.js",
+  "dependencies": {
+    "openai": "^4.28.0"
+  }
+}

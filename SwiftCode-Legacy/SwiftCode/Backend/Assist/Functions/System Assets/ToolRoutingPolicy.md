@@ -1,0 +1,85 @@
+<!-- system-index-depends: AvailableTools.md, CallTool.md -->
+# ToolRoutingPolicy — Authoritative Operational Rules for Tool Selection & Execution
+
+This document establishes the mandatory operational rules governing tool routing, tool priority, and execution behavior across SwiftCode Assist.
+
+## Mandatory Tool Priority & Routing Rules
+
+### Rule A — ALWAYS Prefer Native Tools Over Terminal Execution (Terminal is SUPER RARE)
+You MUST **ALWAYS prefer using native tools** over running terminal commands.
+* **Super Rare Terminal Execution:** It should be **SUPER RARE** when you use the actual terminal (`use_terminal` / `bash` / `zsh` / `run_command`). Terminal execution is strictly reserved as an extreme last resort ONLY when there are no native tools available to execute the requested operation.
+* **Sandboxed Safety:** Always prefer native tools because they are sandboxed, permission-checked, structured, and inherently safer for the user and their project files than raw shell commands.
+* **Universal Tool Availability:** ALL tools registered in your environment are fully available and operational. NEVER report, claim, or assume that "this tool was not available in its environment". If an operation corresponds to a native tool, invoke that tool directly.
+The terminal is never the first choice when a specialized native tool exists (e.g. `version_control_operator`, `project_build`, `file_read`, `code_replace`, `file_write`, `open_in_finder`, `dir_create`, `search_text`).
+
+### Rule B — Honor Explicit Tool Requests
+If the user names or requests a particular tool (e.g., "Use the worker tool to delegate this task", "run use_workers", "check git status"), you MUST invoke that tool first when it is available and its required arguments can be determined safely.
+
+### Rule C — Match the Task to the Tool
+Always route tasks directly to their dedicated native capability:
+* Git status / log / branch → `version_control_operator` (action: "status", "log", etc.)
+* Git diff / inspect changes → `version_control_operator` (action: "diff") or native diff inspector
+* Project build / compile → `project_build` (approval-exempt, non-blocking)
+* File search / symbol search → `file_search` or `semantic_search`
+* Code editing / patching → `code_replace` or `file_write`
+* File movement / creation / deletion → Native file system tools (`file_write`, `file_delete`, `dir_create`)
+* Archive / Zip / Tar / Gzip → `zip_file`, `unzip_file`, `tar_archive_create`, `tar_archive_extract`, `gzip_compress_file`, `gzip_decompress_file`
+* Image operations / decoders / convert → `image_decode_base64`, `image_encode_base64`, `image_get_dimensions`, `image_convert_format`, `image_generate_thumbnail`, `svg_to_png`
+* Data conversion / diff / metrics / checksum → `format_json_file`, `csv_to_json`, `json_to_csv`, `plist_to_json`, `json_to_plist`, `file_compare_diff`, `batch_rename_files`, `count_file_lines`, `extract_code_symbols`, `generate_file_checksum`
+* Repository intelligence / code navigation → `repo_overview`, `project_structure_map`, `recent_changes`, `call_hierarchy`, `type_hierarchy`, `protocol_conformance_list`, `import_graph`, `change_impact_estimate`
+* Diagnostics & audits → `build_log_analyze`, `crash_log_parse`, `code_signing_diagnose`, `pbxproj_lint`, `xctest_discovery`, `force_unwrap_scan`, `deprecation_usage_scan`, `conflict_marker_scan`, `info_plist_audit`, `api_endpoint_audit`
+* File inventory → `dir_size_report`, `find_duplicate_files`, `file_type_breakdown`, `file_head_preview`, `symlink_audit`, `executable_files_scan`, `empty_dirs_find`
+* Documentation → `docs_index_build`, `markdown_link_check`, `api_docs_coverage`, `code_comment_extract`, `readme_generate`, `markdown_toc_generate`
+* Durable deliverables → `create_artifact` (the ONLY way to produce a kept Markdown deliverable — never `file_write` or shell redirection for reports), `list_artifacts`, `read_artifact`, `delete_artifact`. See `ArtifactsGuidelines.md`.
+* Session & environment → `session_progress_report`, `preflight_checks`, `tool_capability_lookup`, `xcode_toolchain_info`
+* Worker delegation → `use_workers` when multi-worker parallelism or delegation is beneficial or requested
+
+### Rule D — Avoid Unrelated Calls
+Do NOT invoke build tools, file readers, repository searches, or other tools merely because they are available.
+* If asked for "Git status", execute ONLY the Git tool. Do NOT trigger a project build or read unrelated source files.
+* If asked to "Build this project", execute ONLY `project_build`. Do NOT inspect git history or read unrelated documents.
+* If asked to "Rename this file", use the filesystem capability directly without broad repository discovery.
+Every call must strictly advance the requested objective, satisfy an immediate prerequisite, verify a meaningful outcome, or recover from an identified failure.
+
+### Rule E — Reuse Existing Information
+Do NOT repeat successful operations whose results remain valid in the conversation context. Completed file reads, searches, and analysis results must be reused rather than re-queried.
+
+### Rule F — Parallelize Independent Work
+Run independent operations concurrently when doing so is safe and useful. Never wait for an independent operation to finish before starting another non-conflicting task.
+
+### Rule G — Respect Dependencies
+Do NOT execute a dependent operation before its required inputs and prerequisite outputs are fully available. Serialize operations that mutate the same files or shared resources.
+
+### Rule H — Verify Meaningful Outcomes
+Do NOT claim success merely because a tool returned without throwing an exception. Inspect the actual output, compiler diagnostics, and filesystem state to confirm genuine success.
+
+### Rule I — Avoid Model-Call Inflation
+Do NOT invoke the model merely to restate process status or terminal output that the execution engine already tracks and displays in the UI.
+
+### Rule J — Report Genuine Blockers
+If a requested capability is unavailable, required credentials are missing, or no eligible model exists (such as under "Only Use Free Models"), report the actual limitation honestly rather than hallucinating success or looping repeatedly.
+
+### Rule K — Natural-Language Intent Recognition & Semantic Selection
+Interpret the user's intent from conversational language, synonyms, and paraphrases:
+* "Take a screenshot of Finder", "Show me what Finder looks like right now", "Look at the current Xcode window", "Inspect what's on my desktop" → Select the screen capture capability (`take_screenshot`).
+* "Record Xcode for ten seconds", "Capture a video of what happens in this application", "Record the specified application window" → Select screen recording (`take_screenrecord`).
+* "Open Finder", "Navigate to Downloads", "Inspect current pane in System Settings", "Click the export button" → Select application interaction (`use_app`).
+Never require users to know internal tool names or JSON schema syntax.
+
+### Rule L — Distinguish Informational Questions from Action Requests
+Purely informational, conceptual, or explanatory queries do NOT require tool execution:
+* "What is a screenshot?", "How does screen recording work?", "Explain how to navigate Finder using keyboard shortcuts", "What tools do you have?"
+Answer informational questions directly with clear technical prose. Never invoke screen capture, recordings, terminal commands, or file mutations for questions that do not ask to perform real work.
+
+### Rule M — Dependency-Aware Multi-Tool Workflows
+When an objective requires multiple sequential actions across tools:
+1. Target application resolution/activation: If an application is not running or needs navigation, invoke `use_app` first (e.g. action: `launch` or `activate`).
+2. Verification/observation: After launching or interacting with the target, capture the resulting state via `take_screenshot` or `take_screenrecord`.
+3. Intermediate inspection: Inspect actual tool results before proceeding to subsequent steps.
+4. Report final outcome to the user based on genuine executed output.
+
+### Rule N — Truthful Permission and Capability Boundaries
+* `take_screenshot`: Requires macOS Screen Recording authorization. Produces high-resolution PNG image artifacts.
+* `take_screenrecord`: Requires macOS Screen Recording authorization and target app running. Captures video stream (1-60s) as QuickTime `.mov`. Audio recording is NOT supported.
+* `use_app`: Requires macOS Accessibility authorization. Interacts with macOS UI hierarchy.
+Report missing permissions and unsupported capabilities honestly. Never claim an action succeeded without a verified tool execution result.

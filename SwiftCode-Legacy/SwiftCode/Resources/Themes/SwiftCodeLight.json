@@ -1,0 +1,13 @@
+{
+  "id": "light",
+  "name": "SwiftCode Light",
+  "background": "#FFFFFF",
+  "foreground": "#000000",
+  "keywordColor": "#0000FF",
+  "stringColor": "#A31515",
+  "commentColor": "#008000",
+  "numberColor": "#098658",
+  "typeColor": "#267F99",
+  "accentColor": "#007AFF",
+  "isBuiltIn": true
+}

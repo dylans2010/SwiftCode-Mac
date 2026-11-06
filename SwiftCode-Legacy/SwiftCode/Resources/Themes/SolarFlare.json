@@ -1,0 +1,13 @@
+{
+  "id": "solar-flare",
+  "name": "Solar Flare",
+  "background": "#FDF6E3",
+  "foreground": "#657B83",
+  "keywordColor": "#859900",
+  "stringColor": "#2AA198",
+  "commentColor": "#93A1A1",
+  "numberColor": "#D33682",
+  "typeColor": "#B58900",
+  "accentColor": "#CB4B16",
+  "isBuiltIn": true
+}

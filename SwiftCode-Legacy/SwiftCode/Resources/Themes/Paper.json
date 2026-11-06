@@ -1,0 +1,13 @@
+{
+  "id": "paper",
+  "name": "Paper",
+  "background": "#F5F5F5",
+  "foreground": "#333333",
+  "keywordColor": "#000000",
+  "stringColor": "#444444",
+  "commentColor": "#888888",
+  "numberColor": "#000000",
+  "typeColor": "#000000",
+  "accentColor": "#555555",
+  "isBuiltIn": true
+}

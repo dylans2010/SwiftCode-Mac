@@ -1,0 +1,25 @@
+{
+  "name": "SwiftCodeSDK",
+  "version": "1.0.0",
+  "build": "2026.10.13",
+  "schemaVersion": 1,
+  "targetOS": "macOS 14.0+",
+  "architectures": ["arm64", "x86_64"],
+  "modules": [
+    "SwiftCodeSDK",
+    "ProjectKit",
+    "BuildKit",
+    "SourceControlKit",
+    "WorkspaceKit",
+    "DiagnosticsKit",
+    "ExtensionKit"
+  ],
+  "tools": [
+    "swiftcode-sdk",
+    "project-generator",
+    "project-inspector",
+    "extension-validator",
+    "diagnostics",
+    "documentation-indexer"
+  ]
+}

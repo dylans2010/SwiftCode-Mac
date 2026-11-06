@@ -1,0 +1,45 @@
+import Foundation
+
+public struct AlpineProvider: OperatingSystemProvider {
+    public let name = "Alpine"
+    public let description = "Super-lightweight and security-oriented Linux. Boots in milliseconds and uses minimal resources (less than 100MB RAM idle)."
+    public let officialWebsite = "https://alpinelinux.org"
+    public let officialDocumentation = "https://wiki.alpinelinux.org"
+    public let officialDownloadPage = "https://alpinelinux.org/downloads/"
+    public let supportedArchitectures = "ARM64, x86_64, x86, ARMHF"
+    public let recommendedRAM = "1 GB (1024 MB)"
+    public let recommendedCPU = "1 Core"
+    public let recommendedStorage = "10 GB"
+    public let installationNotes = """
+1. Open alpine.org downloads and fetch the Virtual ARM64 ISO (minimal size, around 50MB).
+2. Configure the VM with 1 Core and 1GB RAM (or even 512MB).
+3. Start the console session, log in as root (no password), and run `setup-alpine` to configure.
+4. Enjoy your super-fast developer shell environment.
+"""
+
+    // Expanded protocol metadata
+    public let releaseNotes = "Alpine 3.20.0 includes musl libc 1.2.5, OpenSSL 3.3, and Linux Kernel 6.6. It is designed to be run entirely inside RAM for unparalleled execution speeds."
+    public let minimumRequirements = "CPU: 1 Core • Memory: 128 MB RAM • Storage: 1 GB disk space."
+    public let packageManagerGuide = "APK (Alpine Package Keeper). Install dependencies with: `apk add <package>`. Search packages with: `apk search <query>`. Clean index directories with `apk cache clean`."
+    public let gettingStartedGuide = "Log in as root. Run `setup-alpine` to guide you through setting up networking, NTP, package repositories, and default users."
+    public let securityAdvisories = "Review current CVE listings and advisories at: https://seclists.org/alpine/."
+    public let communityResources = "Alpine Wiki: https://wiki.alpinelinux.org/. Chat channel: IRC #alpine-linux on OFTC."
+
+    // Backward compatibility fields
+    public let recommendedCores = 1
+    public let recommendedMemoryMB = 1024
+    public let recommendedStorageGB = 10
+    public let downloadSource = "https://alpinelinux.org/downloads/"
+    public let documentationLink = "https://wiki.alpinelinux.org/"
+    public let architectureCompatibility = "ARM64, x86_64, x86, ARMHF"
+    public let supportedImageFormats = ["ISO", "TAR.GZ"]
+    public let installationInstructions = """
+1. Open alpine.org downloads and fetch the Virtual ARM64 ISO (minimal size, around 50MB).
+2. Configure the VM with 1 Core and 1GB RAM (or even 512MB).
+3. Start the console session, log in as root (no password), and run `setup-alpine` to configure.
+4. Enjoy your super-fast developer shell environment.
+"""
+    public let versions = ["3.20.0", "3.19.2"]
+
+    public init() {}
+}

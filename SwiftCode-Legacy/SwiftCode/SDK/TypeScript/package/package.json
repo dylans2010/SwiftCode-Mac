@@ -1,0 +1,19 @@
+{
+  "devDependencies": {
+    "@types/node": "26.6.5",
+    "typescript": "7.0.2"
+  },
+  "files": [
+    "dist"
+  ],
+  "main": "dist/index.js",
+  "name": "@swiftcode/sdk",
+  "scripts": {
+    "build": "tsc -p tsconfig.json && npm run build:snippets",
+    "build:snippets": "node scripts/build-snippets.mjs",
+    "test": "node --test \"tests/*.test.mjs\""
+  },
+  "type": "module",
+  "types": "dist/index.d.ts",
+  "version": "1.0.0"
+}
