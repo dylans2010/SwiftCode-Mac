@@ -1,25 +1,126 @@
 // Ported from SwiftCode-Legacy `SwiftCode/Views/Dev Tools/BatteryStatusDevToolView.swift` (Dylan's own code; direct port authorised under MIT).
 // V10 (independent verification): confirmed genuinely missing from production at bc28f653.
 // Verbatim port: no references to Legacy-only types; `import SwiftCodeUI` added for .liquidGlass.
+//
+// CLEANUP (2026-11-06, C10): Legacy's refreshStatus() set fixed values
+// (level 85.0, isCharging false, timeRemaining "4 hours, 20 minutes")
+// and the "Internal Mac Battery" / "Normal / Healthy" labels were
+// constants. Replaced with live IOKit readings:
+// IOPSCopyPowerSourcesInfo / IOPSCopyPowerSourcesList /
+// IOPSGetPowerSourceDescription give the real charge percentage
+// (current / max capacity), charging state, time to empty / time to full
+// charge, and the power-source type. The "Condition" row had no source
+// in the IOPS description dictionary, so it is gone; the Capacity row
+// shows the real current/max capacity numbers instead. Desktops (and
+// platforms without IOKit) have no battery power source, so they get an
+// honest "No battery found" state instead of invented numbers.
 import SwiftUI
 import SwiftCodeUI
 import os.log
+#if canImport(IOKit)
+import IOKit
+#endif
 
 @Observable
 @MainActor
 final class BatteryStatusViewModel {
-    var level: Double = 100.0
-    var isCharging: Bool = true
-    var timeRemaining: String = "Calculating..."
+    /// Charge level, 0–100. Nil when no battery power source exists.
+    var level: Double?
+    var isCharging: Bool?
+    /// Formatted time to empty (discharging) or to full (charging).
+    var timeRemaining: String?
+    var sourceType: String?
+    /// e.g. "80 of 100" (current / max capacity, as reported by IOKit).
+    var capacityText: String?
+    var unavailableReason: String?
 
     private let logger = Logger(subsystem: "com.swiftcode.devtools", category: "BatteryStatus")
 
     func refreshStatus() {
-        // macOS Battery Status retrieval simulation
-        level = 85.0
-        isCharging = false
-        timeRemaining = "4 hours, 20 minutes"
+        level = nil
+        isCharging = nil
+        timeRemaining = nil
+        sourceType = nil
+        capacityText = nil
+        unavailableReason = nil
+
+        #if canImport(IOKit)
+        refreshFromIOKit()
+        #else
+        unavailableReason = "Battery status needs IOKit, which is macOS-only."
+        logger.info("Battery status unavailable: IOKit is not available on this platform")
+        #endif
+    }
+
+    #if canImport(IOKit)
+    /// Reads the live power-source snapshot. An empty source list means
+    /// this Mac has no battery (desktop Macs, Mac mini, Mac Studio,
+    /// Mac Pro) — that is reported, not papered over.
+    private func refreshFromIOKit() {
+        let blob = IOPSCopyPowerSourcesInfo().takeRetainedValue()
+        guard let sources = IOPSCopyPowerSourcesList(blob).takeRetainedValue() as? [CFTypeRef],
+              !sources.isEmpty else {
+            unavailableReason = "No battery found — this Mac has no internal battery."
+            logger.info("Battery status unavailable: no power sources reported by IOKit")
+            return
+        }
+
+        // Prefer the internal battery; fall back to the first source.
+        var description: [String: Any]?
+        for source in sources {
+            guard let details = IOPSGetPowerSourceDescription(blob, source).takeUnretainedValue() as? [String: Any] else { continue }
+            if (details[kIOPSTypeKey as String] as? String) == (kIOPSInternalBatteryType as String) {
+                description = details
+                break
+            }
+            if description == nil { description = details }
+        }
+        guard let details = description else {
+            unavailableReason = "No battery found — this Mac has no internal battery."
+            logger.info("Battery status unavailable: no readable power source description")
+            return
+        }
+
+        let current = details[kIOPSCurrentCapacityKey as String] as? Int
+        let max = details[kIOPSMaxCapacityKey as String] as? Int
+        if let current, let max, max > 0 {
+            level = Double(current) / Double(max) * 100
+            capacityText = "\(current) of \(max)"
+        }
+
+        if let charging = details[kIOPSIsChargingKey as String] as? Bool {
+            isCharging = charging
+        } else if let state = details[kIOPSPowerSourceStateKey as String] as? String {
+            isCharging = (state == (kIOPSACPowerValue as String))
+        }
+
+        if let type = details[kIOPSTypeKey as String] as? String {
+            sourceType = type == (kIOPSInternalBatteryType as String) ? "Internal Mac Battery" : type
+        }
+
+        // Time remaining is in minutes; -1 means "still calculating".
+        if isCharging == true {
+            if let minutes = details[kIOPSTimeToFullChargeKey as String] as? Int, minutes >= 0 {
+                timeRemaining = Self.formatted(minutes: minutes) + " to full charge"
+            }
+        } else if let minutes = details[kIOPSTimeToEmptyKey as String] as? Int, minutes >= 0 {
+            timeRemaining = Self.formatted(minutes: minutes) + " remaining"
+        }
+        if timeRemaining == nil {
+            timeRemaining = "Calculating…"
+        }
+
         logger.info("Refreshed system battery status values")
+    }
+    #endif
+
+    private static func formatted(minutes: Int) -> String {
+        let hours = minutes / 60
+        let remainder = minutes % 60
+        if hours > 0 {
+            return "\(hours) hours, \(remainder) minutes"
+        }
+        return "\(remainder) minutes"
     }
 }
 
@@ -33,42 +134,51 @@ struct BatteryStatusDevToolView: View {
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
 
-                VStack(alignment: .center, spacing: 14) {
-                    ZStack {
-                        RoundedRectangle(cornerRadius: 12)
-                            .stroke(Color.primary, lineWidth: 3)
-                            .frame(width: 140, height: 70)
+                if let reason = viewModel.unavailableReason {
+                    Label(reason, systemImage: "battery.0")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                        .padding()
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .liquidGlass(style: .standard, cornerRadius: 12)
+                } else {
+                    VStack(alignment: .center, spacing: 14) {
+                        ZStack {
+                            RoundedRectangle(cornerRadius: 12)
+                                .stroke(Color.primary, lineWidth: 3)
+                                .frame(width: 140, height: 70)
 
-                        HStack(spacing: 0) {
-                            Rectangle()
-                                .fill(viewModel.level > 20 ? Color.green : Color.red)
-                                .frame(width: CGFloat(viewModel.level) * 1.2, height: 56)
-                            Spacer(minLength: 0)
+                            HStack(spacing: 0) {
+                                Rectangle()
+                                    .fill((viewModel.level ?? 0) > 20 ? Color.green : Color.red)
+                                    .frame(width: CGFloat(viewModel.level ?? 0) * 1.2, height: 56)
+                                Spacer(minLength: 0)
+                            }
+                            .frame(width: 120, height: 56)
+                            .clipped()
+
+                            Text(viewModel.level.map { "\(Int($0))%" } ?? "—")
+                                .font(.system(.title3, design: .monospaced))
+                                .bold()
+                                .foregroundColor(.primary)
                         }
-                        .frame(width: 120, height: 56)
-                        .clipped()
 
-                        Text("\(Int(viewModel.level))%")
-                            .font(.system(.title3, design: .monospaced))
-                            .bold()
-                            .foregroundColor(.primary)
+                        HStack {
+                            Image(systemName: viewModel.isCharging == true ? "bolt.fill" : "bolt.slash.fill")
+                            Text(viewModel.isCharging == true ? "Charging Mode Enabled" : "Discharging on Battery Power")
+                                .font(.headline)
+                        }
                     }
+                    .frame(maxWidth: .infinity)
+                    .padding()
+                    .liquidGlass(style: .standard, cornerRadius: 12)
 
-                    HStack {
-                        Image(systemName: viewModel.isCharging ? "bolt.fill" : "bolt.slash.fill")
-                        Text(viewModel.isCharging ? "Charging Mode Enabled" : "Discharging on Battery Power")
-                            .font(.headline)
-                    }
+                    Divider()
+
+                    LabeledContent("Time Remaining", value: viewModel.timeRemaining ?? "—")
+                    LabeledContent("Source Type", value: viewModel.sourceType ?? "—")
+                    LabeledContent("Capacity", value: viewModel.capacityText ?? "—")
                 }
-                .frame(maxWidth: .infinity)
-                .padding()
-                .liquidGlass(style: .standard, cornerRadius: 12)
-
-                Divider()
-
-                LabeledContent("Time Remaining", value: viewModel.timeRemaining)
-                LabeledContent("Source Type", value: "Internal Mac Battery")
-                LabeledContent("Condition", value: "Normal / Healthy")
 
                 Button("Refresh Status") {
                     viewModel.refreshStatus()

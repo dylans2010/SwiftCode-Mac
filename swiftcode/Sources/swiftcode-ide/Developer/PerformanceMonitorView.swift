@@ -1,32 +1,46 @@
 // Ported from SwiftCode-Legacy `SwiftCode/Views/Developer/PerformanceMonitor/PerformanceMonitorView.swift` (Dylan's own code; direct port authorised under MIT).
 // Audit A: MISSING at bc28f653. Static port only — no Swift toolchain here; build verification pending on Dylan's Mac.
+//
+// CLEANUP (2026-11-06, C13): Legacy sampled its readings with
+// `Double.random` — cpuUsage = Double.random(in: 5.0...15.0),
+// memoryUsage = 150.0 + Double.random(in: -10...50) — under a comment
+// claiming to "mock the trend but based on actual ProcessInfo constants",
+// and the Active Threads card showed a made-up "1+"/"2+" value with a
+// flat [1, 1, 1, 1] chart. Replaced with real Mach readings from
+// DevToolsSystemMetrics: host CPU load (hostCPULoadPercent), this
+// process's resident memory (taskResidentMemoryMB) and live thread
+// count (taskThreadCount). A reading that is unavailable (non-Mach
+// platform, or a failed call) shows "—" and is not charted, instead of
+// an invented number.
 import SwiftUI
 import SwiftCodeUI
 
 struct PerformanceMonitorView: View {
-    @State private var cpuUsage: Double = 0.0
-    @State private var memoryUsage: Double = 0.0
+    @State private var cpuUsage: Double?
+    @State private var memoryUsage: Double?
+    @State private var threadCount: Int?
     @State private var cpuHistory: [Double] = []
     @State private var memoryHistory: [Double] = []
+    @State private var threadHistory: [Double] = []
 
     @State private var timer = Timer.publish(every: 2, on: .main, in: .common).autoconnect()
 
     var body: some View {
         AdaptiveDashboardPage {
             VStack(spacing: 24) {
-                // CPU Metric
-                PerformanceMetricCard(title: "CPU Usage", value: String(format: "%.1f%%", cpuUsage), icon: "cpu", color: .blue) {
+                // Host CPU Load (Mach host_statistics)
+                PerformanceMetricCard(title: "Host CPU Load", value: cpuUsage.map { String(format: "%.1f%%", $0) } ?? "—", icon: "cpu", color: .blue) {
                     PerformanceChart(data: cpuHistory, color: .blue)
                 }
 
-                // Memory Metric
-                PerformanceMetricCard(title: "Memory Usage", value: String(format: "%.1f MB", memoryUsage), icon: "memorychip", color: .purple) {
+                // Resident Memory (Mach task_info)
+                PerformanceMetricCard(title: "Memory Usage", value: memoryUsage.map { String(format: "%.1f MB", $0) } ?? "—", icon: "memorychip", color: .purple) {
                     PerformanceChart(data: memoryHistory, color: .purple)
                 }
 
-                // App Lifetime
-                PerformanceMetricCard(title: "Active Threads", value: "\(Thread.isMainThread ? 1 : 2)+", icon: "arrow.up.right.circle", color: .green) {
-                    PerformanceChart(data: [1, 1, 1, 1], color: .green)
+                // Live Threads (Mach task_threads)
+                PerformanceMetricCard(title: "Active Threads", value: threadCount.map(String.init) ?? "—", icon: "arrow.up.right.circle", color: .green) {
+                    PerformanceChart(data: threadHistory, color: .green)
                 }
             }
             .padding()
@@ -41,19 +55,22 @@ struct PerformanceMonitorView: View {
     }
 
     private func updateMetrics() {
-        // Use real system info where possible in Swift (simplified for this environment)
-        let _ = Double(ProcessInfo.processInfo.physicalMemory) / 1024 / 1024 / 1024 // GB
-        // In actual iOS, we'd use task_info, but ProcessInfo provides some basics
+        cpuUsage = DevToolsSystemMetrics.hostCPULoadPercent()
+        memoryUsage = DevToolsSystemMetrics.taskResidentMemoryMB()
+        threadCount = DevToolsSystemMetrics.taskThreadCount()
 
-        // Mocking the trend but based on actual ProcessInfo constants
-        cpuUsage = Double.random(in: 5.0...15.0)
-        memoryUsage = 150.0 + Double.random(in: -10...50)
-
-        cpuHistory.append(cpuUsage)
-        memoryHistory.append(memoryUsage)
-
-        if cpuHistory.count > 20 { cpuHistory.removeFirst() }
-        if memoryHistory.count > 20 { memoryHistory.removeFirst() }
+        if let cpuUsage {
+            cpuHistory.append(cpuUsage)
+            if cpuHistory.count > 20 { cpuHistory.removeFirst() }
+        }
+        if let memoryUsage {
+            memoryHistory.append(memoryUsage)
+            if memoryHistory.count > 20 { memoryHistory.removeFirst() }
+        }
+        if let threadCount {
+            threadHistory.append(Double(threadCount))
+            if threadHistory.count > 20 { threadHistory.removeFirst() }
+        }
     }
 }
 

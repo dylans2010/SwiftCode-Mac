@@ -2,6 +2,17 @@
 // V10 (independent verification): confirmed genuinely missing from production at bc28f653.
 // Verbatim port: no references to Legacy-only types; `import SwiftCodeUI` added for .liquidGlass.
 // The analyzer VIEW; prod only has the DevToolsDiskUsage helper enum.
+//
+// CLEANUP (2026-11-06, C6): Legacy's view listed hardcoded sizes
+// (DerivedData "4.8 GB", SwiftPM "1.2 GB", CocoaPods "840 MB",
+// App Support "120 MB") and its "Clean" button only rewrote the label to
+// "0 KB" while logging "Purged directory path size to mock cleanup" —
+// nothing was ever deleted. Replaced with real measurements:
+// each directory is sized with DevToolsDiskUsage.allocatedSize(of:)
+// (recursive allocated size from the live filesystem) on appear and on
+// rescan, and Clean now really removes the directory with
+// FileManager.removeItem, then re-scans. A missing directory shows
+// "Not present"; a scan failure is reported instead of a made-up number.
 import SwiftUI
 import SwiftCodeUI
 import os.log
@@ -10,26 +21,66 @@ struct DiskPathItem: Identifiable {
     let id = UUID()
     let name: String
     let path: String
-    var size: String
+    var sizeBytes: Int64?
+    var isPresent: Bool = true
+
+    var sizeText: String {
+        if let sizeBytes { return DevToolsDiskUsage.formatted(sizeBytes) }
+        return isPresent ? "—" : "Not present"
+    }
 }
 
 @Observable
 @MainActor
 final class DiskUsageAnalyzerViewModel {
     var paths: [DiskPathItem] = [
-        DiskPathItem(name: "Xcode DerivedData", path: "~/Library/Developer/Xcode/DerivedData", size: "4.8 GB"),
-        DiskPathItem(name: "SwiftPM Cache", path: "~/.swiftpm/cache", size: "1.2 GB"),
-        DiskPathItem(name: "CocoaPods Cache", path: "~/Library/Caches/CocoaPods", size: "840 MB"),
-        DiskPathItem(name: "Application Sandbox Support", path: "~/Library/Application Support/SwiftCode", size: "120 MB")
+        DiskPathItem(name: "Xcode DerivedData", path: "~/Library/Developer/Xcode/DerivedData"),
+        DiskPathItem(name: "SwiftPM Cache", path: "~/.swiftpm/cache"),
+        DiskPathItem(name: "CocoaPods Cache", path: "~/Library/Caches/CocoaPods"),
+        DiskPathItem(name: "Application Sandbox Support", path: "~/Library/Application Support/SwiftCode")
     ]
+    var isScanning = false
+    var errorMessage: String?
 
     private let logger = Logger(subsystem: "com.swiftcode.devtools", category: "DiskUsageAnalyzer")
 
+    /// Measures every listed directory from the live filesystem.
+    /// Enumeration runs off the main actor; results land back on it.
+    func scan() {
+        guard !isScanning else { return }
+        isScanning = true
+        errorMessage = nil
+        let snapshot = paths
+        Task.detached(priority: .userInitiated) {
+            var updated = snapshot
+            for index in updated.indices {
+                let expanded = (updated[index].path as NSString).expandingTildeInPath
+                let url = URL(fileURLWithPath: expanded)
+                let exists = FileManager.default.fileExists(atPath: url.path)
+                updated[index].isPresent = exists
+                updated[index].sizeBytes = exists ? DevToolsDiskUsage.allocatedSize(of: url) : nil
+            }
+            await MainActor.run {
+                self.paths = updated
+                self.isScanning = false
+            }
+        }
+    }
+
+    /// Really deletes the directory, then re-scans so the sizes shown
+    /// are the post-clean measurements. Failures are surfaced, never
+    /// reported as a successful clean.
     func cleanPath(_ itemID: UUID) {
-        if let index = paths.firstIndex(where: { $0.id == itemID }) {
-            let name = paths[index].name
-            paths[index].size = "0 KB"
-            logger.info("Purged directory path size to mock cleanup for: \(name)")
+        guard let index = paths.firstIndex(where: { $0.id == itemID }) else { return }
+        let item = paths[index]
+        let expanded = (item.path as NSString).expandingTildeInPath
+        do {
+            try FileManager.default.removeItem(at: URL(fileURLWithPath: expanded))
+            logger.info("Removed directory \(item.name) at \(item.path)")
+            scan()
+        } catch {
+            errorMessage = "Could not clean \(item.name): \(error.localizedDescription)"
+            logger.error("Failed to remove \(item.path): \(error.localizedDescription)")
         }
     }
 }
@@ -43,6 +94,31 @@ struct DiskUsageAnalyzerDevToolView: View {
                 Text("Scan and clean standard developer directories and caches on macOS disk storage.")
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
+
+                HStack(spacing: 12) {
+                    Button {
+                        viewModel.scan()
+                    } label: {
+                        Label("Rescan", systemImage: "arrow.clockwise")
+                    }
+                    .buttonStyle(.bordered)
+                    .controlSize(.small)
+                    .disabled(viewModel.isScanning)
+
+                    if viewModel.isScanning {
+                        ProgressView()
+                            .controlSize(.small)
+                        Text("Scanning…")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
+
+                    if let error = viewModel.errorMessage {
+                        Text(error)
+                            .font(.caption)
+                            .foregroundStyle(.red)
+                    }
+                }
             }
             .padding()
             .frame(maxWidth: .infinity, alignment: .leading)
@@ -62,7 +138,7 @@ struct DiskUsageAnalyzerDevToolView: View {
 
                     Spacer()
 
-                    Text(item.size)
+                    Text(item.sizeText)
                         .font(.system(.body, design: .monospaced))
                         .bold()
                         .padding(.horizontal)
@@ -72,12 +148,15 @@ struct DiskUsageAnalyzerDevToolView: View {
                     }
                     .buttonStyle(.bordered)
                     .tint(.red)
-                    .disabled(item.size == "0 KB")
+                    .disabled(item.sizeBytes == nil)
                 }
                 .padding(.vertical, 4)
                 .liquidGlass(style: .subtle, cornerRadius: 12)
             }
         }
         .navigationTitle("Disk Usage Analyzer")
+        .onAppear {
+            viewModel.scan()
+        }
     }
 }

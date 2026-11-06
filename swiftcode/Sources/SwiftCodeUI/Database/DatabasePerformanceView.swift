@@ -5,6 +5,17 @@
 // Missing behaviour ported: interactive query-performance analyzer UI (EXPLAIN QUERY PLAN plus timing plus full-scan detection); the model method exists but is not wired to any action
 // References legacy types absent from the destination and from this worklist (wiring/integration gaps): DatabaseConnectionManager.
 // Static port only — no Swift toolchain here; build verification pending on Dylan's Mac.
+//
+// CLEANUP (2026-11-06, C14): Legacy's view invented its resource
+// numbers on every diagnostics run — cpuUsageSim =
+// Double.random(in: 1.2...8.9), memoryUsageSim =
+// Double.random(in: 15.1...45.8) — shown in "Simulated CPU Usage" /
+// "Memory Footprint" cards. The cards and the simulated values are
+// deleted outright (this view is in the SwiftCodeUI module, where the
+// swiftcode-ide Mach helpers are not visible, and the cards added no
+// real signal). What remains is only what SQLite itself reports:
+// file size, PRAGMA integrity_check, per-table row/index counts, and
+// EXPLAIN QUERY PLAN output with real timings.
 import SwiftUI
 
 struct DatabasePerformanceView: View {
@@ -16,8 +27,6 @@ struct DatabasePerformanceView: View {
     @State private var integrityResult = "Check Pending"
     @State private var tablesStatList: [[String: String]] = []
     @State private var isCalculatingHealth = false
-    @State private var memoryUsageSim = 12.4 // MB
-    @State private var cpuUsageSim = 0.5 // %
 
     // Analyzer States
     @State private var analyzerQuery = "SELECT * FROM users WHERE email = 'alex@example.com';"
@@ -74,7 +83,7 @@ struct DatabasePerformanceView: View {
                 .buttonStyle(.bordered)
             }
 
-            Text("Real-time telemetry, storage footprints, index integrity, and system resource monitors mapped to the active local SQLite database workspace.")
+            Text("Storage footprint, index integrity, and table statistics for the active local SQLite database workspace.")
                 .font(.caption)
                 .foregroundColor(.secondary)
 
@@ -98,31 +107,6 @@ struct DatabasePerformanceView: View {
                             .font(.title2)
                             .foregroundColor(integrityResult == "ok" ? .green : .orange)
                         Text(integrityResult.uppercased())
-                            .font(.headline)
-                            .bold()
-                    }
-                    .frame(maxWidth: .infinity, minHeight: 60)
-                }
-                .groupBoxStyle(.liquidGlass)
-
-                GroupBox("Simulated CPU Usage") {
-                    VStack(spacing: 6) {
-                        ProgressView(value: cpuUsageSim, total: 100.0)
-                            .tint(.red)
-                        Text(String(format: "%.1f %%", cpuUsageSim))
-                            .font(.headline)
-                            .bold()
-                    }
-                    .frame(maxWidth: .infinity, minHeight: 60)
-                }
-                .groupBoxStyle(.liquidGlass)
-
-                GroupBox("Memory Footprint") {
-                    VStack(spacing: 6) {
-                        Image(systemName: "memorychip")
-                            .font(.title2)
-                            .foregroundColor(.purple)
-                        Text(String(format: "%.1f MB", memoryUsageSim))
                             .font(.headline)
                             .bold()
                     }
@@ -277,8 +261,6 @@ struct DatabasePerformanceView: View {
         guard let conn = connManager.activeConnection, conn.provider == .sqlite, let path = conn.sqliteFilePath else { return }
 
         isCalculatingHealth = true
-        cpuUsageSim = Double.random(in: 1.2...8.9)
-        memoryUsageSim = Double.random(in: 15.1...45.8)
 
         Task {
             do {
