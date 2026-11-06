@@ -116,7 +116,10 @@ released.
   (`. ~/.local/share/swiftly/env.sh`). Log in with an SSH key only. Never
   automate password login. Sync with
   `rsync -az --delete --exclude .build ycode/ <user>@<x86-64-linux-host>:Ycode/ycode/`,
-  then run `swift build && swift test` there.
+  then run `swift build && swift test` there. Since the Wave 13
+  StoreKit migration, `ycode/Package.swift` also has an unconditional
+  path dependency on `../frameworks/storekit`, so sync that too:
+  `rsync -az --delete --exclude .build frameworks/storekit/ <user>@<x86-64-linux-host>:Ycode/frameworks/storekit/`.
 - The Simulator-track host ("the Thor", arm64 Linux): an NVIDIA Jetson Thor,
   Ubuntu 24.04 aarch64, 4 KB pages, 14 cores, 122 GB RAM, KVM and Vulkan.
   Swift 6.4 through swiftly. Log in with an SSH key only. Large data

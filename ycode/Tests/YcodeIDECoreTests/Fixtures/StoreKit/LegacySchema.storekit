@@ -1,0 +1,46 @@
+{
+  "identifier": "legacy-test-config",
+  "settings": {
+    "billingGracePeriodEnabled": true,
+    "billingRetryEnabled": false,
+    "failTransactionsEnabled": false,
+    "locale": "en_US",
+    "storefront": "USA",
+    "timeRate": "Monthly"
+  },
+  "products": [
+    {
+      "productID": "com.example.legacy_coins",
+      "referenceName": "Legacy Coins",
+      "type": "Consumable",
+      "localizations": [{"locale": "en_US", "displayName": "Legacy Coins", "description": "Old coins."}],
+      "price": 0.99,
+      "familySharing": false
+    }
+  ],
+  "subscriptionGroups": [
+    {
+      "id": "550e8400-e29b-41d4-a716-446655440000",
+      "referenceName": "Legacy Pro",
+      "localizations": [],
+      "subscriptions": [
+        {
+          "productID": "com.example.legacy_pro",
+          "referenceName": "Legacy Pro Monthly",
+          "type": "AutoRenewableSubscription",
+          "localizations": [{"locale": "en_US", "displayName": "Legacy Pro", "description": "Old pro."}],
+          "price": 9.99,
+          "familySharing": false,
+          "subscriptionGroupID": "Legacy Pro",
+          "subscriptionPeriod": "P1M",
+          "introductoryOffers": [{"numberOfPeriods": 1, "paymentMode": "freeTrial", "price": 0.0, "subscriptionPeriod": "P1W"}],
+          "promotionalOffers": [],
+          "winBackOffers": [],
+          "offerCodes": [{"code": "LEGACY10", "referenceName": "Legacy code", "customerEligibility": "new", "expirationDate": "2027-01-01"}]
+        }
+      ]
+    }
+  ],
+  "nonRenewingSubscriptions": [],
+  "version": [4, 0]
+}

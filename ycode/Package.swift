@@ -31,6 +31,12 @@ let package = Package(
         // the Appwrite Account REST client, the Cloud framework
         // types, and the CloudManager orchestration.
         .library(name: "YcodeCloud", targets: ["YcodeCloud"]),
+        // Paywall / entitlement runtime (specs/ide/storekit-paywall.md):
+        // Apple StoreKit 2 products, Pro entitlement checks, the
+        // paywall UI. No dependency on frameworks/storekit's
+        // `StoreKit` product — that module re-implements the StoreKit
+        // API under the same name and would shadow Apple's real one.
+        .library(name: "YcodePaywall", targets: ["YcodePaywall"]),
         // Gauge, the profiler (specs/ide/profiler.md): trace format, analysis, Linux recording
         .library(name: "YcodeProfiler", targets: ["YcodeProfiler"]),
         // Gauge's in-process sampler for Linux processes (LD_PRELOAD; profiler.md §3.2)
@@ -100,6 +106,11 @@ let package = Package(
         // dependency. Depends on YcodeAssistant only for SecretStore.
         .target(name: "YcodeCloud", dependencies: ["YcodeAssistant"]),
         .testTarget(name: "YcodeCloudTests", dependencies: ["YcodeCloud", "YcodeAssistant"]),
+        // Paywall / entitlement runtime (specs/ide/storekit-paywall.md):
+        // Apple StoreKit 2 only (behind `#if canImport(StoreKit)`),
+        // no third-party dependency.
+        .target(name: "YcodePaywall"),
+        .testTarget(name: "YcodePaywallTests", dependencies: ["YcodePaywall"]),
         // Predictive code completion: context, backends (Ollama, llama-server, OpenAI-compatible), shaping, the editor session (specs/ide/predictive-completion.md)
         .target(name: "YcodeCompletion", dependencies: ["YcodeAssistant"]),
         .testTarget(name: "YcodeCompletionTests", dependencies: ["YcodeCompletion", "YcodeAssistant"]),
@@ -153,7 +164,9 @@ package.targets += [
     .target(name: "YcodeDeviceUI", dependencies: ["YcodeDisplayStream", "YcodeSimFeatures", "YcodeDeviceModel"]),
     .testTarget(name: "YcodeDeviceUITests", dependencies: ["YcodeDeviceUI", "YcodeDeviceModel", "YcodeDisplayStream"]),
     .executableTarget(name: "ycode-sim-viewer", dependencies: ["YcodeRelease", "YcodeDisplayStream", "YcodeSimFeatures", "YcodeDeviceModel", "YcodeDeviceUI", "YcodeRemoteViewer", "YcodeSimLink"]),
-    .target(name: "YcodeUI", dependencies: ["YcodeMCP", "YcodeIDECore", "YcodeCompletion", "YcodePreviews", "YcodeProject", "YcodeWorkspace", "YcodeSettings", "YcodeBuild", "YcodeDebug", "YcodeLanguage", "YcodeXcodebuild", "YcodeSubprocess", "YcodeAssistant", "YcodeGitHub", "YcodeExtensions", "YcodeSimFeatures", "YcodeDeviceModel", "YcodeDeviceUI", "YcodeProfiler", "YcodeCloud"]),
+    .target(name: "YcodeUI", dependencies: ["YcodeMCP", "YcodeIDECore", "YcodeCompletion", "YcodePreviews", "YcodeProject", "YcodeWorkspace", "YcodeSettings", "YcodeBuild", "YcodeDebug", "YcodeLanguage", "YcodeXcodebuild", "YcodeSubprocess", "YcodeAssistant", "YcodeGitHub", "YcodeExtensions", "YcodeSimFeatures", "YcodeDeviceModel", "YcodeDeviceUI", "YcodeProfiler", "YcodeCloud", "YcodePaywall",
+                                             // The StoreKit editor controller (specs/ide/storekit-paywall.md).
+                                             .product(name: "StoreKitConfiguration", package: "ycode-storekit")]),
     .executableTarget(name: "YcodeApp", dependencies: ["YcodeRelease", "YcodeUI"]),
     .testTarget(name: "YcodeUITests", dependencies: ["YcodeMCP", "YcodeUI", "YcodeIDECore", "YcodeCompletion", "YcodePreviews", "YcodeDisplayStream", "YcodeSimFeatures", "YcodeDeviceModel", "YcodeDeviceUI", "YcodeBuild", "YcodeDebug", "YcodeLanguage", "YcodeXcodebuild", "YcodeSubprocess", "YcodeAssistant", "YcodeExtensions", "YcodeProfiler", "YcodeBuildServer", "YcodeIDEShell", "YcodeCloud"]),
 ]
@@ -213,6 +226,18 @@ package.targets += [
 // incremental highlighter, the bracket structure and the typing rules.
 // Builds and tests on macOS and Linux; YcodeIDECore and the editors use it.
 package.dependencies += [.package(url: "https://github.com/swiftlang/swift-syntax.git", exact: "604.0.0")]
+
+// The StoreKit configuration file model (specs/ide/storekit-paywall.md
+// §8.1): frameworks/storekit is a sibling package in this repo. The
+// .storekit editor model in YcodeIDECore reads/writes real .storekit
+// files through its StoreKitConfiguration product instead of a second
+// parser. Unconditional path dependency: a checkout without
+// frameworks/storekit next to ycode/ cannot build the new editor
+// files, so the Linux rsync workflow in AGENTS.md syncs it too.
+// Only StoreKitConfiguration is used — never the package's `StoreKit`
+// product, which re-implements Apple's StoreKit API under the same
+// module name and would shadow it.
+package.dependencies += [.package(path: "../frameworks/storekit")]
 package.products += [.library(name: "YcodeSyntax", targets: ["YcodeSyntax"])]
 package.targets += [
     .target(name: "YcodeSyntax", dependencies: [.product(name: "SwiftSyntax", package: "swift-syntax"),
@@ -229,12 +254,18 @@ package.targets += [
 package.targets += [
     .target(name: "YcodeIDECore", dependencies: ["YcodeRelease", "YcodeSyntax", "YcodeProject", "YcodeWorkspace", "YcodeSettings", "YcodePlist", "YcodeBuild", "YcodeDebug",
                                                  "YcodeLanguage", "YcodeXcodebuild", "YcodeSubprocess", "YcodeAssistant", "YcodeCompletion", "YcodeProfiler",
-                                                 "YcodePreviews", "YcodeDeviceModel", "YcodeSimFeatures", "YcodeStrings",
+                                                 "YcodePreviews", "YcodeDeviceModel", "YcodeSimFeatures", "YcodeStrings", "YcodeSigning",
+                                                 // The .storekit editor model (specs/ide/storekit-paywall.md):
+                                                 // reads/writes real .storekit files through the
+                                                 // framework model instead of a second parser.
+                                                 .product(name: "StoreKitConfiguration", package: "ycode-storekit"),
                                                  // SHA-256 and the asset service's ES256 chain (runtime downloads, route B).
                                                  .product(name: "Crypto", package: "swift-crypto")]),
     .testTarget(name: "YcodeIDECoreTests", dependencies: ["YcodeIDECore", "YcodeSyntax", "YcodeProject", "YcodeWorkspace", "YcodeSettings", "YcodePlist",
                                                           "YcodeBuild", "YcodeDebug", "YcodeLanguage", "YcodeXcodebuild", "YcodeSubprocess",
-                                                          "YcodeAssistant", "YcodeProfiler", "YcodePreviews", "YcodeDeviceModel", "YcodeSimFeatures"],
+                                                          "YcodeAssistant", "YcodeProfiler", "YcodePreviews", "YcodeDeviceModel", "YcodeSimFeatures",
+                                                          "YcodeSigning",
+                                                          .product(name: "StoreKitConfiguration", package: "ycode-storekit")],
                 exclude: ["Fixtures"]),
 ]
 
@@ -321,6 +352,7 @@ if FileManager.default.fileExists(atPath: Context.packageDirectory + "/../framew
     package.targets += [
         .executableTarget(name: "ycode-ide", dependencies: ["YcodeRelease", "YcodeIDEShell", "YcodeIDECore", "YcodeSyntax", "YcodeBuild", "YcodeEditorKit", "YcodeCompletion", "YcodeAssistant",
                                                           "YcodePreviews",
+                                                          .product(name: "StoreKitConfiguration", package: "ycode-storekit"),
                                                           .product(name: "SwiftUI", package: "swiftui"),
                                                           .product(name: "OVPlatform", package: "swiftui"),
                                                           .product(name: "OVDBus", package: "swiftui")]),
@@ -330,6 +362,7 @@ if FileManager.default.fileExists(atPath: Context.packageDirectory + "/../framew
 package.products += [.executable(name: "ycode-ide", targets: ["ycode-ide"])]
 package.targets += [
     .executableTarget(name: "ycode-ide", dependencies: ["YcodeRelease", "YcodeIDEShell", "YcodeIDECore", "YcodeSyntax", "YcodeBuild", "YcodeEditorKit", "YcodeCompletion", "YcodeAssistant",
-                                                      "YcodePreviews"]),
+                                                      "YcodePreviews",
+                                                      .product(name: "StoreKitConfiguration", package: "ycode-storekit")]),
 ]
 #endif
