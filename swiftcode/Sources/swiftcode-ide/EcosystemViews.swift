@@ -5,6 +5,14 @@
 // Missing behaviour ported: AnalyticsView (analytics charts/cards); IntelligenceView (intelligence audit UI); KnowledgeGraphView (graph build/open-node UI); whiteboard canvas (shapes, sticky notes, UML blocks, save/load canvas); snapshot list/detail views and restore UI; snippet detail/workspace views and explainCode; ProjectTimelineView as a view (timeline exists only as a plain list)
 // References legacy types absent from the destination and from this worklist (wiring/integration gaps): BoardElement, GraphEdge, ViewThatFits.
 // Static port only — no Swift toolchain here; build verification pending on Dylan's Mac.
+// Cleanup (2026-11-06, A2): KnowledgeGraphView no longer fabricates git nodes. The hardcoded
+// "feat: redesign SourceControl" commit and "Bug #104: Navigation crash" issue, and the generic
+// filler edges chaining every node together, are deleted. No repository is linked to
+// PersonalDocumentationCoordinator (its store holds documents/whiteboards/snippets only —
+// no project path, no owner/repo), so no real commits (GitService.getLog) or issues
+// (GitHubService.listIssues) can be sourced here; the graph shows only real stored items
+// and real stored relationships, and the header says so honestly. If a repository link is
+// ever added to the coordinator, add real git nodes then — never restore hardcoded ones.
 import SwiftCodeIDEShell
 import SwiftCodeUI
 import SwiftUI
@@ -55,9 +63,14 @@ public struct KnowledgeGraphView: View {
                     Text("Documents").tag("doc")
                     Text("Whiteboards").tag("whiteboard")
                     Text("Snippets").tag("snippet")
-                    Text("Simulated Git").tag("commit")
                 }
                 .frame(width: 150)
+
+                // Honest state: no repository is linked to this coordinator,
+                // so the graph has no git nodes (see buildGraph).
+                Text("Git: no repository linked")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
 
                 Spacer()
 
@@ -233,13 +246,15 @@ public struct KnowledgeGraphView: View {
             }
         }
 
-        // 4. Simulated Commits/Issues
-        let commit1ID = UUID()
-        let issue1ID = UUID()
-        newNodes.append(GraphNode(id: commit1ID, label: "feat: redesign SourceControl", kind: "commit", detail: "Git Commit"))
-        newNodes.append(GraphNode(id: issue1ID, label: "Bug #104: Navigation crash", kind: "issue", detail: "Git Issue"))
+        // 4. Git commits/issues: none. The coordinator links no repository
+        // (no project path, no owner/repo), so there is no real source for
+        // commit or issue nodes here. Previously this added two hardcoded
+        // nodes ("feat: redesign SourceControl", "Bug #104: Navigation crash");
+        // they are deleted, not replaced — a graph with no git nodes is the
+        // honest state until a repository link exists.
 
-        // Add relationships as edges
+        // Relationships come only from the stored relationships: no generic
+        // filler edges chaining nodes together.
         if let docs = try? coordinator.documents.fetchDocuments() {
             for doc in docs {
                 if let rels = try? coordinator.relationships.fetchRelationships(for: doc.id) {
@@ -250,13 +265,6 @@ public struct KnowledgeGraphView: View {
                         }
                     }
                 }
-            }
-        }
-
-        // Add generic sample edges to make graph look beautifully interconnected
-        if newNodes.count >= 2 {
-            for i in 0..<(newNodes.count - 1) {
-                newEdges.append(GraphEdge(sourceID: newNodes[i].id, targetID: newNodes[i+1].id))
             }
         }
 

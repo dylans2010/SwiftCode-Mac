@@ -4,15 +4,38 @@
 // GitHub-API `CommitDetailView` in this same wave) — the `CommitDetailView(commit:owner:repo:)` init
 // does not exist, and the same-named view in `SourceControlEditor.swift` is a shell-model view
 // (`detail:scm:model:colors:`) that cannot be constructed from `(commit, owner, repo)`.
+// Cleanup (2026-11-06, A2): amendLastCommit / revertCommit / cherryPick were sleep-and-notify
+// stubs (0.8s delay + success banner, no git executed) — deleted. Each now runs the real
+// git operation in the linked local checkout through GitRepository (SwiftCodeIDECore):
+// commitStaged(amend:) / revert(_:) / cherryPickCommit(_:), with real preconditions (HEAD must
+// be the amend target; no staged changes, which --amend would fold in; no integration already
+// in progress) and real failures surfaced in the banner. Conflicts surface in the existing
+// conflict alert instead of a fake success. The view takes an optional repositoryURL: without
+// a linked local checkout the git actions are disabled and the header says so — this view's
+// history is read from GitHub (owner/repo/branch) and no owner/repo -> local-checkout
+// resolution exists anywhere in production to derive one from. Pass the checkout's URL to
+// enable amend/revert/cherry-pick.
 
 import SwiftUI
 import SwiftCodeGitHub
+import SwiftCodeIDECore
 import SwiftCodeUI
+
+/// Outcome of a local integrating git operation, carried off the main thread.
+private enum LocalIntegrationOutcome: Sendable {
+    case succeeded(head: String)
+    case conflicted(files: [String])
+    case failed(message: String)
+}
 
 @MainActor
 struct CommitHistoryView: View {
     let owner: String
     let repo: String
+    /// Local checkout the git operations run in. Nil (the default) means no
+    /// checkout is linked: amend/revert/cherry-pick are disabled and the
+    /// header says so, instead of reporting success for work never done.
+    let repositoryURL: URL? = nil
     @Binding var currentBranch: String
 
     @State private var commits: [GitHubCommit] = []
@@ -27,6 +50,10 @@ struct CommitHistoryView: View {
     @State private var notification: CommitNotification?
     @State private var showConflictAlert = false
     @State private var conflictDetails = ""
+    /// Set by resolveLocalCheckout(): whether the git action chips may run.
+    @State private var localCheckoutAvailable = false
+    /// Honest reason shown in the header when no checkout is linked.
+    @State private var localCheckoutNote = ""
 
     @Environment(\.dismiss) private var dismiss
 
@@ -51,6 +78,16 @@ struct CommitHistoryView: View {
                 }
             }
             .padding(.bottom, 16)
+
+            // Honest state for the git actions: they run in a linked local
+            // checkout, and this view's history is read-only from GitHub.
+            if !localCheckoutAvailable {
+                Text(localCheckoutNote)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.bottom, 8)
+            }
 
             // Scrollable Content
             ScrollView {
@@ -111,7 +148,10 @@ struct CommitHistoryView: View {
             }
         }
         .sourceControlEmbedded()
-        .task { await loadHistory() }
+        .task {
+            await loadHistory()
+            await resolveLocalCheckout()
+        }
         .onChange(of: currentBranch) {
             Task { await loadHistory() }
         }
@@ -186,19 +226,19 @@ struct CommitHistoryView: View {
                     }
 
                     if index == 0 {
-                        actionChip(label: "Amend", icon: "pencil", color: .yellow) {
+                        actionChip(label: "Amend", icon: "pencil", color: .yellow, unavailableReason: localGitUnavailableReason) {
                             amendTarget = commit
                             amendMessage = commit.commit.message
                             showAmendSheet = true
                         }
                     }
 
-                    actionChip(label: "Revert", icon: "arrow.uturn.backward", color: .red) {
+                    actionChip(label: "Revert", icon: "arrow.uturn.backward", color: .red, unavailableReason: localGitUnavailableReason) {
                         Task { await revertCommit(commit) }
                     }
 
                     if index != 0 {
-                        actionChip(label: "Cherry Pick", icon: "paintpalette", color: .purple) {
+                        actionChip(label: "Cherry Pick", icon: "paintpalette", color: .purple, unavailableReason: localGitUnavailableReason) {
                             Task { await cherryPick(commit) }
                         }
                     }
@@ -221,7 +261,13 @@ struct CommitHistoryView: View {
         .contentShape(Rectangle())
     }
 
-    private func actionChip(label: String, icon: String, color: Color, action: @escaping () -> Void) -> some View {
+    /// Reason the git action chips are disabled, or nil when a local
+    /// checkout is linked and the operations may run.
+    private var localGitUnavailableReason: String? {
+        localCheckoutAvailable ? nil : "No local checkout linked — amend, revert and cherry-pick need a linked local repository."
+    }
+
+    private func actionChip(label: String, icon: String, color: Color, unavailableReason: String? = nil, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             HStack(spacing: 4) {
                 Image(systemName: icon)
@@ -235,7 +281,8 @@ struct CommitHistoryView: View {
             .background(color.opacity(0.15), in: Capsule())
         }
         .buttonStyle(.plain)
-        .disabled(isOperating)
+        .disabled(isOperating || unavailableReason != nil)
+        .help(unavailableReason ?? label)
     }
 
     // MARK: - Amend Sheet
@@ -367,33 +414,142 @@ struct CommitHistoryView: View {
         }
     }
 
+    /// Resolves the linked checkout off the main thread (GitRepository's
+    /// init runs git). Sets the gating state the git action chips read.
+    private func resolveLocalCheckout() async {
+        guard let url = repositoryURL else {
+            localCheckoutAvailable = false
+            localCheckoutNote = "Local git actions unavailable: no local checkout is linked to this view. History is read-only from GitHub until a checkout URL is provided."
+            return
+        }
+        let resolved = await Task.detached { GitRepository(containing: url) }.value
+        if resolved != nil {
+            localCheckoutAvailable = true
+            localCheckoutNote = ""
+        } else {
+            localCheckoutAvailable = false
+            localCheckoutNote = "Local git actions unavailable: \(url.path) is not inside a git repository."
+        }
+    }
+
+    /// Runs `work` against the linked local checkout off the main thread
+    /// (GitRepository is synchronous and Subprocess refuses to block the main
+    /// thread in debug builds). Returns the failure message, or nil when the
+    /// operation ran. The caller reports success only on nil.
+    private func runInLocalCheckout(_ work: @escaping @Sendable (GitRepository) -> String?) async -> String? {
+        guard let url = repositoryURL else { return "no local checkout linked" }
+        return await Task.detached { () -> String? in
+            guard let repo = GitRepository(containing: url) else {
+                return "\(url.path) is not inside a git repository."
+            }
+            return work(repo)
+        }.value
+    }
+
+    /// Runs an integrating operation (revert / cherry-pick) in the linked
+    /// checkout and maps git's own outcome: a clean completion, a stop on
+    /// conflicts, or a real failure. Never reports success without executing.
+    private func runLocalIntegration(_ work: @escaping @Sendable (GitRepository) throws -> GitRepository.IntegrationResult) async -> LocalIntegrationOutcome {
+        guard let url = repositoryURL else { return .failed("no local checkout linked") }
+        return await Task.detached { () -> LocalIntegrationOutcome in
+            guard let repo = GitRepository(containing: url) else {
+                return .failed("\(url.path) is not inside a git repository.")
+            }
+            let state = repo.integrationState()
+            if state.isInProgress {
+                return .failed("A \(state.verb) is already in progress. Finish or abort it first.")
+            }
+            do {
+                switch try work(repo) {
+                case .completed(let head): return .succeeded(head: head)
+                case .conflicts(let files): return .conflicted(files: files)
+                case .upToDate: return .failed("Nothing changed: the branch already contains this.")
+                case .fastForwarded: return .failed("Fast-forwarded unexpectedly; check the branch state.")
+                }
+            } catch {
+                return .failed(error.localizedDescription)
+            }
+        }.value
+    }
+
     private func amendLastCommit() async {
-        guard let _ = amendTarget else { return }
+        guard let target = amendTarget else { return }
         showAmendSheet = false
         isOperating = true
         defer { isOperating = false }
 
-        try? await Task.sleep(nanoseconds: 800_000_000)
-        showNotification("Commit amended successfully", isError: false)
-        await loadHistory()
+        let message = amendMessage.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !message.isEmpty else {
+            showNotification("Amend failed: empty commit message", isError: true)
+            return
+        }
+        let targetSHA = target.sha
+        // Real `git commit --amend` in the linked checkout, with the
+        // preconditions that make it safe: the target must still be HEAD,
+        // no integration may be in progress, and nothing may be staged
+        // (--amend would fold staged changes into HEAD).
+        let failure = await runInLocalCheckout { repo in
+            let state = repo.integrationState()
+            guard !state.isInProgress else {
+                return "A \(state.verb) is already in progress. Finish or abort it first."
+            }
+            guard repo.headHash() == targetSHA else {
+                return "HEAD has moved past \(String(targetSHA.prefix(8))); only the current HEAD can be amended."
+            }
+            guard ((try? repo.changes()) ?? []).allSatisfy({ !$0.isStaged }) else {
+                return "Staged changes exist; amending would fold them into HEAD. Unstage or commit them first."
+            }
+            do {
+                _ = try repo.commitStaged(message: message, amend: true)
+                return nil
+            } catch {
+                return error.localizedDescription
+            }
+        }
+        if let failure {
+            showNotification("Amend failed: \(failure)", isError: true)
+        } else {
+            showNotification("Commit amended successfully", isError: false)
+            await loadHistory()
+        }
     }
 
     private func revertCommit(_ commit: GitHubCommit) async {
         isOperating = true
         defer { isOperating = false }
 
-        try? await Task.sleep(nanoseconds: 800_000_000)
-        showNotification("Revert created for \(String(commit.sha.prefix(8)))", isError: false)
-        await loadHistory()
+        let sha = commit.sha
+        let shortSHA = String(sha.prefix(8))
+        switch await runLocalIntegration({ try $0.revert(sha) }) {
+        case .succeeded:
+            showNotification("Revert created for \(shortSHA)", isError: false)
+            await loadHistory()
+        case .conflicted(let files):
+            conflictDetails = "Reverting \(shortSHA) stopped on conflicts in:\n" + files.joined(separator: "\n") + "\nResolve them, then continue or abort the revert from Source Control."
+            showConflictAlert = true
+            await loadHistory()
+        case .failed(let message):
+            showNotification("Revert failed: \(message)", isError: true)
+        }
     }
 
     private func cherryPick(_ commit: GitHubCommit) async {
         isOperating = true
         defer { isOperating = false }
 
-        try? await Task.sleep(nanoseconds: 800_000_000)
-        showNotification("Cherry-picked \(String(commit.sha.prefix(8)))", isError: false)
-        await loadHistory()
+        let sha = commit.sha
+        let shortSHA = String(sha.prefix(8))
+        switch await runLocalIntegration({ try $0.cherryPickCommit(sha) }) {
+        case .succeeded:
+            showNotification("Cherry-picked \(shortSHA)", isError: false)
+            await loadHistory()
+        case .conflicted(let files):
+            conflictDetails = "Cherry-picking \(shortSHA) stopped on conflicts in:\n" + files.joined(separator: "\n") + "\nResolve them, then continue or abort the cherry-pick from Source Control."
+            showConflictAlert = true
+            await loadHistory()
+        case .failed(let message):
+            showNotification("Cherry-pick failed: \(message)", isError: true)
+        }
     }
 
     private func showNotification(_ message: String, isError: Bool) {

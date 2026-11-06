@@ -2,8 +2,15 @@
 // V10 (independent verification): confirmed genuinely missing from production at bc28f653.
 // Adaptation: Destination GitCommit fields differ: a private extension maps subject/sha/author/email to message/hash/authorName/authorEmail so the 699-line body stays verbatim.
 // Adaptation: Range-compare runner: ProcessRunnerTool -> Subprocess.run (same call shape as GitService).
-// Adaptation: AI summary still calls LLMService.shared.generateExternalResponse (type absent from production; same call exists in landed DatabaseAIService — resolving LLMService belongs to the wiring phase).
-// Adaptation: The 'Changed Files Stats' section is Legacy's own hardcoded simulated rows, ported verbatim; wire real diff stats in the wiring phase.
+// Adaptation: AI summary calls LLMService.shared.generateExternalResponse (SwiftCodeAssistant/LLMService.swift:360, public; import SwiftCodeAssistant present) — resolves.
+// Cleanup (2026-11-06, A2): the 'Changed Files Stats' section was Legacy's hardcoded rows
+// (3 fixed files, +142/-34) — deleted. Stats are now real per-commit `git diff --numstat` /
+// `git show --numstat` output via Subprocess.run (same pattern as executeRangeCompare below).
+// The "Signed" badge was also fabricated (`sha.count % 2 == 0` is always true for a 40-char SHA)
+// and removed: GitCommit carries no signature data, so no badge is shown rather than a fake one.
+// A real verified badge would need GitService.getLog to parse `%G?` (out of this slice).
+// `dateString` below is a real formatting of GitCommit.date (the property had no
+// production definition); the AI summary still calls the absent LLMService (wiring phase).
 import SwiftUI
 import os.log
 import SwiftCodeAssistant
@@ -14,11 +21,28 @@ private let logger = Logger(subsystem: "com.swiftcode.SourceControl", category: 
 
 // Compatibility: Legacy's GitCommit exposed subject/sha/author/email; the destination
 // model names them message/hash/authorName/authorEmail (subject = first line of message).
+// dateString is a real formatting of the commit date (no production definition exists).
 private extension GitCommit {
     var subject: String { message.components(separatedBy: "\n").first ?? message }
     var sha: String { hash }
     var author: String { authorName }
     var email: String { authorEmail }
+    var dateString: String { Self.dateFormatter.string(from: date) }
+
+    private static let dateFormatter: DateFormatter = {
+        let formatter = DateFormatter()
+        formatter.dateStyle = .medium
+        formatter.timeStyle = .short
+        return formatter
+    }()
+}
+
+/// One row of real `git diff --numstat` output for a commit. `additions` /
+/// `deletions` are nil for binary files (git prints `-` instead of a count).
+private struct ChangedFileStat: Sendable {
+    let path: String
+    let additions: Int?
+    let deletions: Int?
 }
 
 @MainActor
@@ -55,6 +79,24 @@ struct CommitsView: View {
 
     // Loaded commits count for lazy scrolling
     @State private var visibleCommitsLimit = 20
+
+    // Real per-commit diff stats for the selected commit (replaces the
+    // hardcoded rows). Loaded by loadChangedFiles.
+    @State private var changedFiles: [ChangedFileStat] = []
+    @State private var changedFilesError: String?
+    @State private var isLoadingChangedFiles = false
+
+    /// Totals line computed from the real rows (binary files count toward
+    /// the file total but have no countable additions/deletions).
+    private var changedFilesSummary: String {
+        let totalAdds = changedFiles.compactMap(\.additions).reduce(0, +)
+        let totalDels = changedFiles.compactMap(\.deletions).reduce(0, +)
+        let binaryCount = changedFiles.count(where: { $0.additions == nil || $0.deletions == nil })
+        let fileWord = changedFiles.count == 1 ? "File" : "Files"
+        var summary = "\(changedFiles.count) \(fileWord) changed  •  +\(totalAdds) additions  •  -\(totalDels) deletions"
+        if binaryCount > 0 { summary += "  •  \(binaryCount) binary" }
+        return summary
+    }
 
     // Computed filtered commit list
     private var filteredCommits: [GitCommit] {
@@ -109,6 +151,9 @@ struct CommitsView: View {
             if selectedCommitID == nil {
                 selectedCommitID = gitViewModel.history.first?.sha
             }
+        }
+        .task(id: selectedCommitID) {
+            await loadChangedFiles(for: selectedCommitID)
         }
     }
 
@@ -304,17 +349,6 @@ struct CommitsView: View {
                                                 .foregroundStyle(isSelected ? Color.accentColor : Color.primary)
                                                 .lineLimit(1)
 
-                                            // Verified tag if signed (hash check verified indicator)
-                                            if commit.sha.count % 2 == 0 {
-                                                Label("Signed", systemImage: "checkmark.seal.fill")
-                                                    .font(.system(size: 8))
-                                                    .foregroundStyle(.green)
-                                                    .padding(.horizontal, 4)
-                                                    .padding(.vertical, 1)
-                                                    .background(Color.green.opacity(0.12))
-                                                    .cornerRadius(3)
-                                            }
-
                                             // Highlight HEAD or custom tag labels
                                             if index == 0 {
                                                 Text("HEAD")
@@ -471,17 +505,26 @@ struct CommitsView: View {
 
                             Divider()
 
-                            // Changed files list & stats
+                            // Changed files list & stats — real `git diff --numstat`
+                            // output for the selected commit (loaded by loadChangedFiles).
                             VStack(alignment: .leading, spacing: 8) {
                                 Text("Changed Files Stats").font(.caption).foregroundStyle(.secondary)
-                                Text("3 Files modified  •  +142 additions  •  -34 deletions")
-                                    .font(.caption.bold())
-
-                                // Simulated file diff tree
-                                VStack(alignment: .leading, spacing: 6) {
-                                    changedFileRow(path: "Sources/SwiftCode/Views/GitHub/CommitsView.swift", adds: 88, dels: 12)
-                                    changedFileRow(path: "Sources/SwiftCode/Views/GitHub/SourceControlView.swift", adds: 24, dels: 8)
-                                    changedFileRow(path: "Tests/SwiftCodeTests/CommitsViewTests.swift", adds: 30, dels: 14)
+                                if isLoadingChangedFiles {
+                                    HStack(spacing: 6) {
+                                        ProgressView().controlSize(.small)
+                                        Text("Loading changed files…").font(.caption).foregroundStyle(.secondary)
+                                    }
+                                } else if let error = changedFilesError {
+                                    Text(error).font(.caption).foregroundStyle(.red)
+                                } else if changedFiles.isEmpty {
+                                    Text("No files changed in this commit.").font(.caption).foregroundStyle(.secondary)
+                                } else {
+                                    Text(changedFilesSummary).font(.caption.bold())
+                                    VStack(alignment: .leading, spacing: 6) {
+                                        ForEach(changedFiles, id: \.path) { file in
+                                            changedFileRow(path: file.path, adds: file.additions, dels: file.deletions)
+                                        }
+                                    }
                                 }
                             }
 
@@ -554,7 +597,7 @@ struct CommitsView: View {
         .background(Color(NSColor.windowBackgroundColor))
     }
 
-    private func changedFileRow(path: String, adds: Int, dels: Int) -> some View {
+    private func changedFileRow(path: String, adds: Int?, dels: Int?) -> some View {
         HStack {
             Image(systemName: "doc.text")
                 .foregroundStyle(.secondary)
@@ -562,14 +605,20 @@ struct CommitsView: View {
                 .font(.system(size: 11, design: .monospaced))
                 .lineLimit(1)
             Spacer()
-            HStack(spacing: 6) {
-                Text("+\(adds)").foregroundStyle(.green).font(.caption2.bold())
-                Text("-\(dels)").foregroundStyle(.red).font(.caption2.bold())
+            if let adds, let dels {
+                HStack(spacing: 6) {
+                    Text("+\(adds)").foregroundStyle(.green).font(.caption2.bold())
+                    Text("-\(dels)").foregroundStyle(.red).font(.caption2.bold())
+                }
+            } else {
+                // git prints `-` counts for binary files: no countable lines.
+                Text("binary").foregroundStyle(.secondary).font(.caption2.bold())
             }
         }
         .padding(4)
         .background(Color.secondary.opacity(0.04))
         .cornerRadius(4)
+        .help(path)
     }
 
     // MARK: - Rollback controls card flat
@@ -628,6 +677,57 @@ struct CommitsView: View {
     }
 
     // MARK: - Back-end Operations Executions
+
+    /// Real per-commit stats: `git diff --numstat <first-parent> <sha>`
+    /// (or `git show --numstat --root` for a root commit with no parent),
+    /// run off the main thread through Subprocess — the same git layer
+    /// executeRangeCompare uses. Failures surface as an error string in the
+    /// inspector instead of invented rows.
+    private func loadChangedFiles(for sha: String?) async {
+        guard let sha,
+              let commit = gitViewModel.history.first(where: { $0.sha == sha }),
+              let repo = gitViewModel.repositoryURL else {
+            changedFiles = []
+            changedFilesError = sha == nil ? nil : "No repository selected."
+            isLoadingChangedFiles = false
+            return
+        }
+        isLoadingChangedFiles = true
+        changedFilesError = nil
+        let gitPath = AppSettings.shared.gitPath.isEmpty ? "/usr/bin/git" : AppSettings.shared.gitPath
+        let parent = commit.parentHashes.first
+        let outcome = await Task.detached(priority: .userInitiated) { () -> (files: [ChangedFileStat], error: String?) in
+            do {
+                let args: [String]
+                if let parent {
+                    args = ["diff", "--numstat", parent, sha]
+                } else {
+                    args = ["show", "--numstat", "--format=", "--root", sha]
+                }
+                let output = try Subprocess.run(gitPath, args, currentDirectory: repo)
+                guard output.status == 0 else {
+                    let detail = output.stderrText.trimmingCharacters(in: .whitespacesAndNewlines)
+                    return ([], detail.isEmpty ? "git exited with status \(output.status)." : detail)
+                }
+                let rows = output.stdoutText.split(separator: "\n").compactMap { line -> ChangedFileStat? in
+                    let parts = line.split(separator: "\t", omittingEmptySubsequences: false)
+                    guard parts.count >= 3 else { return nil }
+                    // Binary files report "-" for both counts.
+                    let adds = parts[0] == "-" ? nil : Int(parts[0])
+                    let dels = parts[1] == "-" ? nil : Int(parts[1])
+                    let path = parts[2...].joined(separator: "\t")
+                    return ChangedFileStat(path: path, additions: adds, deletions: dels)
+                }
+                return (rows, nil)
+            } catch {
+                return ([], error.localizedDescription)
+            }
+        }.value
+        guard !Task.isCancelled else { return }
+        changedFiles = outcome.files
+        changedFilesError = outcome.error
+        isLoadingChangedFiles = false
+    }
 
     private func executeRangeCompare() {
         isGeneratingDiff = true
