@@ -54,7 +54,7 @@ extension YcodeMCPHost {
                  "Writes or overwrites a file with the specified content, generating unified diffs.",
                  input: Schema.object(["workspace": Schema.workspace, "path": Schema.string("Relative to the workspace folder."),
                                        "content": Schema.string("The file's complete new text.")], required: ["path", "content"]),
-                 output: Schema.output(["path": Schema.str, "created": Schema.bool, "lineCount": Schema.int, "is_new": Schema.bool]),
+                 output: Schema.output(["path": Schema.str, "created": Schema.bool, "lineCount": Schema.int, "is_new": Schema.bool, "diff": Schema.str]),
                  annotations: MCPToolAnnotations(readOnly: false, idempotent: true), writes: true) { h, call in
                 try await h.writeFile(call)
             },
@@ -167,6 +167,18 @@ extension YcodeMCPHost {
         guard await call.approve(change) else { throw MCPToolError(MCPServer.rejectedMessage) }
         let url = URL(fileURLWithPath: change.path)
         if (try? String(contentsOf: url, encoding: .utf8)) != change.proposed {
+            // Gap closure (safe_undo): record the previous content
+            // before writing, so the last modification can really be
+            // reverted. The original is read from disk here, not
+            // taken from `change.original`: several callers pass
+            // `original: nil` for files that may already exist, and
+            // recording that would make undo delete a pre-existing
+            // file. Only actual writes are recorded (no-ops are not).
+            let previous = text(of: url)
+            SafeUndoJournal.shared.record(workspaceRoot: Self.folder(of: s.model), relativePath: change.relativePath,
+                                          original: previous,
+                                          unrecorded: previous == nil && FileManager.default.fileExists(atPath: url.path),
+                                          tool: call.name)
             do {
                 try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
                 try change.proposed.write(to: url, atomically: true, encoding: .utf8)
@@ -191,11 +203,12 @@ extension YcodeMCPHost {
         // is 3 lines), unlike `split(separator:)`. Messages are
         // Legacy's `AssistWriteFileTool` forms; `is_new` is Legacy's
         // data key (kept alongside Ycode's `created`/`lineCount`).
-        // No `diff` key: Ycode has no Myers diff engine (see
-        // `YcodeTools+FileWriting.swift` header).
+        // The `diff` key is Legacy's unified (Myers) diff, rendered
+        // by `MyersDiff` (gap closure).
         let lines = content.components(separatedBy: .newlines).count
         let created = original == nil
-        return .structured(["path": .string(rel), "created": .bool(created), "lineCount": .int(lines), "is_new": .bool(created)],
+        let diff = FileWritingSupport.unifiedDiff(old: original, new: content, file: rel)
+        return .structured(["path": .string(rel), "created": .bool(created), "lineCount": .int(lines), "is_new": .bool(created), "diff": .string(diff)],
                            summary: created ? "Created new file: \(rel) (\(lines) lines)" : "Updated existing file: \(rel) (\(lines) lines)")
     }
 

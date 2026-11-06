@@ -30,15 +30,19 @@ import YcodePreviews
 /// * Ycode has no Artboards system (the destination audit verified
 ///   `Artboard` occurs 0 times in destination source), so the tools
 ///   map onto the closest seams instead of building a parallel
-///   system: the artboard record lives in-memory on the host (as
-///   Legacy's lived in-memory in `DocumentCoordinator`'s
-///   `VisualUIDocument` — there is no artboard file format in
-///   either), and compiling an artboard renders its custom SwiftUI
-///   source through `YcodePreviews` (`PreviewRenderRunner`, the
-///   `preview_render` engine). There is no Visual UI Builder
-///   component model in Ycode, so a created artboard's component
-///   tree is the single root node Legacy's create tool makes (a
-///   `vStack` named `"<name> Root"` with no children).
+///   system: artboards persist per workspace in a `.ycode-artboard`
+///   file (Application Support `Ycode/Artboards/`, Legacy's
+///   `VisualUIScene` shape as JSON — Legacy's
+///   `VisualUIDocument.save/load` did the same, pretty-printed),
+///   loaded on first use and saved after every mutation; compiling
+///   an artboard renders its custom SwiftUI source through
+///   `YcodePreviews` (`PreviewRenderRunner`, the `preview_render`
+///   engine). The component model is `ArtboardComponentNode`
+///   (Legacy's `VisualComponentNode` shape, as a struct) over
+///   `ArtboardComponentType` (Legacy's 57 cases verbatim); a
+///   created artboard's tree is still the single root node
+///   Legacy's create tool makes (a `vStack` named `"<name> Root"`
+///   with no children).
 ///
 /// Implemented (8): `artboard_compile`, `artboard_create`,
 /// `artboard_delete`, `artboard_get`, `artboard_list`,
@@ -70,17 +74,17 @@ import YcodePreviews
 ///   is audit-only — Ycode has no `XcodeBuildManager` destination
 ///   to realign and the fix tool does not boot a simulator on its
 ///   own (`simulator_boot` does that); pass 2 (DerivedData clean)
-///   has no Ycode equivalent and is reported, not performed (use
-///   the `clean` tool for the workspace build). The `scope`
+///   clears Ycode's preview-render cache instead (the
+///   `preview`/`all` scopes) — the `full_app` scope still points
+///   at the `clean` tool for the workspace build. The `scope`
 ///   parameter is validated (`preview`, `full_app`, `all`) where
 ///   Legacy accepted any value and ignored it.
-/// * Artboards are host-scoped and in-memory: they are not
-///   persisted to disk and do not survive a server restart, and
-///   they are not scoped per workspace. A fresh server starts with
-///   no artboards (Legacy's fresh `VisualUIDocument` likewise
-///   started empty apart from its `Default` canvas root, which
-///   Ycode does not seed — but the `Default` deletion guard is
-///   kept: an artboard named `Default` cannot be deleted).
+/// * Artboards are host-scoped and persisted per workspace (see
+///   above). A fresh server with no artboard file starts with no
+///   artboards (Legacy's fresh `VisualUIDocument` likewise started
+///   empty apart from its `Default` canvas root, which Ycode does
+///   not seed — but the `Default` deletion guard is kept: an
+///   artboard named `Default` cannot be deleted).
 /// * `artboard_get` has no compile-error store to read beyond the
 ///   last `artboard_compile` failure for that artboard
 ///   (`lastCompileError`), where Legacy read
@@ -134,8 +138,8 @@ extension YcodeMCPHost {
             tool("artboard_list", "List Artboards",
                  "Lists all artboards in the active Visual UI Builder workspace, including IDs, device frames, appearance, and component counts.",
                  input: Schema.object(["workspace": Schema.workspace]),
-                 output: Schema.output(["artboard_count": Schema.int, "active_artboard_id": Schema.str, "artboards": Schema.anyArray])) { h, _ in
-                h.listArtboards()
+                 output: Schema.output(["artboard_count": Schema.int, "active_artboard_id": Schema.str, "artboards": Schema.anyArray])) { h, call in
+                h.listArtboards(call)
             },
             tool("artboard_run_app", "Run Full App",
                  "Builds the active project and runs it directly inside an iOS/macOS simulator, reporting logs and execution status.",
@@ -187,9 +191,55 @@ extension YcodeMCPHost {
         return artboards.indices.first
     }
 
+    // MARK: - Persistence (gap closure)
+
+    /// The workspace folder for a tool call, or nil when no
+    /// workspace is open (the artboards stay in-memory then).
+    func artboardWorkspaceFolder(for call: MCPToolCall) -> URL? {
+        guard let session = try? session(for: call) else { return nil }
+        return Self.folder(of: session.model)
+    }
+
+    /// Loads the workspace's artboard file on first use (when the
+    /// in-memory list is empty). A missing or unreadable file
+    /// leaves the list empty; a corrupt file is ignored, not
+    /// fatal — the tools never fail a turn over a bad artboard
+    /// file.
+    func ensureArtboardsLoaded(for folder: URL) {
+        guard artboards.isEmpty else { return }
+        guard let document = ArtboardStore.load(forWorkspace: folder) else { return }
+        artboards = document.artboards
+        activeArtboardID = document.activeArtboardID
+    }
+
+    /// Loads the workspace's artboard file unconditionally (the
+    /// Artboards window calls this after saving, so the host sees
+    /// the window's edits).
+    public func reloadArtboardsFromStore(workspaceFolder folder: URL) {
+        guard let document = ArtboardStore.load(forWorkspace: folder) else {
+            artboards = []
+            activeArtboardID = nil
+            return
+        }
+        artboards = document.artboards
+        activeArtboardID = document.activeArtboardID
+    }
+
+    /// Persists the in-memory list to the workspace's artboard
+    /// file. No folder means in-memory only. A failed save is
+    /// silent (the tool's own result is unaffected) — the window
+    /// surfaces save errors itself.
+    func saveArtboards(for folder: URL?) {
+        guard let folder else { return }
+        let document = ArtboardDocument(artboards: artboards, activeArtboardID: activeArtboardID)
+        try? ArtboardStore.save(document, forWorkspace: folder)
+    }
+
     // MARK: - `artboard_compile`
 
     func compileArtboard(_ call: MCPToolCall) async throws -> MCPToolResult {
+        let folder = artboardWorkspaceFolder(for: call)
+        if let folder { ensureArtboardsLoaded(for: folder) }
         let identifier = call.string("identifier")
         guard let index = artboardIndex(matching: identifier) else {
             throw MCPToolError(identifier == nil
@@ -205,7 +255,9 @@ extension YcodeMCPHost {
         try await approveChangeWithoutFile(tool: call.name,
                                            summary: "Compile artboard '\(artboard.name)' (render its preview)",
                                            call: call)
-        return await compileArtboardRecord(at: index, targetView: call.string("targetView"))
+        let result = await compileArtboardRecord(at: index, targetView: call.string("targetView"))
+        saveArtboards(for: folder)
+        return result
     }
 
     /// Renders one artboard's custom source to a PNG through
@@ -268,16 +320,19 @@ extension YcodeMCPHost {
         let sourceCode = call.string("sourceCode")
         let appearance = call.string("appearance") ?? "System"
         let isPortrait = call.bool("isPortrait") ?? true
+        let folder = artboardWorkspaceFolder(for: call)
+        if let folder { ensureArtboardsLoaded(for: folder) }
         try await approveChangeWithoutFile(tool: call.name,
                                            summary: "Create artboard '\(name)' with frame '\(deviceFrame)'",
                                            call: call)
         // Legacy's root node: a vStack named "<name> Root", no children.
         let artboard = ArtboardRecord(id: UUID(), name: name, deviceFrame: deviceFrame,
                                       customSwiftUISource: sourceCode, appearance: appearance,
-                                      isPortrait: isPortrait, rootType: "vStack",
-                                      rootName: "\(name) Root", childCount: 0)
+                                      isPortrait: isPortrait,
+                                      rootNode: ArtboardRecord.defaultRoot(name: name))
         artboards.append(artboard)
         activeArtboardID = artboard.id
+        saveArtboards(for: folder)
         return .structured(["id": .string(artboard.id.uuidString), "name": .string(name),
                             "deviceFrame": .string(deviceFrame)],
                            summary: "Successfully created artboard '\(name)' (ID: \(artboard.id.uuidString)) with frame '\(deviceFrame)'.")
@@ -286,6 +341,8 @@ extension YcodeMCPHost {
     // MARK: - `artboard_delete`
 
     func deleteArtboard(_ call: MCPToolCall) async throws -> MCPToolResult {
+        let folder = artboardWorkspaceFolder(for: call)
+        if let folder { ensureArtboardsLoaded(for: folder) }
         guard !artboards.isEmpty else {
             throw MCPToolError("No artboards currently configured in workspace.")
         }
@@ -304,6 +361,7 @@ extension YcodeMCPHost {
         if activeArtboardID == artboard.id {
             activeArtboardID = artboards.first?.id
         }
+        saveArtboards(for: folder)
         return .structured(["id": .string(artboard.id.uuidString), "name": .string(artboard.name)],
                            summary: "Artboard '\(artboard.name)' (ID: \(artboard.id.uuidString)) deleted successfully.")
     }
@@ -311,6 +369,8 @@ extension YcodeMCPHost {
     // MARK: - `artboard_get`
 
     func getArtboard(_ call: MCPToolCall) throws -> MCPToolResult {
+        let folder = artboardWorkspaceFolder(for: call)
+        if let folder { ensureArtboardsLoaded(for: folder) }
         let identifier = call.string("identifier")
         guard let index = artboardIndex(matching: identifier) else {
             throw MCPToolError("Artboard matching '\(identifier ?? "active")' not found. Use 'artboard_list' to view available artboards.")
@@ -335,7 +395,12 @@ extension YcodeMCPHost {
         } else {
             lines.append("\nComponent Hierarchy:")
             lines.append("--------------------")
-            lines.append("- [\(artboard.rootType)] \(artboard.rootName)")
+            func describe(_ node: ArtboardComponentNode, depth: Int) {
+                let flags = (node.isHidden ? " (hidden)" : "") + (node.isLocked ? " (locked)" : "")
+                lines.append(String(repeating: "  ", count: depth) + "- [\(node.type.rawValue)] \(node.name)\(flags)")
+                for child in node.children { describe(child, depth: depth + 1) }
+            }
+            describe(artboard.rootNode, depth: 0)
         }
         let hasCustomSource = artboard.customSwiftUISource != nil && !artboard.customSwiftUISource!.isEmpty
         return .structured(["id": .string(artboard.id.uuidString), "name": .string(artboard.name),
@@ -345,7 +410,9 @@ extension YcodeMCPHost {
 
     // MARK: - `artboard_list`
 
-    func listArtboards() -> MCPToolResult {
+    func listArtboards(_ call: MCPToolCall) -> MCPToolResult {
+        let folder = artboardWorkspaceFolder(for: call)
+        if let folder { ensureArtboardsLoaded(for: folder) }
         if artboards.isEmpty {
             return .structured(["artboard_count": .int(0), "active_artboard_id": .string(""), "artboards": .array([])],
                                summary: "No artboards currently configured in workspace.")
@@ -383,6 +450,8 @@ extension YcodeMCPHost {
     // MARK: - `artboard_update`
 
     func updateArtboard(_ call: MCPToolCall) async throws -> MCPToolResult {
+        let folder = artboardWorkspaceFolder(for: call)
+        if let folder { ensureArtboardsLoaded(for: folder) }
         guard !artboards.isEmpty else {
             throw MCPToolError("No artboards currently configured in workspace.")
         }
@@ -408,6 +477,7 @@ extension YcodeMCPHost {
         if let appearance = call.string("appearance") { artboards[index].appearance = appearance }
         if let isPortrait = call.bool("isPortrait") { artboards[index].isPortrait = isPortrait }
         let artboard = artboards[index]
+        saveArtboards(for: folder)
         return .structured(["id": .string(artboard.id.uuidString), "name": .string(artboard.name)],
                            summary: "Updated artboard '\(artboard.name)': \(updatedFields.joined(separator: ", "))")
     }
@@ -415,11 +485,12 @@ extension YcodeMCPHost {
     // MARK: - `fix_artboards`
 
     func fixArtboards(_ call: MCPToolCall) async throws -> MCPToolResult {
-        let errorContext = call.string("errorContext") ?? ""
         let scope = call.string("scope") ?? "all"
         guard ["preview", "full_app", "all"].contains(scope) else {
             throw MCPToolError("Invalid scope: '\(scope)'. Expected 'preview', 'full_app', or 'all'.")
         }
+        let folder = artboardWorkspaceFolder(for: call)
+        if let folder { ensureArtboardsLoaded(for: folder) }
         try await approveChangeWithoutFile(tool: call.name,
                                            summary: "Audit and repair artboards, previews, and the full-app run (scope: \(scope))",
                                            call: call)
@@ -439,13 +510,22 @@ extension YcodeMCPHost {
             actionsTaken.append("Ycode Simulator host is configured")
         }
 
-        // Pass 2: Clean DerivedData / Stale Build State — no Ycode
-        // equivalent. Report it instead of pretending to clean.
-        if errorContext.localizedCaseInsensitiveContains("already in progress")
-            || errorContext.localizedCaseInsensitiveContains("exit code 70")
-            || errorContext.localizedCaseInsensitiveContains("exit code 65")
-            || errorContext.localizedCaseInsensitiveContains("corrupted") {
-            actionsTaken.append("Stale-build clean skipped: Ycode has no DerivedData cache to clean (use the clean tool for the workspace build)")
+        // Pass 2: Clean stale build state. Ycode has no
+        // DerivedData; the preview equivalent is the headless
+        // preview-render cache (`PreviewRenderRunner`'s package
+        // dir). For the `preview`/`all` scopes it is deleted so
+        // the next render rebuilds from scratch; `full_app` still
+        // points at the `clean` tool for the workspace build.
+        if scope == "full_app" {
+            actionsTaken.append("Full-app clean skipped: use the clean tool for the workspace build")
+        } else {
+            let cacheDir = ArtboardStore.previewRenderCacheDirectory()
+            if FileManager.default.fileExists(atPath: cacheDir.path) {
+                try? FileManager.default.removeItem(at: cacheDir)
+                actionsTaken.append("Cleared the preview-render cache (\(cacheDir.path)) so the next render rebuilds from scratch")
+            } else {
+                actionsTaken.append("Preview-render cache already empty — nothing to clear")
+            }
         }
 
         // Pass 3: Audit Active Artboard Custom Source Code.
@@ -493,6 +573,7 @@ extension YcodeMCPHost {
         // render outcome itself decides. No compile ran means
         // nothing failed, which Legacy also counted as healthy.
         let isSuccess = verificationSucceeded
+        saveArtboards(for: folder)
         let summary = """
         Fix with Assist completed audit and repairs:
         \(actionsTaken.map { "  • \($0)" }.joined(separator: "\n"))
@@ -505,38 +586,395 @@ extension YcodeMCPHost {
     }
 }
 
-/// One artboard. Ycode has no Visual UI Builder component model, so
-/// the component tree is the single root node Legacy's create tool
-/// makes; `childCount` stays 0 until a component model exists.
-struct ArtboardRecord: Sendable {
-    var id: UUID
-    var name: String
-    var deviceFrame: String
-    var customSwiftUISource: String?
-    var appearance: String
-    var isPortrait: Bool
-    var dynamicTypeSize: String?
-    var previewScale: Double?
-    var showSafeAreas: Bool?
-    var rootType: String
-    var rootName: String
-    var childCount: Int
-    var lastCompileError: String?
+/// The component types (gap closure): Legacy's
+/// `VisualComponentType`, ported verbatim — 57 cases, same raw
+/// values, same SF Symbol `systemIcon` values. Legacy's
+/// `VisualUIScene.swift` is Dylan's own code, ported under MIT.
+public enum ArtboardComponentType: String, Codable, CaseIterable, Sendable {
+    // Basic Layout/Structural
+    case vStack = "VStack"
+    case hStack = "HStack"
+    case zStack = "ZStack"
+    case group = "Group"
+    case form = "Form"
+    case list = "List"
+    case scrollView = "ScrollView"
+    case grid = "Grid"
+    case lazyVGrid = "LazyVGrid"
+    case lazyHGrid = "LazyHGrid"
+    case navigationStack = "NavigationStack"
+    case navigationSplitView = "NavigationSplitView"
+    case tabView = "TabView"
+    // Basic Controls/Leaf Views
+    case text = "Text"
+    case button = "Button"
+    case label = "Label"
+    case image = "Image"
+    case asyncImage = "AsyncImage"
+    case toggle = "Toggle"
+    case picker = "Picker"
+    case slider = "Slider"
+    case stepper = "Stepper"
+    case progressView = "ProgressView"
+    case textField = "TextField"
+    case secureField = "SecureField"
+    case divider = "Divider"
+    case spacer = "Spacer"
+    case groupBox = "GroupBox"
+    // Advanced Native Views
+    case canvas = "Canvas"
+    case charts = "Charts"
+    case map = "Map"
+    case videoPlayer = "VideoPlayer"
+    case webView = "WebView"
+    case sfSymbol = "SF Symbol"
+    // Modern / Expanded Controls
+    case disclosureGroup = "DisclosureGroup"
+    case contentUnavailableView = "ContentUnavailableView"
+    case viewThatFits = "ViewThatFits"
+    case anyLayout = "AnyLayout"
+    case timelineView = "TimelineView"
+    case gauge = "Gauge"
+    case photosPicker = "PhotosPicker"
+    case shareLink = "ShareLink"
+    case menu = "Menu"
+    case contextMenu = "ContextMenu"
+    case toolbar = "Toolbar"
+    case toolbarItem = "ToolbarItem"
+    case searchable = "Searchable"
+    case inspector = "Inspector"
+    case safeAreaInset = "SafeAreaInset"
+    case scrollViewReader = "ScrollViewReader"
+    case matchedGeometryEffect = "MatchedGeometryEffect"
+    case phaseAnimator = "PhaseAnimator"
+    case keyframeAnimator = "KeyframeAnimator"
+    case meshGradient = "MeshGradient"
+    case swiftData = "SwiftData"
+    case observation = "Observation"
+    case accessibility = "Accessibility"
 
-    init(id: UUID, name: String, deviceFrame: String, customSwiftUISource: String?,
-         appearance: String, isPortrait: Bool, rootType: String, rootName: String, childCount: Int) {
+    public var systemIcon: String {
+        switch self {
+        case .vStack: return "arrow.down.to.line"
+        case .hStack: return "arrow.right.to.line"
+        case .zStack: return "square.stack.3d.down.right"
+        case .group: return "square.dashed"
+        case .form: return "doc.text"
+        case .list: return "list.bullet"
+        case .scrollView: return "scroll"
+        case .grid: return "grid"
+        case .lazyVGrid: return "grid.circle"
+        case .lazyHGrid: return "grid.circle.fill"
+        case .navigationStack: return "list.bullet.indent"
+        case .navigationSplitView: return "sidebar.left"
+        case .tabView: return "square.grid.3x1.below.line"
+        case .text: return "text.alignleft"
+        case .button: return "hand.point.up.left.fill"
+        case .label: return "tag"
+        case .image: return "photo"
+        case .asyncImage: return "arrow.clockwise.icloud"
+        case .toggle: return "switch.2"
+        case .picker: return "filemenu.and.selection"
+        case .slider: return "slider.horizontal.3"
+        case .stepper: return "plusminus"
+        case .progressView: return "circle.dotted"
+        case .textField: return "character.cursor.ibackground"
+        case .secureField: return "key"
+        case .divider: return "minus"
+        case .spacer: return "arrow.up.and.down.and.arrow.left.and.right"
+        case .groupBox: return "square.grid.2x1"
+        case .canvas: return "paintbrush"
+        case .charts: return "chart.bar"
+        case .map: return "map"
+        case .videoPlayer: return "play.tv"
+        case .webView: return "globe"
+        case .sfSymbol: return "sparkles"
+        case .disclosureGroup: return "chevron.right.circle"
+        case .contentUnavailableView: return "exclamationmark.triangle"
+        case .viewThatFits: return "arrow.up.right.and.arrow.down.left.rectangle"
+        case .anyLayout: return "square.on.square"
+        case .timelineView: return "hourglass"
+        case .gauge: return "gauge"
+        case .photosPicker: return "photo.on.rectangle"
+        case .shareLink: return "square.and.arrow.up"
+        case .menu: return "ellipsis.rectangle"
+        case .contextMenu: return "contextualmenu.and.cursorarrow"
+        case .toolbar: return "macwindow.navigationbar"
+        case .toolbarItem: return "plus"
+        case .searchable: return "magnifyingglass"
+        case .inspector: return "sidebar.right"
+        case .safeAreaInset: return "square.bottomthird.filled"
+        case .scrollViewReader: return "scroll.fill"
+        case .matchedGeometryEffect: return "sparkles.rectangle.stack"
+        case .phaseAnimator: return "play.square.stack"
+        case .keyframeAnimator: return "key.and.lock"
+        case .meshGradient: return "square.stack.3d.up.fill"
+        case .swiftData: return "cylinder.split.1x2"
+        case .observation: return "eye"
+        case .accessibility: return "figure.roll"
+        }
+    }
+
+    /// Whether the type can hold children (the builder's "Add
+    /// child" is offered only for these). Layout containers and
+    /// the few controls that nest content.
+    public var isContainer: Bool {
+        switch self {
+        case .vStack, .hStack, .zStack, .group, .form, .list, .scrollView, .grid,
+             .lazyVGrid, .lazyHGrid, .navigationStack, .navigationSplitView, .tabView,
+             .groupBox, .disclosureGroup, .viewThatFits, .anyLayout, .scrollViewReader,
+             .menu, .contextMenu, .toolbar, .inspector, .safeAreaInset:
+            return true
+        default:
+            return false
+        }
+    }
+}
+
+/// One node of an artboard's component tree (gap closure):
+/// Legacy's `VisualComponentNode` shape, as a struct instead of
+/// an `@Observable` class (the host owns the tree; the window
+/// edits it through the store).
+public struct ArtboardComponentNode: Sendable, Codable, Equatable, Identifiable {
+    public var id: UUID
+    public var type: ArtboardComponentType
+    public var name: String
+    public var children: [ArtboardComponentNode]
+    /// Properties e.g. textValue, sfSymbolName, padding,
+    /// cornerRadius, customColor (Legacy's comment, verbatim).
+    public var properties: [String: String]
+    public var isLocked: Bool
+    public var isHidden: Bool
+
+    public init(id: UUID = UUID(), type: ArtboardComponentType, name: String? = nil,
+                children: [ArtboardComponentNode] = [], properties: [String: String] = [:],
+                isLocked: Bool = false, isHidden: Bool = false) {
+        self.id = id
+        self.type = type
+        self.name = name ?? type.rawValue
+        self.children = children
+        self.properties = properties
+        self.isLocked = isLocked
+        self.isHidden = isHidden
+    }
+
+    /// Lenient decode: an unknown type falls back to `vStack`
+    /// and every other field keeps its default, so an older or
+    /// hand-edited file never fails the whole document.
+    public init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id = (try? c.decode(UUID.self, forKey: .id)) ?? UUID()
+        let rawType = (try? c.decode(String.self, forKey: .type)) ?? ArtboardComponentType.vStack.rawValue
+        type = ArtboardComponentType(rawValue: rawType) ?? .vStack
+        name = (try? c.decode(String.self, forKey: .name)) ?? type.rawValue
+        children = (try? c.decode([ArtboardComponentNode].self, forKey: .children)) ?? []
+        properties = (try? c.decode([String: String].self, forKey: .properties)) ?? [:]
+        isLocked = (try? c.decode(Bool.self, forKey: .isLocked)) ?? false
+        isHidden = (try? c.decode(Bool.self, forKey: .isHidden)) ?? false
+    }
+
+    /// Duplicates the node recursively, with fresh ids (Legacy's
+    /// `duplicated()`).
+    public func duplicated() -> ArtboardComponentNode {
+        ArtboardComponentNode(id: UUID(), type: type, name: "\(name) Copy",
+                              children: children.map { $0.duplicated() },
+                              properties: properties, isLocked: isLocked, isHidden: isHidden)
+    }
+
+    /// The node with this id, searching the subtree.
+    public func node(id: UUID) -> ArtboardComponentNode? {
+        if self.id == id { return self }
+        for child in children { if let found = child.node(id: id) { return found } }
+        return nil
+    }
+
+    /// Returns the tree with the node of `id` replaced by the
+    /// result of `update` (no match: the tree unchanged).
+    public func updateNode(id: UUID, _ update: (inout ArtboardComponentNode) -> Void) -> ArtboardComponentNode {
+        var copy = self
+        if copy.id == id {
+            update(&copy)
+            return copy
+        }
+        copy.children = copy.children.map { $0.updateNode(id: id, update) }
+        return copy
+    }
+
+    /// Returns the tree without the node of `id` (the root itself
+    /// is never removed).
+    public func removeNode(id: UUID) -> ArtboardComponentNode {
+        var copy = self
+        copy.children = copy.children.filter { $0.id != id }.map { $0.removeNode(id: id) }
+        return copy
+    }
+
+    /// Returns the tree with `child` appended under the node of
+    /// `id` (no match: the tree unchanged).
+    public func addChild(_ child: ArtboardComponentNode, to id: UUID) -> ArtboardComponentNode {
+        var copy = self
+        if copy.id == id {
+            copy.children.append(child)
+            return copy
+        }
+        copy.children = copy.children.map { $0.addChild(child, to: id) }
+        return copy
+    }
+}
+
+/// One artboard (gap closure): Legacy's `VisualUIArtboard` shape.
+/// `rootType` / `rootName` / `childCount` are computed from the
+/// tree, as the old in-memory record exposed them; the tree itself
+/// is `rootNode`. `lastCompileError` is runtime-only — it is never
+/// persisted (excluded from `CodingKeys`).
+public struct ArtboardRecord: Sendable, Codable {
+    public var id: UUID
+    public var name: String
+    public var deviceFrame: String
+    public var rootNode: ArtboardComponentNode
+    public var customSwiftUISource: String?
+    public var appearance: String
+    public var isPortrait: Bool
+    public var dynamicTypeSize: String?
+    public var previewScale: Double?
+    public var showSafeAreas: Bool?
+    public var lastCompileError: String?
+
+    public var rootType: String { rootNode.type.rawValue }
+    public var rootName: String { rootNode.name }
+    public var childCount: Int { rootNode.children.count }
+
+    enum CodingKeys: String, CodingKey {
+        case id, name, deviceFrame, rootNode, customSwiftUISource, appearance,
+             isPortrait, dynamicTypeSize, previewScale, showSafeAreas
+    }
+
+    public init(id: UUID = UUID(), name: String, deviceFrame: String = "iPhone 16 Pro",
+                customSwiftUISource: String? = nil, appearance: String = "System",
+                isPortrait: Bool = true, rootNode: ArtboardComponentNode,
+                dynamicTypeSize: String? = nil, previewScale: Double? = nil,
+                showSafeAreas: Bool? = nil) {
         self.id = id
         self.name = name
         self.deviceFrame = deviceFrame
+        self.rootNode = rootNode
         self.customSwiftUISource = customSwiftUISource
         self.appearance = appearance
         self.isPortrait = isPortrait
-        self.dynamicTypeSize = nil
-        self.previewScale = nil
-        self.showSafeAreas = nil
-        self.rootType = rootType
-        self.rootName = rootName
-        self.childCount = childCount
+        self.dynamicTypeSize = dynamicTypeSize
+        self.previewScale = previewScale
+        self.showSafeAreas = showSafeAreas
         self.lastCompileError = nil
+    }
+
+    /// Lenient decode: every field keeps its default when absent.
+    public init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id = (try? c.decode(UUID.self, forKey: .id)) ?? UUID()
+        name = (try? c.decode(String.self, forKey: .name)) ?? "Untitled"
+        deviceFrame = (try? c.decode(String.self, forKey: .deviceFrame)) ?? "iPhone 16 Pro"
+        rootNode = (try? c.decode(ArtboardComponentNode.self, forKey: .rootNode))
+            ?? ArtboardComponentNode(type: .vStack, name: "Root")
+        customSwiftUISource = try? c.decodeIfPresent(String.self, forKey: .customSwiftUISource) ?? nil
+        appearance = (try? c.decode(String.self, forKey: .appearance)) ?? "System"
+        isPortrait = (try? c.decode(Bool.self, forKey: .isPortrait)) ?? true
+        dynamicTypeSize = try? c.decodeIfPresent(String.self, forKey: .dynamicTypeSize) ?? nil
+        previewScale = try? c.decodeIfPresent(Double.self, forKey: .previewScale) ?? nil
+        showSafeAreas = try? c.decodeIfPresent(Bool.self, forKey: .showSafeAreas) ?? nil
+        lastCompileError = nil
+    }
+
+    /// Legacy's root node: a vStack named "<name> Root".
+    public static func defaultRoot(name: String) -> ArtboardComponentNode {
+        ArtboardComponentNode(type: .vStack, name: "\(name) Root")
+    }
+}
+
+/// The artboard file's document (gap closure): Legacy's
+/// `VisualUIScene` shape — artboards, the active id, the
+/// framework, the canvas zoom/pan — plus a format `version`.
+/// The scene's `selectedNodeIDs` are session state and are not
+/// persisted. Lenient decode: a missing field keeps its default.
+public struct ArtboardDocument: Sendable, Codable, Equatable {
+    public var version: Int
+    public var artboards: [ArtboardRecord]
+    public var activeArtboardID: UUID?
+    public var framework: String
+    public var zoomScale: Double
+    public var panOffsetX: Double
+    public var panOffsetY: Double
+
+    public init(version: Int = 1, artboards: [ArtboardRecord] = [], activeArtboardID: UUID? = nil,
+                framework: String = "SwiftUI", zoomScale: Double = 1.0,
+                panOffsetX: Double = 0, panOffsetY: Double = 0) {
+        self.version = version
+        self.artboards = artboards
+        self.activeArtboardID = activeArtboardID
+        self.framework = framework
+        self.zoomScale = zoomScale
+        self.panOffsetX = panOffsetX
+        self.panOffsetY = panOffsetY
+    }
+
+    public init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        version = (try? c.decode(Int.self, forKey: .version)) ?? 1
+        artboards = (try? c.decode([ArtboardRecord].self, forKey: .artboards)) ?? []
+        activeArtboardID = try? c.decodeIfPresent(UUID.self, forKey: .activeArtboardID) ?? nil
+        framework = (try? c.decode(String.self, forKey: .framework)) ?? "SwiftUI"
+        zoomScale = (try? c.decode(Double.self, forKey: .zoomScale)) ?? 1.0
+        panOffsetX = (try? c.decode(Double.self, forKey: .panOffsetX)) ?? 0
+        panOffsetY = (try? c.decode(Double.self, forKey: .panOffsetY)) ?? 0
+    }
+}
+
+/// The `.ycode-artboard` file store (gap closure): one JSON file
+/// per workspace, in Application Support `Ycode/Artboards/` (the
+/// same idea as `CodingAssistantModel.archiveURL(forWorkspace:)`),
+/// never inside the workspace. The filename is the FNV-1a hash of
+/// the workspace path, so two workspaces never share a file.
+public enum ArtboardStore {
+    public static func documentURL(forWorkspace folder: URL) -> URL {
+        let support = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
+            ?? FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Library/Application Support")
+        return support
+            .appendingPathComponent("Ycode", isDirectory: true)
+            .appendingPathComponent("Artboards", isDirectory: true)
+            .appendingPathComponent(filenameKey(forWorkspace: folder) + ".ycode-artboard")
+    }
+
+    /// FNV-1a 64-bit hash of the workspace path, as hex.
+    public static func filenameKey(forWorkspace folder: URL) -> String {
+        var hash: UInt64 = 0xcbf29ce484222325
+        for byte in folder.standardizedFileURL.path.utf8 {
+            hash ^= UInt64(byte)
+            hash &*= 0x100000001b3
+        }
+        return String(format: "%016llx", hash)
+    }
+
+    /// Loads the workspace's document, or nil when there is none
+    /// or it cannot be read/decoded.
+    public static func load(forWorkspace folder: URL) -> ArtboardDocument? {
+        guard let data = try? Data(contentsOf: documentURL(forWorkspace: folder)) else { return nil }
+        return try? JSONDecoder().decode(ArtboardDocument.self, from: data)
+    }
+
+    /// Saves the document, pretty-printed like Legacy's
+    /// `VisualUIDocument.save`.
+    public static func save(_ document: ArtboardDocument, forWorkspace folder: URL) throws {
+        let url = documentURL(forWorkspace: folder)
+        try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+        try encoder.encode(document).write(to: url, options: .atomic)
+    }
+
+    /// The headless preview-render cache (`PreviewRenderRunner`'s
+    /// package dir): `XDG_CACHE_HOME` or `~/.cache`, plus
+    /// `ycode/preview-render`. `fix_artboards` pass 2 deletes it.
+    public static func previewRenderCacheDirectory(environment: [String: String] = ProcessInfo.processInfo.environment) -> URL {
+        let base = environment["XDG_CACHE_HOME"].map { URL(fileURLWithPath: $0) }
+            ?? FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".cache")
+        return base.appendingPathComponent("ycode/preview-render")
     }
 }

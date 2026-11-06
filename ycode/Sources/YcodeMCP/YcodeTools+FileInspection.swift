@@ -58,38 +58,12 @@ extension YcodeMCPHost {
                                         "diff": .string("")],
                                        summary: text)
                 }
-                // Legacy's diff is positional, not a minimal (Myers/LCS)
-                // diff: lines at the same index are compared, a changed
-                // line counts as one removal plus one addition, and extra
-                // lines at the end count on their own side.
-                var diffLines: [String] = [
-                    "--- a/\(relA)",
-                    "+++ b/\(relB)",
-                    "@@ -1,\(linesA.count) +1,\(linesB.count) @@",
-                ]
-                var added = 0
-                var removed = 0
-                for i in 0..<max(linesA.count, linesB.count) {
-                    let a = i < linesA.count ? linesA[i] : nil
-                    let b = i < linesB.count ? linesB[i] : nil
-                    if let a, let b {
-                        if a == b {
-                            diffLines.append("  \(a)")
-                        } else {
-                            diffLines.append("- \(a)")
-                            diffLines.append("+ \(b)")
-                            removed += 1
-                            added += 1
-                        }
-                    } else if let a {
-                        diffLines.append("- \(a)")
-                        removed += 1
-                    } else if let b {
-                        diffLines.append("+ \(b)")
-                        added += 1
-                    }
-                }
-                let diffText = diffLines.joined(separator: "\n")
+                // A minimal (Myers) diff: one inserted line no longer
+                // makes the whole tail read as changed (gap closure).
+                let compared = MyersDiff.diff(old: linesA, new: linesB)
+                let diffText = MyersDiff.unifiedDiff(result: compared, oldFile: relA, newFile: relB)
+                let added = compared.added
+                let removed = compared.removed
                 let text = "Unified diff for `\(relA)` vs `\(relB)` (+\(added), -\(removed) lines):\n\n\(diffText)"
                 return .structured(["pathA": .string(relA), "pathB": .string(relB), "identical": .bool(false),
                                     "lineCount": .int(linesA.count), "addedLines": .int(added), "removedLines": .int(removed),

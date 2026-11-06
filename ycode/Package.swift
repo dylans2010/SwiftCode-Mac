@@ -118,7 +118,7 @@ let package = Package(
         .testTarget(name: "YcodeGitHubTests", dependencies: ["YcodeGitHub"]),
         // Extensions v2 platform (specs/ide/extensions-platform.md §10.10):
         // YcodeGitHub model — plain .target, library product, test target.
-        .target(name: "YcodeExtensions", dependencies: ["YcodeSubprocess"],
+        .target(name: "YcodeExtensions", dependencies: ["YcodeSubprocess", "YcodeLanguage", "YcodeDebug"],
                 resources: [.copy("Resources/extension-host.js")]),
         .testTarget(name: "YcodeExtensionsTests", dependencies: ["YcodeExtensions"]),
         // Cloud accounts and auth (specs/ide/cloud-accounts.md §1):
@@ -207,6 +207,9 @@ package.targets += [
     .testTarget(name: "YcodeDeviceUITests", dependencies: ["YcodeDeviceUI", "YcodeDeviceModel", "YcodeDisplayStream"]),
     .executableTarget(name: "ycode-sim-viewer", dependencies: ["YcodeRelease", "YcodeDisplayStream", "YcodeSimFeatures", "YcodeDeviceModel", "YcodeDeviceUI", "YcodeRemoteViewer", "YcodeSimLink"]),
     .target(name: "YcodeUI", dependencies: ["YcodeMCP", "YcodeIDECore", "YcodeCompletion", "YcodePreviews", "YcodeProject", "YcodeWorkspace", "YcodeSettings", "YcodeBuild", "YcodeDebug", "YcodeLanguage", "YcodeXcodebuild", "YcodeSubprocess", "YcodeAssistant", "YcodeGitHub", "YcodeExtensions", "YcodeSimFeatures", "YcodeDeviceModel", "YcodeDeviceUI", "YcodeProfiler", "YcodeCloud", "YcodeGoogleAuth", "YcodePaywall", "YcodeSDK", "YcodeHealthStore",
+                                             // Gap-closure: the VM console (VirtualMachineRegistry)
+                                             // probes KVM through YcodeHypervisor.
+                                             "YcodeHypervisor",
                                              // The StoreKit editor controller (specs/ide/storekit-paywall.md).
                                              .product(name: "StoreKitConfiguration", package: "ycode-storekit")]),
     .executableTarget(name: "YcodeApp", dependencies: ["YcodeRelease", "YcodeUI"]),
@@ -301,13 +304,20 @@ package.targets += [
                                                  // reads/writes real .storekit files through the
                                                  // framework model instead of a second parser.
                                                  .product(name: "StoreKitConfiguration", package: "ycode-storekit"),
+                                                 // Gap-closure: the AppTestStore-backed StoreKit
+                                                 // simulation (StoreKitSimulationSession) and the
+                                                 // SQLite/database models read the HealthStore.
+                                                 .product(name: "StoreKitEngine", package: "ycode-storekit"),
+                                                 "YcodeHealthStore",
                                                  // SHA-256 and the asset service's ES256 chain (runtime downloads, route B).
                                                  .product(name: "Crypto", package: "swift-crypto")]),
     .testTarget(name: "YcodeIDECoreTests", dependencies: ["YcodeIDECore", "YcodeSyntax", "YcodeProject", "YcodeWorkspace", "YcodeSettings", "YcodePlist",
                                                           "YcodeBuild", "YcodeDebug", "YcodeLanguage", "YcodeXcodebuild", "YcodeSubprocess",
                                                           "YcodeAssistant", "YcodeProfiler", "YcodePreviews", "YcodeDeviceModel", "YcodeSimFeatures",
                                                           "YcodeSigning",
-                                                          .product(name: "StoreKitConfiguration", package: "ycode-storekit")],
+                                                          .product(name: "StoreKitConfiguration", package: "ycode-storekit"),
+                                                          .product(name: "StoreKitEngine", package: "ycode-storekit"),
+                                                          "YcodeHealthStore"],
                 exclude: ["Fixtures"]),
 ]
 
@@ -380,7 +390,16 @@ package.targets += [
     .target(name: "YcodeMCP", dependencies: ["YcodeIDECore", "YcodeIDEShell", "YcodeAssistant", "YcodeCompletion", "YcodeBuild", "YcodePreviews",
                                              "YcodeProject", "YcodeSettings", "YcodeWorkspace", "YcodeSubprocess", "YcodeMachO", "YcodeGitHub",
                                              "YcodeExtensions",
-                                             .product(name: "Crypto", package: "swift-crypto")]),
+                                             // Gap-closure: the AST inspector and the token-aware
+                                             // rename engine parse with swift-syntax directly
+                                             // (YcodeSyntax exposes no parse tree).
+                                             .product(name: "SwiftSyntax", package: "swift-syntax"),
+                                             .product(name: "SwiftParser", package: "swift-syntax"),
+                                             .product(name: "Crypto", package: "swift-crypto")],
+            // Gap-closure: the Reverse bridge script is loaded at run
+            // time through Bundle.module; without this resource the
+            // whole YcodeMCP target fails to compile.
+            resources: [.copy("Resources/ReverseBridge.mjs")]),
     .testTarget(name: "YcodeMCPTests", dependencies: ["YcodeMCP", "YcodeIDECore", "YcodeAssistant", "YcodeCompletion", "YcodeBuild", "ycode"]),
 ]
 if let i = package.targets.firstIndex(where: { $0.name == "ycode" }) {

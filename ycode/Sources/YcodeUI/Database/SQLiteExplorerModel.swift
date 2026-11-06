@@ -85,7 +85,19 @@ public struct SQLiteExplorerResult: Equatable, Sendable {
 @MainActor
 public final class SQLiteExplorerModel {
     public let path: String
-    private let db: SQLiteDatabase
+    private var db: SQLiteDatabase
+
+    /// The shared connection, for the sections panel (same module):
+    /// the panel's section models run against the same database the
+    /// browser is showing, on the same main-actor connection.
+    var database: SQLiteDatabase { db }
+
+    /// Reopens the database file (the old connection closes when
+    /// it is replaced). The sections panel calls this after a
+    /// restore, which replaces the file under the live connection.
+    func reopen() throws {
+        db = try SQLiteDatabase(path: path)
+    }
 
     private init(db: SQLiteDatabase) {
         self.db = db

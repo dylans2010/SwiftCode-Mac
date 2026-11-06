@@ -55,14 +55,20 @@ public final class CodingAssistantModel {
     public var mcpToolIDsProvider: (() -> Set<String>)?
     /// Meta slash commands (Wave 17): the catalog the composer
     /// intercepts when Assist with Meta is the active provider.
-    /// There is no slash menu or palette in Ycode yet — a command
-    /// is recognised when the sent text starts with a known
-    /// command name (`/effort low`, `/clear`, …); anything else
-    /// starting with `/` is sent to the model as-is. The
-    /// terminal-skill capture runs once, on first use, so
-    /// `muse skills list` is never spawned just for opening the
-    /// pane.
+    /// The `/` popup (`SlashCommandPopupController`) lists them
+    /// from this catalog; a command typed without the popup is
+    /// recognised when the sent text starts with a known command
+    /// name (`/effort low`, `/clear`, …); anything else starting
+    /// with `/` is sent to the model as-is. The terminal-skill
+    /// capture runs once, on first use, so `muse skills list` is
+    /// never spawned just for opening the pane.
     public var metaSlashCommands = MetaSlashCommandManager()
+    /// The model router (Wave 15): failover decisions for a
+    /// failed turn live here, not in `send`.
+    public let modelRouter = AssistModelRouter()
+    /// How many times a failed turn may fail over to another
+    /// model (3 attempts in total, Wave 15 rules).
+    public static let maxTurnFailovers = 2
     /// Agent changes waiting for review, by message and code-block index.
     struct AgentEditKey: Hashable { var message: UUID; var block: Int }
     private var pendingAgentEdits: [AgentEditKey: (conversation: UUID, proposed: String, done: CheckedContinuation<Bool, Never>)] = [:]
@@ -276,7 +282,7 @@ public final class CodingAssistantModel {
         guard !prompt.isEmpty else { return nil }
         // Wave 17: a Meta slash command typed at the composer is
         // intercepted here — the only place slash commands enter
-        // the host (there is no slash menu or palette yet; see
+        // the host (the `/` popup commits through here too; see
         // `handleMetaSlashCommand`). `.inserted` leaves the text
         // in the input for editing, `.handled` posts the effect's
         // result, and anything else is sent to the model as-is.
@@ -341,7 +347,6 @@ public final class CodingAssistantModel {
             }
         }
         let limit = settings.contextLimit, options = settings.context, root = workspaceRoot, generation = settings.generation
-        let knownWindow = availability[kind]?.models.first { $0.id == model }?.contextWindow
         running[id] = Task { [weak self] in
             // Wave 17, Slice B: the other-model mode switch. Legacy
             // checked `otherModelsWithMetaSDK ||
@@ -367,14 +372,7 @@ public final class CodingAssistantModel {
                         otherModelsWithMetaSDK: self.settings.metaUseOtherModels,
                         swiftCodeCloudWithMetaSDK: self.settings.metaUseCloudModelWithMeta)
                     {
-                        var discovered: [AssistCandidateModel] = []
-                        for (discoveredKind, avail) in self.availability {
-                            for info in avail.models {
-                                discovered.append(AssistCandidateModel(
-                                    id: info.id, displayName: info.displayName, provider: discoveredKind,
-                                    modelIdentifier: info.id, contextWindow: info.contextWindow ?? 128_000))
-                            }
-                        }
+                        let discovered = self.discoveredCandidates()
                         let resolution = MuseOtherModelsBridge.resolveActiveModel(
                             selectedOtherModelID: self.settings.metaSelectedOtherModelID,
                             selectedOtherModelProvider: self.settings.metaSelectedOtherModelProvider,
@@ -422,31 +420,122 @@ public final class CodingAssistantModel {
                 self?.finish(id, error: stopped ? "Stopped." : Self.describe(error))
                 return
             }
-            var window = knownWindow
-            if window == nil, let effectiveModel { window = await effectiveProvider.contextWindow(model: effectiveModel) }
-            let budget = min(limit, window ?? limit)
-            let built = PromptBuilder.build(history: history, prompt: prompt, attachments: attachments, context: context,
-                                            options: options, contextTokens: budget, instructions: instructions)
-            let request = ChatRequest(model: effectiveModel, instructions: built.instructions, messages: built.messages,
-                                      contextTokens: kind == .ollama ? budget : nil, workingDirectory: root, generation: generation)
-            if !built.omitted.isEmpty {
-                self?.appendActivity(id, "Left out to fit the context: " + built.omitted.joined(separator: ", "))
-            }
-            do {
-                for try await event in effectiveProvider.send(request) {
-                    guard let self else { return }
-                    switch event {
-                    case .text(let t): appendText(id, t)
-                    case .activity(let a): appendActivity(id, a)
-                    case .truncated: markCutOff(id)
-                    case .finished: break
-                    }
+            // Gap closure: router failover (Wave 15 rules). A
+            // failed turn retries on the next eligible model, at
+            // most `maxTurnFailovers` times, only when
+            // "Automatically switch models" is on and only when
+            // the turn has a model to exclude (CLI-agent turns
+            // have none). While other-model mode is on the proxy
+            // serves exactly one model, so a failover would
+            // misroute and is skipped. The partial text stays in
+            // the transcript; the continuation prompt carries it
+            // to the next model, and the conversation's recorded
+            // model follows the switch.
+            let otherModelMode: Bool = {
+                guard let self else { return false }
+                return kind == .metaAssist && MuseOtherModelsProxyController.isOtherModelModeEnabled(
+                    otherModelsWithMetaSDK: self.settings.metaUseOtherModels,
+                    swiftCodeCloudWithMetaSDK: self.settings.metaUseCloudModelWithMeta)
+            }()
+            var attemptPrompt = prompt
+            var attemptProvider = effectiveProvider
+            var attemptModel = effectiveModel
+            var attemptKind = kind
+            var failovers = 0
+            while true {
+                var window = availability[attemptKind]?.models.first { $0.id == attemptModel }?.contextWindow
+                if window == nil, let attemptModel { window = await attemptProvider.contextWindow(model: attemptModel) }
+                let budget = min(limit, window ?? limit)
+                let built = PromptBuilder.build(history: history, prompt: attemptPrompt, attachments: attachments, context: context,
+                                                options: options, contextTokens: budget, instructions: instructions)
+                let request = ChatRequest(model: attemptModel, instructions: built.instructions, messages: built.messages,
+                                          contextTokens: attemptKind == .ollama ? budget : nil, workingDirectory: root, generation: generation)
+                if !built.omitted.isEmpty {
+                    self?.appendActivity(id, "Left out to fit the context: " + built.omitted.joined(separator: ", "))
                 }
-                // A cancelled stream ends without an error.
-                self?.finish(id, error: Task.isCancelled ? "Stopped." : nil)
-            } catch {
-                let stopped = Task.isCancelled || error is CancellationError || HTTPCancellation.matches(error)
-                self?.finish(id, error: stopped ? "Stopped." : Self.describe(error))
+                var partial = ""
+                do {
+                    for try await event in attemptProvider.send(request) {
+                        guard let self else { return }
+                        switch event {
+                        case .text(let t):
+                            appendText(id, t)
+                            partial += t
+                        case .activity(let a): appendActivity(id, a)
+                        case .truncated: markCutOff(id)
+                        case .finished: break
+                        }
+                    }
+                    // A cancelled stream ends without an error.
+                    self?.finish(id, error: Task.isCancelled ? "Stopped." : nil)
+                    return
+                } catch {
+                    let stopped = Task.isCancelled || error is CancellationError || HTTPCancellation.matches(error)
+                    guard !stopped else {
+                        self?.finish(id, error: "Stopped.")
+                        return
+                    }
+                    guard failovers < Self.maxTurnFailovers,
+                          let failedID = attemptModel,
+                          !otherModelMode else {
+                        self?.finish(id, error: Self.describe(error))
+                        return
+                    }
+                    guard let self else { return }
+                    guard settings.automaticallySwitchModels else {
+                        // Never silently substitute when auto-switch
+                        // is off: the turn waits on the selected
+                        // model, and the error says so.
+                        self.finish(id, error: Self.describe(error))
+                        return
+                    }
+                    let failed = AssistCandidateModel(
+                        id: failedID, displayName: failedID, provider: attemptKind,
+                        modelIdentifier: failedID, contextWindow: window ?? 128_000)
+                    let discovered = self.discoveredCandidates()
+                    let eligible = await modelRouter.eligibleCandidates(
+                        from: discovered, strategy: settings.routingStrategy,
+                        useProviderModelsOnly: settings.useProviderModelsOnly,
+                        useCloudModel: settings.useSwiftCodeCloudModel)
+                    guard let (nextModel, handoff) = await modelRouter.handleTurnFailure(
+                        failedModel: failed, error: error, completedTurnContent: partial,
+                        executedToolsCount: 0, objective: prompt,
+                        automaticallySwitchModels: settings.automaticallySwitchModels,
+                        eligibleCandidates: eligible) else {
+                        self.finish(id, error: Self.describe(error))
+                        return
+                    }
+                    failovers += 1
+                    appendActivity(id, "“\(failed.displayName)” failed (\(AssistModelRouter.classify(error: error).rawValue)); switching to \(nextModel.displayName)")
+                    var nextProvider = services.backends(prefs).provider(forModelID: nextModel.id)
+                    if var meta = nextProvider as? MetaAssistProvider, let ids = mcpToolIDsProvider?() {
+                        meta.knownToolIDs = ids
+                        nextProvider = meta
+                    }
+                    // Agent mode re-attaches on the new provider
+                    // (the old attachment is cleaned up first).
+                    if settings.agentMode, let attachable = nextProvider as? AgentAttachable {
+                        attachmentCleanups.removeValue(forKey: id)?()
+                        if let (attachment, cleanup) = agentAttachment?(id) {
+                            let attached = attachable.attaching(attachment)
+                            if (attached as? AgentAttachable)?.isAttached == true {
+                                nextProvider = attached
+                                attachmentCleanups[id] = cleanup
+                            } else {
+                                cleanup()
+                            }
+                        }
+                    }
+                    update(id) { c in
+                        c.model = nextModel.id
+                        c.provider = nextModel.provider
+                    }
+                    notify(.status)
+                    attemptProvider = nextProvider
+                    attemptModel = nextModel.id
+                    attemptKind = nextModel.provider
+                    attemptPrompt = handoff + "\n\nOriginal request:\n" + prompt
+                }
             }
         }
         notify(.list)
@@ -491,6 +580,10 @@ public final class CodingAssistantModel {
     /// the command string back into the composer.
     @discardableResult
     public func handleMetaSlashCommand(_ text: String) -> MetaSlashCommandHandling {
+        // Gap closure: the toggle gates the typed-command
+        // intercept too, not just the `/` popup. When it is off,
+        // `/…` text is sent to the model as-is.
+        guard settings.useMetaSlashCommands else { return .notACommand }
         guard providerKind == .metaAssist else { return .notACommand }
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard trimmed.hasPrefix("/") else { return .notACommand }
@@ -559,6 +652,27 @@ public final class CodingAssistantModel {
             guard let self else { return }
             await self.metaSlashCommands.captureCommandsFromTerminal(executable: executable)
         }
+    }
+
+    /// Triggers the once-only terminal-skill capture (the `/`
+    /// popup calls this when it opens, so skills join the list).
+    public func ensureSlashCommandsCaptured() {
+        if metaSlashCommands.lastCapturedAt == nil { refreshMetaSlashCommands() }
+    }
+
+    /// Every model the availability survey knows, as router
+    /// candidates. The failover path and the other-model proxy
+    /// resolution share this list.
+    func discoveredCandidates() -> [AssistCandidateModel] {
+        var discovered: [AssistCandidateModel] = []
+        for (kind, avail) in availability {
+            for info in avail.models {
+                discovered.append(AssistCandidateModel(
+                    id: info.id, displayName: info.displayName, provider: kind,
+                    modelIdentifier: info.id, contextWindow: info.contextWindow ?? 128_000))
+            }
+        }
+        return discovered
     }
 
     /// Posts a slash command and its effect's result as a

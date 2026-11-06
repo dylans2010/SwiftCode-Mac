@@ -51,16 +51,16 @@ import YcodeIDECore
 ///   the approval gate, exactly as Legacy runs it via
 ///   `AssistArgvRunner`.
 ///
-/// Implemented (5): `code_mutation_engine`,
+/// Implemented (6): `code_mutation_engine`,
 /// `patch_application_engine`, `dependency_resolution_engine`
-/// (macOS only — Legacy's own `#else` branch), 
-/// `external_resource_gateway`, `fetch_documentation`.
-/// Honestly failing (1): `reverse_analyze` — registered with
-/// Legacy's ID and schema, validating its inputs first (operation
-/// allow-list, REA-disclaimer task screen, target/scope
-/// validation, objdump sub-operation, timeout clamp), then failing
-/// with the exact prerequisite. No behaviour, credential, or
-/// network call is invented for it.
+/// (macOS only — Legacy's own `#else` branch),
+/// `external_resource_gateway`, `fetch_documentation`, and
+/// `reverse_analyze` — the last runs through the Node.js bridge
+/// (`ReverseBridge.mjs` in `YcodeTools+ReverseBridge.swift`),
+/// which dynamically imports the pinned `rea-agents@6.5.0`
+/// package. A missing Node, REA dir, or bridge resource fails
+/// honestly naming exactly which piece is missing; nothing is
+/// downloaded or installed.
 ///
 /// Deliberate deviations from Legacy, recorded here:
 ///
@@ -101,13 +101,17 @@ import YcodeIDECore
 ///   are dropped. Content-type checking is by parse success
 ///   (a non-DocC payload falls through to the HTML fallback),
 ///   not by header.
-/// * `reverse_analyze` keeps Legacy's full validation chain but
-///   has no engine behind it: the REA subsystem (Node.js 22/24/26
-///   + the pinned `rea-agents@6.5.0` package +
-///   `ReverseBridge.mjs`) does not exist in Ycode. The one
-///   wording change is the out-of-scope remediation, which says
-///   "open the containing project in Ycode" where Legacy says
-///   "in SwiftCode".
+/// * `reverse_analyze` keeps Legacy's full validation chain and
+///   runs the analysis through the Node.js bridge
+///   (`ReverseBridge.mjs`, `YcodeTools+ReverseBridge.swift`):
+///   one request per process, stdout frames validated (version 1,
+///   matching id, type in progress/result/error), Evidence
+///   rendered as Markdown. The one wording change is the
+///   out-of-scope remediation, which says "open the containing
+///   project in Ycode" where Legacy says "in SwiftCode".
+///   Cancellation is the timeout only (the full REA subsystem's
+///   manager lifecycle, field-specific Evidence formatter, and
+///   ReverseTests are not ported).
 extension YcodeMCPHost {
     var engineTools: [MCPTool] {
         let safeMutation = MCPToolAnnotations(readOnly: false, idempotent: true)
@@ -556,7 +560,7 @@ extension YcodeMCPHost {
         )
     }
 
-    // MARK: - `reverse_analyze` (honestly failing)
+    // MARK: - `reverse_analyze` (via the Node.js bridge)
 
     func reverseAnalyze(_ call: MCPToolCall) async throws -> MCPToolResult {
         let s = try session(for: call)
@@ -573,10 +577,11 @@ extension YcodeMCPHost {
         }
         // 3. Target / scope validation — own checks, never the
         // Autopilot bypass, never the generic path relativizer.
+        let targetPath: String
         switch EnginesReverseValidator.validateTarget(path: call.arguments["targetPath"]?.string,
                                                       workspaceRoot: Self.folder(of: s.model)) {
         case .success(let validated):
-            _ = validated
+            targetPath = validated
         case .failure(let message):
             throw MCPToolError(message)
         }
@@ -590,16 +595,31 @@ extension YcodeMCPHost {
         }
         // 5. Symbol for demangle_swift (validated as present-or-absent;
         // the value itself needs no check) and 6. timeout clamp.
-        _ = call.string("symbol")
-        _ = EnginesReverseValidator.clampTimeout(call.arguments["timeoutSeconds"])
-        // NOT PORTED (see the file header): the analysis itself runs
-        // through Legacy's REA subsystem — a Node.js bridge process
-        // (`ReverseBridge.mjs`) dynamically importing the pinned
-        // `rea-agents@6.5.0` package (or the pinned `rea` CLI for
-        // objdump). Ycode's MCP host has neither Node.js, nor the
-        // pinned package, nor the bridge script, and must not
-        // auto-install them. Failing honestly beats faking an
-        // Evidence envelope.
-        throw MCPToolError("reverse_analyze needs the native Reverse subsystem (Node.js 22, 24, or 26 + the pinned rea-agents@6.5.0 package + ReverseBridge.mjs), which Ycode's MCP host does not have yet; no binary was analyzed.")
+        let symbol = call.string("symbol")
+        let timeout = EnginesReverseValidator.clampTimeout(call.arguments["timeoutSeconds"])
+        // 7. The analysis itself: one request per process through
+        // the Node.js bridge (`ReverseBridge.mjs`, see
+        // `YcodeTools+ReverseBridge.swift`), which dynamically
+        // imports the pinned `rea-agents@6.5.0` package (or the
+        // pinned `rea` CLI for objdump). Nothing is downloaded or
+        // installed; a missing Node, REA dir, or bridge resource
+        // fails honestly naming exactly which piece is missing.
+        let objdumpOp: String? = operation == .inspectWithObjdump
+            ? (call.arguments["objdumpOperation"]?.string ?? EnginesReverseObjdumpOperation.fileHeaders.rawValue)
+            : nil
+        let evidence = try await reverseBridgeAnalyze(operation: operation.rawValue, targetPath: targetPath,
+                                                      objdumpOperation: objdumpOp, symbol: symbol, timeout: timeout)
+        let markdown = Self.reverseRenderEvidence(evidence)
+        let (capped, _) = Self.terminalCappedOutput(markdown)
+        let evidenceID = evidence["evidence_id"] as? String ?? ""
+        let provider = evidence["provider"] as? String ?? "rea-agents@\(Self.reversePinnedREAVersion)"
+        let confidence: AnyJSON
+        if let c = evidence["confidence"] as? Double { confidence = .double(c) }
+        else if let c = evidence["confidence"] as? Int { confidence = .int(c) }
+        else { confidence = .null }
+        return .structured(["evidence_id": .string(evidenceID), "operation": .string(operation.rawValue),
+                            "provider": .string(provider), "confidence": confidence,
+                            "subject_digest": .string(evidence["subject_digest"] as? String ?? "")],
+                           summary: capped)
     }
 }

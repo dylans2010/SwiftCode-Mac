@@ -114,13 +114,10 @@ public final class AppwriteAuthenticationProvider: AuthenticationProvider, @unch
 }
 
 /// The `StorageProvider` seam backed by Appwrite Storage. This is
-/// what `BackupEngine` needs: `listObjects` / `download` / `delete`
-/// on the `backups` bucket, over the client's Storage REST calls.
-/// The `path` is the Appwrite file id within the bucket.
-///
-/// Upload is honestly unavailable in this slice: Appwrite file
-/// creation is a `multipart/form-data` upload, which the client does
-/// not build yet. See `specs/ide/cloud-accounts.md` §8.
+/// what `BackupEngine` needs: `upload` / `listObjects` / `download` /
+/// `delete` on the `backups` bucket, over the client's Storage REST
+/// calls. The `path` is the Appwrite file id within the bucket; the
+/// returned string from `upload` is the created file's id.
 public struct AppwriteStorageProvider: StorageProvider {
     private let client: AppwriteAccountClient
 
@@ -129,7 +126,14 @@ public struct AppwriteStorageProvider: StorageProvider {
     }
 
     public func upload(bucket: String, path: String, data: Data, contentType: String) async throws -> String {
-        throw CloudError.storageError("Appwrite file upload is not implemented: creating a file needs a multipart/form-data upload, which the REST client does not build yet.")
+        do {
+            let file = try await client.createFile(
+                bucketId: bucket, fileId: path, data: data,
+                filename: path, contentType: contentType)
+            return file.id
+        } catch {
+            throw CloudError.storageError(error.localizedDescription)
+        }
     }
 
     public func download(bucket: String, path: String) async throws -> Data {

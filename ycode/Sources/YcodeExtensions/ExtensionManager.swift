@@ -51,6 +51,13 @@ public final class ExtensionManager {
     public init(storage: ExtensionStorage) {
         self.storage = storage
         self.permissions = PermissionManager(storage: storage)
+        // Capability approval UI (gap-closure misc): host-initiated
+        // requests ask a person through the approval center. With
+        // no presenter installed the center denies immediately, so
+        // headless runs keep the old deny-by-default behaviour.
+        self.permissions.promptHandler = { request in
+            await ExtensionPermissionApprovalCenter.shared.ask(request)
+        }
         self.hostManager = ExtensionHostManager(storage: storage, permissions: permissions)
         self.packageService = PackageService(storage: storage)
         self.diagnostics = DiagnosticsService.shared

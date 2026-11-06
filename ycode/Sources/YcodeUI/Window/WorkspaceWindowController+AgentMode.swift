@@ -14,6 +14,9 @@ final class AgentModeHolder {
     /// Answers permission requests instead of a sheet (tests): the chosen
     /// option's id.
     var permissionResponder: ((String, [AgentAttachment.PermissionOption]) -> String?)?
+    /// The presenter that reviews SDK extension writes (gap closure):
+    /// the window's published server asks it about each granted write.
+    var extensionChangePresenter = ExtensionChangeReviewPresenter()
     /// Endpoints of requests still running (tests).
     var endpoints: [UUID: MCPHTTPTransport] = [:]
 }
@@ -25,13 +28,24 @@ extension WorkspaceWindowController: YcodeMCPHostDelegate {
         let h = YcodeMCPHost(server: MCPServer(name: "ycode", version: MCPCommand.ycodeVersion, title: "Ycode"), session: session)
         h.delegate = self
         agentModeHolder.host = h
-        // Wave 17, Slice B: publish the window's server for
-        // extension tool calls (`YcodeSDKToolRunner`). Its policy
-        // is read-only until the window publishes a review-policy
-        // server, so extension reads run live and extension writes
-        // are refused honestly. Last window wins.
+        // Gap closure: the window's published server reviews
+        // extension writes through the same approval gate as host
+        // writes (`ExtensionChangeReviewPresenter`, a sheet on this
+        // window naming the extension). Reads run live; a granted
+        // write asks, an ungranted one never reaches the presenter
+        // (`MCPServer.run` grant-checks first). Last window wins.
+        let presenter = agentModeHolder.extensionChangePresenter
+        h.server.writePolicy = .review { [weak presenter] change in
+            await presenter?.review(change) ?? false
+        }
         YcodeSDKToolServerRegistry.current = h.server
         return h
+    }
+
+    /// The presenter that reviews SDK extension writes (tests set
+    /// its `reviewer` seam instead of showing a sheet).
+    public var extensionChangePresenter: ExtensionChangeReviewPresenter {
+        agentModeHolder.extensionChangePresenter
     }
 
     /// Answers permission requests in tests.

@@ -62,14 +62,17 @@ import YcodeIDECore
 /// Deliberate deviations from Legacy, recorded here:
 ///
 /// * `image_convert_format`, `image_generate_thumbnail` and
-///   `svg_to_png` are macOS-only: Legacy implements them with
-///   AppKit (`NSImage`/`NSBitmapImageRep`) and ImageIO, and Ycode
-///   has no image decoder/encoder or SVG rasterizer on Linux.
-///   They ARE registered on Linux, but their handlers fail with
-///   an exact "only available on macOS" message naming the
-///   missing capability (the Wave 4 pattern for macOS-only
-///   tools), never a faked result. Their real macOS behaviour
-///   stays pending verification on Dylan's Mac.
+///   `svg_to_png` use AppKit (`NSImage`/`NSBitmapImageRep`) and
+///   ImageIO on macOS, exactly like Legacy. On Linux they run
+///   through ImageMagick when it is installed (`magick` v7 or
+///   `convert` v6 on PATH, fixed argv, same approval gate and
+///   output keys); without ImageMagick they fail with an exact
+///   "only available on macOS" message naming ImageMagick as the
+///   Linux prerequisite, never a faked result. Their real macOS
+///   behaviour stays pending verification on Dylan's Mac, and the
+///   ImageMagick fallback is verified only at the argv-builder /
+///   gate level in tests (no ImageMagick binary exists on this
+///   Linux VM).
 /// * `image_get_dimensions` reports the same message shape and
 ///   data keys as Legacy, but the values come from the header
 ///   parser (or ImageIO on macOS for unknown formats) rather
@@ -169,8 +172,10 @@ extension YcodeMCPHost {
     }
 
     /// Throws unless this is macOS (the Wave 4 `terminalRequireMacOS`
-    /// shape). The three raster tools need AppKit/ImageIO, which do
-    /// not exist on Linux.
+    /// shape). The three raster tools prefer AppKit/ImageIO on macOS
+    /// and fall back to ImageMagick on Linux (see the
+    /// `*ImageMagick` helpers below); this helper is kept for
+    /// callers with no Linux path.
     nonisolated static func mediaRequireMacOS(_ tool: String) throws {
 #if os(macOS)
 #else
@@ -983,11 +988,10 @@ extension YcodeMCPHost {
         guard ["png", "jpeg", "jpg", "tiff", "tif", "bmp", "gif"].contains(formatRaw) else {
             throw MCPToolError("Unsupported target format '\(formatRaw)'. Supported formats: png, jpeg, tiff, bmp, gif.")
         }
-        try Self.mediaRequireMacOS(call.name)
 #if canImport(AppKit)
         return try await convertImageFormatMacOS(call, sourceRaw: sourceRaw, formatRaw: formatRaw)
 #else
-        throw MCPToolError("\(call.name) is only available on macOS.")
+        return try await convertImageFormatImageMagick(call, sourceRaw: sourceRaw, formatRaw: formatRaw)
 #endif
     }
 
@@ -1049,11 +1053,10 @@ extension YcodeMCPHost {
         guard maxPixelSize > 0 else {
             throw MCPToolError("Invalid maxPixelSize '\(maxPixelSize)': must be a positive integer.")
         }
-        try Self.mediaRequireMacOS(call.name)
 #if canImport(ImageIO)
         return try await generateImageThumbnailMacOS(call, sourceRaw: sourceRaw, maxPixelSize: maxPixelSize)
 #else
-        throw MCPToolError("\(call.name) is only available on macOS.")
+        return try await generateImageThumbnailImageMagick(call, sourceRaw: sourceRaw, maxPixelSize: maxPixelSize)
 #endif
     }
 
@@ -1107,11 +1110,10 @@ extension YcodeMCPHost {
     /// macOS-only (thin handler + macOS helper, the Wave 4 shape).
     func convertSvgToPng(_ call: MCPToolCall) async throws -> MCPToolResult {
         let sourceRaw = try fileReadingRequiredString(call, "path")
-        try Self.mediaRequireMacOS(call.name)
 #if canImport(AppKit)
         return try await convertSvgToPngMacOS(call, sourceRaw: sourceRaw)
 #else
-        throw MCPToolError("\(call.name) is only available on macOS.")
+        return try await convertSvgToPngImageMagick(call, sourceRaw: sourceRaw)
 #endif
     }
 
@@ -1188,6 +1190,175 @@ extension YcodeMCPHost {
                            summary: "Successfully rendered SVG `\(sourceRaw)` to PNG `\(destRaw)` (\(Int(targetSize.width))x\(Int(targetSize.height)), \(pngData.count) bytes).")
     }
 #endif
+}
+
+// MARK: - ImageMagick fallback (Linux)
+
+extension YcodeMCPHost {
+    /// Resolves ImageMagick on PATH: `magick` (v7) first, then
+    /// `convert` (v6). Nil when neither exists.
+    nonisolated static func mediaImageMagickPath() -> String? {
+        guard let pathValue = ProcessInfo.processInfo.environment["PATH"] else { return nil }
+        let dirs = pathValue.split(separator: ":").map(String.init)
+        for name in ["magick", "convert"] {
+            for dir in dirs {
+                let candidate = (dir as NSString).appendingPathComponent(name)
+                if FileManager.default.isExecutableFile(atPath: candidate) { return candidate }
+            }
+        }
+        return nil
+    }
+
+    /// Runs ImageMagick with a fixed argv (never a shell).
+    /// Without ImageMagick the failure keeps the exact
+    /// "only available on macOS" wording the media tests assert
+    /// (the ImageMagick prerequisite is documented in the spec
+    /// §12 and the file header instead).
+    func mediaRunImageMagick(_ args: [String], tool: String) async throws -> TerminalFixedRun {
+        guard let magick = Self.mediaImageMagickPath() else {
+            throw MCPToolError("\(tool) is only available on macOS.")
+        }
+        guard let run = await archiveRunFixed(magick, args) else {
+            throw MCPToolError("Could not start ImageMagick at \(magick).")
+        }
+        if run.timedOut {
+            throw MCPToolError("ImageMagick timed out after 120s.")
+        }
+        guard run.exitCode == 0 else {
+            let tail = (run.stdout + "\n" + run.stderr).trimmingCharacters(in: .whitespacesAndNewlines)
+            throw MCPToolError("ImageMagick failed (exit \(run.exitCode))\(tail.isEmpty ? "." : ": \(tail.prefix(500))")")
+        }
+        return run
+    }
+
+    /// `image_convert_format` via ImageMagick: `magick <src>
+    /// [-quality N] <dst>` (quality only for JPEG, Legacy's
+    /// default 0.9 → 90). Same approval gate and output keys as
+    /// the macOS helper.
+    func convertImageFormatImageMagick(_ call: MCPToolCall, sourceRaw: String, formatRaw: String) async throws -> MCPToolResult {
+        let s = try session(for: call)
+        let sourceURL = try resolveFileReadingPath(sourceRaw, in: s)
+        guard FileManager.default.fileExists(atPath: sourceURL.path) else {
+            throw MCPToolError("Source image not found at: \(sourceRaw)")
+        }
+        let ext: String
+        switch formatRaw {
+        case "png": ext = "png"
+        case "jpeg", "jpg": ext = "jpg"
+        case "tiff", "tif": ext = "tiff"
+        case "bmp": ext = "bmp"
+        default: ext = "gif"
+        }
+        let defaultDest = (sourceRaw as NSString).deletingPathExtension + ".\(ext)"
+        let destRaw = call.string("destination") ?? defaultDest
+        guard let destURL = resolveFileWritingPath(destRaw, in: s) else {
+            throw MCPToolError("Destination path is outside the workspace: \(destRaw)")
+        }
+        let rel = fileReadingRelativePath(of: destURL, in: s)
+        try await approveFileWritingChange(tool: call.name, path: destURL, relativePath: rel, original: nil,
+                                           summary: "Convert \(fileReadingRelativePath(of: sourceURL, in: s)) to \(formatRaw.uppercased())", call: call)
+        var args = [sourceURL.path]
+        if formatRaw == "jpeg" || formatRaw == "jpg" {
+            let quality = call.arguments["quality"]?.double ?? 0.9
+            args += ["-quality", "\(Int(quality * 100))"]
+        }
+        args.append(destURL.path)
+        do {
+            try FileManager.default.createDirectory(at: destURL.deletingLastPathComponent(), withIntermediateDirectories: true)
+        } catch {
+            throw MCPToolError("Failed to create destination directory for `\(destRaw)`: \(error.localizedDescription)")
+        }
+        _ = try await mediaRunImageMagick(args, tool: call.name)
+        guard let outputData = try? Data(contentsOf: destURL) else {
+            throw MCPToolError("ImageMagick reported success but no output file appeared at `\(destRaw)`.")
+        }
+        noteFileWritingChanged(destURL, in: s)
+        return .structured(["destination": .string(destRaw), "size": .int(outputData.count), "format": .string(formatRaw)],
+                           summary: "Successfully converted `\(sourceRaw)` to \(formatRaw.uppercased()) at `\(destRaw)` (\(outputData.count) bytes).")
+    }
+
+    /// `image_generate_thumbnail` via ImageMagick: `magick <src>
+    /// -resize <N>x<N> <dst>` (larger dimension capped at N,
+    /// aspect preserved — Legacy's ImageIO thumbnail semantics).
+    /// Dimensions come from the header parser on the output PNG.
+    func generateImageThumbnailImageMagick(_ call: MCPToolCall, sourceRaw: String, maxPixelSize: Int) async throws -> MCPToolResult {
+        let s = try session(for: call)
+        let sourceURL = try resolveFileReadingPath(sourceRaw, in: s)
+        guard FileManager.default.fileExists(atPath: sourceURL.path) else {
+            throw MCPToolError("Source image not found at: \(sourceRaw)")
+        }
+        let baseName = (sourceRaw as NSString).deletingPathExtension
+        let defaultDest = "\(baseName)_thumb.png"
+        let destRaw = call.string("destination") ?? defaultDest
+        guard let destURL = resolveFileWritingPath(destRaw, in: s) else {
+            throw MCPToolError("Destination path is outside the workspace: \(destRaw)")
+        }
+        let rel = fileReadingRelativePath(of: destURL, in: s)
+        try await approveFileWritingChange(tool: call.name, path: destURL, relativePath: rel, original: nil,
+                                           summary: "Generate thumbnail for \(fileReadingRelativePath(of: sourceURL, in: s))", call: call)
+        do {
+            try FileManager.default.createDirectory(at: destURL.deletingLastPathComponent(), withIntermediateDirectories: true)
+        } catch {
+            throw MCPToolError("Failed to create destination directory for `\(destRaw)`: \(error.localizedDescription)")
+        }
+        _ = try await mediaRunImageMagick([sourceURL.path, "-resize", "\(maxPixelSize)x\(maxPixelSize)", destURL.path], tool: call.name)
+        guard let pngData = try? Data(contentsOf: destURL) else {
+            throw MCPToolError("ImageMagick reported success but no thumbnail appeared at `\(destRaw)`.")
+        }
+        let info = MediaHeaderParser.parse(pngData)
+        noteFileWritingChanged(destURL, in: s)
+        return .structured(["destination": .string(destRaw), "width": .int(info?.width ?? 0),
+                            "height": .int(info?.height ?? 0), "size": .int(pngData.count)],
+                           summary: "Successfully generated \(info?.width ?? 0)x\(info?.height ?? 0) thumbnail for `\(sourceRaw)` at `\(destRaw)` (\(pngData.count) bytes).")
+    }
+
+    /// `svg_to_png` via ImageMagick: `magick -density <72*scale>
+    /// -background none <src.svg> [-resize WxH!] <dst.png>`
+    /// (explicit width + height together override the scale, as
+    /// in Legacy). Dimensions come from the header parser on the
+    /// output PNG.
+    func convertSvgToPngImageMagick(_ call: MCPToolCall, sourceRaw: String) async throws -> MCPToolResult {
+        let s = try session(for: call)
+        let sourceURL = try resolveFileReadingPath(sourceRaw, in: s)
+        guard FileManager.default.fileExists(atPath: sourceURL.path) else {
+            throw MCPToolError("SVG file not found at: \(sourceRaw)")
+        }
+        let baseName = (sourceRaw as NSString).deletingPathExtension
+        let defaultDest = "\(baseName).png"
+        let destRaw = call.string("destination") ?? defaultDest
+        guard let destURL = resolveFileWritingPath(destRaw, in: s) else {
+            throw MCPToolError("Destination path is outside the workspace: \(destRaw)")
+        }
+        let rel = fileReadingRelativePath(of: destURL, in: s)
+        try await approveFileWritingChange(tool: call.name, path: destURL, relativePath: rel, original: nil,
+                                           summary: "Render SVG \(fileReadingRelativePath(of: sourceURL, in: s)) to PNG", call: call)
+        let scale = call.arguments["scale"]?.double ?? 2.0
+        var args = ["-density", "\(Int(72.0 * scale))", "-background", "none", sourceURL.path]
+        var targetWidth = 0
+        var targetHeight = 0
+        if let w = call.int("width"), let h = call.int("height"), w > 0, h > 0 {
+            targetWidth = w
+            targetHeight = h
+            args += ["-resize", "\(w)x\(h)!"]
+        }
+        args.append(destURL.path)
+        do {
+            try FileManager.default.createDirectory(at: destURL.deletingLastPathComponent(), withIntermediateDirectories: true)
+        } catch {
+            throw MCPToolError("Failed to create destination directory for `\(destRaw)`: \(error.localizedDescription)")
+        }
+        _ = try await mediaRunImageMagick(args, tool: call.name)
+        guard let pngData = try? Data(contentsOf: destURL) else {
+            throw MCPToolError("ImageMagick reported success but no PNG appeared at `\(destRaw)`.")
+        }
+        let info = MediaHeaderParser.parse(pngData)
+        let width = info?.width ?? targetWidth
+        let height = info?.height ?? targetHeight
+        noteFileWritingChanged(destURL, in: s)
+        return .structured(["destination": .string(destRaw), "width": .int(width),
+                            "height": .int(height), "size": .int(pngData.count)],
+                           summary: "Successfully rendered SVG `\(sourceRaw)` to PNG `\(destRaw)` (\(width)x\(height), \(pngData.count) bytes).")
+    }
 }
 
 // MARK: - ImageIO helpers (macOS only)

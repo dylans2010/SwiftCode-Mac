@@ -48,18 +48,28 @@ import YcodeIDECore
 ///   `writes: false`. No tool in this slice writes a file. There
 ///   is no Autopilot bypass.
 ///
-/// Honest failures (Wave 2 `code_refactor` / Wave 6 `code_review`
-/// precedent): eight tools are registered with their full Legacy
-/// schema but always fail naming the missing LLM provider.
+/// LLM tools (gap-closure wiring): the eight tools below are wired to
+/// the configured Assist LLM provider through `LLMToolCompletionService`
+/// (`ycode/Sources/YcodeAssistant/LLMToolCompletion.swift`) — the host's
+/// own dispatch (`AssistantBackends.provider(_:)`, Wave 9 providers
+/// OpenRouter / OpenCode / Hermes / Foundation Models / SwiftCode Cloud,
+/// Wave 15 router selection), never a parallel client or registry.
 /// Legacy itself returns canned strings for seven of them
 /// (`generate_code`, `refactor_code`, `review_code`,
 /// `fix_bugs`, `generate_unit_tests`,
 /// `generate_integration_tests`, `generate_documentation`,
 /// `generate_comments`) — a fake in Legacy, not ported as real
-/// behaviour. `explain_code` is the exception: Legacy really
+/// behaviour: the port sends the same request to the real provider
+/// instead. With no provider usable the handler fails honestly naming
+/// the provider (the message keeps the words "unavailable" and "LLM").
+/// `explain_code` is the exception: Legacy really
 /// calls OpenRouter, and the port implements the deterministic
 /// subset the project already accepted for `intel_explain_code` —
 /// a static structural explanation, labelled as such.
+/// The shared service also backs `code_refactor` (see
+/// `YcodeTools+FileWriting.swift`), `code_review` (see
+/// `YcodeTools+ReviewDocs.swift`) and `intel_autofix` (see
+/// `YcodeTools+Planning.swift`).
 ///
 /// Deliberate deviations from Legacy, recorded here:
 ///
@@ -120,7 +130,7 @@ extension YcodeMCPHost {
                  input: Schema.object(["workspace": Schema.workspace,
                                        "prompt": Schema.string("Natural-language description of the code to generate.")],
                                       required: ["prompt"])) { h, call in
-                try h.agenticCodeGenerateCode(call)
+                try await h.agenticCodeGenerateCode(call)
             },
             tool("refactor_code", "Refactor Code",
                  "Refactors code based on instructions.",
@@ -128,7 +138,7 @@ extension YcodeMCPHost {
                                        "code": Schema.string("The source code to refactor."),
                                        "instructions": Schema.string("Natural-language description of the refactoring to perform.")],
                                       required: ["code", "instructions"])) { h, call in
-                try h.agenticCodeRefactorCode(call)
+                try await h.agenticCodeRefactorCode(call)
             },
             tool("explain_code", "Explain Code",
                  "Explains code using AI.",
@@ -143,7 +153,7 @@ extension YcodeMCPHost {
                  input: Schema.object(["workspace": Schema.workspace,
                                        "code": Schema.string("The source code to review.")],
                                       required: ["code"])) { h, call in
-                try h.agenticCodeReviewCode(call)
+                try await h.agenticCodeReviewCode(call)
             },
             tool("detect_bugs", "Detect Bugs",
                  "Detects bugs in Swift code.",
@@ -159,35 +169,35 @@ extension YcodeMCPHost {
                                        "code": Schema.string("The source code containing the bug."),
                                        "issue": Schema.string("Description of the bug to fix.")],
                                       required: ["code", "issue"])) { h, call in
-                try h.agenticCodeFixBugs(call)
+                try await h.agenticCodeFixBugs(call)
             },
             tool("generate_unit_tests", "Generate Unit Tests",
                  "Generates unit tests for the provided code.",
                  input: Schema.object(["workspace": Schema.workspace,
                                        "code": Schema.string("The source code to generate unit tests for.")],
                                       required: ["code"])) { h, call in
-                try h.agenticCodeGenerateUnitTests(call)
+                try await h.agenticCodeGenerateUnitTests(call)
             },
             tool("generate_integration_tests", "Generate Integration Tests",
                  "Generates integration tests for the provided code.",
                  input: Schema.object(["workspace": Schema.workspace,
                                        "code": Schema.string("The source code to generate integration tests for.")],
                                       required: ["code"])) { h, call in
-                try h.agenticCodeGenerateIntegrationTests(call)
+                try await h.agenticCodeGenerateIntegrationTests(call)
             },
             tool("generate_documentation", "Generate Documentation",
                  "Generates documentation for the provided code.",
                  input: Schema.object(["workspace": Schema.workspace,
                                        "code": Schema.string("The source code to document.")],
                                       required: ["code"])) { h, call in
-                try h.agenticCodeGenerateDocumentation(call)
+                try await h.agenticCodeGenerateDocumentation(call)
             },
             tool("generate_comments", "Generate Comments",
                  "Generates comments for the provided code.",
                  input: Schema.object(["workspace": Schema.workspace,
                                        "code": Schema.string("The source code to comment.")],
                                       required: ["code"])) { h, call in
-                try h.agenticCodeGenerateComments(call)
+                try await h.agenticCodeGenerateComments(call)
             },
             tool("code_analysis", "Code Analysis",
                  "Analyzes Swift code for potential issues, complexity, and architectural patterns.",
@@ -256,46 +266,150 @@ extension YcodeMCPHost {
 }
 
 extension YcodeMCPHost {
-    // MARK: - Honestly-failing LLM tools
+    // MARK: - LLM tools (wired to the configured Assist provider)
 
-    /// The shared honest failure: always throws, naming the missing
-    /// LLM provider. The `Never` return lets each one-line handler
-    /// below end with this call.
-    func agenticCodeUnavailable(_ message: String) throws -> Never {
-        throw MCPToolError(message)
+    func agenticCodeGenerateCode(_ call: MCPToolCall) async throws -> MCPToolResult {
+        guard let prompt = call.arguments["prompt"]?.string,
+              !prompt.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            throw MCPToolError("Missing prompt")
+        }
+        let completion = try await llmToolComplete(
+            systemPrompt: "You are a Swift code generator. Return ONLY the Swift code that implements the request, with no preamble, no explanation, and no markdown fences.",
+            userText: prompt, toolName: "generate_code")
+        return .text(try Self.llmToolCodeOnly(completion, toolName: "generate_code"))
     }
 
-    func agenticCodeGenerateCode(_ call: MCPToolCall) throws -> MCPToolResult {
-        try agenticCodeUnavailable("generate_code is unavailable: generating code from a prompt needs an LLM provider (OpenRouter / the configured Assist provider), and Ycode's MCP host has no LLM provider wired for this tool. Legacy's implementation only returns a canned stub (\"// Generated code based on: <prompt>\"), so nothing is generated here.")
+    func agenticCodeRefactorCode(_ call: MCPToolCall) async throws -> MCPToolResult {
+        let code = try Self.agenticCodeRequiredCode(call, missingMessage: "Missing code or instructions")
+        guard let instructions = call.arguments["instructions"]?.string,
+              !instructions.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            throw MCPToolError("Missing code or instructions")
+        }
+        let completion = try await llmToolComplete(
+            systemPrompt: "You are a Swift refactoring engine. Apply the requested refactoring to the supplied code. Return ONLY the refactored code, with no preamble, no explanation, and no markdown fences.",
+            userText: "Instructions: \(instructions)\n\nCode:\n\(code)", toolName: "refactor_code")
+        return .text(try Self.llmToolCodeOnly(completion, toolName: "refactor_code"))
     }
 
-    func agenticCodeRefactorCode(_ call: MCPToolCall) throws -> MCPToolResult {
-        try agenticCodeUnavailable("refactor_code is unavailable: refactoring code from instructions needs an LLM provider (OpenRouter / the configured Assist provider), and Ycode's MCP host has no LLM provider wired for this tool. Legacy's implementation only returns the input code unchanged with a comment, so nothing was changed.")
+    func agenticCodeReviewCode(_ call: MCPToolCall) async throws -> MCPToolResult {
+        let code = try Self.agenticCodeRequiredCode(call, missingMessage: "Missing code")
+        let completion = try await llmToolComplete(
+            systemPrompt: "You are a senior Swift code reviewer. Review the supplied Swift code for correctness, safety, Swift idioms, and maintainability. List concrete issues with line references where possible, then concrete fixes. Do not invent APIs or behaviour the code does not show. If the code is sound, say so briefly.",
+            userText: code, toolName: "review_code")
+        return .text(completion.text)
     }
 
-    func agenticCodeReviewCode(_ call: MCPToolCall) throws -> MCPToolResult {
-        try agenticCodeUnavailable("review_code is unavailable: reviewing code needs an LLM provider (OpenRouter / the configured Assist provider), and Ycode's MCP host has no LLM provider wired for this tool. Legacy's implementation only returns a canned \"Review comments: LGTM!\", so no review is performed and nothing was verified.")
+    func agenticCodeFixBugs(_ call: MCPToolCall) async throws -> MCPToolResult {
+        let code = try Self.agenticCodeRequiredCode(call, missingMessage: "Missing code or issue")
+        guard let issue = call.arguments["issue"]?.string,
+              !issue.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            throw MCPToolError("Missing code or issue")
+        }
+        let completion = try await llmToolComplete(
+            systemPrompt: "You are a Swift debugging engine. Fix the described bug in the supplied code. Return ONLY the fixed code, with no preamble, no explanation, and no markdown fences.",
+            userText: "Issue: \(issue)\n\nCode:\n\(code)", toolName: "fix_bugs")
+        return .text(try Self.llmToolCodeOnly(completion, toolName: "fix_bugs"))
     }
 
-    func agenticCodeFixBugs(_ call: MCPToolCall) throws -> MCPToolResult {
-        try agenticCodeUnavailable("fix_bugs is unavailable: fixing a described bug needs an LLM provider (OpenRouter / the configured Assist provider), and Ycode's MCP host has no LLM provider wired for this tool. Legacy's implementation only returns the input code unchanged with a comment, so nothing was changed.")
+    func agenticCodeGenerateUnitTests(_ call: MCPToolCall) async throws -> MCPToolResult {
+        let code = try Self.agenticCodeRequiredCode(call, missingMessage: "Missing code")
+        let completion = try await llmToolComplete(
+            systemPrompt: "You are a Swift test generator. Generate XCTest unit tests (import XCTest, XCTestCase subclasses) with real assertions that exercise the supplied code's behaviour. Return ONLY the test source, with no preamble, no explanation, and no markdown fences.",
+            userText: code, toolName: "generate_unit_tests")
+        return .text(try Self.llmToolCodeOnly(completion, toolName: "generate_unit_tests"))
     }
 
-    func agenticCodeGenerateUnitTests(_ call: MCPToolCall) throws -> MCPToolResult {
-        try agenticCodeUnavailable("generate_unit_tests is unavailable: generating unit tests with meaningful assertions needs an LLM provider (OpenRouter / the configured Assist provider), and Ycode's MCP host has no LLM provider wired for this tool. Legacy's implementation only returns a canned empty XCTestCase stub, so nothing is generated.")
+    func agenticCodeGenerateIntegrationTests(_ call: MCPToolCall) async throws -> MCPToolResult {
+        let code = try Self.agenticCodeRequiredCode(call, missingMessage: "Missing code")
+        let completion = try await llmToolComplete(
+            systemPrompt: "You are a Swift test generator. Generate XCTest integration tests (import XCTest, XCTestCase subclasses) with real assertions that exercise the supplied code's behaviour end to end, including its collaborators. Return ONLY the test source, with no preamble, no explanation, and no markdown fences.",
+            userText: code, toolName: "generate_integration_tests")
+        return .text(try Self.llmToolCodeOnly(completion, toolName: "generate_integration_tests"))
     }
 
-    func agenticCodeGenerateIntegrationTests(_ call: MCPToolCall) throws -> MCPToolResult {
-        try agenticCodeUnavailable("generate_integration_tests is unavailable: generating integration tests with meaningful assertions needs an LLM provider (OpenRouter / the configured Assist provider), and Ycode's MCP host has no LLM provider wired for this tool. Legacy's implementation only returns a canned empty XCTestCase stub, so nothing is generated.")
+    func agenticCodeGenerateDocumentation(_ call: MCPToolCall) async throws -> MCPToolResult {
+        let code = try Self.agenticCodeRequiredCode(call, missingMessage: "Missing code")
+        let completion = try await llmToolComplete(
+            systemPrompt: "You are a Swift documentation writer. Write Apple DocC documentation comments (///) for the supplied code: a summary plus - Parameter, - Returns, and - Throws tags where they apply. Return ONLY the documentation comments, with no preamble, no explanation, and no markdown fences.",
+            userText: code, toolName: "generate_documentation")
+        return .text(try Self.llmToolCodeOnly(completion, toolName: "generate_documentation"))
     }
 
-    func agenticCodeGenerateDocumentation(_ call: MCPToolCall) throws -> MCPToolResult {
-        try agenticCodeUnavailable("generate_documentation is unavailable: generating documentation for code needs an LLM provider (OpenRouter / the configured Assist provider), and Ycode's MCP host has no LLM provider wired for this tool. Legacy's implementation only returns a canned \"/// Documentation for the provided code\" line, so nothing is generated.")
+    func agenticCodeGenerateComments(_ call: MCPToolCall) async throws -> MCPToolResult {
+        let code = try Self.agenticCodeRequiredCode(call, missingMessage: "Missing code")
+        let completion = try await llmToolComplete(
+            systemPrompt: "You are a Swift code commenter. Return the supplied code with concise explanatory comments added at the non-obvious points. Do not change the code itself. Return ONLY the commented code, with no preamble, no explanation, and no markdown fences.",
+            userText: code, toolName: "generate_comments")
+        return .text(try Self.llmToolCodeOnly(completion, toolName: "generate_comments"))
+    }
+}
+
+extension YcodeMCPHost {
+    // MARK: - Shared LLM service for MCP tools (gap-closure wiring)
+
+    /// Test seam (precedent: `agenticGitTestSecretStore`): tests set a
+    /// service backed by stub providers, so no live network or real
+    /// credential is ever touched. Production always uses
+    /// `llmToolService()` below.
+    static var llmToolTestService: LLMToolCompletionService?
+
+    /// The LLM service for MCP tools: the host's Assist dispatch
+    /// (`CodingAssistantServices` — Settings' provider + model, the
+    /// secret store, and any test provider override), never a parallel
+    /// client or registry.
+    func llmToolService() -> LLMToolCompletionService {
+        if let test = Self.llmToolTestService { return test }
+        let services = CodingAssistantServices.shared
+        var overrides: [ProviderKind: AssistantProvider] = [:]
+        if let override = services.providerOverride {
+            for kind in ProviderKind.allCases {
+                if let provider = override(kind) { overrides[kind] = provider }
+            }
+        }
+        return LLMToolCompletionService(backends: services.backends(), providerOverrides: overrides)
     }
 
-    func agenticCodeGenerateComments(_ call: MCPToolCall) throws -> MCPToolResult {
-        try agenticCodeUnavailable("generate_comments is unavailable: generating comments for code needs an LLM provider (OpenRouter / the configured Assist provider), and Ycode's MCP host has no LLM provider wired for this tool. Legacy's implementation only returns a canned \"// Comments for the provided code\" line, so nothing is generated.")
+    /// One LLM completion for a tool, mapping every failure to an
+    /// `MCPToolError` that keeps the words "unavailable" and "LLM".
+    /// `failureNote` replaces the default "No output was produced."
+    /// tail (tools with their own contract, e.g. `code_review`, name it).
+    func llmToolComplete(systemPrompt: String, userText: String, toolName: String,
+                         failureNote: String? = nil) async throws -> LLMToolCompletion {
+        do {
+            return try await llmToolService().complete(systemPrompt: systemPrompt, userText: userText)
+        } catch let error as LLMToolError {
+            throw MCPToolError("\(toolName) is unavailable: \(error.localizedDescription). \(failureNote ?? "No output was produced.")")
+        } catch {
+            throw MCPToolError("\(toolName) is unavailable: the LLM request failed: \(error.localizedDescription). \(failureNote ?? "No output was produced.")")
+        }
     }
+
+    /// Strips one surrounding markdown fence pair (Legacy's own
+    /// ```swift / ``` stripping in `code_refactor` / `intel_autofix`)
+    /// and trims the result.
+    nonisolated static func llmToolStripFences(_ text: String) -> String {
+        var out = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        if out.hasPrefix("```") {
+            if let newline = out.firstIndex(of: "\n") {
+                out = String(out[out.index(after: newline)...])
+            } else {
+                out = ""
+            }
+        }
+        if out.hasSuffix("```") { out = String(out.dropLast(3)) }
+        return out.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    /// A code-only reply: fences stripped; empty after stripping is an
+    /// honest failure, never an empty file.
+    nonisolated static func llmToolCodeOnly(_ completion: LLMToolCompletion, toolName: String) throws -> String {
+        let code = llmToolStripFences(completion.text)
+        guard !code.isEmpty else {
+            throw MCPToolError("\(toolName) is unavailable: the \(completion.provider.displayName) LLM provider returned an empty response. No output was produced.")
+        }
+        return code
+    }
+
 
     // MARK: - Inline-code tools
 

@@ -65,30 +65,40 @@ import YcodeIDECore
 /// Honestly-failing tools (Wave 2 `code_refactor` precedent — failing
 /// honestly beats faking the work):
 ///
-/// * `code_review` is registered with its Legacy ID, title, description
-///   and schema, but its handler always fails: Legacy performs the
-///   review by sending the task history, repository changes and build
-///   state to an LLM (Apple Foundation Models or the configured
+/// * `code_review` is wired to the configured Assist LLM provider
+///   (gap-closure wiring, through `LLMToolCompletionService` — see
+///   `YcodeTools+AgenticCode.swift` for the shared service). Legacy
+///   performs the review by sending the task history, repository changes
+///   and build state to an LLM (Apple Foundation Models or the configured
 ///   provider) and requiring a JSON verdict with status `task_ready` or
-///   `task_failed`, and Ycode's MCP host has no LLM provider wired for
-///   this tool.
+///   `task_failed`. The port sends the workspace's Swift sources instead:
+///   Ycode's MCP host has no agent session (no objective, tool history or
+///   plan) and keeps no workspace snapshots, so there is no task history
+///   or change list to send — the prompt says so, and the reviewer must
+///   set `task_failed` when a verdict would need build or change evidence
+///   it does not have. The verdict contract (status, summary, strengths,
+///   issues, recommendedFixes, user_see, confidence) is Legacy's, from
+///   `CodeReviewSystemAsset.md`; the full 141-line asset is not ported
+///   (System Assets family) — the system prompt below is its condensed
+///   form. Legacy's hardcoded model fallback queue is NOT ported: the
+///   configured provider answers, or the tool fails honestly. With no
+///   provider usable it fails naming the provider; no review is faked.
 /// * `safe_undo` is registered with its Legacy ID, title, description
-///   and `potentiallyDestructive` annotations (`writes: true`), but its
-///   handler always fails: Legacy reverts by restoring the previous
-///   workspace snapshot (`AssistSnapshotFunctions`, which needs at least
-///   two snapshots), and Ycode's MCP host keeps no snapshots —
-///   `commit()` records no previous file content — so there is nothing
-///   to restore.
+///   and `potentiallyDestructive` annotations (`writes: true`), and
+///   its handler really restores the last modification from the undo
+///   journal (`SafeUndoJournal`, recorded by `commit()` — gap
+///   closure; see `specs/ide/gap-closure-correctness.md` §3 for why
+///   this is a per-file journal, not the `project_snapshot` store).
 ///
 /// Deliberate deviations from Legacy, recorded here:
 ///
 /// * `session_progress_report`: Legacy reads `AgentPhaseCoordinator`
 ///   (engineering phases) and `AgentNotesManager` (last-saved time).
-///   Ycode has no phase coordinator, so the phase counts are always
-///   zero and the message always starts "No engineering phases are
-///   registered for this session."; the agent-notes line is real — it
-///   reports the modification time of the workspace's `agent_notes.md`,
-///   or "never saved" when the file does not exist.
+///   Ycode has no phase coordinator; the counts come from the
+///   workspace's Agentic plans instead (gap closure), plus live
+///   session activity and failed-test count. The agent-notes line
+///   is real — it reports the modification time of the workspace's
+///   `agent_notes.md`, or "never saved" when the file does not exist.
 /// * `tool_capability_lookup`: Legacy looks the tool up in
 ///   `AssistToolRegistry`, reporting its `capability`, `riskLevel` and
 ///   `estimatedCost`. Ycode's tools carry no capability taxonomy and no
@@ -192,7 +202,7 @@ extension YcodeMCPHost {
             tool("code_review", "Code Review Validation",
                  "Validates the completed implementation using an independent AI reviewer stage before finishing the task.",
                  input: Schema.object(["workspace": Schema.workspace])) { h, call in
-                try h.reviewDocsCodeReview(call)
+                try await h.reviewDocsCodeReview(call)
             },
             tool("code_snippet_manager", "Code Snippet & Architecture Template Manager",
                  "Retrieves and injects battle-tested Swift architecture templates (SwiftUI MVVM, AsyncStream, Actor isolation, Keychain wrapper).",
@@ -838,23 +848,91 @@ extension YcodeMCPHost {
                            summary: lines.joined(separator: "\n"))
     }
 
-    /// NOT PORTED (see the file header): Legacy performs the review by
-    /// sending the task history, repository changes and build state to an
-    /// LLM and requiring a JSON verdict with status `task_ready` or
-    /// `task_failed`, and Ycode's MCP host has no LLM provider wired for
-    /// this tool. Failing honestly beats faking a review.
-    func reviewDocsCodeReview(_ call: MCPToolCall) throws -> MCPToolResult {
-        throw MCPToolError("code_review is unavailable: Legacy performs the review by sending the task history, repository changes and build state to an LLM (Apple Foundation Models or the configured provider) and requiring a JSON verdict with status task_ready or task_failed. Ycode's MCP host has no LLM provider wired for this tool, so no review is performed and nothing was verified.")
+    /// Wired to the configured Assist LLM provider (see the file
+    /// header): the review sends the workspace's Swift sources — full
+    /// text up to a 24,000-character budget, remaining files by path
+    /// only — with a system prompt condensing Legacy's
+    /// `CodeReviewSystemAsset.md` and requiring its JSON verdict
+    /// contract. A non-JSON reply or a status other than `task_ready` /
+    /// `task_failed` is an honest failure: no review is recorded.
+    func reviewDocsCodeReview(_ call: MCPToolCall) async throws -> MCPToolResult {
+        let s = try session(for: call)
+        let root = Self.folder(of: s.model)
+        let files = SearchWorkspace.swiftFiles(under: root)
+        guard !files.isEmpty else {
+            throw MCPToolError("code_review is unavailable: no Swift files found in the workspace to review. No review was performed.")
+        }
+        var included: [(rel: String, text: String)] = []
+        var listed: [String] = []
+        var budget = 24_000
+        for url in files.sorted(by: { $0.path < $1.path }) {
+            let rel = SearchWorkspace.relative(url, root: root)
+            guard let text = try? String(contentsOf: url, encoding: .utf8) else {
+                listed.append(rel + " (unreadable)")
+                continue
+            }
+            if text.count <= budget {
+                included.append((rel: rel, text: text))
+                budget -= text.count
+            } else {
+                listed.append(rel)
+            }
+        }
+        var userText = "Workspace: \(root.path)\nSwift files: \(files.count)\n\n"
+        for entry in included {
+            userText += "### \(entry.rel)\n```swift\n\(entry.text)\n```\n\n"
+        }
+        if !listed.isEmpty {
+            userText += "Files not included in full (context budget reached; review them by path only):\n"
+                + listed.map { "- \($0)" }.joined(separator: "\n") + "\n"
+        }
+        userText += "\nNo task history, repository change list, or build state is available to this reviewer: judge the code as it stands in the workspace, and set status task_failed when a verdict would need build or change evidence you do not have."
+        let systemPrompt = """
+            You are an independent, expert AI code reviewer (principal Swift engineer, Apple-platform architect, SwiftUI/AppKit specialist). Review the Swift code in the workspace as it stands. Be honest, objective, evidence-based, and conservative: if you cannot verify compilation or a requirement from the supplied evidence, set status to task_failed and say so. Call out stubs, placeholders, force unwraps, empty catch blocks, concurrency and Sendable problems, and missing registrations. Output ONLY a JSON object with exactly these fields, no markdown fences, no preamble, no text outside the JSON: {"status": "task_ready" | "task_failed", "summary": "...", "strengths": ["..."], "issues": ["..."], "recommendedFixes": ["..."], "user_see": "...", "confidence": 0.0-1.0}. "task_ready" means the implementation is complete and production-ready; anything else is "task_failed".
+            """
+        let completion = try await llmToolComplete(
+            systemPrompt: systemPrompt, userText: userText, toolName: "code_review",
+            failureNote: "No review was performed; the review requires a JSON verdict with status task_ready or task_failed.")
+        guard let verdict = Self.reviewDocsExtractReviewJSON(completion.text) else {
+            throw MCPToolError("code_review is unavailable: the LLM reviewer did not return a JSON verdict. No review was recorded.")
+        }
+        let status = (verdict["status"] as? String ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        guard status == "task_ready" || status == "task_failed" else {
+            throw MCPToolError("code_review is unavailable: the LLM reviewer returned an invalid verdict status '\(status)' (expected task_ready or task_failed). No review was recorded.")
+        }
+        let summary = verdict["summary"] as? String ?? ""
+        let strengths = (verdict["strengths"] as? [Any] ?? []).map { "\($0)" }
+        let issues = (verdict["issues"] as? [Any] ?? []).map { "\($0)" }
+        let fixes = (verdict["recommendedFixes"] as? [Any] ?? []).map { "\($0)" }
+        let userSee = verdict["user_see"] as? String ?? ""
+        let confidence = (verdict["confidence"] as? NSNumber)?.doubleValue
+        let providerLabel = completion.model.map { "\(completion.provider.displayName) · \($0)" } ?? completion.provider.displayName
+        var lines = ["Review completed via \(providerLabel). Status: \(status). Summary: \(summary)"]
+        if !strengths.isEmpty { lines.append("Strengths:\n" + strengths.map { "- \($0)" }.joined(separator: "\n")) }
+        if !issues.isEmpty { lines.append("Issues:\n" + issues.map { "- \($0)" }.joined(separator: "\n")) }
+        if !fixes.isEmpty { lines.append("Recommended fixes:\n" + fixes.map { "- \($0)" }.joined(separator: "\n")) }
+        if !userSee.isEmpty { lines.append(userSee) }
+        if let confidence { lines.append(String(format: "Confidence: %.2f", confidence)) }
+        return .text(lines.joined(separator: "\n"))
     }
 
-    /// NOT PORTED (see the file header): Legacy reverts by restoring the
-    /// previous workspace snapshot (`AssistSnapshotFunctions`, which
-    /// needs at least two snapshots), and Ycode's MCP host keeps no
-    /// snapshots — `commit()` records no previous file content — so
-    /// there is nothing to restore. Failing honestly beats pretending
-    /// an undo happened.
+    /// Legacy `CodeReviewTool.extractJSON`: strips one fence pair, then
+    /// takes the first `{` through the last `}` and parses it. Returns
+    /// nil for a non-JSON reply.
+    nonisolated static func reviewDocsExtractReviewJSON(_ text: String) -> [String: Any]? {
+        let cleaned = llmToolStripFences(text)
+        guard let first = cleaned.firstIndex(of: "{"),
+              let last = cleaned.lastIndex(of: "}"), first <= last else { return nil }
+        let json = String(cleaned[first...last])
+        guard let data = json.data(using: .utf8) else { return nil }
+        return try? JSONSerialization.jsonObject(with: data) as? [String: Any]
+    }
+
+    /// Gap closure: restores the last modification from the undo
+    /// journal (`SafeUndoJournal`, recorded by `commit()`). See
+    /// `specs/ide/gap-closure-correctness.md` §3.
     func reviewDocsSafeUndo(_ call: MCPToolCall) async throws -> MCPToolResult {
-        throw MCPToolError("safe_undo is unavailable: Legacy reverts the last modification by restoring the previous workspace snapshot (AssistSnapshotFunctions: at least two snapshots, restore snapshot[1]). Ycode's MCP host keeps no snapshots and commit() records no previous file content, so there is nothing to restore. Nothing was changed.")
+        try await correctnessSafeUndo(call)
     }
 
     // MARK: - Doc comments and snippets
@@ -1418,21 +1496,10 @@ extension YcodeMCPHost {
                            summary: "Session export written to \(outputRelative) (session \(sessionId)).")
     }
 
+    /// Gap closure: counts real session progress from the workspace's
+    /// Agentic plans (see `CorrectnessGapHandlers.swift`).
     func reviewDocsSessionProgress(_ call: MCPToolCall) throws -> MCPToolResult {
-        let s = try session(for: call)
-        let root = Self.folder(of: s.model)
-        // Ycode has no phase coordinator (Legacy's
-        // `AgentPhaseCoordinator`), so there are never phases to report;
-        // the agent-notes save time is the part that does exist here.
-        let notesURL = root.appendingPathComponent("agent_notes.md")
-        let notesLine: String
-        if let mtime = Self.reviewDocsModificationDate(of: notesURL) {
-            notesLine = "Agent notes last saved: \(Self.reviewDocsIso8601(mtime))"
-        } else {
-            notesLine = "Agent notes: never saved this session."
-        }
-        return .structured(["phaseCount": .int(0), "completed": .int(0), "inProgress": .int(0), "failed": .int(0), "pending": .int(0)],
-                           summary: "No engineering phases are registered for this session.\n\(notesLine)")
+        try correctnessSessionProgress(call)
     }
 
     func reviewDocsStaleFiles(_ call: MCPToolCall) throws -> MCPToolResult {

@@ -81,6 +81,11 @@ public struct AssistantSettings: Codable, Sendable, Equatable {
     /// `"high"`). The `/effort` slash command updates it through
     /// the host; the provider reads it at `send` time.
     public var metaReasoningEffort = "high"
+    /// Whether typing "/" lists Meta's slash commands (Legacy:
+    /// `AppSettings.useMetaSlashCommands`, UserDefaults
+    /// `assist.useMetaSlashCommands`, default true). Off: "/…"
+    /// text is sent to the model as-is.
+    public var useMetaSlashCommands = true
     /// The longest a Meta turn may run before Ycode stops the
     /// Muse host and fails it (Wave 17:
     /// `MetaAssistTurnExecutor.defaultTurnTimeout`, 300s).
@@ -154,6 +159,7 @@ public struct AssistantSettings: Codable, Sendable, Equatable {
         onlyUseFreeModels = (try? c.decode(Bool.self, forKey: .onlyUseFreeModels)) ?? d.onlyUseFreeModels
         useSwiftCodeCloudModel = (try? c.decode(Bool.self, forKey: .useSwiftCodeCloudModel)) ?? d.useSwiftCodeCloudModel
         metaReasoningEffort = (try? c.decode(String.self, forKey: .metaReasoningEffort)) ?? d.metaReasoningEffort
+        useMetaSlashCommands = (try? c.decode(Bool.self, forKey: .useMetaSlashCommands)) ?? d.useMetaSlashCommands
         metaTurnTimeoutSeconds = (try? c.decode(TimeInterval.self, forKey: .metaTurnTimeoutSeconds)) ?? d.metaTurnTimeoutSeconds
         alternativeKeysEnabled = (try? c.decode(Bool.self, forKey: .alternativeKeysEnabled)) ?? d.alternativeKeysEnabled
         metaUseOtherModels = (try? c.decode(Bool.self, forKey: .metaUseOtherModels)) ?? d.metaUseOtherModels

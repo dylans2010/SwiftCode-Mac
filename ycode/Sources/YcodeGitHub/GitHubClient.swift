@@ -103,6 +103,156 @@ public struct GitHubClient: Sendable {
         return response.tree
     }
 
+    /// `GET /repos/{owner}/{repo}/contents/{path}` returning only
+    /// the blob SHA, or nil when the file does not exist (HTTP 404).
+    /// Other failures throw, as in the rest of the client — Legacy
+    /// returned nil for every non-200 status, which would have
+    /// hidden an expired token as "file does not exist"; this port
+    /// only treats 404 as missing. Used to decide whether
+    /// `pushFile` creates or updates.
+    public func getFileSHA(owner: String, repo: String, path: String) async throws -> String? {
+        try validateRepo(owner: owner, repo: repo)
+        let (data, http) = try await performRaw(request(path: "repos/\(encode(owner))/\(encode(repo))/contents/\(encode(path))"))
+        if http.statusCode == 404 { return nil }
+        try validate(http, data: data)
+        do {
+            return try Self.decoder().decode(GitHubFileContent.self, from: data).sha
+        } catch {
+            throw GitHubError.decoding
+        }
+    }
+
+    /// `PUT /repos/{owner}/{repo}/contents/{path}`: creates the
+    /// file, or updates it when `sha` is the blob SHA of the
+    /// current version (fetch it with `getFileSHA` first). The
+    /// content is base64-encoded by this method; callers pass plain
+    /// text. Returns the created/updated file. Pass `branch` to
+    /// target a branch other than the default (Legacy had no branch
+    /// parameter; the API supports it, so it is additive here).
+    /// Writes need `contents: write` on a fine-grained token, or
+    /// the classic `repo` scope.
+    public func pushFile(owner: String, repo: String, path: String, content: String, message: String, sha: String? = nil, branch: String? = nil) async throws -> GitHubFileContent {
+        try validateRepo(owner: owner, repo: repo)
+        let payload = try jsonBody(PutFileBody(
+            message: message,
+            content: Data(content.utf8).base64EncodedString(),
+            sha: sha,
+            branch: branch))
+        let response: ContentsResponse = try await perform(request(
+            path: "repos/\(encode(owner))/\(encode(repo))/contents/\(encode(path))",
+            method: "PUT", body: payload))
+        return response.content
+    }
+
+    // MARK: - Workflow runs, jobs, artifacts
+
+    /// `GET /repos/{owner}/{repo}/actions/runs`. Public
+    /// repositories are readable without a token; private ones need
+    /// `actions: read` (fine-grained) or the classic `repo` scope.
+    public func listWorkflowRuns(owner: String, repo: String, perPage: Int = 30) async throws -> [GitHubWorkflowRun] {
+        try validateRepo(owner: owner, repo: repo)
+        let response: WorkflowRunsResponse = try await perform(request(
+            path: "repos/\(encode(owner))/\(encode(repo))/actions/runs",
+            query: [URLQueryItem(name: "per_page", value: "\(clampedPerPage(perPage))")]))
+        return response.workflowRuns
+    }
+
+    /// `GET /repos/{owner}/{repo}/actions/runs/{run_id}`.
+    public func getWorkflowRun(owner: String, repo: String, runID: Int) async throws -> GitHubWorkflowRun {
+        try validateRepo(owner: owner, repo: repo)
+        return try await perform(request(path: "repos/\(encode(owner))/\(encode(repo))/actions/runs/\(runID)"))
+    }
+
+    /// `GET /repos/{owner}/{repo}/actions/runs/{run_id}/jobs`.
+    public func listWorkflowJobs(owner: String, repo: String, runID: Int) async throws -> [GitHubWorkflowJob] {
+        try validateRepo(owner: owner, repo: repo)
+        let response: WorkflowJobsResponse = try await perform(request(
+            path: "repos/\(encode(owner))/\(encode(repo))/actions/runs/\(runID)/jobs"))
+        return response.jobs
+    }
+
+    /// `GET /repos/{owner}/{repo}/actions/jobs/{job_id}/logs`: the
+    /// log text. `URLSession` follows GitHub's redirect to the
+    /// temporary download URL automatically; the returned string is
+    /// the log (UTF-8, falling back to empty, as in Legacy).
+    public func getJobLogs(owner: String, repo: String, jobID: Int) async throws -> String {
+        try validateRepo(owner: owner, repo: repo)
+        let (data, http) = try await performRaw(request(path: "repos/\(encode(owner))/\(encode(repo))/actions/jobs/\(jobID)/logs"))
+        try validate(http, data: data)
+        return String(data: data, encoding: .utf8) ?? ""
+    }
+
+    /// `GET /repos/{owner}/{repo}/actions/runs/{run_id}/logs`: the
+    /// temporary download URL for the run's logs. GitHub answers
+    /// with a 302 to a short-lived URL; `URLSession` follows the
+    /// redirect and the final URL is returned (Legacy stopped at
+    /// the 302 with a no-redirect delegate to avoid downloading
+    /// the logs — this port follows it and returns the same URL,
+    /// at the cost of downloading the log body once).
+    public func getWorkflowRunLogsURL(owner: String, repo: String, runID: Int) async throws -> URL {
+        try validateRepo(owner: owner, repo: repo)
+        let (data, http) = try await performRaw(request(path: "repos/\(encode(owner))/\(encode(repo))/actions/runs/\(runID)/logs"))
+        try validate(http, data: data)
+        guard let url = http.url else {
+            throw GitHubError.http(status: http.statusCode, message: "GitHub returned no logs URL.")
+        }
+        return url
+    }
+
+    /// `GET /repos/{owner}/{repo}/actions/runs/{run_id}/artifacts`.
+    public func listWorkflowArtifacts(owner: String, repo: String, runID: Int) async throws -> [GitHubArtifact] {
+        try validateRepo(owner: owner, repo: repo)
+        let response: GitHubArtifactsResponse = try await perform(request(
+            path: "repos/\(encode(owner))/\(encode(repo))/actions/runs/\(runID)/artifacts"))
+        return response.artifacts
+    }
+
+    /// `GET /repos/{owner}/{repo}/actions/artifacts/{artifact_id}/zip`:
+    /// the artifact's ZIP bytes. The caller decides where to save
+    /// them.
+    public func downloadArtifact(owner: String, repo: String, artifactID: Int) async throws -> Data {
+        try validateRepo(owner: owner, repo: repo)
+        let (data, http) = try await performRaw(request(path: "repos/\(encode(owner))/\(encode(repo))/actions/artifacts/\(artifactID)/zip"))
+        try validate(http, data: data)
+        return data
+    }
+
+    // MARK: - Releases
+
+    /// `GET /repos/{owner}/{repo}/releases`.
+    public func listReleases(owner: String, repo: String, perPage: Int = 30) async throws -> [GitHubRelease] {
+        try validateRepo(owner: owner, repo: repo)
+        return try await perform(request(path: "repos/\(encode(owner))/\(encode(repo))/releases",
+                                        query: [URLQueryItem(name: "per_page", value: "\(clampedPerPage(perPage))")]))
+    }
+
+    // MARK: - Repository archive and creation
+
+    /// `GET /repos/{owner}/{repo}/zipball/{branch}`: the
+    /// repository's ZIP bytes. Legacy wrote them straight to the
+    /// user's Documents folder; this client returns the bytes and
+    /// the caller chooses where to save them.
+    public func downloadRepositoryZip(owner: String, repo: String, branch: String = "main") async throws -> Data {
+        try validateRepo(owner: owner, repo: repo)
+        let (data, http) = try await performRaw(request(path: "repos/\(encode(owner))/\(encode(repo))/zipball/\(encode(branch))"))
+        try validate(http, data: data)
+        return data
+    }
+
+    /// `POST /user/repos`: creates a repository under the
+    /// authenticated user. Needs `public_repo` (public repos) or
+    /// `repo` (private repos) on a classic token, or
+    /// `administration: write` on a fine-grained token. Returns
+    /// the created repository.
+    public func createRepository(name: String, description: String, isPrivate: Bool) async throws -> GitHubRepository {
+        guard !(tokenProvider() ?? "").isEmpty else {
+            throw GitHubError.missingToken
+        }
+        let payload = try jsonBody(CreateRepositoryBody(
+            name: name, description: description, isPrivate: isPrivate, autoInit: false))
+        return try await perform(request(path: "user/repos", method: "POST", body: payload))
+    }
+
     // MARK: - Issues
 
     /// `GET /repos/{owner}/{repo}/issues`. Pull requests also appear
@@ -216,6 +366,23 @@ public struct GitHubClient: Sendable {
     /// Sends the request, records the rate-limit headers, maps the
     /// status, and decodes the body.
     private func perform<T: Decodable>(_ urlRequest: URLRequest) async throws -> T {
+        let (data, http) = try await performRaw(urlRequest)
+        try validate(http, data: data)
+        do {
+            return try Self.decoder().decode(T.self, from: data)
+        } catch {
+            throw GitHubError.decoding
+        }
+    }
+
+    /// Sends the request and returns the raw bytes plus the HTTP
+    /// response: for endpoints whose answer is not JSON (log text,
+    /// ZIP bytes) or whose status the caller inspects itself
+    /// (`getFileSHA` treats 404 as "missing"). Records the
+    /// rate-limit headers but does NOT map the status — every
+    /// caller validates with `validate(_:data:)` (or checks the
+    /// status itself first) before using the bytes.
+    private func performRaw(_ urlRequest: URLRequest) async throws -> (Data, HTTPURLResponse) {
         let data: Data
         let response: URLResponse
         do {
@@ -227,12 +394,7 @@ public struct GitHubClient: Sendable {
             throw GitHubError.network
         }
         recordRateLimit(from: http)
-        try validate(http, data: data)
-        do {
-            return try Self.decoder().decode(T.self, from: data)
-        } catch {
-            throw GitHubError.decoding
-        }
+        return (data, http)
     }
 
     private func recordRateLimit(from http: HTTPURLResponse) {
@@ -367,4 +529,64 @@ private struct PullRequestCreateBody: Encodable {
     var head: String
     var base: String
     var draft: Bool
+}
+
+/// `PUT /repos/{owner}/{repo}/contents/{path}`. `sha` and `branch`
+/// are omitted when nil, so a create sends only `message` +
+/// `content` and an update adds the current blob SHA.
+private struct PutFileBody: Encodable {
+    var message: String
+    var content: String
+    var sha: String?
+    var branch: String?
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(message, forKey: .message)
+        try container.encode(content, forKey: .content)
+        try container.encodeIfPresent(sha, forKey: .sha)
+        try container.encodeIfPresent(branch, forKey: .branch)
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case message, content, sha, branch
+    }
+}
+
+/// `PUT /repos/{owner}/{repo}/contents/{path}` answers
+/// `{"content": {...}, "commit": {...}}`.
+private struct ContentsResponse: Decodable {
+    var content: GitHubFileContent
+}
+
+/// `POST /user/repos`. Legacy sent `auto_init: false` too, kept here.
+private struct CreateRepositoryBody: Encodable {
+    var name: String
+    var description: String
+    var isPrivate: Bool
+    var autoInit: Bool
+
+    private enum CodingKeys: String, CodingKey {
+        case name, description
+        case isPrivate = "private"
+        case autoInit = "auto_init"
+    }
+}
+
+/// `GET /repos/{owner}/{repo}/actions/runs` wraps the runs in
+/// `workflow_runs`.
+private struct WorkflowRunsResponse: Decodable {
+    var workflowRuns: [GitHubWorkflowRun]
+}
+
+/// `GET /repos/{owner}/{repo}/actions/runs/{run_id}/jobs` wraps the
+/// jobs in `jobs`.
+private struct WorkflowJobsResponse: Decodable {
+    var jobs: [GitHubWorkflowJob]
+}
+
+/// `GET /repos/{owner}/{repo}/actions/runs/{run_id}/artifacts`
+/// wraps the artifacts in `artifacts`.
+private struct GitHubArtifactsResponse: Decodable {
+    var artifacts: [GitHubArtifact]
 }

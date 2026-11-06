@@ -640,6 +640,15 @@ public final class MCPServer: @unchecked Sendable {
 
     /// Runs a tool under the write policy; failures become `isError` results.
     public func run(_ tool: MCPTool, _ call: MCPToolCall) async -> MCPToolResult {
+        // Legacy parameter-name aliases (AssistToolRegistry.validate):
+        // rewrite the arguments with MCPParameterAliases before
+        // validation, so an alias satisfies `required` and the alias
+        // key itself is consumed, never rejected as unknown. The
+        // handler receives the rewritten arguments.
+        var call = call
+        call.arguments = MCPParameterAliases.normalized(
+            call.arguments,
+            declaredProperties: Set(tool.inputSchema["properties"]?.object?.keys ?? []))
         if let problem = tool.argumentProblem(call.arguments) { return .error("\(tool.name): \(problem)") }
         // Extension callers are grant-checked BEFORE the write policy
         // runs, so an ungranted tool is refused before any approval UI
@@ -649,7 +658,6 @@ public final class MCPServer: @unchecked Sendable {
         if let caller = call.caller, !caller.allowedToolIDs.contains(tool.name) {
             return .error("Tool '\(tool.name)' is not approved for extension '\(caller.extensionID)'.")
         }
-        var call = call
         if tool.writes {
             switch writePolicy {
             case .readOnly:

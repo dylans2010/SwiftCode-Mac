@@ -486,3 +486,80 @@ public struct MetaSlashCommandManager: Sendable {
         return ("\(command.name) \(argString)", .insertText("\(command.name) \(argString)"))
     }
 }
+
+// MARK: - Slash-command palette state (gap closure)
+//
+// The `/` popup's state (specs/ide/gap-closure-windows-
+// artboards.md §1): the filtered list over the manager's
+// existing `searchCommands`, the selection with wraparound, and
+// the commit. The popup (`SlashCommandPopupController`) rebuilds
+// this from the model's live catalog on every refresh, so a
+// terminal-skill capture landing mid-typing joins the list.
+// Pure value type: no AppKit, fully testable.
+
+public struct SlashCommandPaletteState: Sendable {
+    public var manager: MetaSlashCommandManager
+    public private(set) var query: String
+    public private(set) var selectedIndex: Int?
+
+    public init(manager: MetaSlashCommandManager = MetaSlashCommandManager(), query: String = "") {
+        self.manager = manager
+        self.query = query
+        self.selectedIndex = manager.searchCommands(query: query).isEmpty ? nil : 0
+    }
+
+    /// The commands matching the query, in catalog order.
+    public var filtered: [MetaSlashCommand] { manager.searchCommands(query: query) }
+
+    /// The selected command, or nil when the list is empty.
+    public var selected: MetaSlashCommand? {
+        guard let selectedIndex, filtered.indices.contains(selectedIndex) else { return nil }
+        return filtered[selectedIndex]
+    }
+
+    /// Re-filters for a new query, keeping the selection when it
+    /// is still in range (else the first row, or none when empty).
+    public mutating func update(query: String) {
+        self.query = query
+        let count = filtered.count
+        if count == 0 {
+            selectedIndex = nil
+        } else if let selectedIndex, selectedIndex < count {
+            // Keep the selection.
+        } else {
+            selectedIndex = 0
+        }
+    }
+
+    /// Moves the selection up, wrapping to the last row.
+    public mutating func moveUp() {
+        guard let selectedIndex, !filtered.isEmpty else { return }
+        self.selectedIndex = (selectedIndex - 1 + filtered.count) % filtered.count
+    }
+
+    /// Moves the selection down, wrapping to the first row.
+    public mutating func moveDown() {
+        guard let selectedIndex, !filtered.isEmpty else { return }
+        self.selectedIndex = (selectedIndex + 1) % filtered.count
+    }
+
+    /// The full command text for the selection (Legacy's
+    /// `selectMetaCommand` commit), or nil when nothing is
+    /// selected.
+    public func commitText(argument: String?) -> String? {
+        guard let selected else { return nil }
+        return manager.executeCommand(selected, argument: argument).text
+    }
+
+    /// Whether the commit should be sent immediately: only when
+    /// the selected command has a host-side effect
+    /// (`/effort`, `/model`, `/clear`, `/login`). Anything else
+    /// is left in the input for editing (Legacy's behaviour).
+    public func shouldSendImmediately(argument: String?) -> Bool {
+        guard let selected else { return false }
+        switch manager.executeCommand(selected, argument: argument).effect {
+        case .none, .some(.insertText): return false
+        default: return true
+        }
+    }
+}

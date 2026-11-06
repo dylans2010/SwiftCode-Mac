@@ -1,19 +1,43 @@
 import Foundation
 import Observation
 import StoreKitConfiguration
+import StoreKitEngine
 
 /// The in-memory purchase simulator: Legacy's
 /// `StoreKitSimulationService` (`Views/Utilities/StoreKit/Services/`),
-/// ported to the real `.storekit` format. It simulates purchases against
-/// the editor's configuration — it is NOT the StoreKit engine (that is
-/// `frameworks/storekit`'s `StoreKitEngine`, owned by the paywall-runtime
-/// slice) and it never talks to the App Store: every transaction,
-/// entitlement and log entry is local, and the state is the editor's own
-/// cache files, as Legacy kept it.
+/// ported to the real `.storekit` format — and, since gap-closure
+/// misc, re-implemented over the open StoreKit engine's `AppTestStore`
+/// (`frameworks/storekit`, `StoreKitEngine`) instead of the local
+/// port Wave 13 landed.
 ///
-/// Subscription expiry uses the file's ISO 8601 renewal period
-/// (`SubscriptionDuration`): a week is 7 days, a month 30, a year 365 —
-/// the same approximations Legacy's simulator used.
+/// The engine is the authority now: purchases, renewals, Ask to Buy,
+/// refunds, expirations and simulated errors are real engine
+/// behaviour against the installed `.storekit` configuration, not
+/// hand-rolled state. What the engine does not model stays a
+/// session-level overlay and is labelled as such:
+/// * Offline mode has no engine equivalent — `isOfflineMode` still
+///   blocks purchases locally, before the store is touched.
+/// * Family-sharing revocation has no engine API — `revokedProductIDs`
+///   is a display overlay on top of engine state (see
+///   `triggerRevocation`).
+/// * The four scenario profiles are Legacy's; they map onto engine
+///   settings overrides (Ask to Buy, simulated network / verification
+///   errors) plus the local offline gate.
+///
+/// This is deliberately NOT `SKTestSession`: that type is the
+/// `StoreKitTest` product's `NSObject` test facade (macOS-only) over
+/// the same store. The editor session drives the store directly, the
+/// way `SKTestSession` does internally, so the session stays portable
+/// (the engine is Foundation-only and Linux-buildable).
+///
+/// Persistence: transactions, entitlements and settings overrides
+/// live in the engine's store files under
+/// `<cacheDirectory>/<bundleID>/` (`Configuration.storekit`,
+/// `store.json`, `overrides.json`). The old local port's
+/// `storekit_transactions.json` / `storekit_entitlements.json` files
+/// are no longer read; favourites still use `storekit_favorites.json`
+/// in the cache directory, as before. With no cache directory the
+/// whole session is in-memory.
 
 public struct StoreKitSimulatedTransaction: Codable, Sendable, Identifiable, Hashable, Equatable {
     public var id: String
@@ -130,25 +154,171 @@ public final class StoreKitSimulationSession {
     ]
 
     public var selectedProfileID: String = ""
+
+    /// Local gate only: the engine has no offline mode. Purchases are
+    /// refused before the store is touched while this is on.
     public var isOfflineMode: Bool = false
-    public var isAskToBuyEnabled: Bool = false
-    public var shouldSimulateNetworkFailure: Bool = false
-    public var shouldFailVerification: Bool = false
+
+    // The three toggles below are backed by engine settings overrides;
+    // the setters push the override into the store (and clear it when
+    // the toggle goes off), so the store and the UI can never disagree.
+    private var _isAskToBuyEnabled = false
+    public var isAskToBuyEnabled: Bool {
+        get { _isAskToBuyEnabled }
+        set {
+            _isAskToBuyEnabled = newValue
+            store.updateSettings { $0.askToBuyEnabled = newValue }
+        }
+    }
+    private var _shouldSimulateNetworkFailure = false
+    public var shouldSimulateNetworkFailure: Bool {
+        get { _shouldSimulateNetworkFailure }
+        set {
+            _shouldSimulateNetworkFailure = newValue
+            store.setSimulatedError(newValue ? .generic(.networkError(code: -1009)) : nil, for: .purchase)
+        }
+    }
+    private var _shouldFailVerification = false
+    public var shouldFailVerification: Bool {
+        get { _shouldFailVerification }
+        set {
+            _shouldFailVerification = newValue
+            store.setSimulatedError(newValue ? .verification(.invalidSignature) : nil, for: .verification)
+        }
+    }
 
     public var favoriteProducts: Set<String> = []
     public var favoriteGroups: Set<String> = []
 
-    /// The cache directory the simulator persists to (Legacy's
-    /// `storekit_transactions.json` / `storekit_entitlements.json` /
-    /// `storekit_favorites.json` in the caches directory). Nil disables
-    /// persistence (in-memory only); pass the caches directory for the
-    /// app's session.
+    /// The configuration installed in the engine's store, if any.
+    /// Purchases need one: without it the store has no catalog and
+    /// `executePurchase` logs the miss instead of inventing a sale.
+    public private(set) var installedConfiguration: StoreConfiguration?
+
+    /// The cache directory the simulator persists to (the engine's
+    /// per-app store files plus `storekit_favorites.json`). Nil means
+    /// in-memory only.
     public let cacheDirectory: URL?
 
-    public init(cacheDirectory: URL? = nil) {
+    /// Products the user revoked through family sharing. The engine
+    /// has no family-sharing revocation API, so this is a display
+    /// overlay: the records stay in the store, but the session shows
+    /// them revoked and their entitlements inactive.
+    private var revokedProductIDs: Set<String> = []
+
+    private let device: StoreDevice
+    private var store: AppTestStore
+    private var bundleID: String
+
+    /// - Parameters:
+    ///   - cacheDirectory: engine persistence root; nil keeps
+    ///     everything in memory.
+    ///   - clock: the store's clock; inject a `ManualClock` in tests
+    ///     to move subscription time. Defaults to the system clock.
+    ///   - bundleID: the simulated app's bundle identifier; the
+    ///     engine keys one store per bundle ID. `installConfiguration`
+    ///     re-keys it from the configuration's identifier.
+    public init(cacheDirectory: URL? = nil, clock: (any StoreClock)? = nil, bundleID: String = "com.ycode.storekit-simulation") {
         self.cacheDirectory = cacheDirectory
+        self.bundleID = bundleID
+        // Cleaned-up quirks, not the reference's: the editor is a
+        // tool, not a parity harness, so a declined Ask-to-Buy
+        // request is not delivered and expiring a subscription does
+        // not leave a spurious failed transaction behind.
+        self.device = StoreDevice(clock: clock ?? SystemClock(), directory: cacheDirectory,
+                                  quirks: EngineQuirks(declinedAskToBuyIsDelivered: false, expireLeavesFailedTransaction: false))
+        self.store = device.store(for: bundleID)
         log("In-Memory Purchase Simulator Session initialized.")
-        loadPersistentState()
+        loadFavorites()
+        refreshFromStore()
+    }
+
+    /// Installs a `.storekit` configuration into the engine's store
+    /// (what `SKTestSession` creation and the IDE's install-on-Run do)
+    /// and re-keys the store from the configuration's identifier, so
+    /// one simulated app's transactions do not leak into another's.
+    /// Call this whenever the editor loads or edits a configuration;
+    /// the installed configuration's own settings (storefront,
+    /// timeRate, Ask to Buy) become the store's effective settings.
+    public func installConfiguration(_ configuration: StoreConfiguration) {
+        let key = "com.ycode.storekit-simulation." + (configuration.identifier ?? "default")
+        if key != bundleID {
+            bundleID = key
+            store = device.store(for: bundleID)
+        }
+        installedConfiguration = configuration
+        store.installConfiguration(configuration, appName: ProcessInfo.processInfo.processName)
+        _isAskToBuyEnabled = store.settings.askToBuyEnabled
+        refreshFromStore()
+        log("Installed .storekit configuration '\(configuration.identifier ?? "default")' in the simulator.")
+    }
+
+    // MARK: - Engine → session state
+
+    /// Rebuilds the published transactions and entitlements from the
+    /// engine's store. Called after every store mutation.
+    func refreshFromStore() {
+        let records = store.allTransactions()
+        transactions = records.map { record in
+            StoreKitSimulatedTransaction(
+                id: String(record.id),
+                productID: record.productID,
+                referenceName: store.catalog?.product(record.productID)?.referenceName ?? record.productID,
+                transactionDate: record.purchase,
+                purchaseState: purchaseState(of: record),
+                ownershipType: "purchased",
+                isSubscription: record.productType == .autoRenewable || record.productType == .nonRenewable,
+                expirationDate: record.expiration,
+                originalTransactionID: String(record.originalID),
+                storefront: record.storefront,
+                subscriptionCycleState: cycleState(of: record)
+            )
+        }.sorted { $0.transactionDate > $1.transactionDate }
+        entitlements = store.currentEntitlements().map { record in
+            StoreKitSimulatedEntitlement(
+                productID: record.productID,
+                isSubscription: record.productType == .autoRenewable || record.productType == .nonRenewable,
+                purchaseDate: record.purchase,
+                expirationDate: record.expiration,
+                isActive: !revokedProductIDs.contains(record.productID)
+            )
+        }
+    }
+
+    private func purchaseState(of record: TransactionRecord) -> String {
+        if record.isPendingAskToBuy || record.state == .deferred || record.state == .purchasing { return "pending" }
+        if record.isRevoked {
+            return record.revocationType == "REFUND_FULL" ? "refunded" : "revoked"
+        }
+        if revokedProductIDs.contains(record.productID) { return "revoked" }
+        switch record.state {
+        case .purchased, .restored: return "purchased"
+        case .failed: return "failed"
+        case .purchasing, .deferred: return "pending"
+        }
+    }
+
+    private func cycleState(of record: TransactionRecord) -> String {
+        if record.isRevoked, record.revocationType == "REFUND_FULL" { return "Refunded" }
+        guard let status = store.subscriptionStatus(forTransaction: record.id) else { return "Purchase" }
+        switch status.state {
+        case .subscribed: return record.reason == .renewal ? "Renewal" : "Purchase"
+        case .expired: return "Expired"
+        case .inBillingRetryPeriod: return "BillingRetry"
+        case .inGracePeriod: return "GracePeriod"
+        case .revoked: return "Refunded"
+        }
+    }
+
+    /// Runs the engine's subscription scheduler up to the clock's now
+    /// (renewals, grace and retry ends, expirations, in time order)
+    /// and refreshes the published state. With the system clock this
+    /// is a catch-up; with a `ManualClock` it is time travel for a
+    /// subscription under test.
+    public func advanceSimulation() {
+        store.advance()
+        refreshFromStore()
+        log("Simulator advanced to the store clock's now.")
     }
 
     // MARK: - Logging
@@ -177,37 +347,25 @@ public final class StoreKitSimulationSession {
         log("Activity feed cleared.")
     }
 
-    // MARK: - Persistence (Legacy's cache files, same names)
+    // MARK: - Persistence (favourites only; transactions and
+    // entitlements live in the engine's store files)
 
-    private func loadPersistentState() {
+    private func loadFavorites() {
         guard let cacheURL = cacheDirectory else { return }
-        let txFile = cacheURL.appendingPathComponent("storekit_transactions.json")
-        let entFile = cacheURL.appendingPathComponent("storekit_entitlements.json")
         let favFile = cacheURL.appendingPathComponent("storekit_favorites.json")
-        if let data = try? Data(contentsOf: txFile),
-           let decoded = try? JSONDecoder().decode([StoreKitSimulatedTransaction].self, from: data) {
-            transactions = decoded
-            log("Restored \(transactions.count) simulated transactions from sandbox cache.")
-        }
-        if let data = try? Data(contentsOf: entFile),
-           let decoded = try? JSONDecoder().decode([StoreKitSimulatedEntitlement].self, from: data) {
-            entitlements = decoded
-            log("Restored active entitlements from sandbox cache.")
-        }
         if let data = try? Data(contentsOf: favFile),
            let decoded = try? JSONDecoder().decode([String].self, from: data) {
             favoriteProducts = Set(decoded)
         }
     }
 
-    private func savePersistentState() {
+    private func saveFavorites() {
         guard let cacheURL = cacheDirectory else { return }
         do {
-            try JSONEncoder().encode(transactions).write(to: cacheURL.appendingPathComponent("storekit_transactions.json"), options: .atomic)
-            try JSONEncoder().encode(entitlements).write(to: cacheURL.appendingPathComponent("storekit_entitlements.json"), options: .atomic)
-            try JSONEncoder().encode(Array(favoriteProducts)).write(to: cacheURL.appendingPathComponent("storekit_favorites.json"), options: .atomic)
+            try JSONEncoder().encode(Array(favoriteProducts))
+                .write(to: cacheURL.appendingPathComponent("storekit_favorites.json"), options: .atomic)
         } catch {
-            log("Error saving simulated state to sandbox cache: \(error.localizedDescription)")
+            log("Error saving favourites to sandbox cache: \(error.localizedDescription)")
         }
     }
 
@@ -246,159 +404,178 @@ public final class StoreKitSimulationSession {
         return date.addingTimeInterval(TimeInterval(days * 86400))
     }
 
-    /// Simulates buying a product from the configuration. Blocked offline,
-    /// on a simulated network failure, or on a simulated verification
-    /// failure; with Ask to Buy on, the transaction stays pending until a
-    /// parent approves or declines it.
+    /// Simulates buying a product from the installed configuration,
+    /// through the engine. Blocked offline (local gate) or with no
+    /// configuration installed; a simulated network or verification
+    /// failure is the engine refusing the purchase, logged as such.
+    /// With Ask to Buy on, the transaction stays pending in the
+    /// engine until a parent approves or declines it. The storefront
+    /// is the store's configured storefront; the `storefront`
+    /// argument is kept for the old call shape and recorded in the
+    /// log, but it does not override the configuration.
     public func executePurchase(product: ConfiguredProduct, storefront: String = "USA") {
         let productID = product.productID ?? ""
         let referenceName = product.referenceName ?? productID
-        let isSubscription = product.type == .recurringSubscription || product.type == .nonRenewingSubscription
         if isOfflineMode {
             logActivity(category: "Simulation", title: "Purchase Blocked", message: "Device is currently offline.", details: productID)
             return
         }
-        if shouldSimulateNetworkFailure {
-            logActivity(category: "Simulation", title: "Purchase Blocked", message: "Simulated network failure occurred.", details: productID)
+        guard installedConfiguration != nil else {
+            logActivity(category: "Simulation", title: "Purchase Blocked", message: "No .storekit configuration is installed in the simulator.", details: productID)
             return
         }
-        if shouldFailVerification {
-            logActivity(category: "Simulation", title: "Purchase Verification Failed", message: "Cryptographic JWS validation signatures mismatched.", details: productID)
-            return
+        do {
+            let outcome = try store.purchase(productID: productID)
+            refreshFromStore()
+            switch outcome {
+            case .success(let record, _):
+                let price = product.displayPrice ?? "0.00"
+                logActivity(category: "Purchase", title: "Transaction Successful",
+                            message: "'\(referenceName)' bought successfully for $\(price) via \(record.storefront) (requested storefront: \(storefront)).", details: productID)
+            case .pending:
+                logActivity(category: "Purchase", title: "Ask To Buy Sent", message: "Request sent to organizer for '\(referenceName)'.", details: productID)
+            case .userCancelled:
+                logActivity(category: "Purchase", title: "Purchase Cancelled", message: "Purchase of '\(referenceName)' was cancelled.", details: productID)
+            }
+        } catch {
+            refreshFromStore()
+            if shouldSimulateNetworkFailure {
+                logActivity(category: "Simulation", title: "Purchase Blocked", message: "Simulated network failure occurred.", details: productID)
+            } else if shouldFailVerification {
+                logActivity(category: "Simulation", title: "Purchase Verification Failed", message: "Cryptographic JWS validation signatures mismatched.", details: productID)
+            } else {
+                logActivity(category: "Purchase", title: "Purchase Failed", message: "\(error)", details: productID)
+            }
         }
-        if isAskToBuyEnabled {
-            let pending = StoreKitSimulatedTransaction(productID: productID, referenceName: referenceName,
-                                                       purchaseState: "pending", isSubscription: isSubscription,
-                                                       storefront: storefront)
-            transactions.insert(pending, at: 0)
-            logActivity(category: "Simulation", title: "Ask To Buy Sent", message: "Request sent to organizer for '\(referenceName)'.", details: productID)
-            savePersistentState()
-            return
-        }
-        let expiry = isSubscription ? Self.expiry(for: product.recurringSubscriptionPeriod) : nil
-        let transaction = StoreKitSimulatedTransaction(productID: productID, referenceName: referenceName,
-                                                       purchaseState: "purchased", isSubscription: isSubscription,
-                                                       expirationDate: expiry, storefront: storefront)
-        transactions.insert(transaction, at: 0)
-        updateEntitlement(productID: productID, isSubscription: isSubscription, expiry: expiry)
-        let price = product.displayPrice ?? "0.00"
-        logActivity(category: "Purchase", title: "Transaction Successful",
-                    message: "'\(referenceName)' bought successfully for $\(price) via \(storefront).", details: productID)
+    }
+
+    private func recordID(_ id: String) -> UInt64? {
+        if let numeric = UInt64(id) { return numeric }
+        return transactions.first { $0.id == id }.flatMap { UInt64($0.id) }
     }
 
     public func approvePendingTransaction(id: String) {
-        guard let idx = transactions.firstIndex(where: { $0.id == id }), transactions[idx].purchaseState == "pending" else { return }
-        transactions[idx].purchaseState = "purchased"
-        let tx = transactions[idx]
-        let expiry = tx.isSubscription ? Self.expiry(for: "P1M") : nil
-        updateEntitlement(productID: tx.productID, isSubscription: tx.isSubscription, expiry: expiry)
-        logActivity(category: "Purchase", title: "Ask To Buy Approved", message: "Organizational manager approved buy request for '\(tx.referenceName)'.", details: tx.productID)
-        savePersistentState()
+        guard let transactionID = recordID(id) else { return }
+        do {
+            try store.approveAskToBuy(transactionID: transactionID)
+            refreshFromStore()
+            let tx = transactions.first { $0.id == id }
+            logActivity(category: "Purchase", title: "Ask To Buy Approved", message: "Organizational manager approved buy request for '\(tx?.referenceName ?? id)'.", details: tx?.productID ?? id)
+        } catch {
+            logActivity(category: "Purchase", title: "Ask To Buy Approval Failed", message: "\(error)", details: id)
+        }
     }
 
     public func declinePendingTransaction(id: String) {
-        guard let idx = transactions.firstIndex(where: { $0.id == id }), transactions[idx].purchaseState == "pending" else { return }
-        transactions[idx].purchaseState = "failed"
-        let tx = transactions[idx]
-        logActivity(category: "Purchase", title: "Ask To Buy Declined", message: "Parental organizer declined payment request for '\(tx.referenceName)'.", details: tx.productID)
-        savePersistentState()
+        guard let transactionID = recordID(id) else { return }
+        do {
+            try store.declineAskToBuy(transactionID: transactionID)
+            refreshFromStore()
+            let tx = transactions.first { $0.id == id }
+            logActivity(category: "Purchase", title: "Ask To Buy Declined", message: "Parental organizer declined payment request for '\(tx?.referenceName ?? id)'.", details: tx?.productID ?? id)
+        } catch {
+            logActivity(category: "Purchase", title: "Ask To Buy Decline Failed", message: "\(error)", details: id)
+        }
     }
 
     public func triggerRefund(productID: String) {
-        for idx in transactions.indices where transactions[idx].productID == productID && transactions[idx].purchaseState == "purchased" {
-            transactions[idx].purchaseState = "refunded"
-            transactions[idx].subscriptionCycleState = "Refunded"
+        var refunded = false
+        for tx in transactions where tx.productID == productID && tx.purchaseState == "purchased" {
+            guard let transactionID = UInt64(tx.id) else { continue }
+            do {
+                try store.refundTransaction(transactionID)
+                refunded = true
+            } catch {
+                logActivity(category: "Refund", title: "Refund Failed", message: "\(error)", details: productID)
+            }
         }
-        revokeEntitlement(productID: productID)
-        logActivity(category: "Refund", title: "Purchase Refunded", message: "Simulated Apple Support issued refund for '\(productID)'.", details: productID)
-        savePersistentState()
+        refreshFromStore()
+        if refunded {
+            logActivity(category: "Refund", title: "Purchase Refunded", message: "Simulated Apple Support issued refund for '\(productID)'.", details: productID)
+        }
     }
 
+    /// Family-sharing revocation. The engine has no such API, so this
+    /// is a session-level overlay, not an engine transaction: the
+    /// records stay in the store, the session shows them revoked and
+    /// their entitlements inactive, and `resetSimulator` clears it.
     public func triggerRevocation(productID: String) {
-        for idx in transactions.indices where transactions[idx].productID == productID {
-            transactions[idx].purchaseState = "revoked"
-        }
-        revokeEntitlement(productID: productID)
+        revokedProductIDs.insert(productID)
+        refreshFromStore()
         logActivity(category: "Refund", title: "Family Sharing Revoked", message: "Family organizer sharing privileges disabled for '\(productID)'.", details: productID)
-        savePersistentState()
     }
 
     public func simulateExpiration(productID: String) {
-        if let idx = entitlements.firstIndex(where: { $0.productID == productID }) {
-            entitlements[idx].isActive = false
-            entitlements[idx].expirationDate = Date()
+        do {
+            try store.expireSubscription(productID: productID)
+            refreshFromStore()
+            logActivity(category: "Simulation", title: "Subscription Expired", message: "Timed expiration triggered for '\(productID)'.", details: productID)
+        } catch {
+            logActivity(category: "Simulation", title: "Expiration Failed", message: "\(error)", details: productID)
         }
-        for idx in transactions.indices where transactions[idx].productID == productID {
-            transactions[idx].subscriptionCycleState = "Expired"
-        }
-        logActivity(category: "Simulation", title: "Subscription Expired", message: "Timed expiration triggered for '\(productID)'.", details: productID)
-        savePersistentState()
     }
 
+    /// Asks the engine to move the subscription into its grace
+    /// period at the next failed renewal (grace must be enabled for
+    /// it to apply), then reports the engine's real resulting state —
+    /// the state only changes once a renewal actually fails, so with
+    /// no billing issue outstanding this logs the unchanged state
+    /// rather than relabelling it.
     public func simulateGracePeriod(productID: String) {
-        for idx in transactions.indices where transactions[idx].productID == productID {
-            transactions[idx].subscriptionCycleState = "GracePeriod"
-        }
-        logActivity(category: "Simulation", title: "Entered Grace Period", message: "Billing error triggered. Entered 16-day grace period for '\(productID)'.", details: productID)
-        savePersistentState()
+        store.updateSettings { $0.billingGracePeriodEnabled = true }
+        store.advance()
+        refreshFromStore()
+        let state = transactions.first { $0.productID == productID }?.subscriptionCycleState ?? "Purchase"
+        logActivity(category: "Simulation", title: "Entered Grace Period", message: "Billing error triggered. Grace period enabled for '\(productID)'; engine state is now \(state).", details: productID)
     }
 
+    /// Asks the engine to retry billing at the next renewal (retry
+    /// must be enabled for it to apply), then reports the engine's
+    /// real resulting state.
     public func simulateBillingRetry(productID: String) {
-        for idx in transactions.indices where transactions[idx].productID == productID {
-            transactions[idx].subscriptionCycleState = "BillingRetry"
-        }
-        logActivity(category: "Simulation", title: "Entered Billing Retry", message: "Billing error continued. Attempting recovery retries for '\(productID)'.", details: productID)
-        savePersistentState()
+        store.updateSettings { $0.billingRetryOnRenewalEnabled = true }
+        store.advance()
+        refreshFromStore()
+        let state = transactions.first { $0.productID == productID }?.subscriptionCycleState ?? "Purchase"
+        logActivity(category: "Simulation", title: "Entered Billing Retry", message: "Billing error continued. Billing retry enabled for '\(productID)'; engine state is now \(state).", details: productID)
     }
 
     public func simulateRenewal(productID: String) {
-        if let idx = entitlements.firstIndex(where: { $0.productID == productID }) {
-            entitlements[idx].isActive = true
-            entitlements[idx].expirationDate = Self.expiry(for: "P1M")
+        do {
+            try store.forceRenewal(productID: productID)
+            refreshFromStore()
+            logActivity(category: "Simulation", title: "Subscription Renewed", message: "Successfully completed recurring billing cycle for '\(productID)'.", details: productID)
+        } catch {
+            logActivity(category: "Simulation", title: "Renewal Failed", message: "\(error)", details: productID)
         }
-        for idx in transactions.indices where transactions[idx].productID == productID {
-            transactions[idx].subscriptionCycleState = "Renewal"
-        }
-        logActivity(category: "Simulation", title: "Subscription Renewed", message: "Successfully completed recurring billing cycle for '\(productID)'.", details: productID)
-        savePersistentState()
     }
 
     // MARK: - Favorites & filters
 
     public func toggleFavoriteProduct(id: String) {
         if favoriteProducts.contains(id) { favoriteProducts.remove(id) } else { favoriteProducts.insert(id) }
-        savePersistentState()
+        saveFavorites()
     }
 
     public func toggleFavoriteGroup(id: String) {
         if favoriteGroups.contains(id) { favoriteGroups.remove(id) } else { favoriteGroups.insert(id) }
     }
 
-    private func updateEntitlement(productID: String, isSubscription: Bool, expiry: Date?) {
-        let entitlement = StoreKitSimulatedEntitlement(productID: productID, isSubscription: isSubscription,
-                                                       purchaseDate: Date(), expirationDate: expiry, isActive: true)
-        if let idx = entitlements.firstIndex(where: { $0.productID == productID }) {
-            entitlements[idx] = entitlement
-        } else {
-            entitlements.insert(entitlement, at: 0)
-        }
-        savePersistentState()
-    }
-
-    private func revokeEntitlement(productID: String) {
-        if let idx = entitlements.firstIndex(where: { $0.productID == productID }) {
-            entitlements[idx].isActive = false
-        }
-        savePersistentState()
-    }
-
     public func resetSimulator() {
+        store.clearTransactions()
+        store.resetToDefaultState()
+        revokedProductIDs.removeAll()
+        _isAskToBuyEnabled = false
+        _shouldSimulateNetworkFailure = false
+        _shouldFailVerification = false
+        isOfflineMode = false
         transactions.removeAll()
         entitlements.removeAll()
         activeLogs.removeAll()
         activityEvents.removeAll()
         favoriteProducts.removeAll()
-        savePersistentState()
+        saveFavorites()
+        refreshFromStore()
         log("Simulator state and persistent caches completely reset.")
     }
 }

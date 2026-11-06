@@ -3,6 +3,7 @@ import Foundation
 import FoundationNetworking
 #endif
 import YcodeAssistant
+import YcodeIDECore
 
 // MARK: - Engines support (Wave 5)
 //
@@ -46,25 +47,11 @@ enum EnginesMutation {
 // MARK: - Patch diff
 
 enum EnginesPatch {
-    /// Legacy's `AssistPatchApplicationEngine.unifiedDiff`: a naive
-    /// line-by-line diff, not a Myers diff (Ycode has no Myers
-    /// engine yet — see the Wave 2 note in
-    /// `YcodeTools+FileWriting.swift`). Lines that differ at the same
-    /// index are emitted as `-old` / `+new` pairs.
+    /// Legacy's `AssistPatchApplicationEngine.unifiedDiff`, now
+    /// rendered by the real Myers engine (`MyersDiff`, gap closure)
+    /// instead of the naive line-by-line diff.
     static func unifiedDiff(old: String, new: String, file: String) -> String {
-        let oldLines = old.components(separatedBy: .newlines)
-        let newLines = new.components(separatedBy: .newlines)
-        var lines = ["--- a/\(file)", "+++ b/\(file)"]
-        let maxCount = max(oldLines.count, newLines.count)
-        for i in 0..<maxCount {
-            let oldLine = i < oldLines.count ? oldLines[i] : nil
-            let newLine = i < newLines.count ? newLines[i] : nil
-            if oldLine != newLine {
-                if let oldLine { lines.append("-\(oldLine)") }
-                if let newLine { lines.append("+\(newLine)") }
-            }
-        }
-        return lines.joined(separator: "\n")
+        MyersDiff.unifiedDiff(old: old, new: new, file: file)
     }
 }
 
@@ -158,10 +145,27 @@ enum EnginesHTTP {
     /// async `data(for:)` is not used anywhere in this codebase).
     /// Rejects bodies over `maxBytes` instead of buffering them
     /// unboundedly.
-    static func fetch(_ request: URLRequest, maxBytes: Int, allowedHosts: Set<String>?) async throws -> EnginesFetchedResponse {
-        let session = URLSession(configuration: .ephemeral,
-                                 delegate: EnginesRedirectGuard(allowedHosts: allowedHosts), delegateQueue: nil)
-        defer { session.finishTasksAndInvalidate() }
+    ///
+    /// `session`, when given, is used as-is (no redirect guard is
+    /// attached: a session's delegate is fixed at creation). Only
+    /// the search tools' test seam passes one
+    /// (`SearchWebTestTransport.session`); production callers pass
+    /// nil and get the ephemeral session with the redirect guard.
+    /// A caller-supplied session is never invalidated here.
+    static func fetch(_ request: URLRequest, maxBytes: Int, allowedHosts: Set<String>?,
+                      session: URLSession? = nil) async throws -> EnginesFetchedResponse {
+        if let session {
+            return try await fetch(request, maxBytes: maxBytes, using: session)
+        }
+        let live = URLSession(configuration: .ephemeral,
+                              delegate: EnginesRedirectGuard(allowedHosts: allowedHosts), delegateQueue: nil)
+        defer { live.finishTasksAndInvalidate() }
+        return try await fetch(request, maxBytes: maxBytes, using: live)
+    }
+
+    /// The shared request core: one `dataTask` with cancellation and
+    /// the body cap, over whichever session the caller supplied.
+    private static func fetch(_ request: URLRequest, maxBytes: Int, using session: URLSession) async throws -> EnginesFetchedResponse {
         let holder = EnginesTaskHolder()
         do {
             return try await withTaskCancellationHandler {

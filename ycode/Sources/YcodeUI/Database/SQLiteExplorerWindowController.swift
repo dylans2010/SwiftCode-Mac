@@ -1,6 +1,7 @@
 import AppKit
 import Foundation
 import UniformTypeIdentifiers
+import YcodeIDECore
 
 // MARK: - SQLite Explorer window
 //
@@ -86,6 +87,7 @@ public final class SQLiteExplorerWindowController: NSWindowController, NSTableVi
     private var model: SQLiteExplorerModel
 
     private let openButton = NSButton(title: "Open…", target: nil, action: nil)
+    private let sectionsButton = NSButton(title: "Sections…", target: nil, action: nil)
     private let pathLabel = NSTextField(labelWithString: "")
     private let statusLabel = NSTextField(labelWithString: "")
     private let schemaLabel = NSTextField(labelWithString: "")
@@ -104,6 +106,7 @@ public final class SQLiteExplorerWindowController: NSWindowController, NSTableVi
     private var currentPage = 0
     private var totalRows = 0
     private var showingSQLResult = false
+    private var sectionsController: SQLiteExplorerSectionsController?
 
     public init(model: SQLiteExplorerModel) {
         self.model = model
@@ -132,6 +135,8 @@ public final class SQLiteExplorerWindowController: NSWindowController, NSTableVi
         guard let content = window?.contentView else { return }
         openButton.target = self
         openButton.action = #selector(openClicked)
+        sectionsButton.target = self
+        sectionsButton.action = #selector(sectionsClicked)
         pathLabel.stringValue = model.path
         pathLabel.font = .systemFont(ofSize: 12)
         pathLabel.textColor = .secondaryLabelColor
@@ -141,7 +146,7 @@ public final class SQLiteExplorerWindowController: NSWindowController, NSTableVi
         schemaLabel.font = .systemFont(ofSize: 12)
         schemaLabel.textColor = .secondaryLabelColor
 
-        let topRow = NSStackView(views: [openButton, pathLabel])
+        let topRow = NSStackView(views: [openButton, sectionsButton, pathLabel])
         topRow.orientation = .horizontal
         topRow.spacing = 8
 
@@ -333,8 +338,12 @@ public final class SQLiteExplorerWindowController: NSWindowController, NSTableVi
 
     @objc func runClicked() {
         let sql = sqlTextView.string
+        let started = Date()
         do {
             let result = try model.run(sql: sql)
+            DatabaseHistoryService.shared.record(
+                sql: sql, executionTimeMs: Date().timeIntervalSince(started) * 1000,
+                rowsAffected: result.columns.isEmpty ? 0 : result.rows.count, status: "SUCCESS")
             show(result: result, sql: true)
             resultLabel.stringValue = result.message ?? ""
             if result.columns.isEmpty {
@@ -343,8 +352,29 @@ public final class SQLiteExplorerWindowController: NSWindowController, NSTableVi
                 pageLabel.stringValue = "\(result.rows.count) row(s)"
             }
         } catch {
+            DatabaseHistoryService.shared.record(
+                sql: sql, executionTimeMs: Date().timeIntervalSince(started) * 1000,
+                rowsAffected: 0, status: "ERROR", errorMessage: error.localizedDescription)
             resultLabel.stringValue = error.localizedDescription
         }
+    }
+
+    /// Opens the sections panel (dashboard, migrations, backups,
+    /// import/export, templates, AI assistant, performance, logs)
+    /// over the same database. The panel reports back when it
+    /// changes the schema or the file, so the browser reloads.
+    @objc func sectionsClicked() {
+        if let sectionsController {
+            sectionsController.window?.makeKeyAndOrderFront(nil)
+            return
+        }
+        let controller = SQLiteExplorerSectionsController(model: model)
+        controller.onDatabaseChanged = { [weak self] in
+            self?.reloadTables()
+            if self?.currentTable != nil { self?.loadPage(0) }
+        }
+        sectionsController = controller
+        controller.window?.makeKeyAndOrderFront(nil)
     }
 
     // MARK: - Tables

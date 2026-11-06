@@ -317,6 +317,95 @@ public struct GitHubSearchResult<T: Decodable & Sendable>: Sendable, Decodable {
     public var items: [T]
 }
 
+/// One workflow run (`/repos/{owner}/{repo}/actions/runs`). Ported
+/// from Legacy's `GitHubService.WorkflowRun`: `statusBadge` /
+/// `isRunning` are the same derived values Legacy's views used.
+public struct GitHubWorkflowRun: Sendable, Equatable, Decodable {
+    public var id: Int
+    public var name: String?
+    public var status: String
+    public var conclusion: String?
+    public var htmlUrl: String
+    public var createdAt: Date
+    public var updatedAt: Date
+    public var runNumber: Int
+    public var headBranch: String?
+    public var actor: GitHubUser?
+
+    public var isRunning: Bool {
+        status == "in_progress" || status == "queued"
+    }
+
+    public var statusBadge: String {
+        switch conclusion ?? status {
+        case "success": return "checkmark.circle.fill"
+        case "failure": return "xmark.circle.fill"
+        case "cancelled": return "slash.circle.fill"
+        case "in_progress": return "clock.fill"
+        default: return "circle"
+        }
+    }
+}
+
+/// One job of a workflow run
+/// (`/repos/{owner}/{repo}/actions/runs/{run_id}/jobs`). Ported
+/// from Legacy's `GitHubService.WorkflowJob`.
+public struct GitHubWorkflowJob: Sendable, Equatable, Decodable {
+    public var id: Int
+    public var runId: Int
+    public var status: String
+    public var conclusion: String?
+    public var startedAt: Date?
+    public var completedAt: Date?
+    public var name: String
+    public var steps: [GitHubWorkflowStep]?
+
+    public var isRunning: Bool {
+        status == "in_progress" || status == "queued"
+    }
+}
+
+/// One step of a workflow job. Ported from Legacy's
+/// `GitHubService.GitHubWorkflowStep`.
+public struct GitHubWorkflowStep: Sendable, Equatable, Decodable {
+    public var name: String
+    public var status: String
+    public var conclusion: String?
+    public var number: Int
+}
+
+/// One workflow artifact (`/actions/runs/{run_id}/artifacts`).
+/// Ported from Legacy's `GitHubService.GitHubArtifact`.
+public struct GitHubArtifact: Sendable, Equatable, Decodable {
+    public var id: Int
+    public var name: String
+    public var sizeInBytes: Int
+    public var archiveDownloadUrl: String?
+    public var expired: Bool
+}
+
+/// A release (`/repos/{owner}/{repo}/releases`). Ported from
+/// Legacy's `GitHubService.GitHubRelease` (whose `assets` are
+/// `GitHubAsset`, renamed here to avoid clashing with the asset
+/// catalog's types).
+public struct GitHubRelease: Sendable, Equatable, Decodable {
+    public var id: Int
+    public var tagName: String
+    public var name: String?
+    public var htmlUrl: String
+    public var createdAt: Date
+    public var assets: [GitHubReleaseAsset]
+}
+
+/// One downloadable asset of a release. Ported from Legacy's
+/// `GitHubService.GitHubAsset`.
+public struct GitHubReleaseAsset: Sendable, Equatable, Decodable {
+    public var id: Int
+    public var name: String
+    public var browserDownloadUrl: String
+    public var size: Int
+}
+
 /// One code-search hit. `repositoryFullName` is the nested
 /// `repository.full_name`.
 public struct GitHubCodeItem: Sendable, Equatable, Decodable {

@@ -1,4 +1,6 @@
 import AppKit
+import YcodeCloud
+import YcodeGoogleAuth
 import YcodeIDECore
 import YcodeLanguage
 
@@ -441,6 +443,16 @@ final class RecentProjectsMenuDelegate: NSObject, NSMenuDelegate {
     }
 }
 
+public extension Notification.Name {
+    /// Posted when the app is opened with a standalone Appwrite
+    /// password-recovery link (`appwrite-callback-<project>://
+    /// reset-password?userId=…&secret=…`) and no OAuth sign-in is
+    /// waiting for it. `userInfo` carries `userId` and `secret`
+    /// (both `String`); the receiver completes the reset once the
+    /// user supplies a new password.
+    static let appwriteRecoveryLinkReceived = Notification.Name("AppwriteRecoveryLinkReceived")
+}
+
 /// App delegate: installs the menu bar, opens the workspaces given at
 /// launch, and otherwise shows the Welcome window.
 @MainActor
@@ -516,6 +528,55 @@ public final class AppDelegate: NSObject, NSApplicationDelegate, NSMenuItemValid
     public func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
         if !flag { showWelcomeWindow(nil) }
         return true
+    }
+
+    /// A URL the system routed to this app on one of its registered
+    /// custom schemes (`packaging/macos/Info.plist.in`,
+    /// `CFBundleURLTypes`): Appwrite OAuth / recovery / verification
+    /// callbacks on `appwrite-callback-<project>://`, and Google
+    /// OAuth callbacks on `swiftcode://`. Each URL is offered to the
+    /// Appwrite manager first, then to the Google service; the
+    /// first handler that claims it wins. Without the Info.plist
+    /// registration the system never delivers these URLs and both
+    /// OAuth flows keep timing out instead of completing — the
+    /// handlers alone are not enough.
+    public func application(_ sender: NSApplication, open urls: [URL]) {
+        for url in urls { Self.handleOpenedURL(url) }
+    }
+
+    /// Routes one opened URL to the OAuth handlers. Returns true
+    /// when a handler claimed it. A standalone verification link
+    /// (no OAuth sign-in waiting for it) is completed right here
+    /// — that is the whole point of the emailed link — while a
+    /// standalone recovery link is announced on
+    /// `.appwriteRecoveryLinkReceived` with `userId` / `secret` in
+    /// `userInfo`: completing a reset needs a new password from the
+    /// user, and no reset sheet exists yet to ask for it (see
+    /// `specs/ide/gap-closure-cloud-github.md` §1).
+    @discardableResult
+    public static func handleOpenedURL(_ url: URL) -> Bool {
+        if let callback = CloudAuthManager.shared.handleOAuthCallback(url) {
+            switch callback {
+            case .verification(let userId, let secret):
+                Task { @MainActor in
+                    try? await CloudAuthManager.shared.verifyEmail(userId: userId, secret: secret)
+                }
+            case .recovery(let userId, let secret):
+                NotificationCenter.default.post(
+                    name: .appwriteRecoveryLinkReceived, object: nil,
+                    userInfo: ["userId": userId, "secret": secret])
+            case .success, .failure:
+                break
+            }
+            return true
+        }
+        // `handleOAuthCallback` also returns nil when it resumed a
+        // pending OAuth wait — the URL was still Appwrite's, so it
+        // was consumed even though nothing is left to do with it.
+        if url.scheme == CloudAuthManager.shared.client.configuration.callbackScheme {
+            return true
+        }
+        return GoogleAccountAuthService.shared.handleOpenURL(url)
     }
 
     /// File ▸ Open Recent ▸ <entry>. The Welcome window stays open.

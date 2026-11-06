@@ -309,6 +309,12 @@ final class AgenticPlanningPlanStore: @unchecked Sendable {
         }
     }
 
+    /// Every plan of the workspace, oldest first (gap closure:
+    /// `session_progress_report` aggregates across plans).
+    func plans(workspace: String) -> [AgenticPlanningPlan] {
+        lock.withLock { (plans[workspace] ?? [:]).values.sorted { $0.createdAt < $1.createdAt } }
+    }
+
     func update(workspace: String, plan: AgenticPlanningPlan) {
         lock.withLock { plans[workspace, default: [:]][plan.id] = plan }
     }

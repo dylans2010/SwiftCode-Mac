@@ -157,7 +157,7 @@ extension YcodeMCPHost {
             tool("parse_yaml", "Parse YAML",
                  "Parses a YAML string.",
                  input: Schema.object(["workspace": Schema.workspace,
-                                       "yaml": Schema.string("YAML text to parse. A subset is supported: mappings, sequences, scalars, flow collections; anchors, aliases, tags and block scalars are rejected.")],
+                                       "yaml": Schema.string("YAML text to parse. A subset is supported: mappings, sequences, scalars, flow collections, block scalars, anchors, aliases and merge keys; tags are rejected.")],
                                       required: ["yaml"]),
                  annotations: .read) { h, call in
                 try h.agenticDataParseYAML(call)
@@ -468,18 +468,24 @@ struct AgenticDataYAMLLine {
 
 /// A YAML subset parser: block mappings and sequences by
 /// indentation, plain / single- / double-quoted scalars, `null` /
-/// booleans / integers / doubles, and flow collections (`[a, b]`,
-/// `{k: v}`). Anchors, aliases, tags, block scalars (`|`, `>`),
+/// booleans / integers / doubles, flow collections (`[a, b]`,
+/// `{k: v}`), block scalars (`|` literal / `>` folded, with
+/// chomping and explicit indent indicators), anchors (`&name`),
+/// aliases (`*name`), and merge keys (`<<: *name`). Tags,
 /// multi-document streams beyond `---` / `...` separators, and
 /// tab indentation are rejected with the line number. Duplicate
-/// mapping keys are rejected, as in YAML.
+/// mapping keys are rejected, as in YAML. Full YAML 1.2 needs the
+/// Yams dependency (see the Package.swift wiring list); this
+/// subset covers the shapes real configs use.
 struct AgenticDataYAMLParser {
     var lines: [AgenticDataYAMLLine]
+    var rawLines: [String]
+    var anchors: [String: AnyJSON] = [:]
     var index: Int = 0
 
     init(text: String) throws {
+        rawLines = text.components(separatedBy: .newlines)
         var parsed: [AgenticDataYAMLLine] = []
-        for (offset, rawLine) in text.components(separatedBy: .newlines).enumerated() {
             let number = offset + 1
             let leading = rawLine.prefix(while: { $0 == " " || $0 == "\t" })
             if leading.contains("\t") {
@@ -545,7 +551,22 @@ struct AgenticDataYAMLParser {
             return try parseMapping(at: indent)
         }
         index += 1
-        return try Self.scalar(line.content, line: line.number)
+        let (anchor, anchorRest) = Self.splitAnchorPrefix(line.content)
+        if let header = Self.parseBlockScalarHeader(anchorRest) {
+            let text = try collectBlockScalar(header: header, headerLine: line.number, parentIndent: indent)
+            let value: AnyJSON = .string(text)
+            if let anchor { anchors[anchor] = value }
+            return value
+        }
+        if anchorRest.isEmpty, anchor != nil {
+            if index < lines.count, lines[index].indent > indent {
+                let value = try parseBlock(at: lines[index].indent)
+                if let anchor { anchors[anchor] = value }
+                return value
+            }
+            return .null
+        }
+        return try scalar(anchorRest, line: line.number)
     }
 
     mutating func parseSequence(at indent: Int) throws -> AnyJSON {
@@ -576,7 +597,26 @@ struct AgenticDataYAMLParser {
                 items.append(try parseMapping(at: indent + 2))
             } else {
                 index += 1
-                items.append(try Self.scalar(rest, line: line.number))
+                let (anchor, anchorRest) = Self.splitAnchorPrefix(rest)
+                if let header = Self.parseBlockScalarHeader(anchorRest) {
+                    let text = try collectBlockScalar(header: header, headerLine: line.number, parentIndent: indent)
+                    let value: AnyJSON = .string(text)
+                    if let anchor { anchors[anchor] = value }
+                    items.append(value)
+                } else if anchorRest.isEmpty {
+                    let value: AnyJSON
+                    if index < lines.count, lines[index].indent > indent {
+                        value = try parseBlock(at: lines[index].indent)
+                    } else {
+                        value = .null
+                    }
+                    if let anchor { anchors[anchor] = value }
+                    items.append(value)
+                } else {
+                    let value = try scalar(anchorRest, line: line.number)
+                    if let anchor { anchors[anchor] = value }
+                    items.append(value)
+                }
             }
         }
         return .array(items)
@@ -584,6 +624,9 @@ struct AgenticDataYAMLParser {
 
     mutating func parseMapping(at indent: Int) throws -> AnyJSON {
         var object: [String: AnyJSON] = [:]
+        // Merge keys (`<<: *name`) are applied after the loop so
+        // explicit keys always win, wherever `<<` appears.
+        var pendingMerges: [(value: AnyJSON, line: Int)] = []
         while index < lines.count {
             let line = lines[index]
             guard line.indent == indent, Self.isMappingLine(line.content) else { break }
@@ -595,14 +638,46 @@ struct AgenticDataYAMLParser {
                 throw MCPToolError("YAML line \(line.number): duplicate mapping key '\(key)'.")
             }
             index += 1
-            if valueText.isEmpty {
+            if key == "<<" {
+                pendingMerges.append((try scalar(valueText, line: line.number), line.number))
+                continue
+            }
+            let (anchor, anchorRest) = Self.splitAnchorPrefix(valueText)
+            if let header = Self.parseBlockScalarHeader(anchorRest) {
+                let text = try collectBlockScalar(header: header, headerLine: line.number, parentIndent: indent)
+                let value: AnyJSON = .string(text)
+                if let anchor { anchors[anchor] = value }
+                object[key] = value
+            } else if anchorRest.isEmpty {
+                // `key:` or `key: &name` — the value is the
+                // following block (or null).
+                let value: AnyJSON
                 if index < lines.count, lines[index].indent > indent {
-                    object[key] = try parseBlock(at: lines[index].indent)
+                    value = try parseBlock(at: lines[index].indent)
                 } else {
-                    object[key] = .null
+                    value = .null
                 }
+                if let anchor { anchors[anchor] = value }
+                object[key] = value
             } else {
-                object[key] = try Self.scalar(valueText, line: line.number)
+                let value = try scalar(anchorRest, line: line.number)
+                if let anchor { anchors[anchor] = value }
+                object[key] = value
+            }
+        }
+        for merge in pendingMerges {
+            switch merge.value {
+            case .object(let dict):
+                for (k, v) in dict where object[k] == nil { object[k] = v }
+            case .array(let items):
+                for item in items {
+                    guard case .object(let dict) = item else {
+                        throw MCPToolError("YAML line \(merge.line): merge key '<<' must reference a mapping or a sequence of mappings.")
+                    }
+                    for (k, v) in dict where object[k] == nil { object[k] = v }
+                }
+            default:
+                throw MCPToolError("YAML line \(merge.line): merge key '<<' must reference a mapping or a sequence of mappings.")
             }
         }
         return .object(object)
@@ -652,6 +727,118 @@ struct AgenticDataYAMLParser {
         return (nil, content)
     }
 
+    /// Splits an optional `&name` anchor prefix off a value.
+    /// Returns (anchor name, rest). `&` with no name is not an
+    /// anchor and is returned untouched.
+    static func splitAnchorPrefix(_ text: String) -> (String?, String) {
+        guard text.hasPrefix("&") else { return (nil, text) }
+        let afterAmp = text.dropFirst()
+        let name = afterAmp.prefix(while: { $0.isLetter || $0.isNumber || $0 == "_" || $0 == "-" })
+        guard !name.isEmpty else { return (nil, text) }
+        let rest = afterAmp.dropFirst(name.count).trimmingCharacters(in: .whitespaces)
+        return (String(name), rest)
+    }
+
+    /// Parses a block-scalar header (`|`, `>`, with optional
+    /// chomping `-`/`+` and an explicit indent indicator).
+    /// Returns (literal, chomping, indent indicator), or nil when
+    /// the text is not a block-scalar header.
+    static func parseBlockScalarHeader(_ text: String) -> (literal: Bool, chomping: Character?, indent: Int?)? {
+        var rest = text
+        guard rest.first == "|" || rest.first == ">" else { return nil }
+        let literal = rest.first == "|"
+        rest.removeFirst()
+        var chomping: Character?
+        var indent: Int?
+        for ch in rest {
+            if ch == "-" || ch == "+" {
+                guard chomping == nil else { return nil }
+                chomping = ch
+            } else if let digit = ch.wholeNumberValue {
+                guard indent == nil else { return nil }
+                indent = digit
+            } else if ch == " " {
+                continue
+            } else {
+                return nil
+            }
+        }
+        return (literal, chomping, indent)
+    }
+
+    /// Collects a block scalar's raw lines following the header at
+    /// `headerLine` (1-based), whose parent block sits at
+    /// `parentIndent`, and folds them per the header (literal
+    /// keeps newlines; folded turns single newlines into spaces,
+    /// keeping newlines around blank or more-indented lines).
+    /// Chomping: clip (default) keeps one trailing newline, strip
+    /// (`-`) keeps none, keep (`+`) keeps them all. Advances
+    /// `index` past the consumed lines.
+    mutating func collectBlockScalar(header: (literal: Bool, chomping: Character?, indent: Int?),
+                                    headerLine: Int, parentIndent: Int) throws -> String {
+        var collected: [(indent: Int, text: String, number: Int)] = []
+        var n = headerLine + 1
+        while n <= rawLines.count {
+            let raw = rawLines[n - 1]
+            let isBlank = raw.trimmingCharacters(in: .whitespaces).isEmpty
+            let indent = raw.prefix(while: { $0 == " " }).count
+            if !isBlank && indent <= parentIndent { break }
+            collected.append((indent, raw, n))
+            n += 1
+        }
+        let lastNumber = collected.last?.number ?? headerLine
+        while index < lines.count && lines[index].number <= lastNumber { index += 1 }
+        let contentLines = collected.filter { !$0.text.trimmingCharacters(in: .whitespaces).isEmpty }
+        let blockIndent: Int
+        if let explicit = header.indent {
+            blockIndent = parentIndent + explicit
+        } else {
+            blockIndent = contentLines.first?.indent ?? (parentIndent + 1)
+        }
+        var stripped: [String] = []
+        for entry in collected {
+            if entry.text.trimmingCharacters(in: .whitespaces).isEmpty {
+                stripped.append("")
+            } else {
+                stripped.append(String(entry.text.dropFirst(min(blockIndent, entry.indent))))
+            }
+        }
+        var trailingBlanks = 0
+        while trailingBlanks < stripped.count && stripped[stripped.count - 1 - trailingBlanks].isEmpty {
+            trailingBlanks += 1
+        }
+        let body = Array(stripped.dropLast(trailingBlanks))
+        var result: String
+        if header.literal {
+            result = body.joined(separator: "\n")
+        } else {
+            var out = ""
+            for (i, line) in body.enumerated() {
+                if i > 0 {
+                    let prev = body[i - 1]
+                    if line.isEmpty || prev.isEmpty || prev.hasPrefix(" ") || line.hasPrefix(" ") {
+                        out.append("\n")
+                    } else {
+                        out.append(" ")
+                    }
+                }
+                out.append(line)
+            }
+            result = out
+        }
+        switch header.chomping {
+        case "-":
+            break
+        case "+":
+            result += result.isEmpty
+                ? String(repeating: "\n", count: trailingBlanks)
+                : String(repeating: "\n", count: trailingBlanks + 1)
+        default:
+            if !result.isEmpty { result += "\n" }
+        }
+        return result
+    }
+
     static func unquoteKey(_ raw: String) -> String {
         if raw.count >= 2, raw.hasPrefix("\""), raw.hasSuffix("\"") {
             return String(raw.dropFirst().dropLast())
@@ -663,15 +850,25 @@ struct AgenticDataYAMLParser {
     }
 
     /// One scalar value: `null` / booleans / integers / doubles /
-    /// quoted strings / flow collections / plain strings.
-    /// Anything with an unsupported leading indicator fails.
-    static func scalar(_ raw: String, line: Int) throws -> AnyJSON {
+    /// quoted strings / flow collections / plain strings, plus
+    /// aliases (`*name`) resolved against the anchors seen so
+    /// far. Anything with an unsupported leading indicator fails
+    /// (tags, `%` directives, block scalars outside a value
+    /// position — those are intercepted by the caller).
+    func scalar(_ raw: String, line: Int) throws -> AnyJSON {
         let text = raw.trimmingCharacters(in: .whitespaces)
         if text.isEmpty || text == "~" || text == "null" || text == "Null" || text == "NULL" { return .null }
         if text == "true" || text == "True" || text == "TRUE" { return .bool(true) }
         if text == "false" || text == "False" || text == "FALSE" { return .bool(false) }
-        if let first = text.first, "&*!|>%@`".contains(first) {
-            throw MCPToolError("YAML line \(line): unsupported YAML construct ('\(first)' — anchors, aliases, tags and block scalars are not supported by this subset parser).")
+        if text.hasPrefix("*") {
+            let name = String(text.dropFirst()).trimmingCharacters(in: .whitespaces)
+            guard !name.isEmpty, let anchored = anchors[name] else {
+                throw MCPToolError("YAML line \(line): unknown alias '*\(name)'.")
+            }
+            return anchored
+        }
+        if let first = text.first, "!|>%@`".contains(first) {
+            throw MCPToolError("YAML line \(line): unsupported YAML construct ('\(first)' — tags, directives and block scalars outside a value position are not supported by this subset parser).")
         }
         if text.hasPrefix("\"") {
             guard text.count >= 2, text.hasSuffix("\"") else {

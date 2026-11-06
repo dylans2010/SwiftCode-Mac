@@ -40,6 +40,12 @@ public enum SecretAccount {
     public static let llamaCppKey = "llamacpp.api-key"
     /// OpenRouter's API key (Wave 9: Legacy OpenRouter).
     public static let openRouterKey = "openrouter.api-key"
+    public static let netlifyToken = "netlify.api-key"
+    public static let vercelToken = "vercel.api-key"
+    /// Composio's API key (gap-closure: `use_composio` reads it from
+    /// SecretStore first, then `COMPOSIO_API_KEY`, then
+    /// `~/.composio/user_data.json`).
+    public static let composioKey = "composio.api-key"
     /// GitHub's personal access token (Wave 10: Legacy GitHubAuth /
     /// GitCredentialProvider kept the PAT in the keychain).
     public static let githubToken = "github.api-key"

@@ -70,24 +70,30 @@ import YcodeSubprocess
 ///   The port declares the parameters they actually read, so the
 ///   arguments are validated instead of silently accepted.
 ///
-/// Implemented (11): `use_terminal`, `task_runner`, `env_info`,
+/// Implemented (17): `use_terminal`, `task_runner`, `env_info`,
 /// `environment_variable_manager`, `clipboard_manager_tool`,
 /// `process_monitor_tool`, `disk_space_analyzer`,
 /// `system_notification_tool`, `use_system`, `take_screenshot`
-/// (fullscreen only), `use_extension` (wired to the `YcodeExtensions`
-/// host, spec `extensions-platform.md` §7.2/§10; the real path is
-/// compiled in behind `#if canImport(YcodeExtensions)` and fails
-/// honestly naming the missing host if the target is ever unwired).
-/// Partially implemented (2): `use_mcp`
-/// (`list` answers honestly; execution fails), `use_app`
-/// (`list_applications` running-only, `launch`, `activate`,
-/// `close_application`, `list_windows`; the Accessibility actions
-/// fail per-action). Honestly failing (4): `env_capture_logs`,
-/// `use_composio`, `use_workers`,
-/// `take_screenrecord` — registered with Legacy's ID and schema,
-/// validating their inputs first, then failing with the exact
-/// prerequisite. No behaviour, credential, or network call is
-/// invented for any of them.
+/// (fullscreen, region, and window — see
+/// `YcodeTools+Screenshot.swift`), `use_extension` (wired to the
+/// `YcodeExtensions` host, spec `extensions-platform.md` §7.2/§10;
+/// the real path is compiled in behind `#if
+/// canImport(YcodeExtensions)` and fails honestly naming the
+/// missing host if the target is ever unwired), `env_capture_logs`
+/// (real snapshot history + memory + environment + recent output —
+/// see `YcodeTools+FailingToolsSupport.swift`), `use_mcp` (real
+/// stdio / streamable-HTTP client — see
+/// `YcodeTools+MCPClient.swift`), `use_composio` (real CLI-first
+/// client — see `YcodeTools+ComposioClient.swift`), `use_workers`
+/// (Legacy validation + topological order + persisted plan; execution
+/// still honestly unavailable — no subagent runtime yet, see
+/// `YcodeTools+WorkersRuntime.swift`), `take_screenrecord` (real
+/// ScreenCaptureKit engine on macOS — see
+/// `YcodeTools+ScreenRecording.swift`), and `use_app` (full
+/// Accessibility engine — see `YcodeTools+AppInteraction.swift`).
+/// The handlers in this file are thin delegations to those
+/// implementations; the registrations below are unchanged in ID
+/// and count (17 tools, no additions or removals).
 ///
 /// Deliberate deviations from Legacy, recorded here:
 ///
@@ -148,30 +154,32 @@ import YcodeSubprocess
 ///   `system_info`'s first line names the real OS instead of
 ///   hardcoding "macOS", and `osBuild` is the kernel release from
 ///   `uname -r` (Darwin's release on macOS).
-/// * `take_screenshot` implements fullscreen only, via
-///   `SCScreenshotManager` (Legacy's engine). `capture_mode:
-///   "region"` fails: the interactive region-selection overlay
-///   Legacy uses is not ported. Any other `capture_mode` value is
-///   treated as fullscreen, as Legacy does. `image_format` is
-///   declared but unused in Legacy and likewise ignored here:
-///   the output is always PNG. The `image.png` latest-copy mirror
-///   Legacy writes is reproduced under the same single approval
-///   as the timestamped artifact.
-/// * `use_app` implements only what public macOS APIs provide
-///   without the Accessibility engine: `list_applications`
-///   (running applications only — Ycode has no installed-app
-///   index, so installed-but-not-running applications are not
-///   listed), `launch` / `activate` (by bundle identifier, name,
-///   or PID), `close_application` (Legacy's `confirm: true`
-///   plus the approval gate), and `list_windows` (on-screen
-///   windows via `CGWindowListCopyWindowInfo` — minimized and
-///   hidden windows are not listed, unlike Legacy's Accessibility
-///   window list, and there is no `session_id`: Ycode keeps no
-///   app-session state). Every other action fails naming the
-///   missing Accessibility / app-interaction engine. Legacy's
-///   schema still requires `app_identifier` for
-///   `list_applications` even though the action does not need one
-///   (a filter string works as the value).
+/// * `take_screenshot` implements fullscreen, region, and window
+///   capture via `SCScreenshotManager` (Legacy's engine; see
+///   `YcodeTools+Screenshot.swift`). A `region` object crops the
+///   fullscreen capture with Legacy's scale / integral-rect math;
+///   a bare `capture_mode: "region"` with no `region` object still
+///   fails: the interactive region-selection overlay Legacy uses
+///   is not ported. Any other `capture_mode` value is treated as
+///   fullscreen, as Legacy does. `image_format` is declared but
+///   unused in Legacy and likewise ignored here: the output is
+///   always PNG. The `image.png` latest-copy mirror Legacy writes
+///   is reproduced under the same single approval as the
+///   timestamped artifact.
+/// * `use_app` is the full Accessibility engine (see
+///   `YcodeTools+AppInteraction.swift`): `list_applications` now
+///   also lists installed apps (Legacy's four-directory scan),
+///   `launch` / `activate` (by bundle identifier, name, or PID),
+///   `close_application` (Legacy's `confirm: true` plus the
+///   approval gate), `list_windows` (AX windows with the
+///   CGWindowList number matched by frame), and all of Legacy's
+///   inspection / pointer / keyboard / menu / wait / verify
+///   actions, plus `inspect_application`, `inspect_window`, and
+///   `set_element_value`, which Legacy's dispatch did not handle.
+///   Sessions are per-pid (`app-<pid>`). Legacy's schema still
+///   requires `app_identifier` for `list_applications` even though
+///   the action does not need one (a filter string works as the
+///   value).
 extension YcodeMCPHost {
     var terminalTools: [MCPTool] {
         let safeMutation = MCPToolAnnotations(readOnly: false, idempotent: true)
@@ -208,7 +216,7 @@ extension YcodeMCPHost {
                  input: Schema.object(["workspace": Schema.workspace,
                                        "memoryKey": Schema.string("Optional memory key whose stored value is included as context. Default: \"\".")]),
                  annotations: .read) { h, call in
-                try await h.captureLogs(call)
+                try await h.captureLogsReal(call)
             },
             tool("env_info", "Environment Info",
                  "Provides information about the runtime environment (OS, Swift version, etc.).",
@@ -226,7 +234,7 @@ extension YcodeMCPHost {
                                        "arguments": Schema.string("A JSON-serialized object string containing the arguments to pass to the MCP tool (pass '{}' for list_tools).")],
                                       required: ["serverName", "toolName", "arguments"]),
                  annotations: external, writes: true) { h, call in
-                try await h.useMCP(call)
+                try await h.useMCPExternal(call)
             },
             tool("use_extension", "Use Extension",
                  "Interact with installed SwiftCode extensions: list, inspect, activate, and execute VS Code extension commands through the real extension host, and run Xcode-compatible source-editor commands against real workspace files. Actions: list, details, list_commands, list_xcode_commands, activate, deactivate, execute, run_xcode_command, enable, disable, diagnostics. Mutating actions (activate, execute, run_xcode_command, enable, disable) require confirm: true. Extension ids are stable publisher.name ids; Xcode command ids look like com.swiftcode.xcode.sortLines.",
@@ -254,7 +262,7 @@ extension YcodeMCPHost {
                                        "arguments": Schema.string("A JSON-serialized object string containing the arguments to pass to the tool.")],
                                       required: ["toolSlug", "arguments"]),
                  annotations: external, writes: true) { h, call in
-                try await h.useComposio(call)
+                try await h.useComposioExecute(call)
             },
             tool("use_workers", "Create and Coordinate Assist Workers",
                  "Decomposes and schedules parallel or sequenced autonomous Workers for sub-tasks.\nEach worker must have a distinct name, non-overlapping scope, and concise task (under 500 characters).\nWorkers execute real work through the Assist tool suite; results are verified against the filesystem.",
@@ -262,7 +270,7 @@ extension YcodeMCPHost {
                                        "workers": Schema.array(Schema.anyObject, "List of distinct worker assignments. Each element is an object with:\n- name (string, required): unique worker name.\n- scope (string, required): explicit area of responsibility (module or directory). Must not overlap with other workers' scopes.\n- task (string, required): concrete task description, max 500 characters.\n- role (string, optional): e.g. \"General Engineer\", \"Systems Architect\".\n- dependencies (array of strings, optional): names of other workers in this batch that must complete first.\n- targetFiles (array of strings, optional): specific files this worker may modify. Must not overlap with other workers' target files.")],
                                       required: ["workers"]),
                  annotations: safeMutation, writes: true) { h, call in
-                try await h.useWorkers(call)
+                try await h.useWorkersReal(call)
             },
             tool("environment_variable_manager", "Environment Variable Manager",
                  "Inspects, checks, or updates workspace .env configuration files and environment keys.",
@@ -333,8 +341,14 @@ extension YcodeMCPHost {
             tool("take_screenshot", "take_screenshot",
                  "Captures the user's entire screen or a user-selected screen region, produces a valid PNG image, and makes the resulting image available to the active AI model for visual analysis.",
                  input: Schema.object(["workspace": Schema.workspace,
-                                       "capture_mode": Schema.string("Screen capture mode: 'fullscreen' for entire screen, or 'region' for an interactive user-selected region. Defaults to 'fullscreen'."),
+                                       "capture_mode": Schema.string("Screen capture mode: 'fullscreen' for entire screen, 'region' for a screen rect (needs 'region'), or 'window' for one window (needs 'window_id'). Defaults to 'fullscreen'."),
                                        "display_id": Schema.integer("Optional display identifier when multiple displays are connected."),
+                                       "region": Schema.object(["x": ["type": "number", "description": .string("Left edge in screen points, origin top-left of the main display.")],
+                                                               "y": ["type": "number", "description": .string("Top edge in screen points, origin top-left of the main display.")],
+                                                               "width": ["type": "number", "description": .string("Region width in screen points.")],
+                                                               "height": ["type": "number", "description": .string("Region height in screen points.")] ],
+                                                              required: []),
+                                       "window_id": Schema.string("Target window identifier for capture_mode 'window' (e.g. 'window_12345' as listed by use_app list_windows, or a bare window number)."),
                                        "include_cursor": Schema.boolean("Whether to include the mouse cursor in the capture. Defaults to true."),
                                        "image_format": Schema.string("Image output format. Must be 'png'. Defaults to 'png'."),
                                        "purpose": Schema.string("Optional explanation of what Assist needs to inspect in the screenshot.")]),
@@ -342,7 +356,7 @@ extension YcodeMCPHost {
                                         "capture_mode": Schema.str, "artifact_id": Schema.str, "base64": Schema.str,
                                         "format": Schema.str, "size_bytes": Schema.int]),
                  annotations: MCPToolAnnotations(readOnly: false, idempotent: true, openWorld: true), writes: true) { h, call in
-                try await h.takeScreenshot(call)
+                try await h.takeScreenshotReal(call)
             },
             tool("take_screenrecord", "take_screenrecord",
                  "Records the screen of a specifically identified application, subject to macOS privacy permissions and recording restrictions, and produces a usable recording artifact.",
@@ -355,7 +369,7 @@ extension YcodeMCPHost {
                                        "purpose": Schema.string("Optional natural-language explanation of why Assist is recording this application.")],
                                       required: ["app_identifier"]),
                  annotations: externalRead) { h, call in
-                try await h.takeScreenrecord(call)
+                try await h.takeScreenrecordReal(call)
             },
             tool("use_app", "use_app",
                  "Enables Assist to operate native macOS applications through real Accessibility APIs, CoreGraphics synthetic events, ScreenCaptureKit visual perception, and window management.",
@@ -382,7 +396,7 @@ extension YcodeMCPHost {
                                        "purpose": Schema.string("Natural-language explanation of the intended workflow or interaction purpose.")],
                                       required: ["app_identifier", "action"]),
                  annotations: MCPToolAnnotations(readOnly: false, idempotent: true, openWorld: true), writes: true) { h, call in
-                try await h.useApp(call)
+                try await h.useAppReal(call)
             },
         ]
     }
@@ -572,11 +586,10 @@ extension YcodeMCPHost {
         return "Discovered \(testFiles.count) XCTest file(s). Sample: \(testFiles.prefix(5).joined(separator: ", "))"
     }
 
-    // MARK: - `env_capture_logs` (honestly failing)
+    // MARK: - `env_capture_logs` (real: see `YcodeTools+FailingToolsSupport.swift`)
 
     func captureLogs(_ call: MCPToolCall) async throws -> MCPToolResult {
-        _ = call.string("memoryKey")
-        throw MCPToolError("env_capture_logs needs the Assist snapshot history (AssistSnapshotFunctions) and the Assist memory store, neither of which exists in Ycode's MCP host; no logs were captured.")
+        try await captureLogsReal(call)
     }
 
     // MARK: - `env_info`
@@ -595,19 +608,10 @@ extension YcodeMCPHost {
 }
 
 extension YcodeMCPHost {
-    // MARK: - `use_mcp` (partially honest)
+    // MARK: - `use_mcp` (real client: see `YcodeTools+MCPClient.swift`)
 
     func useMCP(_ call: MCPToolCall) async throws -> MCPToolResult {
-        let serverName = try call.require("serverName")
-        let toolName = try call.require("toolName")
-        _ = try call.require("arguments")
-        // The one branch Legacy answers without a server: the
-        // configured-server list, which in Ycode is empty — there is
-        // no external MCP client to configure servers in.
-        if serverName.lowercased() == "list" || toolName.lowercased() == "list_servers" {
-            return .text("No MCP servers are currently configured in Ycode.")
-        }
-        throw MCPToolError("use_mcp needs an external MCP client (configured MCP servers with a connection manager), which Ycode's MCP host does not have yet: no external tool was called. Ycode itself is the MCP server here; its own tools are listed by tools/list.")
+        try await useMCPExternal(call)
     }
 
     // MARK: - `use_extension` (wired to YcodeExtensions)
@@ -1044,50 +1048,16 @@ extension YcodeMCPHost {
 #endif
 
 
-    // MARK: - `use_composio` (honestly failing)
+    // MARK: - `use_composio` (real client: see `YcodeTools+ComposioClient.swift`)
 
     func useComposio(_ call: MCPToolCall) async throws -> MCPToolResult {
-        let toolSlug = try call.require("toolSlug")
-        _ = try call.require("arguments")
-        throw MCPToolError("use_composio needs the Composio service (ComposioService with a Composio API key and connected integrations), which Ycode's MCP host does not have yet; no external tool '\(toolSlug)' was executed.")
+        try await useComposioExecute(call)
     }
 
-    // MARK: - `use_workers` (honestly failing, after validation)
+    // MARK: - `use_workers` (validation + plan: see `YcodeTools+WorkersRuntime.swift`)
 
     func useWorkers(_ call: MCPToolCall) async throws -> MCPToolResult {
-        guard let workersJSON = call.arguments["workers"]?.array else {
-            throw MCPToolError("Invalid input: 'workers' argument is required and must contain worker assignments.")
-        }
-        // Legacy's validation, in Legacy's order: each worker needs
-        // a non-empty task, duplicate names are suffixed, and
-        // dependencies must name workers in the same batch.
-        var seenNames: Set<String> = []
-        var assignments: [(name: String, dependencies: [String])] = []
-        for (index, workerJSON) in workersJSON.enumerated() {
-            let dict = workerJSON.object ?? [:]
-            let rawName = dict["name"]?.string?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-            let name = rawName.isEmpty ? "Worker-\(index + 1)" : rawName
-            let uniqueName = seenNames.contains(name) ? "\(name)-\(index + 1)" : name
-            seenNames.insert(uniqueName)
-            let task = (dict["task"]?.string ?? dict["description"]?.string ?? "")
-                .trimmingCharacters(in: .whitespacesAndNewlines)
-            guard !task.isEmpty else {
-                throw MCPToolError("Validation Error: Worker '\(uniqueName)' missing 'task' description.")
-            }
-            let dependencies = dict["dependencies"]?.array?.compactMap(\.string) ?? []
-            assignments.append((uniqueName, dependencies))
-        }
-        guard !assignments.isEmpty else {
-            throw MCPToolError("Validation Error: At least one worker assignment is required.")
-        }
-        for assignment in assignments {
-            for dep in assignment.dependencies {
-                guard seenNames.contains(dep) else {
-                    throw MCPToolError("Validation Error: Worker '\(assignment.name)' depends on unknown worker '\(dep)'. Dependencies must reference workers in the same batch.")
-                }
-            }
-        }
-        throw MCPToolError("use_workers needs the Assist worker runtime (WorkerScheduler + WorkerPersistenceStore + subagent execution), which Ycode's MCP host does not have yet; no worker was created or run.")
+        try await useWorkersReal(call)
     }
 
     // MARK: - `environment_variable_manager`
@@ -1744,181 +1714,22 @@ extension YcodeMCPHost {
 }
 
 extension YcodeMCPHost {
-    // MARK: - `take_screenshot`
+    // MARK: - `take_screenshot` (fullscreen/region/window: see `YcodeTools+Screenshot.swift`)
 
     func takeScreenshot(_ call: MCPToolCall) async throws -> MCPToolResult {
-        let s = try session(for: call)
-        let captureMode = call.arguments["capture_mode"]?.string?.lowercased() ?? "fullscreen"
-        let includeCursor = call.bool("include_cursor") ?? true
-        let displayID = call.int("display_id").flatMap { $0 >= 0 ? UInt32($0) : nil }
-        let purpose = call.string("purpose")
-        guard captureMode != "region" else {
-            throw MCPToolError("capture_mode \"region\" needs the interactive region-selection overlay, which Ycode's MCP host does not have; use capture_mode \"fullscreen\".")
-        }
-        let shot = try await terminalCaptureScreenshot(displayID: displayID, includeCursor: includeCursor)
-
-        // Save the artifact (plus Legacy's `image.png` latest-copy
-        // mirror) under the single approval for this capture.
-        let timestamp = Int(Date().timeIntervalSince1970)
-        let uniqueName = "screenshot_\(timestamp)_\(UUID().uuidString.prefix(8)).png"
-        let rel = ".assist_temp/artifacts/\(uniqueName)"
-        let url = artifactDirectory(in: s).appendingPathComponent(uniqueName)
-        let description = purpose ?? "Screen capture (fullscreen) at \(shot.width)x\(shot.height)"
-        try await approveFileWritingChange(tool: call.name, path: url, relativePath: rel, original: nil,
-                                           summary: "Save screenshot artifact \(rel) (\(shot.width)x\(shot.height))", call: call)
-        do {
-            try FileManager.default.createDirectory(at: artifactDirectory(in: s), withIntermediateDirectories: true)
-            try shot.png.write(to: url, options: .atomic)
-            try shot.png.write(to: artifactDirectory(in: s).appendingPathComponent("image.png"), options: .atomic)
-        } catch {
-            throw MCPToolError("Captured screenshot successfully but failed to save artifact: \(error.localizedDescription)")
-        }
-        var index = loadFileReadingArtifactIndex(in: s)
-        let entry = FileReadingArtifactIndexEntry(id: UUID(), description: description, kind: "image",
-                                                 createdAt: Date(), sourceMessageID: nil)
-        index[uniqueName] = entry
-        var mirror = index["image.png"] ?? FileReadingArtifactIndexEntry(id: UUID(), description: "Latest screen capture",
-                                                                          kind: "image", createdAt: Date(), sourceMessageID: nil)
-        mirror.description = "Latest screen capture"
-        index["image.png"] = mirror
-        saveFileReadingArtifactIndex(index, in: s)
-        noteFileWritingChanged(url, in: s)
-        noteFileWritingChanged(artifactDirectory(in: s).appendingPathComponent("image.png"), in: s)
-
-        let message = "Captured fullscreen screenshot (\(shot.width)×\(shot.height) px) on display \(shot.displayID). Artifact saved to '\(rel)'."
-        var structured: [String: AnyJSON] = ["path": .string(rel), "width": .int(shot.width), "height": .int(shot.height),
-                                             "display_id": .int(Int(shot.displayID)), "capture_mode": .string("fullscreen"),
-                                             "artifact_id": .string(entry.id.uuidString),
-                                             "base64": .string(shot.png.base64EncodedString()),
-                                             "format": .string("png"), "size_bytes": .int(shot.png.count)]
-        if let purpose { structured["purpose"] = .string(purpose) }
-        let json = AnyJSON.object(structured)
-        return MCPToolResult(content: [.imageBlock(shot.png), .textBlock(message), .textBlock(json.text)],
-                             structured: json)
+        try await takeScreenshotReal(call)
     }
 
-    // MARK: - `take_screenrecord` (honestly failing)
+    // MARK: - `take_screenrecord` (real engine: see `YcodeTools+ScreenRecording.swift`)
 
     func takeScreenrecord(_ call: MCPToolCall) async throws -> MCPToolResult {
-        guard let rawAppId = call.arguments["app_identifier"]?.string,
-              !rawAppId.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
-            throw MCPToolError("Missing required parameter 'app_identifier'. Provide a bundle identifier or application name.")
-        }
-        let durationSeconds = call.arguments["recording_duration"]?.double ?? 10.0
-        guard durationSeconds >= 1 && durationSeconds <= 60 else {
-            throw MCPToolError("Requested recording duration (\(durationSeconds)s) is invalid. Duration must be between 1 and 60 seconds.")
-        }
-        throw MCPToolError("take_screenrecord needs a ScreenCaptureKit stream-recording engine (SCStream + video writer), which Ycode's MCP host does not have yet; no recording was made. Recording also requires Screen Recording permission in macOS System Settings > Privacy & Security > Screen Recording.")
+        try await takeScreenrecordReal(call)
     }
 
-    // MARK: - `use_app`
+    // MARK: - `use_app` (AX engine: see `YcodeTools+AppInteraction.swift`)
 
     func useApp(_ call: MCPToolCall) async throws -> MCPToolResult {
         try Self.terminalRequireMacOS("use_app")
-#if canImport(AppKit)
-        return try await useAppMacOS(call)
-#else
-        throw MCPToolError("use_app is only available on macOS.")
-#endif
+        return try await useAppReal(call)
     }
-
-#if canImport(AppKit)
-    /// The `use_app` actions public macOS APIs provide without the
-    /// Accessibility / app-interaction engine. Every other action
-    /// fails naming that engine (see the `default` arms below).
-    func useAppMacOS(_ call: MCPToolCall) async throws -> MCPToolResult {
-        guard let rawAction = call.arguments["action"]?.string,
-              !rawAction.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
-            throw MCPToolError("Missing required parameter 'action'. Call use_app with an action type.")
-        }
-        let action = rawAction.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-
-        // Handled early in Legacy: no running application is needed.
-        if action == "list_applications" {
-            let filter = call.string("target") ?? call.string("app_identifier")
-            let apps = try terminalRunningApplications(filter: filter)
-            var lines = ["Discovered \(apps.count) application(s):"]
-            for (idx, a) in apps.prefix(35).enumerated() {
-                lines.append("\(idx + 1). \(a.name) [RUNNING (PID: \(a.pid))] — id: '\(a.bundleIdentifier)'")
-            }
-            if apps.count > 35 {
-                lines.append("… and \(apps.count - 35) more applications.")
-            }
-            return .structured(["action": .string(action), "count": .int(apps.count), "status": .string("success")],
-                               summary: lines.joined(separator: "\n"))
-        }
-
-        guard let rawAppId = call.arguments["app_identifier"]?.string,
-              !rawAppId.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
-            throw MCPToolError("Missing required parameter 'app_identifier'. Provide an application bundle identifier or app name.")
-        }
-        let appIdentifier = rawAppId.trimmingCharacters(in: .whitespacesAndNewlines)
-        let confirm = call.bool("confirm") ?? false
-
-        switch action {
-        case "launch", "activate", "activate_application", "launch_application":
-            guard let app = terminalLaunchApplication(appIdentifier) else {
-                throw MCPToolError("Application '\(appIdentifier)' could not be resolved or launched.")
-            }
-            _ = app.activate(options: [.activateIgnoringOtherApps])
-            try? await Task.sleep(for: .milliseconds(100))
-            let windows = terminalAppWindows(pid: app.processIdentifier)
-            let appName = app.localizedName ?? appIdentifier
-            let bundleID = app.bundleIdentifier ?? appIdentifier
-            return .structured(["action": .string(action), "app_identifier": .string(bundleID), "app_name": .string(appName),
-                                "pid": .int(Int(app.processIdentifier)), "window_count": .int(windows.count),
-                                "status": .string("active")],
-                               summary: "Application '\(appName)' (\(bundleID), PID: \(app.processIdentifier)) is active with \(windows.count) window(s).")
-
-        case "close_application":
-            guard confirm else {
-                throw MCPToolError("Closing application '\(appIdentifier)' is a consequential action that will terminate running processes and unsaved user state. Pass 'confirm: true' to authorize.")
-            }
-            guard let app = terminalResolveRunningApplication(appIdentifier) else {
-                throw MCPToolError("Application '\(appIdentifier)' is not running.")
-            }
-            let appName = app.localizedName ?? appIdentifier
-            let bundleID = app.bundleIdentifier ?? appIdentifier
-            let pid = app.processIdentifier
-            let change = MCPChange(tool: call.name, path: app.bundleURL?.path ?? "/", relativePath: bundleID,
-                                   original: nil, proposed: "",
-                                   summary: "Close application '\(appName)' (\(bundleID), PID: \(pid))")
-            guard await call.approve(change) else { throw MCPToolError(MCPServer.rejectedMessage) }
-            let terminated = app.terminate()
-            return .structured(["action": .string(action), "app_identifier": .string(bundleID), "app_name": .string(appName),
-                                "status": .string("terminated")],
-                               summary: "Closed application '\(appName)' (\(bundleID), PID: \(pid)). Terminate signal dispatched: \(terminated).")
-
-        case "list_windows":
-            guard let app = terminalResolveRunningApplication(appIdentifier) else {
-                throw MCPToolError("Application '\(appIdentifier)' is not running.")
-            }
-            let appName = app.localizedName ?? appIdentifier
-            let bundleID = app.bundleIdentifier ?? appIdentifier
-            let windows = terminalAppWindows(pid: app.processIdentifier)
-            if windows.isEmpty {
-                return .structured(["action": .string(action), "app_identifier": .string(bundleID), "app_name": .string(appName),
-                                    "window_count": .int(0)],
-                                   summary: "No accessible windows currently open for '\(appName)'.")
-            }
-            var lines = ["Open window(s) for '\(appName)':"]
-            for w in windows {
-                lines.append("- \(w.id): \"\(w.title)\" @(\(w.x),\(w.y) \(w.width)x\(w.height))")
-            }
-            return .structured(["action": .string(action), "app_identifier": .string(bundleID), "app_name": .string(appName),
-                                "window_count": .int(windows.count), "status": .string("success")],
-                               summary: lines.joined(separator: "\n"))
-
-        case "inspect_ui", "get_accessibility_tree", "get_focused_element", "inspect_application", "inspect_window",
-             "take_screenshot", "select_window", "click", "double_click", "right_click", "move_pointer", "drag",
-             "scroll", "type_text", "set_value", "press_key", "press_shortcut", "select_all", "copy", "paste",
-             "activate_element", "set_element_value", "select_menu", "wait_for_element", "wait_for_window",
-             "verify", "verify_element_state":
-            throw MCPToolError("use_app action '\(action)' needs the macOS Accessibility / app-interaction engine (AssistAppInteractionEngine), which Ycode's MCP host does not have yet; no application was operated.")
-
-        default:
-            throw MCPToolError("Unsupported action '\(action)'. Supported actions: launch, activate, list_applications, list_windows, select_window, close_application, inspect_ui, get_accessibility_tree, get_focused_element, take_screenshot, click, double_click, right_click, move_pointer, drag, scroll, type_text, press_key, press_shortcut, select_all, copy, paste, activate_element, select_menu, wait_for_element, wait_for_window, verify.")
-        }
-    }
-#endif
 }

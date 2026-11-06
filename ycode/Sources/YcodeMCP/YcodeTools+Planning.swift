@@ -49,12 +49,17 @@ import YcodeIDECore
 ///
 /// Deliberate deviations from Legacy, recorded here:
 ///
-/// * `intel_autofix` IS registered (same ID and schema) but its handler
-///   always fails: Legacy runs `lint_project` and then asks an OpenAI
-///   LLM (stored API key) to rewrite the file, and Ycode's MCP host has
-///   neither a lint engine nor an LLM provider wired for this tool. The
-///   failure names the prerequisite; no fix is faked. (Wave 2's
-///   `code_refactor` / Wave 3's `github_repo` precedent.)
+/// * `intel_autofix` is wired to the configured Assist LLM provider
+///   (gap-closure wiring, through `LLMToolCompletionService` — see
+///   `YcodeTools+AgenticCode.swift` for the shared service) and to the
+///   existing `lint_project` diagnostics (`terminalTaskLintProject` in
+///   `YcodeTools+Terminal.swift`: Legacy's `collectSwiftFindings`).
+///   With no lint issues it reports success without calling the LLM;
+///   otherwise each file with findings is rewritten by the LLM (Legacy's
+///   prompt shape) and written through `commit()`. With no provider
+///   usable it fails honestly naming the provider; no file is changed.
+///   Findings carry basenames only, so two Swift files sharing a
+///   basename resolve to the first match.
 /// * `intel_explain_code` is implemented as honest static analysis,
 ///   not as an LLM call: Legacy tries an OpenAI LLM first and falls
 ///   back to a one-line static summary when the LLM fails. Ycode's MCP
@@ -291,8 +296,70 @@ extension YcodeMCPHost {
     // MARK: - Intel tools
 
     func autoFixErrors(_ call: MCPToolCall) async throws -> MCPToolResult {
-        _ = try session(for: call)
-        throw MCPToolError("intel_autofix needs an LLM provider and lint diagnostics: Legacy runs lint_project and then asks an OpenAI LLM (stored API key) to rewrite the file, and Ycode's MCP host has neither a lint engine nor an LLM provider wired for this tool. No file was changed; use the build tool's issues and file_edit to fix errors.")
+        let s = try session(for: call)
+        let raw = call.arguments["path"]?.string ?? "."
+        let target = resolveFileWritingClampedPath(raw, in: s)
+        let lintOutput = Self.terminalTaskLintProject(root: target)
+        guard lintOutput.contains("issue(s)") else {
+            return .text("No lint issues to fix in \(raw)")
+        }
+        // Candidate Swift files, for resolving the lint output's basenames.
+        let candidates: [URL]
+        var isDir: ObjCBool = false
+        if FileManager.default.fileExists(atPath: target.path, isDirectory: &isDir), !isDir.boolValue {
+            candidates = target.pathExtension.lowercased() == "swift" ? [target] : []
+        } else {
+            candidates = SearchWorkspace.swiftFiles(under: target)
+        }
+        // Findings grouped per file by basename (`Name.swift:line message`).
+        var issuesByFile: [String: [String]] = [:]
+        var order: [String] = []
+        for line in lintOutput.components(separatedBy: .newlines).dropFirst() {
+            let parts = line.split(separator: ":", maxSplits: 1)
+            guard parts.count == 2 else { continue }
+            let file = String(parts[0])
+            if issuesByFile[file] == nil { order.append(file) }
+            issuesByFile[file, default: []].append(line)
+        }
+        var fixed: [String] = []
+        var unchanged: [String] = []
+        var failed: [String] = []
+        for file in order.prefix(10) {
+            guard let url = candidates.first(where: { $0.lastPathComponent == file }) else {
+                failed.append("\(file) (file not found under \(raw))")
+                continue
+            }
+            let rel = relative(url.path, in: s)
+            guard let original = text(of: url) else {
+                failed.append("\(rel) (could not be read)")
+                continue
+            }
+            let issues = (issuesByFile[file] ?? []).joined(separator: "\n")
+            let completion = try await llmToolComplete(
+                systemPrompt: "Fix the linting issues in this Swift file. Return ONLY the fixed code.",
+                userText: "Issues: \(issues)\n\nFile: \(rel)\n---\n\(original)",
+                toolName: "intel_autofix", failureNote: "No file was changed.")
+            let fixedCode = Self.llmToolStripFences(completion.text)
+            if fixedCode.isEmpty || fixedCode == original {
+                unchanged.append(rel)
+                continue
+            }
+            do {
+                try await commit(MCPChange(tool: call.name, path: url.path, relativePath: rel, original: original,
+                                           proposed: fixedCode, summary: "Auto-fix \(rel)"),
+                                 call: call, session: s)
+                fixed.append(rel)
+            } catch {
+                failed.append("\(rel) (\(error.localizedDescription))")
+            }
+        }
+        if fixed.isEmpty {
+            throw MCPToolError("intel_autofix is unavailable: no file could be auto-fixed in \(raw). \(failed.isEmpty ? "No file was changed." : "Failures: " + failed.joined(separator: "; "))")
+        }
+        var summary = "Auto-fix applied to \(fixed.count) file(s) in \(raw): \(fixed.joined(separator: ", "))."
+        if !unchanged.isEmpty { summary += " Unchanged: \(unchanged.joined(separator: ", "))." }
+        if !failed.isEmpty { summary += " Failed: \(failed.joined(separator: "; "))." }
+        return .text(summary)
     }
 
     func explainCode(_ call: MCPToolCall) async throws -> MCPToolResult {

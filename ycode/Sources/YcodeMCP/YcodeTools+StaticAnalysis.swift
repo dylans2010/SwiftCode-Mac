@@ -57,7 +57,7 @@ import YcodeIDECore
 ///
 /// Deliberate deviations from Legacy, recorded here:
 ///
-/// * No YcodeSyntax AST is used. Ycode's `YcodeSyntax` is a
+/// * The AST tools use swift-syntax directly (gap closure): Ycode's `YcodeSyntax` is a
 ///   tokenizer / block-structure library, not a Swift declaration
 ///   parser, and the `YcodeMCP` target does not depend on it — and
 ///   Legacy's own tools are regex / line scans everywhere except
@@ -67,12 +67,13 @@ import YcodeIDECore
 ///   substring matching where Legacy does it, brace counting that
 ///   ignores strings and comments) and the spec says so plainly.
 ///   Nothing here claims full AST fidelity.
-/// * `swift_ast_inspector` implements only Legacy's regex structural
-///   fallback (type-declaration hierarchy). Legacy's primary path
-///   runs `xcrun swiftc -dump-ast`; Ycode's MCP host has no Swift
-///   toolchain and does not shell out to Apple's toolchain, so that
-///   path is not ported. The tool still returns real structural
-///   results, exactly as Legacy does when `swiftc` is unavailable.
+/// * `swift_ast_inspector` parses with swift-syntax (gap closure):
+///   real declarations with line numbers, nesting, inheritance and
+///   imports — replacing the regex structural fallback. Legacy's
+///   primary path runs `xcrun swiftc -dump-ast`; Ycode's MCP host
+///   has no Swift toolchain and does not shell out to Apple's
+///   toolchain, so that path is not ported. This is syntactic, not
+///   semantic: no type checker, no cross-file index.
 /// * `deprecation_usage_scan` checks deprecated names in sorted
 ///   order; Legacy iterates an `NSMutableSet` (unordered), so its
 ///   usage listing order is nondeterministic. The findings are the
@@ -229,7 +230,7 @@ extension YcodeMCPHost {
                 try h.staticAnalysisDeprecationUsageScan(call)
             },
             tool("swift_ast_inspector", "Swift AST Inspector",
-                 "Inspects the abstract syntax tree (AST) and type declaration hierarchy of a Swift source file.",
+                 "Inspects the abstract syntax tree (AST) and type declaration hierarchy of a Swift source file, parsed with swift-syntax (declarations, line numbers, inheritance, imports).",
                  input: Schema.object(["workspace": Schema.workspace,
                                        "path": Schema.string("Relative path to the Swift file within the workspace."),
                                        "symbol": Schema.string("Optional symbol name to filter AST declarations for.")],
@@ -1113,44 +1114,11 @@ extension YcodeMCPHost {
     /// does not shell out to Apple's toolchain). The fallback is
     /// Legacy's own behaviour when `swiftc` is unavailable, so the
     /// tool still returns real structural results.
+    /// Gap closure: the real swift-syntax parse
+    /// (`SwiftASTInspection`), not the regex structural fallback.
+    /// See `specs/ide/gap-closure-correctness.md` §5.
     func staticAnalysisSwiftASTInspector(_ call: MCPToolCall) throws -> MCPToolResult {
-        let s = try session(for: call)
-        let path = try fileReadingRequiredString(call, "path")
-        let symbolFilter = call.arguments["symbol"]?.string
-        guard let resolvedURL = resolveFileWritingPath(path, in: s) else {
-            throw MCPToolError("File not found at path: \(path)")
-        }
-        guard FileManager.default.fileExists(atPath: resolvedURL.path) else {
-            throw MCPToolError("File not found at path: \(path)")
-        }
-        guard let content = try? String(contentsOf: resolvedURL, encoding: .utf8) else {
-            throw MCPToolError("Unable to read source file at \(path)")
-        }
-        var declarations: [String] = []
-        let pattern = #"(class|struct|enum|protocol|extension|actor)\s+([A-Za-z0-9_]+)(\s*:\s*([^{]+))?"#
-        if let regex = try? NSRegularExpression(pattern: pattern, options: []) {
-            let nsString = content as NSString
-            let matches = regex.matches(in: content, options: [], range: NSRange(location: 0, length: nsString.length))
-            for match in matches {
-                let kind = nsString.substring(with: match.range(at: 1))
-                let name = nsString.substring(with: match.range(at: 2))
-                var inheritance = ""
-                if match.numberOfRanges > 4 && match.range(at: 4).location != NSNotFound {
-                    inheritance = " : " + nsString.substring(with: match.range(at: 4)).trimmingCharacters(in: .whitespaces)
-                }
-                if let sym = symbolFilter, !sym.isEmpty {
-                    if name.localizedCaseInsensitiveContains(sym) {
-                        declarations.append("- [\(kind)] \(name)\(inheritance)")
-                    }
-                } else {
-                    declarations.append("- [\(kind)] \(name)\(inheritance)")
-                }
-            }
-        }
-        if declarations.isEmpty {
-            return .text("No major type declarations found in \(path).")
-        }
-        return .text("Swift Structural AST Declarations in \(path):\n\n" + declarations.joined(separator: "\n"))
+        try correctnessSwiftASTInspector(call)
     }
 
     func staticAnalysisSwiftConcurrencyAnalyzer(_ call: MCPToolCall) throws -> MCPToolResult {

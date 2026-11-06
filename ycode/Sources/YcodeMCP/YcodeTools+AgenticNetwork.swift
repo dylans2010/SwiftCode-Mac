@@ -43,12 +43,17 @@ import YcodeIDECore
 ///   root. `dependency_audit` is NOT a duplicate of
 ///   `package_dependency_audit`: the ported tool audits pins, the
 ///   Agentic tool claims a vulnerability audit.
-/// * HONESTLY-FAILING (5): `web_search`, `documentation_search`,
-///   `api_reference_search`, `package_search`, `dependency_audit`.
-///   Each is registered with Legacy's ID, description, and schema,
-///   validates its inputs first, then fails naming the exact
-///   missing prerequisite. No behaviour, no endpoint, and no result
-///   is invented for any of them.
+/// * WIRED (gap-closure): `web_search` (DuckDuckGo Instant Answer
+///   API), `documentation_search` / `api_reference_search` (Apple
+///   DocC JSON search, symbols only for API search), `package_search`
+///   (Swift Package Index search page + GitHub public search
+///   fallback). See `YcodeTools+SearchWeb.swift`.
+/// * HONESTLY-FAILING (1): `dependency_audit` is wired to a real OSV
+///   audit (see below); the remaining honest-fail entry is none.
+///   Each formerly-failing tool validates its inputs first, then
+///   fails naming the exact missing prerequisite when its backend
+///   is unavailable. No behaviour, no endpoint, and no result is
+///   invented for any of them.
 /// * WIRED (Wave 10): the seven GitHub tools, via the shared
 ///   `GitHubClient` (`YcodeGitHubHost.swift`). See the Wave 10
 ///   deviation note below.
@@ -203,30 +208,45 @@ extension YcodeMCPHost {
             tool("web_search", "Web Search",
                  "Performs a web search.",
                  input: Schema.object(["workspace": Schema.workspace,
-                                       "query": Schema.string("Search query.")],
-                                      required: ["query"])) { h, call in
-                try await h.agenticNetworkWebSearch(call)
+                                       "query": Schema.string("Search query."),
+                                       "limit": Schema.integer("Maximum results to return (default: 8, max: 20).", minimum: 1)],
+                                      required: ["query"]),
+                 output: Schema.output(["abstract": Schema.str, "abstractURL": Schema.str, "answer": Schema.str,
+                                        "results": Schema.str, "resultCount": Schema.int]),
+                 annotations: externalRead) { h, call in
+                try await h.searchWeb(call)
             },
             tool("documentation_search", "Documentation Search",
                  "Searches for documentation.",
                  input: Schema.object(["workspace": Schema.workspace,
-                                       "query": Schema.string("Documentation topic to search for.")],
-                                      required: ["query"])) { h, call in
-                try await h.agenticNetworkDocumentationSearch(call)
+                                       "query": Schema.string("Documentation topic to search for."),
+                                       "framework": Schema.string("Optional framework to search within (e.g. 'SwiftUI')."),
+                                       "limit": Schema.integer("Maximum results to return (default: 5, max: 10).", minimum: 1)],
+                                      required: ["query"]),
+                 output: Schema.output(["results": Schema.str, "count": Schema.int]),
+                 annotations: externalRead) { h, call in
+                try await h.searchDocumentation(call)
             },
             tool("api_reference_search", "API Reference Search",
                  "Searches for API references.",
                  input: Schema.object(["workspace": Schema.workspace,
-                                       "query": Schema.string("API symbol or framework to search for.")],
-                                      required: ["query"])) { h, call in
-                try await h.agenticNetworkAPIReferenceSearch(call)
+                                       "query": Schema.string("API symbol or framework to search for."),
+                                       "framework": Schema.string("Optional framework to search within (e.g. 'SwiftUI')."),
+                                       "limit": Schema.integer("Maximum results to return (default: 5, max: 10).", minimum: 1)],
+                                      required: ["query"]),
+                 output: Schema.output(["results": Schema.str, "count": Schema.int]),
+                 annotations: externalRead) { h, call in
+                try await h.searchAPIReference(call)
             },
             tool("package_search", "Package Search",
                  "Searches for packages.",
                  input: Schema.object(["workspace": Schema.workspace,
-                                       "query": Schema.string("Package name or keyword to search for.")],
-                                      required: ["query"])) { h, call in
-                try await h.agenticNetworkPackageSearch(call)
+                                       "query": Schema.string("Package name or keyword to search for."),
+                                       "limit": Schema.integer("Maximum results to return (default: 10, max: 25).", minimum: 1)],
+                                      required: ["query"]),
+                 output: Schema.output(["results": Schema.str, "count": Schema.int, "source": Schema.str]),
+                 annotations: externalRead) { h, call in
+                try await h.searchPackage(call)
             },
             tool("dependency_audit", "Dependency Audit",
                  "Audits project dependencies for vulnerabilities.",
@@ -507,61 +527,18 @@ extension YcodeMCPHost {
                            summary: "HTTP \(method) \(urlString) → \(response.status).")
     }
 
-    // MARK: - Honestly failing: search tools
-
-    func agenticNetworkWebSearch(_ call: MCPToolCall) async throws -> MCPToolResult {
-        guard call.string("query") != nil else {
-            throw MCPToolError("Missing query")
-        }
-        // Legacy called https://ddg-api.herokuapp.com/search?q=…,
-        // an unofficial DuckDuckGo proxy that is not a supported
-        // search backend. Ycode's MCP host has no web search provider
-        // at all, so no request is sent and no results are invented.
-        throw MCPToolError("web_search needs a web search provider, which Ycode's MCP host does not have yet: no search was performed. Legacy called an unofficial DuckDuckGo proxy (ddg-api.herokuapp.com) that is not a supported search backend; no request was sent to it and no results were invented.")
-    }
-
-    func agenticNetworkDocumentationSearch(_ call: MCPToolCall) async throws -> MCPToolResult {
-        guard call.string("query") != nil else {
-            throw MCPToolError("Missing query")
-        }
-        // Legacy's implementation was a stub returning the canned
-        // string "Documentation for: …" without searching anything.
-        // Returning that string would be fake behaviour. Ycode has
-        // no documentation search backend: `fetch_documentation`
-        // fetches a known Apple documentation page, it does not
-        // search.
-        throw MCPToolError("documentation_search needs a documentation search backend, which Ycode's MCP host does not have yet: no documentation was searched and no results were invented. Use fetch_documentation with an exact developer.apple.com URL, or a framework plus an API symbol name.")
-    }
-
-    func agenticNetworkAPIReferenceSearch(_ call: MCPToolCall) async throws -> MCPToolResult {
-        guard call.string("query") != nil else {
-            throw MCPToolError("Missing query")
-        }
-        // Legacy's implementation was a stub returning the canned
-        // string "API Reference for: …" without searching anything.
-        throw MCPToolError("api_reference_search needs a documentation search backend, which Ycode's MCP host does not have yet: no API references were searched and no results were invented. Use fetch_documentation with an exact developer.apple.com URL, or a framework plus an API symbol name.")
-    }
-
-    func agenticNetworkPackageSearch(_ call: MCPToolCall) async throws -> MCPToolResult {
-        guard call.string("query") != nil else {
-            throw MCPToolError("Missing query")
-        }
-        // Legacy's implementation was a stub returning the canned
-        // string "Package search results for: …" without searching
-        // anything.
-        throw MCPToolError("package_search needs a package-index search backend (for example the Swift Package Index API), which Ycode's MCP host does not have yet: no packages were searched and no results were invented.")
-    }
-
+    /// `dependency_audit`: a real OSV audit of the pinned SwiftPM
+    /// packages in `Package.resolved` (see
+    /// `YcodeTools+DependencyAudit.swift`). Legacy returned "No
+    /// vulnerabilities found …" without checking anything — a clean
+    /// bill of health invented out of nothing. This port queries
+    /// OSV instead and reports "no advisories" as exactly that,
+    /// never as a guarantee of safety.
     func agenticNetworkDependencyAudit(_ call: MCPToolCall) async throws -> MCPToolResult {
         guard call.string("projectPath") != nil else {
             throw MCPToolError("Missing projectPath")
         }
-        // Legacy returned "No vulnerabilities found …" without
-        // checking anything — a clean bill of health invented out
-        // of nothing. Ycode has no vulnerability/advisory data
-        // source; `package_dependency_audit` audits pins, not
-        // vulnerabilities.
-        throw MCPToolError("dependency_audit needs a vulnerability/advisory data source, which Ycode's MCP host does not have yet: no vulnerability check was performed and no clean bill of health was invented. Use package_dependency_audit for pin auditing of Package.swift/Package.resolved.")
+        return try await dependencyAudit(call)
     }
 
     // MARK: - `install_dependencies` / `update_dependencies`

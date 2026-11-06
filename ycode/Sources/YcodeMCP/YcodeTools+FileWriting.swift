@@ -25,8 +25,10 @@ import YcodeIDECore
 /// * Schemas are Legacy's `parametersSchema` verbatim, plus the
 ///   `workspace` parameter Wave 1 adds to every tool. Legacy's
 ///   parameter-name aliases (`filePath`, `file_content`, `csvPath`,
-///   `targetFile`, …) are NOT supported: Ycode's argument validation
-///   rejects unknown arguments before the handler runs (same as Wave 1).
+///   `targetFile`, …) ARE supported (gap closure): `MCPServer.run`
+///   rewrites arguments with `MCPParameterAliases` before
+///   validation, so an alias satisfies the `required` list and the
+///   alias key itself is consumed, never rejected as unknown.
 /// * Structured data keeps Legacy's keys, with typed JSON values
 ///   (integers and booleans) the way Ycode's other tools do — Legacy's
 ///   string-only map is not reproduced. Tools whose Legacy result
@@ -79,24 +81,26 @@ import YcodeIDECore
 ///   `is_new` data key alongside Ycode's `created`/`lineCount`.
 ///   Remaining deltas: Legacy rejects any `..` in the path textually
 ///   (Ycode allows `..` that stays inside the workspace — tightening
-///   that would break Ycode's existing callers); Legacy reports a
-///   unified (Myers) diff with `is_new` in its data (Ycode has no
-///   Myers diff engine — see below); Legacy's parameter-name aliases
-///   (`filePath`, `file_content`, `code`) are not accepted (Ycode's
-///   argument validation rejects unknown arguments, and the aliases
-///   cannot satisfy the `required` list — same as Wave 1's
-///   `file_read`, whose aliases are likewise unimplemented).
-/// * Legacy's unified (Myers) diffs are omitted: `file_create` and
-///   `code_replace` return no `diff` key, and `code_replace`'s message
-///   carries no diff text. Ycode's MCP host has no Myers diff engine,
-///   and substituting the positional diff Wave 1 built for
-///   `file_compare_diff` would be a different diff wearing the same
-///   name.
-/// * `code_refactor` IS registered (same ID and schema) but its handler
-///   always fails: Legacy performs the refactoring by calling an
-///   OpenAI LLM with a stored API key, and Ycode's MCP host has no LLM
-///   provider wired for this tool. The failure names the blocker; no
-///   refactoring is faked.
+///   that would break Ycode's existing callers). The unified (Myers)
+///   diff IS now reported (`diff` key, rendered by `MyersDiff` —
+///   gap closure), and Legacy's parameter-name aliases (`filePath`,
+///   `file_content`, `code`) are accepted via `MCPParameterAliases`
+///   (gap closure; `file_write` itself is aligned in place in
+///   `YcodeTools+Content.swift`, coordinator patch for its `diff` key).
+/// * Unified (Myers) diffs are rendered by `MyersDiff`
+///   (YcodeIDECore, gap closure): `file_create` and `code_replace`
+///   return a `diff` key, and `file_compare_diff` / the patch engine
+///   use the same engine (coordinator-owned patches). The positional
+///   diff Wave 1 built is kept only as `MyersDiff`'s fallback when
+///   the edit distance exceeds its cap.
+/// * `code_refactor` is wired to the configured Assist LLM provider
+///   (gap-closure wiring): Legacy performs the refactoring by calling
+///   an OpenAI LLM with a stored API key; the port sends Legacy's
+///   prompt through `LLMToolCompletionService` (the host's provider
+///   dispatch — OpenRouter / OpenCode / Hermes / Foundation Models /
+///   SwiftCode Cloud, or whichever provider Settings names) and writes
+///   the result through `commit()`. With no provider usable it fails
+///   honestly naming the provider; no refactoring is faked.
 /// * `file_append` does NOT create a missing file: Legacy reads the
 ///   file first and fails when it is absent (its `appendFile` helper,
 ///   which would create it, is not what the tool calls).
@@ -119,7 +123,7 @@ extension YcodeMCPHost {
                                        "content": Schema.string("File body. Default: \"\"."),
                                        "overwrite": Schema.boolean("Must be true to replace an existing file. Default: false.")],
                                       required: ["path"]),
-                 output: Schema.output(["path": Schema.str, "bytes": Schema.int, "is_new": Schema.bool]),
+                 output: Schema.output(["path": Schema.str, "bytes": Schema.int, "is_new": Schema.bool, "diff": Schema.str]),
                  annotations: safeMutation, writes: true) { h, call in
                 try await h.createFile(call)
             },
@@ -195,7 +199,7 @@ extension YcodeMCPHost {
                                        "replacement": Schema.string("The new text snippet to insert in place of the target."),
                                        "allowMultiple": Schema.boolean("Whether to replace multiple occurrences if found (default false).")],
                                       required: ["path", "target", "replacement"]),
-                 output: Schema.output(["path": Schema.str]),
+                 output: Schema.output(["path": Schema.str, "diff": Schema.str]),
                  annotations: safeMutation, writes: true) { h, call in
                 try await h.replaceInFile(call)
             },
@@ -513,10 +517,12 @@ extension YcodeMCPHost {
             throw MCPToolError("File already exists at \(raw). Set overwrite=true to replace it.")
         }
         let rel = fileReadingRelativePath(of: url, in: s)
-        try await commit(MCPChange(tool: call.name, path: url.path, relativePath: rel, original: text(of: url), proposed: content,
+        let original = text(of: url)
+        try await commit(MCPChange(tool: call.name, path: url.path, relativePath: rel, original: original, proposed: content,
                                    summary: "Create \(rel)"), call: call, session: s)
         let lines = content.components(separatedBy: .newlines).count
-        return .structured(["path": .string(raw), "bytes": .int(content.utf8.count), "is_new": .bool(true)],
+        let diff = FileWritingSupport.unifiedDiff(old: original, new: content, file: rel)
+        return .structured(["path": .string(raw), "bytes": .int(content.utf8.count), "is_new": .bool(true), "diff": .string(diff)],
                            summary: "Created file at \(raw) (\(lines) lines)")
     }
 
@@ -724,7 +730,8 @@ extension YcodeMCPHost {
         let rel = fileReadingRelativePath(of: url, in: s)
         try await commit(MCPChange(tool: call.name, path: url.path, relativePath: rel, original: original, proposed: modified,
                                    summary: "Replace in \(rel)"), call: call, session: s)
-        return .structured(["path": .string(raw)], summary: "Successfully updated \(raw) with targeted replacement.")
+        let diff = FileWritingSupport.unifiedDiff(old: original, new: modified, file: rel)
+        return .structured(["path": .string(raw), "diff": .string(diff)], summary: "Successfully updated \(raw) with targeted replacement.")
     }
 
     func insertCode(_ call: MCPToolCall) async throws -> MCPToolResult {
@@ -873,11 +880,36 @@ extension YcodeMCPHost {
     }
 
     func refactorCode(_ call: MCPToolCall) async throws -> MCPToolResult {
-        // NOT PORTED (see the file header): Legacy performs the
-        // refactoring by calling an OpenAI LLM with a stored API key,
-        // and Ycode's MCP host has no LLM provider wired for this tool.
-        // Failing honestly beats faking a refactoring.
-        throw MCPToolError("code_refactor is unavailable: Legacy performs the refactoring by calling an OpenAI LLM (AssistLLMService with an OpenAI API key), and Ycode's MCP host has no LLM provider wired for this tool. Nothing was changed.")
+        let s = try session(for: call)
+        guard let raw = call.arguments["path"]?.string?.trimmingCharacters(in: .whitespacesAndNewlines), !raw.isEmpty else {
+            throw MCPToolError("Missing required parameter: path")
+        }
+        guard let action = call.arguments["action"]?.string?.trimmingCharacters(in: .whitespacesAndNewlines), !action.isEmpty else {
+            throw MCPToolError("Missing required parameter: action")
+        }
+        let url = try resolveFileReadingPath(raw, in: s)
+        guard let original = text(of: url) else {
+            throw MCPToolError("Failed to read \(raw)")
+        }
+        let systemPrompt = """
+            You are a refactoring engine. Apply the following refactoring action to the code.
+            Return ONLY the modified code, no preamble.
+            """
+        let completion = try await llmToolComplete(systemPrompt: systemPrompt,
+            userText: "Action: \(action)\nFile: \(raw)\n---\n\(original)",
+            toolName: "code_refactor", failureNote: "Nothing was changed.")
+        let updated = Self.llmToolStripFences(completion.text)
+        guard !updated.isEmpty else {
+            throw MCPToolError("code_refactor is unavailable: the LLM provider returned an empty refactoring for \(raw). Nothing was changed.")
+        }
+        let rel = fileReadingRelativePath(of: url, in: s)
+        try await commit(MCPChange(tool: call.name, path: url.path, relativePath: rel, original: original,
+                                   proposed: updated, summary: "Refactor \(rel): \(action)"),
+                         call: call, session: s)
+        if updated == original {
+            return .text("Refactoring '\(action)' applied to \(raw): the LLM returned the file unchanged.")
+        }
+        return .text("Refactoring '\(action)' applied to \(raw)")
     }
 
     func formatCode(_ call: MCPToolCall) async throws -> MCPToolResult {

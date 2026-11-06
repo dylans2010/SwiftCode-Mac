@@ -174,7 +174,7 @@ extension YcodeMCPHost {
                  input: Schema.object(["workspace": Schema.workspace,
                                        "pid": Schema.integer("Process ID whose logs to retrieve.")],
                                       required: ["pid"])) { h, call in
-                try h.agenticExecutionProcessLogs(call)
+                try await h.agenticExecutionProcessLogs(call)
             },
             tool("read_build_logs", "Read Build Logs",
                  "Reads build logs from a project directory.",
@@ -361,13 +361,80 @@ extension YcodeMCPHost {
         return .text("Process \(pid) terminated.")
     }
 
-    // MARK: - `get_process_logs` (honestly failing)
+    // MARK: - `get_process_logs` (real log reading)
 
-    func agenticExecutionProcessLogs(_ call: MCPToolCall) throws -> MCPToolResult {
+    /// First hit wins: (1) the host's own runs keyed by PID
+    /// (`HostRun.process.processIdentifier`) with their captured
+    /// output; (2) on macOS, the unified log
+    /// (`/usr/bin/log show --predicate 'processID == <pid>'`,
+    /// 45 s, TCC-denied fails honestly); (3) on Linux,
+    /// `journalctl _PID=<pid>` when present, plus `/proc/<pid>`
+    /// facts labelled as process info, not logs. Legacy returned
+    /// a placeholder string with no log source — that placeholder
+    /// is NOT reproduced: an unknown pid fails.
+    func agenticExecutionProcessLogs(_ call: MCPToolCall) async throws -> MCPToolResult {
         guard let pid = call.arguments["pid"]?.int else {
             throw MCPToolError("Missing required parameter: pid")
         }
-        throw MCPToolError("get_process_logs needs a per-process log buffer (stdout/stderr stored keyed by PID for processes the host started), which Ycode's MCP host does not have; no logs were retrieved for process \(pid). Legacy returned a placeholder string with no real log source, which this port does not reproduce.")
+        let pid32 = Int32(pid)
+        if let run = failingToolsHostRuns(pid: pid32).first {
+            let output = run.output.joined(separator: "\n")
+            let (capped, truncated) = Self.terminalCappedOutput(output)
+            return .structured(["pid": .int(pid), "source": .string("host_run"),
+                                "executable": .string(run.executable), "state": .string(run.state),
+                                "truncated": .bool(truncated),
+                                "logs": .string(capped.isEmpty ? "No output captured for process \(pid) yet." : capped)],
+                               summary: capped.isEmpty
+                                ? "Process \(pid) (\(run.executable)) is \(run.state) with no captured output yet."
+                                : "Logs for process \(pid) (\(run.executable), \(run.state)):\n\(capped)")
+        }
+#if os(macOS)
+        guard let result = await terminalUseSystemRun("/usr/bin/log", Self.failingToolsUnifiedLogArgs(pid: pid32),
+                                                      timeout: 45, workingDirectory: FileManager.default.temporaryDirectory) else {
+            throw MCPToolError("Failed to launch /usr/bin/log")
+        }
+        if result.timedOut {
+            throw MCPToolError("Unified-log query for process \(pid) timed out after 45s.")
+        }
+        if result.exitCode != 0 {
+            if Self.terminalPermissionDeniedIn(result.stdout) {
+                throw MCPToolError("Reading the unified log was denied by the OS (logd/TCC). Grant Full Disk Access to Ycode in System Settings > Privacy & Security, then retry.")
+            }
+            throw MCPToolError("/usr/bin/log exited \(result.exitCode): \(result.stdout.trimmingCharacters(in: .whitespacesAndNewlines))")
+        }
+        let trimmed = result.stdout.trimmingCharacters(in: .whitespacesAndNewlines)
+        if trimmed.isEmpty {
+            if await failingToolsProcessExists(pid: pid32) {
+                return .structured(["pid": .int(pid), "source": .string("unified_log"),
+                                    "logs": .string("No unified-log entries for process \(pid) in the last 15 minutes.")],
+                                   summary: "No unified-log entries for process \(pid) in the last 15 minutes.")
+            }
+            throw MCPToolError("No process with PID \(pid) exists, and no unified-log entries were found for it.")
+        }
+        let (capped, truncated) = Self.terminalCappedOutput(trimmed)
+        return .structured(["pid": .int(pid), "source": .string("unified_log"), "truncated": .bool(truncated),
+                            "logs": .string(capped)],
+                           summary: "Unified-log entries for process \(pid) (last 15 minutes):\n\(capped)")
+#else
+        if let journalctl = Self.failingToolsJournalctlPath(),
+           let result = await archiveRunFixed(journalctl, Self.failingToolsJournalArgs(pid: pid32)) {
+            if result.exitCode == 0 {
+                let trimmed = result.stdout.trimmingCharacters(in: .whitespacesAndNewlines)
+                if !trimmed.isEmpty {
+                    let (capped, truncated) = Self.terminalCappedOutput(trimmed)
+                    return .structured(["pid": .int(pid), "source": .string("journalctl"), "truncated": .bool(truncated),
+                                        "logs": .string(capped)],
+                                       summary: "journald entries for process \(pid) (last 15 minutes):\n\(capped)")
+                }
+            }
+        }
+        if let facts = Self.failingToolsProcFacts(pid: pid32) {
+            return .structured(["pid": .int(pid), "source": .string("proc"),
+                                "logs": .string(facts + "\n\nNo journald entries were found for this process in the last 15 minutes.")],
+                               summary: facts + "\n\nNo journald entries were found for this process in the last 15 minutes. (These are process facts from /proc, not log lines.)")
+        }
+        throw MCPToolError("No process with PID \(pid) exists, and no journald entries were found for it.")
+#endif
     }
 
     // MARK: - `read_build_logs` (pure read)

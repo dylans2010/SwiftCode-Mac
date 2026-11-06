@@ -69,11 +69,12 @@ import YcodeIDECore
 ///   keyword expansions (`view` / `model` / `service`), exactly as
 ///   Legacy implements it. Despite the name it performs no embedding
 ///   or LLM semantic search, and the port does not pretend otherwise.
-/// * `symbol_rename_project` is whole-word *textual* replacement
-///   across Swift files, exactly as Legacy implements it. It is not
-///   a semantic rename: it has no Swift symbol index, so it also
-///   renames same-named occurrences in comments, strings, and
-///   unrelated declarations. The spec says so plainly.
+/// * `symbol_rename_project` is a token-aware rename (gap
+///   closure): identifier tokens from the swift-syntax parse, so
+///   occurrences in comments, strings, and import paths are left
+///   alone. It is still not a semantic rename: it has no Swift
+///   symbol index, so shadowing is not resolved. The spec says so
+///   plainly.
 /// * `search_skills` searches the workspace's own skill files
 ///   (`SKILL.md` / `SKILLS.md` / `*.SKILL.md`, usually under
 ///   `.claude/skills/` or `.agents/skills/`). Legacy searched
@@ -229,7 +230,7 @@ extension YcodeMCPHost {
                 try h.symbolReferenceGraph(call)
             },
             tool("symbol_rename_project", "Rename Symbol Project-Wide",
-                 "Renames a symbol across Swift files by replacing whole-word occurrences of oldName with newName. Only files that actually change are rewritten. Refuses when oldName equals newName or either name is not a valid Swift identifier.",
+                 "Renames a symbol across Swift files by renaming identifier tokens (swift-syntax parse): occurrences inside strings, comments, or import paths are left alone and reported as skipped. Only files that actually change are rewritten. Refuses when oldName equals newName or either name is not a valid Swift identifier. Syntactic, not semantic: shadowing is not resolved (no type checker or symbol index).",
                  input: Schema.object(["workspace": Schema.workspace,
                                        "oldName": Schema.string("Existing symbol name to replace."),
                                        "newName": Schema.string("New symbol name. Letters, digits, and underscores only; must not start with a digit."),
@@ -892,69 +893,11 @@ extension YcodeMCPHost {
                            summary: "Moved symbol '\(symbol)' (\(declarationKind), \(blockLines.count) line(s)) from \(sourceRel) to \(destinationRel).")
     }
 
+    /// Gap closure: token-aware rename (`SymbolRenameEngine` —
+    /// identifier tokens from the swift-syntax parse, never raw
+    /// text). See `specs/ide/gap-closure-correctness.md` §6.
     func renameSymbolProject(_ call: MCPToolCall) async throws -> MCPToolResult {
-        let s = try session(for: call)
-        let root = Self.folder(of: s.model)
-        guard let oldName = call.arguments["oldName"]?.string, !oldName.isEmpty else {
-            throw MCPToolError("Missing required parameter: oldName")
-        }
-        guard let newName = call.arguments["newName"]?.string, !newName.isEmpty else {
-            throw MCPToolError("Missing required parameter: newName")
-        }
-        guard Self.isValidSearchIdentifier(oldName) else {
-            throw MCPToolError("Invalid oldName '\(oldName)': identifiers may contain only letters, digits, and underscores, and must not start with a digit.")
-        }
-        guard Self.isValidSearchIdentifier(newName) else {
-            throw MCPToolError("Invalid newName '\(newName)': identifiers may contain only letters, digits, and underscores, and must not start with a digit.")
-        }
-        guard oldName != newName else {
-            throw MCPToolError("Refusing rename: oldName and newName are identical ('\(oldName)').")
-        }
-        let scope: URL
-        if let raw = call.arguments["path"]?.string, !raw.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-            guard let resolved = resolveFileWritingPath(raw, in: s) else {
-                throw MCPToolError("Invalid path: path must stay inside the workspace and must not contain '..'.")
-            }
-            scope = resolved
-        } else {
-            scope = root
-        }
-        let pattern = "\\b" + NSRegularExpression.escapedPattern(for: oldName) + "\\b"
-        guard let regex = try? NSRegularExpression(pattern: pattern, options: []) else {
-            throw MCPToolError("Rename failed: could not build a whole-word pattern for '\(oldName)'.")
-        }
-        let files = Self.renameScopeFiles(at: scope)
-        if files.isEmpty {
-            return .structured(["filesChanged": .string(""), "replacementCount": .int(0), "changedFileCount": .int(0)],
-                               summary: "Rename Symbol: no Swift files found.")
-        }
-        var changed: [String] = []
-        var totalReplacements = 0
-        for url in files {
-            guard let content = try? String(contentsOf: url, encoding: .utf8) else { continue }
-            let range = NSRange(content.startIndex..., in: content)
-            let matches = regex.numberOfMatches(in: content, options: [], range: range)
-            guard matches > 0 else { continue }
-            let updated = regex.stringByReplacingMatches(in: content, options: [], range: range, withTemplate: newName)
-            let rel = relative(url.path, in: s)
-            // One commit() per changed file, in enumeration order; a
-            // refusal stops the rename and earlier files stay renamed
-            // (the Wave 2 multi-file shape, as in `code_multi_edit`).
-            try await commit(MCPChange(tool: call.name, path: url.path, relativePath: rel,
-                                       original: content, proposed: updated,
-                                       summary: "Rename \(oldName) to \(newName) in \(rel)"),
-                             call: call, session: s)
-            changed.append(rel)
-            totalReplacements += matches
-        }
-        if changed.isEmpty {
-            return .structured(["filesChanged": .string(""), "replacementCount": .int(0), "changedFileCount": .int(0)],
-                               summary: "Rename Symbol: no whole-word occurrences of '\(oldName)' found in \(files.count) Swift file(s). Nothing changed.")
-        }
-        return .structured(["filesChanged": .string(changed.joined(separator: "\n")),
-                            "replacementCount": .int(totalReplacements),
-                            "changedFileCount": .int(changed.count)],
-                           summary: "Rename Symbol: replaced \(totalReplacements) whole-word occurrence(s) of '\(oldName)' with '\(newName)' across \(changed.count) file(s):\n" + changed.map { "- \($0)" }.joined(separator: "\n"))
+        try await correctnessRenameSymbolProject(call)
     }
 
     /// Legacy's `AssistSymbolRenameProjectTool.enumerateSwiftFiles`: a

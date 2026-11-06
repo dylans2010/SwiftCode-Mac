@@ -40,8 +40,8 @@ public enum AppwriteOAuthCallback: Sendable, Equatable {
 /// `CloudManagementView` server test). Appwrite Storage file
 /// operations are included because they fall out of the same request
 /// machinery and `BackupEngine` needs them (`listObjects`,
-/// `download`, `delete` on the `backups` bucket); multipart upload
-/// is not here — see `AppwriteStorageProvider`.
+/// `download`, `delete`, and `multipart/form-data` upload via
+/// `createFile` on the `backups` bucket).
 ///
 /// Authentication is cookie-based, as in the SDK: creating a
 /// session makes Appwrite set `a_session_<project>`; the client
@@ -337,6 +337,39 @@ public struct AppwriteAccountClient: Sendable {
     public func deleteFile(bucketId: String, fileId: String) async throws {
         try await performEmpty(try makeRequest(
             path: "/storage/buckets/\(bucketId)/files/\(fileId)", method: "DELETE"))
+    }
+
+    /// `POST /storage/buckets/{bucketId}/files`: creates a file with a
+    /// `multipart/form-data` upload (the `fileId` field plus the `file`
+    /// part carrying the bytes). What `BackupEngine.performBackup`
+    /// needs. Returns the created file, whose `id` is the file id
+    /// within the bucket.
+    public func createFile(bucketId: String, fileId: String, data: Data, filename: String, contentType: String) async throws -> AppwriteFile {
+        let boundary = "Ycode-\(UUID().uuidString)"
+        var request = try makeRequest(path: "/storage/buckets/\(bucketId)/files", method: "POST")
+        request.setValue("multipart/form-data; boundary=\(boundary)", forHTTPHeaderField: "Content-Type")
+        request.httpBody = Self.multipartFormData(
+            boundary: boundary, fileId: fileId, data: data, filename: filename, contentType: contentType)
+        return try await perform(request)
+    }
+
+    /// Builds the `multipart/form-data` body for a Storage file
+    /// creation: the `fileId` text field, then the `file` part with
+    /// the filename and content type, then the raw bytes. Exposed
+    /// for tests (via `@testable`) so the body shape is asserted
+    /// without any network.
+    static func multipartFormData(boundary: String, fileId: String, data: Data, filename: String, contentType: String) -> Data {
+        var body = Data()
+        func append(_ string: String) { body.append(Data(string.utf8)) }
+        append("--\(boundary)\r\n")
+        append("Content-Disposition: form-data; name=\"fileId\"\r\n\r\n")
+        append("\(fileId)\r\n")
+        append("--\(boundary)\r\n")
+        append("Content-Disposition: form-data; name=\"file\"; filename=\"\(filename)\"\r\n")
+        append("Content-Type: \(contentType)\r\n\r\n")
+        body.append(data)
+        append("\r\n--\(boundary)--\r\n")
+        return body
     }
 
     // MARK: - OAuth2

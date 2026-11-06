@@ -106,7 +106,25 @@ public final class CodingAssistantSettingsPane: SettingsPane {
         museStatus.font = .systemFont(ofSize: 11)
         museStatus.lineBreakMode = .byTruncatingMiddle
         row("Muse CLI:", museStatus)
-        note("“Assist with Meta”, powered by the Muse Code CLI. Install the `muse` CLI and sign in once in Terminal. Ycode lists Meta’s models when the CLI is installed, but running turns needs the Muse Code bridge, which is not ported yet.")
+        note("“Assist with Meta”, powered by the Muse Code CLI. Install the `muse` CLI and sign in once in Terminal. Ycode lists Meta’s models when the CLI is installed, and runs turns through the Muse Code bridge.")
+        row("", check("Use Meta's Slash Commands", s.useMetaSlashCommands) { [weak self] on in self?.settings.useMetaSlashCommands = on })
+        note("Type \"/\" on Assist to list and run all commands from Muse Code. Off: \"/…\" text is sent to the model as-is.")
+        row("Meta turn timeout (seconds):", field(s.metaTurnTimeoutSeconds.truncatingRemainder(dividingBy: 1) == 0 ? "\(Int(s.metaTurnTimeoutSeconds))" : "\(s.metaTurnTimeoutSeconds)", width: 80, placeholder: "300") { [weak self] v in
+            guard let self else { return }
+            if v.isEmpty {
+                settings.metaTurnTimeoutSeconds = MetaAssistTurnExecutor.defaultTurnTimeout
+            } else if let d = Double(v) {
+                settings.metaTurnTimeoutSeconds = max(0, d)
+            }
+        })
+        note("How long a Meta turn may run before it is cancelled (\(Int(MetaAssistTurnExecutor.defaultTurnTimeout)) seconds by default; 0 disables the timeout). A timed-out turn fails over to another model only when “Automatically switch models on failure” is on.")
+
+        heading("Meta Other Models")
+        row("", check("Use other models with Meta", s.metaUseOtherModels) { [weak self] on in self?.settings.metaUseOtherModels = on })
+        note("Routes Meta turns through the model below instead of Meta's own, via the Meta proxy.")
+        row("", check("Use SwiftCode's Cloud Model with Meta", s.metaUseCloudModelWithMeta) { [weak self] on in self?.settings.metaUseCloudModelWithMeta = on })
+        row("Other model ID:", field(s.metaSelectedOtherModelID, width: 260, placeholder: "e.g. openai/gpt-4o") { [weak self] v in self?.settings.metaSelectedOtherModelID = v })
+        row("Other model provider:", field(s.metaSelectedOtherModelProvider, width: 260, placeholder: "e.g. openai") { [weak self] v in self?.settings.metaSelectedOtherModelProvider = v })
 
         heading("Foundation Models")
         note("Apple's on-device model (macOS 26+, Apple Intelligence-capable Mac). No API key, no account, nothing to configure.")

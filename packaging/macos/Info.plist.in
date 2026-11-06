@@ -106,5 +106,24 @@
 			</dict>
 		</dict>
 	</array>
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleURLName</key>
+			<string>io.github.MarcoDotIO.Ycode.appwrite-callback</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>appwrite-callback-6a670d0b0022e5f964b4</string>
+			</array>
+		</dict>
+		<dict>
+			<key>CFBundleURLName</key>
+			<string>io.github.MarcoDotIO.Ycode.swiftcode</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>swiftcode</string>
+			</array>
+		</dict>
+	</array>
 </dict>
 </plist>
