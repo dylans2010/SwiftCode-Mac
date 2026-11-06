@@ -2844,6 +2844,1574 @@ parameter. It runs in `readOnly` server mode. See §27.4 and
 `potentiallyDestructive` tools are `file_delete` and
 `dir_delete`.
 
+## Wave 3 — search tools
+
+This part of the catalogue covers the 16 Wave 3 Search tools: the
+search / code-navigation family ported from SwiftCode Legacy Assist
+into Ycode in Wave 3. The Wave 1 conventions in §1 apply, extended
+by §53 below. The companion spec
+`assist-search-git-tools.md` covers the behaviour shared by these
+tools (scan rules, path resolvers, search semantics, error cases),
+and `assist-approval-model.md` covers how the two writes are
+gated. (The Git tools share that behaviour spec's file but are
+catalogued separately by the Git slice.)
+
+Scope: exactly these 16 tools, verified live from the Legacy
+registry. No other tool is in scope for this slice, and no tool
+may be invented, renamed, or merged with another — except the two
+collisions handled in §53.5, which are documented, not merged.
+
+| ID | Title |
+|---|---|
+| `call_hierarchy` | Call Hierarchy |
+| `code_summary` | Code Summary |
+| `dependency_graph` | Dependency Graph |
+| `extract_code_symbols` | Extract Code Symbols |
+| `import_graph` | Import Graph |
+| `protocol_conformance_list` | Protocol Conformance List |
+| `search_regex` | Regex Search |
+| `search_skills` | Search Agent Skills |
+| `search_symbol` | Symbol Search |
+| `search_text` | Search Text |
+| `semantic_query_engine` | Semantic Source Query Engine |
+| `source_graph_builder` | Source Graph Builder |
+| `symbol_move_file` | Move Symbol Across Files |
+| `symbol_reference_graph` | Symbol Reference Graph |
+| `symbol_rename_project` | Rename Symbol Project-Wide |
+| `type_hierarchy` | Type Hierarchy |
+
+**The 14 read-only tools in this wave.** 14 of the 16 tools are
+`safeRead` reads (`writes: false`). The two exceptions are
+`symbol_move_file` and `symbol_rename_project`, both
+`safeMutation` writes gated through `commit()` (§53.3).
+
+## 53. Wave 3 conventions (extending §1 and §27)
+
+### 53.1 Result envelope — Wave 3 notes
+
+§1.1 applies unchanged, with three Wave 3 notes:
+
+- `filesChanged` (list of workspace-relative paths) has no Ycode
+  equivalent — `MCPToolResult` carries none — so the port reports
+  changed paths through `commit()`'s session notification
+  instead, as Wave 2 does. Two tools carry their changed paths
+  in their structured data as a string, exactly as Legacy does:
+  `symbol_rename_project` returns `filesChanged` as a
+  newline-joined string in `data` (see §68).
+- `diff` (optional string): no Wave 3 tool sets it. Ycode has no
+  Myers diff engine (see Wave 2's `file_create` / `code_replace`
+  note), and neither mutating tool in this wave produces a diff
+  in Legacy.
+- Legacy-only envelope fields (`duration`,
+  `suggestedNextActions`, `beforeContent`, `afterContent`) have no
+  Ycode equivalent and are dropped; see
+  `assist-file-writing-tools.md` §8.4.
+
+### 53.2 Risk → annotations for Wave 3
+
+§1.3 applies unchanged:
+
+| Legacy `riskLevel` | Ycode `MCPToolAnnotations` | `writes` |
+|---|---|---|
+| `safeRead` | `readOnly: true, idempotent: true` | `false` |
+| `safeMutation` | `readOnly: false, idempotent: true` | `true` |
+
+`writes: true` applies to exactly two tools in this wave:
+`symbol_move_file` and `symbol_rename_project`. No tool in this
+wave is `potentiallyDestructive`.
+
+### 53.3 Gate per tool
+
+Both `writes: true` tools are gated by `MCPServer.run()` and
+their handler-side shape — see `assist-approval-model.md` §6
+for the full table. In short: each changed file goes through
+one `commit()` (full before/after text), in order, stopping at
+the first refusal; earlier files stay written (the Wave 2
+multi-file shape, as in `code_multi_edit`).
+`symbol_move_file` additionally verifies after both commits and
+restores both files on verification failure — the Legacy restore
+path, adapted to the gate (see `assist-search-git-tools.md`
+§1.5 and §16). There is no Autopilot bypass.
+
+### 53.4 Two output shapes — schema rule
+
+Two tools have two output shapes by branch (`import_graph`:
+§57; `type_hierarchy`: §69) and one omits a key from its
+not-found result (`call_hierarchy`: §54). Their output schemas
+declare the union of both branches' keys, with `required`
+listing only the keys every branch returns (`import_graph` and
+`type_hierarchy` require nothing; `call_hierarchy` requires
+`function`, `definitionCount`, `callerCount` but not
+`calleeCount`). No other Wave 3 tool does this: every other
+tool's output schema lists exactly the keys its (single) result
+shape returns, as `Schema.output` does.
+
+### 53.5 Collisions with Ycode's existing tools — no merging
+
+Ycode already has `search` (workspace text search,
+`YcodeTools+Workspace`) and `symbol_search` (symbol
+documentation). Legacy's `search_text` and `search_symbol` are
+**different tools with different IDs/schemas** and must not be
+merged with them:
+
+- Ycode `search` takes `query` plus `regex` / `ignoreCase` /
+  `wholeWord` / `limit` (default 200, case-insensitive by
+  default) and returns `matches` (path / line / column / text)
+  with a 200-match cap. Legacy `search_text` takes a single
+  `pattern`, is a case-insensitive literal search with no limit,
+  skips files over 1 MB and binary-extension files, and returns
+  one `results` string grouped per file. Keep both as separate
+  tools.
+- Ycode `symbol_search` takes `query` / `limit` and returns
+  declarations whose name *contains* the query, with
+  documentation comments (from `SymbolDocs`). Legacy
+  `search_symbol` takes a single `symbol` and runs four
+  declaration regexes over the workspace, returning deduped
+  `path:line: text` lines. Keep both as separate tools.
+
+This mirrors the Wave 1 `file_read` / Wave 2 `file_write`
+precedent in the other direction: there the Ycode tool was
+aligned in place; here the Legacy tools are registered as their
+own tools because their schemas and behaviour do not align with
+Ycode's, and no second registration under an existing ID is
+created.
+
+### 53.6 Aliases — accepted, but never canonical
+
+The Legacy registry resolves these aliases to the canonical IDs
+in this wave. The Ycode port accepts them at `tools/call`
+time (through `MCPServer.toolAliases`, as Wave 1 did for
+`read_file`); the canonical ID is what is registered, listed,
+and returned in metadata:
+
+- `search_dir`, `search_directory`, `find_file` → `search_text`
+- `symbol_graph` → `symbol_reference_graph`
+
+The registry alias `search` → `search_text` is deliberately
+NOT carried over: Ycode already has a `search` tool (§53.5),
+and the alias would collide with it. No registry alias exists
+for `call_hierarchy`, `code_summary`, `dependency_graph`,
+`extract_code_symbols`, `import_graph`,
+`protocol_conformance_list`, `search_regex`, `search_skills`,
+`search_symbol`, `semantic_query_engine`,
+`source_graph_builder`, `symbol_move_file`,
+`symbol_rename_project`, or `type_hierarchy`.
+
+Per-tool parameter-name aliases (e.g. `symbol_rename_project`
+accepting `old_name`) are documented per tool under "Accepted
+aliases" where they exist. They are leniency in parsing, not
+part of the schema — and, as in §1.7 and §27.5, they are NOT
+supported in the Ycode port: Ycode's argument validation
+rejects unknown arguments before the handler runs.
+
+## 54. `call_hierarchy` — Call Hierarchy
+
+- **Description (verbatim):** "For a function name, finds its
+  definition site, its callers across the workspace, and the
+  functions it calls."
+- **Capability:** `diagnostics`. **Risk:** `safeRead`.
+  **Required permission:** `none`. **Read-only:** yes.
+  **MCP annotations:** `readOnly: true, idempotent: true`.
+  **`writes`:** `false`.
+
+```json
+{
+  "type": "object",
+  "description": "Builds a call hierarchy for a function.",
+  "properties": {
+    "function": {
+      "type": "string",
+      "description": "Function name to analyze (without parameters)."
+    }
+  },
+  "required": ["function"]
+}
+```
+
+**Output (success).** Found:
+`Call hierarchy for '<fn>':` followed by
+`Definitions (<n>):` (at most 20, `- <rel>:<line>`),
+`Callers (<n>):` (at most 50, with a
+`… [truncated: showing 50 of <n>]` line when more),
+`Callees (<n> distinct):` (at most 50, sorted). Structured data
+keys (all strings in Legacy; typed values in the port):
+
+| Key | Value |
+|---|---|
+| `function` | The function name as given (trimmed). |
+| `definitionCount` | Number of definition sites. |
+| `callerCount` | Number of callers. |
+| `calleeCount` | Number of distinct callees. |
+
+Not found (no definition and no callers):
+`No definition or callers found for function '<fn>'.` with data
+`function`, `definitionCount` 0, `callerCount` 0 — and **no**
+`calleeCount` key (see §53.4).
+
+**Accepted aliases:** none at the parameter level.
+
+**Notes.** A caller is a line matching
+`(?<![\w.])<fn>\s*\(` that is not itself a declaration line —
+`obj.fn(` is not a caller. Callees are collected by
+brace-depth tracking inside each definition body (at most 400
+lines); brace counting is heuristic and does not parse strings
+or comments. See `assist-search-git-tools.md` §6.
+
+## 55. `code_summary` — Code Summary
+
+- **Description (verbatim):** "Provides a high-level summary of
+  a file or directory."
+- **Capability:** `diagnostics`. **Risk:** `safeRead`.
+  **Required permission:** `none`. **Read-only:** yes.
+  **MCP annotations:** `readOnly: true, idempotent: true`.
+  **`writes`:** `false`.
+
+```json
+{
+  "type": "object",
+  "description": "Provides a high-level summary of a file or directory.",
+  "properties": {
+    "path": {
+      "type": "string",
+      "description": "Workspace-relative file or directory path to summarize."
+    }
+  },
+  "required": ["path"]
+}
+```
+
+**Output (success).** Message: `Summary for <path>`. Structured
+data keys (all strings):
+
+| Key | Value |
+|---|---|
+| `summary` | Directory: `Directory <path>: <n> files, <m> code files`. File: `File <path>: <lines> lines (<nonEmpty> non-empty), <commentLines> comment lines`. |
+
+**Accepted aliases:** none at the parameter level.
+
+**Notes.** Path resolution is the clamping resolver: an escaping
+path silently becomes the workspace root, never an error (see
+`assist-search-git-tools.md` §1.2). A directory counts files
+under it (300 KB cap, hidden files skipped); code files are
+those with a code extension (`swift`, `m`, `mm`, `h`, `hpp`,
+`c`, `cpp`, `js`, `ts`, `tsx`, `jsx`, `py`, `rb`, `java`, `kt`,
+`go`, `rs`). A file's line count splits on newlines, so a
+trailing newline counts as one more line (unlike `file_read`);
+comment lines are those whose trimmed form starts with `//`
+only. See `assist-search-git-tools.md` §10.
+
+## 56. `dependency_graph` — Dependency Graph
+
+- **Description (verbatim):** "Generates a graph of project
+  dependencies."
+- **Capability:** `repositoryDiscovery`. **Risk:** `safeRead`.
+  **Required permission:** `none`. **Read-only:** yes.
+  **MCP annotations:** `readOnly: true, idempotent: true`.
+  **`writes`:** `false`.
+
+```json
+{
+  "type": "object",
+  "description": "Generates a graph of Swift import dependencies across the project.",
+  "properties": {
+    "path": {
+      "type": "string",
+      "description": "Workspace-relative directory to scan. Defaults to the workspace root."
+    }
+  },
+  "required": []
+}
+```
+
+**Output (success).** Message:
+`Dependency graph generated for <n> files.` Structured data
+keys (all strings):
+
+| Key | Value |
+|---|---|
+| `node_count` | Number of nodes (source files + imported modules). |
+| `edge_count` | Number of import edges. |
+| `nodes` | Sorted node names, joined with `", "`. |
+| `edges` | Sorted edges (`<source> -> <module>`), joined with `\n`. |
+
+**Accepted aliases:** none at the parameter level.
+
+**Notes.** Scans `.swift` files only (300 KB cap). Imports are
+extracted with `^\s*import\s+([A-Za-z0-9_\.]+)`; a file with no
+imports is still a node. `@testable import X` does not match
+and is not an edge. `path` is optional and defaults to the
+workspace root; resolution is the clamping resolver. See
+`assist-search-git-tools.md` §11.
+
+## 57. `extract_code_symbols` — Extract Code Symbols
+
+- **Description (verbatim):** "Extracts top-level declarations
+  (class, struct, enum, protocol, actor, func, extension) and
+  signatures from a source file."
+- **Capability:** `fileReading`. **Risk:** `safeRead`.
+  **Required permission:** `none`. **Read-only:** yes.
+  **MCP annotations:** `readOnly: true, idempotent: true`.
+  **`writes`:** `false`.
+
+```json
+{
+  "type": "object",
+  "description": "Extracts top-level declarations (class, struct, enum, protocol, actor, func, extension) and signatures from a source file.",
+  "properties": {
+    "path": {
+      "type": "string",
+      "description": "Workspace-relative path to the Swift or source code file."
+    }
+  },
+  "required": ["path"]
+}
+```
+
+**Output (success).** Message:
+`Extracted <N> declaration symbol(s) from \`<path>\`:` followed
+by one line per symbol,
+`  • L<line>: [<kind>] <signature>`. Structured data keys (all
+strings):
+
+| Key | Value |
+|---|---|
+| `path` | The path as given. |
+| `symbolCount` | Number of declarations found. |
+
+**Accepted aliases:** `path` may also be given as `filePath`
+(Legacy handler leniency; not supported in the Ycode port — see
+§53.6).
+
+**Notes.** Per line, skipping lines whose trimmed form starts
+with `//`, `/*`, or `*`: the first keyword *contained* in the
+line wins, in the order `class `, `struct `, `enum `,
+`protocol `, `actor `, `func `, `extension `, `typealias ` —
+contained, not prefixed, so a line mentioning a keyword anywhere
+counts. The signature is the line up to the first `{`, trimmed.
+The file must decode as UTF-8. Path resolution is the strict
+resolver. See `assist-search-git-tools.md` §5.
+
+## 58. `import_graph` — Import Graph
+
+- **Description (verbatim):** "Builds a file-level import graph:
+  which modules each source file imports, and which files import
+  a given module."
+- **Capability:** `diagnostics`. **Risk:** `safeRead`.
+  **Required permission:** `none`. **Read-only:** yes.
+  **MCP annotations:** `readOnly: true, idempotent: true`.
+  **`writes`:** `false`.
+
+```json
+{
+  "type": "object",
+  "description": "Builds a file-level import graph.",
+  "properties": {
+    "module": {
+      "type": "string",
+      "description": "Optional: only show files importing this module."
+    },
+    "limit": {
+      "type": "integer",
+      "description": "Maximum files to report. Default 200."
+    }
+  },
+  "required": []
+}
+```
+
+**Output (success).** Two shapes (see §53.4):
+
+With `module`: message `Files importing '<module>' (<n>):`
+followed by at most `limit` lines `- <rel>`. Structured data
+keys: `module`, `fileCount` (the full count, even when the
+listing is capped).
+
+Without `module`: message `Most-imported modules:` followed by
+the 30 most-imported modules (`- <module>: <n> files`), then
+`Import edges (<total> total, showing <shown>):` followed by at
+most `limit` lines `- <rel> -> <module>` in scan order.
+Structured data keys: `edgeCount`, `moduleCount`.
+
+**Accepted aliases:** none at the parameter level.
+
+**Notes.** Scans source files (`swift`, `m`, `mm`, `h`, `c`,
+`cpp`, `hpp`); imports are extracted per line with
+`^\s*import\s+([A-Za-z_][\w.]*)`. `limit` defaults to 200 and
+is clamped to 1…2000. `@testable import X` does not match and
+is not an edge. See `assist-search-git-tools.md` §12.
+
+## 59. `protocol_conformance_list` — Protocol Conformance List
+
+- **Description (verbatim):** "Lists every type that declares
+  conformance to a given protocol, with declaration locations."
+- **Capability:** `diagnostics`. **Risk:** `safeRead`.
+  **Required permission:** `none`. **Read-only:** yes.
+  **MCP annotations:** `readOnly: true, idempotent: true`.
+  **`writes`:** `false`.
+
+```json
+{
+  "type": "object",
+  "description": "Lists conformers of a protocol.",
+  "properties": {
+    "protocol": {
+      "type": "string",
+      "description": "Protocol name to search conformances for."
+    }
+  },
+  "required": ["protocol"]
+}
+```
+
+**Output (success).** None found:
+`No conformances to protocol '<proto>' found.` with data
+`protocol`, `count` 0. Found:
+`Conformances to '<proto>' (<n>):` followed by one line per
+conformance, `- <Type> — <rel>:<line>` (or
+`- extension <Type> — <rel>:<line>` for extension
+conformances), sorted. Structured data keys (all strings):
+
+| Key | Value |
+|---|---|
+| `protocol` | The protocol name as given (trimmed). |
+| `count` | Number of conformances. |
+
+**Accepted aliases:** none at the parameter level.
+
+**Notes.** The match is textual: a declaration whose `:` clause
+contains the protocol name as a whole word, and an `extension
+<Type>:` clause likewise. A type conforming through a typealias
+or a conditional conformance is not recognised. See
+`assist-search-git-tools.md` §7.
+
+## 60. `search_regex` — Regex Search
+
+- **Description (verbatim):** "Searches for a regular
+  expression pattern within the project files."
+- **Capability:** `repositoryDiscovery`. **Risk:** `safeRead`.
+  **Required permission:** `none`. **Read-only:** yes.
+  **MCP annotations:** `readOnly: true, idempotent: true`.
+  **`writes`:** `false`.
+
+```json
+{
+  "type": "object",
+  "description": "Searches for a regular expression pattern within project files.",
+  "properties": {
+    "pattern": {
+      "type": "string",
+      "description": "Regular expression pattern to search for."
+    }
+  },
+  "required": ["pattern"]
+}
+```
+
+**Output (success).** Message:
+`Regex search completed for '<pattern>'`. Structured data keys
+(all strings):
+
+| Key | Value |
+|---|---|
+| `results` | Matching lines as `<rel>:<line>: <text>`, one per line, sorted by path; empty string when nothing matches. |
+
+**Accepted aliases:** none at the parameter level.
+
+**Notes.** The pattern is compiled once as a case-insensitive
+`NSRegularExpression` and matched per line; a line with several
+matches is reported once. An invalid pattern fails with
+`Regex search failed: <error>` — never a partial result. Files
+over 1 MB, binary-extension files, hidden files, and files that
+do not decode as UTF-8 are skipped. See
+`assist-search-git-tools.md` §3.
+
+## 61. `search_skills` — Search Agent Skills
+
+- **Description (verbatim, adapted — see Notes):** "Search the
+  workspace's local skills library (SKILL.md files under
+  .claude/skills and .agents/skills) for specialized domain
+  guides, architectures, workflows, and best practices. Call
+  this tool when an objective involves a specific technology,
+  framework, pattern, or task category."
+- **Capability:** `repositoryDiscovery`. **Risk:** `safeRead`.
+  **Required permission:** `none`. **Read-only:** yes.
+  **MCP annotations:** `readOnly: true, idempotent: true`.
+  **`writes`:** `false`.
+
+```json
+{
+  "type": "object",
+  "description": "Search indexed skills in the workspace's local skills library.",
+  "properties": {
+    "query": {
+      "type": "string",
+      "description": "Search keywords or task intent (e.g. 'SwiftUI architecture', 'TypeScript testing', 'Core Data', 'security audit')."
+    },
+    "limit": {
+      "type": "integer",
+      "description": "Maximum number of matching skills to return (default: 8, max: 20)."
+    }
+  },
+  "required": ["query"]
+}
+```
+
+**Output (success).** No matches:
+`No skills found matching query '<query>'. You can continue executing the task using standard engineering principles.`
+No structured data. Matches:
+`### Discovered Skills Matching '<query>' (<n> results):`
+followed by one numbered block per skill (`**<name>** (\`<id>\`)`,
+`Source`, `Location`, `Description`, `Tags` when present,
+`Tools` when present, and a line pointing at `file_read` on the
+skill's path), and a closing guidance line. No structured data.
+
+**Accepted aliases:** none at the parameter level.
+
+**Notes — the description is adapted, not verbatim.** Legacy's
+description names "SwiftCode's authoritative local skills
+library" and its schema says "Search indexed skills in the
+local SwiftCode skills repository." Ycode has no such library:
+Legacy's `SkillIndex` indexed
+`~/Library/Application Support/SwiftCode/Skills/` plus imported
+Claude/Codex/VSCode/Antigravity libraries, with enable/disable
+toggles and a disk cache. The port searches the skill surface
+Ycode actually has — the workspace's own `SKILL.md` /
+`SKILLS.md` / `*.SKILL.md` files (including hidden directories
+such as `.claude/skills/`, where Ycode's own skill lives) — with
+Legacy's metadata parsing and scoring. The description and
+schema description above are the adapted wording; everything
+else (scoring, output format, `limit` clamp 1…20) is Legacy's.
+The guidance lines point at `file_read` (Ycode's canonical
+name) rather than Legacy's `read_file` alias. Do not invent a
+skills database to make the verbatim description true. See
+`assist-search-git-tools.md` §15.
+
+## 62. `search_symbol` — Symbol Search
+
+- **Description (verbatim):** "Searches for symbols (classes,
+  methods, variables) within the project."
+- **Capability:** `repositoryDiscovery`. **Risk:** `safeRead`.
+  **Required permission:** `none`. **Read-only:** yes.
+  **MCP annotations:** `readOnly: true, idempotent: true`.
+  **`writes`:** `false`.
+
+```json
+{
+  "type": "object",
+  "description": "Searches for Swift symbol declarations (classes, methods, variables).",
+  "properties": {
+    "symbol": {
+      "type": "string",
+      "description": "Symbol name to search for."
+    }
+  },
+  "required": ["symbol"]
+}
+```
+
+**Output (success).** Message:
+`Symbol search completed for '<symbol>'`. Structured data keys
+(all strings):
+
+| Key | Value |
+|---|---|
+| `results` | Deduped, sorted lines as `<rel>:<line>: <text>`; empty string when nothing matches. |
+
+**Accepted aliases:** none at the parameter level.
+
+**Notes.** Four declaration regexes run over the workspace
+(case-insensitive): type declarations, `func`, `var`/`let`,
+and `case` (see `assist-search-git-tools.md` §4). This is a
+text-pattern search, not an index lookup: it finds
+declaration-shaped lines and can miss declarations whose shape
+the four patterns do not cover. It is a different tool from
+Ycode's existing `symbol_search` (§53.5). See
+`assist-search-git-tools.md` §4.
+
+## 63. `search_text` — Search Text
+
+- **Description (verbatim):** "Searches for text across files in
+  the project sandbox."
+- **Capability:** `repositoryDiscovery`. **Risk:** `safeRead`.
+  **Required permission:** `none`. **Read-only:** yes.
+  **MCP annotations:** `readOnly: true, idempotent: true`.
+  **`writes`:** `false`.
+
+```json
+{
+  "type": "object",
+  "description": "Searches for literal text across files in the project sandbox.",
+  "properties": {
+    "pattern": {
+      "type": "string",
+      "description": "Literal text pattern to find."
+    }
+  },
+  "required": ["pattern"]
+}
+```
+
+**Output (success).** Message:
+`Search results for '<pattern>':`. Structured data keys (all
+strings):
+
+| Key | Value |
+|---|---|
+| `results` | One block per matching file, `"<rel>:\n"` followed by its `<line>: <text>` lines, blocks joined with a blank line; empty string when nothing matches. |
+
+**Accepted aliases:** none at the parameter level. The canonical
+aliases `search`, `search_dir`, `search_directory`, and
+`find_file` resolve to this tool; see §53.6 — except `search`,
+which is NOT carried over in Ycode (it would collide with
+Ycode's existing `search`).
+
+**Notes.** Literal, case-insensitive substring search; the
+pattern is never treated as a regex, even when it contains
+regex metacharacters. Results are sorted by path (Legacy
+returned a dictionary; the port is deterministic instead). An
+empty `pattern` matches every line (Legacy behaviour,
+preserved). Files over 1 MB, binary-extension files, hidden
+files, and files that do not decode as UTF-8 are skipped. It
+is a different tool from Ycode's existing `search` (§53.5).
+See `assist-search-git-tools.md` §2.
+
+## 64. `semantic_query_engine` — Semantic Source Query Engine
+
+- **Description (verbatim):** "Performs semantic search for
+  symbols, SwiftUI views, models, and services with usage
+  context."
+- **Capability:** `repositoryDiscovery`. **Risk:** `safeRead`.
+  **Required permission:** `none`. **Read-only:** yes.
+  **MCP annotations:** `readOnly: true, idempotent: true`.
+  **`writes`:** `false`.
+
+```json
+{
+  "type": "object",
+  "description": "Performs semantic search for symbols, SwiftUI views, models, and services with usage context.",
+  "properties": {
+    "query": {
+      "type": "string",
+      "description": "Search query. Shortcuts: 'view', 'model', 'service' expand to common patterns."
+    },
+    "path": {
+      "type": "string",
+      "description": "Workspace-relative directory to search. Defaults to the workspace root."
+    }
+  },
+  "required": ["query"]
+}
+```
+
+**Output (success).** Message:
+`Semantic query returned <n> matches.` Structured data keys
+(all strings):
+
+| Key | Value |
+|---|---|
+| `matches` | The first 1500 hits, one per line, as `<rel>::<line>::<snippet>` where the snippet is the matching line with one line of context on each side (`<n>: <text>` joined with ` \| `); empty string when nothing matches. |
+
+**Accepted aliases:** none at the parameter level.
+
+**Notes — the name overpromises.** Despite the name and
+description, this tool performs **no** embedding or LLM
+semantic search — in Legacy or in this port. It is a
+case-insensitive substring scan over `.swift` files (800 KB
+cap) with three keyword expansions (`view` also matches lines
+containing `: View`; `model` also matches `struct`/`class`
+lines mentioning `model`/`viewmodel`; `service` also matches
+lines mentioning `service`). The port implements Legacy's scan
+faithfully and must never be described as semantic search. The
+message count is the full count, even when the list is capped
+at 1500. Path resolution is the clamping resolver. See
+`assist-search-git-tools.md` §14.
+
+## 65. `source_graph_builder` — Source Graph Builder
+
+- **Description (verbatim):** "Parses Swift files and returns
+  dependency and symbol relationship graph data."
+- **Capability:** `repositoryDiscovery`. **Risk:** `safeRead`.
+  **Required permission:** `none`. **Read-only:** yes.
+  **MCP annotations:** `readOnly: true, idempotent: true`.
+  **`writes`:** `false`.
+
+```json
+{
+  "type": "object",
+  "description": "Parses Swift files and returns dependency and symbol relationship graph data.",
+  "properties": {
+    "path": {
+      "type": "string",
+      "description": "Workspace-relative directory to scan. Defaults to the workspace root."
+    }
+  },
+  "required": []
+}
+```
+
+**Output (success).** Message:
+`Built source graph for <n> Swift files.` Structured data keys
+(all strings):
+
+| Key | Value |
+|---|---|
+| `file_count` | Number of Swift files scanned. |
+| `node_count` | Number of distinct nodes (files, `<kind>:<name>` symbols, `module:<module>` imports). |
+| `relationship_count` | Number of relationships (full count, even when the list is capped). |
+| `imports` | Sorted imported modules, joined with `,` (no space). |
+| `relationships` | The first 2000 relationships, joined with `\n`. |
+
+**Accepted aliases:** none at the parameter level.
+
+**Notes.** Three regexes run over each file's whole text:
+symbol declarations, imports, and capitalised type uses
+(excluding names the file itself declares). Relationships are
+kept in scan order with duplicates; only the reported list is
+capped. A scope path that does not exist fails with
+`Path does not exist: <absolute path>`. Path resolution is the
+clamping resolver. See `assist-search-git-tools.md` §13.
+
+## 66. `symbol_move_file` — Move Symbol Across Files
+
+- **Description (verbatim):** "Moves a top-level Swift
+  declaration from a source file to a destination file by
+  extracting its brace-balanced block, removing it from the
+  source, and appending it to the destination. Verifies the
+  symbol is present in the destination and its declaration is
+  gone from the source, restoring both files on verification
+  failure. Brace matching is heuristic and does not parse
+  strings or comments."
+- **Capability:** `fileModification`. **Risk:** `safeMutation`.
+  **Required permission:** `fileSystem`. **Read-only:** no.
+  **Write.** **MCP annotations:** `readOnly: false,
+  idempotent: true`. **`writes`:** `true`.
+
+```json
+{
+  "type": "object",
+  "description": "Moves one symbol declaration from a source file to a destination file.",
+  "properties": {
+    "symbol": {
+      "type": "string",
+      "description": "Name of the symbol to move."
+    },
+    "sourcePath": {
+      "type": "string",
+      "description": "Workspace-relative path of the file containing the symbol."
+    },
+    "destinationPath": {
+      "type": "string",
+      "description": "Workspace-relative path of the file receiving the symbol."
+    }
+  },
+  "required": ["symbol", "sourcePath", "destinationPath"]
+}
+```
+
+**Output (success).** Message:
+`Moved symbol '<symbol>' (<kind>, <n> line(s)) from <sourceRel> to <destinationRel>.`
+Structured data keys (all strings):
+
+| Key | Value |
+|---|---|
+| `symbol` | The symbol name. |
+| `kind` | The declaration kind (`func`, `class`, `struct`, `enum`, `protocol`, `actor`, `var`, `let`, `typealias`). |
+| `sourcePath` | The source path (workspace-relative). |
+| `destinationPath` | The destination path (workspace-relative). |
+| `movedLines` | Number of lines moved. |
+
+**Accepted aliases:** `symbol` may also be given as
+`symbolName`; `sourcePath` may also be given as `source_path`;
+`destinationPath` may also be given as `destination_path`
+(Legacy handler leniency; not supported in the Ycode port — see
+§53.6).
+
+**Notes.** Validation runs in Legacy's order (identifier,
+paths, difference, readability, destination-declares check,
+declaration found). The block is extracted by brace counting:
+at most 500 lines from the declaration; no opening brace within
+20 lines moves a `var` / `let` / `typealias` as a single line
+and fails anything else. Gate: one `commit()` per file, source
+first, then destination; verification after both commits
+restores both files on failure (see
+`assist-search-git-tools.md` §1.5 and §16). Path resolution is
+the strict resolver for both paths. See
+`assist-search-git-tools.md` §16.
+
+## 67. `symbol_reference_graph` — Symbol Reference Graph
+
+- **Description (verbatim):** "Traverses workspace files to
+  identify declarations, references, and call sites for a given
+  Swift symbol."
+- **Capability:** `repositoryDiscovery`. **Risk:** `safeRead`.
+  **Required permission:** `none`. **Read-only:** yes.
+  **MCP annotations:** `readOnly: true, idempotent: true`.
+  **`writes`:** `false`.
+
+```json
+{
+  "type": "object",
+  "description": "Finds all occurrences, definitions, and references for a symbol across workspace source files.",
+  "properties": {
+    "symbol": {
+      "type": "string",
+      "description": "Symbol name (e.g. MyViewModel, fetchUserData, UserRecord)."
+    },
+    "maxResults": {
+      "type": "integer",
+      "description": "Maximum number of call sites to return (default: 50)."
+    }
+  },
+  "required": ["symbol"]
+}
+```
+
+**Output (success).** No matches:
+`No references found for symbol '<symbol>' in workspace.`
+No structured data. Matches: a Markdown report,
+`### Symbol Reference Graph for \`<symbol>\` (<n> sites found):`
+followed by a `#### Declarations:` section (only when there
+are declarations) and a `#### Usages & Call Sites:` section
+with at most 40 usages, each line
+`` - `<rel>:<line>` → `<trimmed line>` ``. No structured data.
+
+**Accepted aliases:** none at the parameter level. The canonical
+alias `symbol_graph` resolves to this tool; see §53.6.
+
+**Notes.** Enumeration skips hidden files and package
+descendants; `.swift` files only; UTF-8 only; case-sensitive
+substring matching. A line is a *declaration* only when its
+trimmed form *starts* with `func <symbol>`, `class <symbol>`,
+etc. — `public struct Foo` is not counted as a declaration.
+Collection stops at `maxResults` (default 50); a value ≤ 0 still
+yields one match, as in Legacy. Enumeration order is filesystem
+order; the report does not sort matches. See
+`assist-search-git-tools.md` §9.
+
+## 68. `symbol_rename_project` — Rename Symbol Project-Wide
+
+- **Description (verbatim):** "Renames a symbol across Swift
+  files by replacing whole-word occurrences of oldName with
+  newName. Only files that actually change are rewritten.
+  Refuses when oldName equals newName or either name is not a
+  valid Swift identifier."
+- **Capability:** `fileModification`. **Risk:** `safeMutation`.
+  **Required permission:** `fileSystem`. **Read-only:** no.
+  **Write.** **MCP annotations:** `readOnly: false,
+  idempotent: true`. **`writes`:** `true`.
+
+```json
+{
+  "type": "object",
+  "description": "Renames a symbol project-wide with whole-word replacement.",
+  "properties": {
+    "oldName": {
+      "type": "string",
+      "description": "Existing symbol name to replace."
+    },
+    "newName": {
+      "type": "string",
+      "description": "New symbol name. Letters, digits, and underscores only; must not start with a digit."
+    },
+    "path": {
+      "type": "string",
+      "description": "Workspace-relative path of a file or directory to search. Defaults to the workspace root."
+    }
+  },
+  "required": ["oldName", "newName"]
+}
+```
+
+**Output (success).** No Swift files in scope:
+`Rename Symbol: no Swift files found.` with data
+`filesChanged` `""`, `replacementCount` 0, `changedFileCount` 0.
+No occurrences:
+`Rename Symbol: no whole-word occurrences of '<oldName>' found in <n> Swift file(s). Nothing changed.`
+with the same zero data. Otherwise:
+`Rename Symbol: replaced <total> whole-word occurrence(s) of '<oldName>' with '<newName>' across <n> file(s):`
+followed by `- <rel>` lines. Structured data keys (all strings):
+
+| Key | Value |
+|---|---|
+| `filesChanged` | The changed paths, newline-joined (a string, as in Legacy — not a list). |
+| `replacementCount` | Total whole-word replacements. |
+| `changedFileCount` | Number of files rewritten. |
+
+**Accepted aliases:** `oldName` may also be given as
+`old_name`; `newName` may also be given as `new_name` (Legacy
+handler leniency; not supported in the Ycode port — see §53.6).
+
+**Notes — textual rename, not semantic rename.** This tool has
+no Swift symbol index: it renames every whole-word occurrence
+of `oldName`, including occurrences in comments, strings, and
+unrelated declarations that happen to share the name. It must
+never be described as a semantic rename. The scope is a single
+`.swift` file (≤ 300 KB) or a directory walk (hidden files NOT
+skipped; `.git`, `DerivedData`, `.build`, `Pods`, and
+`node_modules` pruned; `.swift` only; ≤ 300 KB each; at most
+5000 files; sorted by path). Gate: one `commit()` per changed
+file, in enumeration order, stopping at the first refusal;
+earlier files stay renamed (the Wave 2 multi-file shape). See
+`assist-search-git-tools.md` §17.
+
+## 69. `type_hierarchy` — Type Hierarchy
+
+- **Description (verbatim):** "Maps class/struct/enum/protocol
+  declarations and their inheritance and conformance clauses
+  across Swift sources."
+- **Capability:** `diagnostics`. **Risk:** `safeRead`.
+  **Required permission:** `none`. **Read-only:** yes.
+  **MCP annotations:** `readOnly: true, idempotent: true`.
+  **`writes`:** `false`.
+
+```json
+{
+  "type": "object",
+  "description": "Maps type declarations and inheritance.",
+  "properties": {
+    "type": {
+      "type": "string",
+      "description": "Optional: focus on one type name and show its ancestors/descendants."
+    }
+  },
+  "required": []
+}
+```
+
+**Output (success).** Two shapes (see §53.4):
+
+No `type`: message `Type declarations (<n> total):` followed by
+at most 200 lines
+`- <kind> <name>[: <parents>] — <rel>:<line>`, sorted by name,
+with a `… [truncated: showing 200 of <n>]` line when more.
+Structured data key: `typeCount`.
+
+With `type`: message
+`Type hierarchy for '<focus>' (<kind>) at <loc>:` followed by
+`Inherits/conforms to:` (the parents, one `- <parent>` line
+each, or `- (none)`) and `Subtypes (<n>):` (the subtypes, one
+`- <name> (<kind>)` line each, sorted, or `- (none)`).
+Structured data keys: `type`, `childCount`.
+
+**Accepted aliases:** none at the parameter level.
+
+**Notes.** Later declarations of the same name overwrite
+earlier ones. An empty or whitespace-only `type` is treated as
+no focus (the full listing). A focus type that is not declared
+fails with
+`Type '<focus>' not found in workspace Swift sources.` See
+`assist-search-git-tools.md` §8.
+
+## 70. Summary: capability / risk / permission / writes (Wave 3)
+
+| ID | Capability | Risk | Permission | Read-only | `writes` |
+|---|---|---|---|---|---|
+| `call_hierarchy` | diagnostics | safeRead | none | yes | false |
+| `code_summary` | diagnostics | safeRead | none | yes | false |
+| `dependency_graph` | repositoryDiscovery | safeRead | none | yes | false |
+| `extract_code_symbols` | fileReading | safeRead | none | yes | false |
+| `import_graph` | diagnostics | safeRead | none | yes | false |
+| `protocol_conformance_list` | diagnostics | safeRead | none | yes | false |
+| `search_regex` | repositoryDiscovery | safeRead | none | yes | false |
+| `search_skills` | repositoryDiscovery | safeRead | none | yes | false |
+| `search_symbol` | repositoryDiscovery | safeRead | none | yes | false |
+| `search_text` | repositoryDiscovery | safeRead | none | yes | false |
+| `semantic_query_engine` | repositoryDiscovery | safeRead | none | yes | false |
+| `source_graph_builder` | repositoryDiscovery | safeRead | none | yes | false |
+| `symbol_move_file` | fileModification | safeMutation | fileSystem | **no** | **true** |
+| `symbol_reference_graph` | repositoryDiscovery | safeRead | none | yes | false |
+| `symbol_rename_project` | fileModification | safeMutation | fileSystem | **no** | **true** |
+| `type_hierarchy` | diagnostics | safeRead | none | yes | false |
+
+14 tools read; 2 (`symbol_move_file`, `symbol_rename_project`)
+write. No tool in this wave is `potentiallyDestructive`.
+
+## Wave 3 — Git tools
+
+This part of the catalogue covers the 13 Wave 3 Git tools: the Git / source-control family ported from SwiftCode Legacy Assist into Ycode in Wave 3. Scope: exactly these 13 tools, verified live from the Legacy registry. No other tool is in scope for Wave 3, and no tool may be invented, renamed, or merged with another.
+
+| ID | Title |
+|---|---|
+| `conflict_marker_scan` | Conflict Marker Scan |
+| `git_bisect` | Git Bisect |
+| `git_blame_inspector` | Git Blame Inspector |
+| `git_branch_compare` | Compare Branches |
+| `git_branch_manager` | Git Branch Manager |
+| `git_cherry_pick` | Git Cherry-Pick |
+| `git_conflict_resolver` | Git Conflict Resolver |
+| `git_log_viewer` | Git Log Viewer |
+| `git_pr_summary` | PR Summary |
+| `git_stash_operator` | Git Stash Operator |
+| `github_repo` | GitHub Repository Inspector |
+| `recent_changes` | Recent Changes |
+| `version_control_operator` | Version Control Operator |
+
+**The read-only correction.** `git_pr_summary` is catalogued with the Git tools and is sometimes assumed to need the GitHub API. It does not: Legacy's description says it uses "only local git history. No network, no GitHub API", and its implementation is four local git commands. It is specified as a read-only local tool (`writes: false`). Only `github_repo` needs the GitHub API, and Ycode has no GitHub client yet — see §71.4.
+
+## 71. Wave 3 conventions (extending §1 and §27)
+
+### 71.1 Result envelope — Wave 3 additions
+
+§1.1 applies unchanged, with two Wave 3 notes:
+
+- `filesChanged` is never set by any Git tool in Legacy, and the port preserves that — including for the tools that change files (`git_branch_manager`, `git_cherry_pick`, `git_conflict_resolver`, `git_stash_operator`, `git_bisect`, `version_control_operator`). The Ycode port has no `filesChanged` field on `MCPToolResult` in any case; `git_conflict_resolver`'s text write is reported through the normal session edit note, as Wave 2 text writes are.
+- `diff` is never set by any Git tool. Legacy-only envelope fields (`duration`, `suggestedNextActions`, `beforeContent`, `afterContent`) have no Ycode equivalent and are dropped, as in Wave 2.
+
+### 71.2 Risk → annotations for Wave 3
+
+§1.3 applies unchanged, extended by one row for the risk level Wave 1/2 never met:
+
+| Legacy `riskLevel` | Ycode `MCPToolAnnotations` | `writes` |
+|---|---|---|
+| `safeRead` | `readOnly: true, idempotent: true` | `false` |
+| `safeMutation` | `readOnly: false, idempotent: true` | `true` |
+| `execution` | `readOnly: false, idempotent: false` | `true` |
+| `potentiallyDestructive` | `readOnly: false, destructive: true` | `true` |
+
+`writes: true` applies to exactly 6 tools in this wave: `git_bisect`, `git_branch_manager`, `git_cherry_pick`, `git_conflict_resolver`, `git_stash_operator`, `version_control_operator`. The one `potentiallyDestructive` tool is `version_control_operator`; the one `execution` tool is `git_bisect`. Legacy's derived permission for `execution` is `none` (only mutating tools — `safeMutation` / `potentiallyDestructive` — require `fileSystem`); `git_bisect` is therefore the only writing tool in this wave whose Legacy permission is `none`.
+
+### 71.3 Gate per tool
+
+Every `writes: true` tool is gated by `MCPServer.run()` and its handler-side shape — see `assist-approval-model.md` §6 for the full table. In short:
+
+- Text resolution goes through `commit()`: `git_conflict_resolver` take_ours/take_theirs.
+- Every other mutation uses an explicit `MCPChange` + `guard await call.approve(change)` before running git: `git_bisect` (every action except `log`), `git_branch_manager` (create/switch/delete), `git_cherry_pick`, `git_stash_operator` (save/pop/drop), `version_control_operator` (commit/branch/rollback). The change's path is the workspace root (relative path `"."`), since a git operation has no single file.
+- Read-only actions of a writing tool request no approval but are still refused in `readOnly` mode because the tool is registered `writes: true`: `git_bisect` log, `git_branch_manager` list/current, `git_stash_operator` list/show, `git_conflict_resolver` inspect, `version_control_operator` status/diff. This is the Wave 2 dry-run precedent (§27.3 / approval-model §6.4).
+
+### 71.4 The `github_repo` honest failure
+
+`github_repo` is registered with its Legacy ID, title, description, and schema, but its handler always fails: Ycode's MCP host has no GitHub API client and no GitHub credential store, and this wave must not touch remotes or GitHub. The failure names the missing GitHub client/auth prerequisite; no GitHub data is fetched and none is faked. Remote/GitHub access is a later wave (the audit records that the GitHub remote layer needs a new target; `YcodeIDECore/SourceControl` is local-git only). This is the Wave 2 `code_refactor` precedent (registered but honestly failing).
+
+### 71.5 Aliases — accepted, but never canonical
+
+The Legacy registry resolves these aliases to the canonical IDs in this wave. The Ycode port must accept them at `tools/call` time (through `MCPServer.toolAliases`, as Waves 1–2 did); the canonical ID is what is registered, listed, and returned in metadata:
+
+- `git`, `git_status`, `git_diff`, `git_commit`, `git_branch`, `git_rollback`, `git_tool`, `version_control` → `version_control_operator`
+- `git_stash` → `git_stash_operator`
+- `git_blame` → `git_blame_inspector`
+- `git_branches` → `git_branch_manager`
+- `git_log` → `git_log_viewer`
+- `git_conflict` → `git_conflict_resolver`
+
+No registry aliases exist for `conflict_marker_scan`, `git_bisect`, `git_branch_compare`, `git_cherry_pick`, `git_pr_summary`, `github_repo`, or `recent_changes`.
+
+### 71.6 The git runner
+
+All git operations run the `git` CLI as an argument vector — never a shell — with the workspace folder as the working directory, exactly as Legacy's `runGit` helpers do (`/usr/bin/git` there; the Flatpak-aware `HostTool` path here). The environment mirrors `GitRepository.environment`: inherited, minus the variables that could point git at another repository, plus the never-wait-for-a-person settings (`GIT_TERMINAL_PROMPT=0`, `GIT_PAGER=cat`, `GIT_EDITOR=true`, `GIT_ASKPASS=true`, `GIT_OPTIONAL_LOCKS=0`). Nothing here touches a remote: there is no push/pull/fetch/clone and no GitHub API call. A workspace that is not a git repository fails with git's own "not a git repository" message — never invented log/blame/status output. See `assist-search-git-tools.md` for the full safety rules.
+
+## 72. `conflict_marker_scan` — Conflict Marker Scan
+
+- **Description (verbatim):** "Scans source files for unresolved merge-conflict markers (<<<<<<<, =======, >>>>>>>)."
+- **Capability:** `diagnostics`. **Risk:** `safeRead`. **Required permission:** `none`. **Read-only:** yes. **MCP annotations:** `readOnly: true, idempotent: true`. **`writes`:** `false`.
+
+```json
+{
+  "type": "object",
+  "description": "Scans for merge-conflict markers.",
+  "properties": {
+    "limit": {
+      "type": "integer",
+      "description": "Maximum files to report. Default 50."
+    }
+  },
+  "required": []
+}
+```
+
+**Output (success).** None found: `No merge-conflict markers found in source files.` with data `fileCount: "0"`. Found: `Files with unresolved conflict markers (<count>):` followed by one line per file, sorted by path: `- <path>: lines <n1, n2, ...>` (at most 10 line numbers per file). Structured data keys (all strings):
+
+| Key | Value |
+|---|---|
+| `fileCount` | Number of files containing markers. |
+
+**Notes.** Only source files are scanned (extensions `swift`, `m`, `mm`, `h`, `c`, `cpp`, `hpp` — Legacy `AssistWorkspaceScan.sourceExts`), skipping hidden files and the top-level `.git`, `.build`, `build`, `DerivedData`, `.swiftpm`, `Pods`, `Carthage`, `node_modules`, `.venv` directories, at most 20,000 files. `limit` defaults to 50 and is clamped to 1…500. A marker is a line starting with `<<<<<<<`, `=======`, or `>>>>>>>`. Files that do not decode as UTF-8 are skipped. This tool needs no git repository — it is a filesystem scan. See `assist-search-git-tools.md` ("Git tools").
+
+## 73. `git_bisect` — Git Bisect
+
+- **Description (verbatim):** "Runs one step of git bisect (start, good, bad, skip, reset, or log) in the workspace repository."
+- **Capability:** `gitOperations`. **Risk:** `execution`. **Required permission:** `none`. **Read-only:** no. **Write.** **MCP annotations:** `readOnly: false, idempotent: false`. **`writes`:** `true`.
+
+```json
+{
+  "type": "object",
+  "description": "Runs one step of git bisect (start, good, bad, skip, reset, or log) in the workspace repository.",
+  "properties": {
+    "action": {
+      "type": "string",
+      "description": "Bisect action: start, good, bad, skip, reset, or log. Default: log."
+    },
+    "ref": {
+      "type": "string",
+      "description": "Commit ref for the good or bad action."
+    }
+  },
+  "required": []
+}
+```
+
+**Output (success).** Message: `Git bisect <action> succeeded.\n<git output>` (or `Git bisect <action> completed with no output.` when git prints nothing). Structured data keys (all strings):
+
+| Key | Value |
+|---|---|
+| `action` | The action actually run, lowercased. |
+| `output` | Git's merged stdout+stderr output, trimmed. |
+
+**Notes.** `action` defaults to `log` and is lowercased; anything outside `start, good, bad, skip, reset, log` fails with `Invalid bisect action '<action>'. Allowed: start, good, bad, skip, reset, log.` `ref` is used only for `good`/`bad` and must pass Legacy's ref validator (see `assist-search-git-tools.md` ("Git tools")); an invalid ref fails with `Invalid git ref: <ref>`. Gate: every action except `log` requires approval before git runs — bisect moves the checkout. `log` with no bisect in progress fails with git's own message (`Git bisect log failed: error: We are not bisecting.`), exactly as Legacy reports it. See §71.2 for the `execution` → annotation mapping and §71.3 for the gate.
+
+## 74. `git_blame_inspector` — Git Blame Inspector
+
+- **Description (verbatim):** "Inspects author, commit hash, date, and commit message for specific lines in a workspace file."
+- **Capability:** `gitOperations`. **Risk:** `safeRead`. **Required permission:** `none`. **Read-only:** yes. **MCP annotations:** `readOnly: true, idempotent: true`. **`writes`:** `false`.
+
+```json
+{
+  "type": "object",
+  "description": "Runs git blame on a target file to analyze authorship, commit history, and modifications for specific lines.",
+  "properties": {
+    "path": {
+      "type": "string",
+      "description": "Relative path to the file in workspace."
+    },
+    "startLine": {
+      "type": "integer",
+      "description": "Optional starting line number."
+    },
+    "endLine": {
+      "type": "integer",
+      "description": "Optional ending line number."
+    }
+  },
+  "required": ["path"]
+}
+```
+
+**Output (success).** Message: `Git blame for \`<path>\`:\n\n` followed by the readable blame lines (at most 50). **No structured data is returned.**
+
+**Notes.** The tool runs `git blame --porcelain` first (its failure is the tool's failure: `git blame failed: <git output>`), then `git blame -s` for the readable snippet. The output is therefore the `-s` rendering — short hash, line number, line text — with **no author name** (`-s` suppresses it). The `-L` range rules differ between the two runs, preserved here: the porcelain run takes a full range (`start,end`) or a lone start line (`start,start+30`); the readable run takes only a full range. A lone start line with no end line therefore blames 31 lines in the porcelain check but the whole file in the displayed snippet's range handling. The path resolves inside the workspace like every other Ycode tool. Ycode's `GitBlame.parse` seam is not used for this output: it drops the line text the `-s` rendering shows. See `assist-search-git-tools.md` ("Git tools").
+
+## 75. `git_branch_compare` — Compare Branches
+
+- **Description (verbatim):** "Compares two branches with diff stat plus the commits in head not in base."
+- **Capability:** `gitOperations`. **Risk:** `safeRead`. **Required permission:** `none`. **Read-only:** yes. **MCP annotations:** `readOnly: true, idempotent: true`. **`writes`:** `false`.
+
+```json
+{
+  "type": "object",
+  "description": "Compares two branches with diff stat plus the commits in head not in base.",
+  "properties": {
+    "base": {
+      "type": "string",
+      "description": "Base branch or ref."
+    },
+    "head": {
+      "type": "string",
+      "description": "Head branch or ref."
+    }
+  },
+  "required": ["base", "head"]
+}
+```
+
+**Output (success).** Message (exact shape):
+
+```text
+Branch comparison <base>...<head>
+
+Commits in <head> not in <base> (<n>):
+<one-line commits, or "No commits in <head> not in <base>.">
+
+Diff stat:
+<diff --stat output, or "No differences.">
+```
+
+Structured data keys (all strings):
+
+| Key | Value |
+|---|---|
+| `base` | Base ref, trimmed. |
+| `head` | Head ref, trimmed. |
+| `commits` | The `log --oneline` output (`base..head`), possibly empty. |
+| `diffStat` | The `diff --stat` output (`base...head`), possibly empty. |
+| `commitCount` | Number of commits in head not in base. |
+
+**Notes.** Both refs are trimmed; an empty or missing value fails with `Missing required parameter: base` / `head`. Both refs must pass Legacy's ref validator; otherwise `Invalid git ref for base: <base>` / `Invalid git ref for head: <head>`. The commits come from `git log --oneline <base>..<head>` (two dots) and the stat from `git diff --stat <base>...<head>` (three dots). A failing log fails as `Git log failed for <base>..<head>: <detail>`; a failing diff as `Git diff failed for <base>...<head>: <detail>`. See `assist-search-git-tools.md` ("Git tools").
+
+## 76. `git_branch_manager` — Git Branch Manager
+
+- **Description (verbatim):** "Inspects, lists, creates, switches, and manages Git branches in the workspace."
+- **Capability:** `gitOperations`. **Risk:** `safeMutation`. **Required permission:** `fileSystem`. **Read-only:** no. **Write.** **MCP annotations:** `readOnly: false, idempotent: true`. **`writes`:** `true`.
+
+```json
+{
+  "type": "object",
+  "description": "Manages repository branches. Actions: 'list', 'current', 'create', 'switch', 'delete'.",
+  "properties": {
+    "action": {
+      "type": "string",
+      "description": "Action: 'list', 'current', 'create', 'switch', or 'delete'."
+    },
+    "branchName": {
+      "type": "string",
+      "description": "Branch name when creating, switching, or deleting."
+    }
+  },
+  "required": ["action"]
+}
+```
+
+**Output (success).** Message: git's output, trimmed; or `Branch operation '<action>' succeeded.` when git prints nothing. **No structured data is returned.**
+
+**Accepted aliases:** `git_branches` resolves to this tool; see §71.5.
+
+**Notes.** Actions (case-insensitive): `list` / `branches` → `git branch -a`; `current` → `git branch --show-current`; `create` → `git checkout -b <name>` (the branch is created **and** checked out, as in Legacy); `switch` / `checkout` → `git checkout <name>`; `delete` → `git branch -d <name>` (safe delete: refuses an unmerged branch). `create`/`switch`/`delete` require a non-empty `branchName` (`Action '<action>' requires 'branchName'.`) and the name must pass the strict allow-list validator (see `assist-search-git-tools.md` ("Git tools")) — a tightening over Legacy, which passed the name to argv unvalidated. Gate: create/switch/delete require approval before git runs; list/current do not, but the tool is registered `writes: true`, so a `readOnly` server refuses even those. An unknown action fails with `Unsupported action '<action>'. Supported: list, current, create, switch, delete.` A failing git run fails as `Git branch operation failed: <git output>`. See §71.3 and `assist-search-git-tools.md` ("Git tools").
+
+## 77. `git_cherry_pick` — Git Cherry-Pick
+
+- **Description (verbatim):** "Cherry-picks one commit onto the current branch. On conflict it reports the conflicted files and leaves the state for manual resolution."
+- **Capability:** `gitOperations`. **Risk:** `safeMutation`. **Required permission:** `fileSystem`. **Read-only:** no. **Write.** **MCP annotations:** `readOnly: false, idempotent: true`. **`writes`:** `true`.
+
+```json
+{
+  "type": "object",
+  "description": "Cherry-picks one commit onto the current branch.",
+  "properties": {
+    "commit": {
+      "type": "string",
+      "description": "Full or short commit SHA, or a validated ref to cherry-pick."
+    },
+    "noCommit": {
+      "type": "string",
+      "description": "Pass \"true\" to stage the change without committing (--no-commit). Default: false."
+    }
+  },
+  "required": ["commit"]
+}
+```
+
+**Output (success).** Message: `Cherry-picked <commit>.\n<git output>` (or `Cherry-pick completed with no output.` when git prints nothing). Structured data keys (all strings):
+
+| Key | Value |
+|---|---|
+| `commit` | The commit argument, trimmed. |
+| `output` | Git's merged stdout+stderr output, trimmed. |
+
+**Notes.** `commit` is trimmed; empty fails with `Missing required parameter: commit`. It must be a 7–40 hex SHA or a valid ref, else `Invalid commit: <commit>`. **`noCommit` keeps Legacy's string schema type** (not a boolean): `"true"`, `"1"`, or `"yes"` (case-insensitive, trimmed) mean `--no-commit`; anything else, including a boolean, follows Legacy's `boolValue` parsing (a JSON boolean `true` also counts). Gate: approval is required before git runs. On failure with conflicts, the tool lists the conflicted files from `git status --porcelain` (codes `DD`, `AU`, `UD`, `UA`, `DU`, `AA`, `UU`): `Cherry-pick of <commit> stopped due to conflicts in: <files>. Resolve the conflicts and commit, or run git cherry-pick --abort. Git output: <output>`. Any other failure is `Git cherry-pick failed: <output or "unknown error">`. The cherry-pick is left stopped, for manual resolution — the tool never aborts or continues it. See §71.3 and `assist-search-git-tools.md` ("Git tools").
+
+## 78. `git_conflict_resolver` — Git Conflict Resolver
+
+- **Description (verbatim):** "Detects, inspects, and helps resolve Git merge conflict markers in workspace source files."
+- **Capability:** `gitOperations`. **Risk:** `safeMutation`. **Required permission:** `fileSystem`. **Read-only:** no. **Write.** **MCP annotations:** `readOnly: false, idempotent: true`. **`writes`:** `true`.
+
+```json
+{
+  "type": "object",
+  "description": "Scans for and resolves merge conflict markers (<<<<<<< HEAD ... ======= ... >>>>>>>).",
+  "properties": {
+    "path": {
+      "type": "string",
+      "description": "Relative path to file with merge conflicts."
+    },
+    "resolution": {
+      "type": "string",
+      "description": "Optional resolution strategy: 'inspect', 'take_ours', 'take_theirs'. Defaults to 'inspect'."
+    }
+  },
+  "required": ["path"]
+}
+```
+
+**Output (success).** No markers: `No active Git conflict markers (<<<<<<< / ======= / >>>>>>>) found in <path>.` Inspect: `### Detected <n> Merge Conflict(s) in \`<path>\`:` followed by one `#### Conflict #<i>:` fenced block per conflict, then `Use resolution: 'take_ours' or 'take_theirs', or code_replace to resolve precisely.` Resolved: `Successfully resolved all conflict markers in \`<path>\` using '<resolution>'.` **No structured data is returned in any outcome.**
+
+**Accepted aliases:** `git_conflict` resolves to this tool; see §71.5.
+
+**Notes.** `resolution` defaults to `inspect` and is lowercased. A file is "conflicted" only when its content contains all three of `<<<<<<<`, `=======`, `>>>>>>>`; that check happens before the resolution is validated, so an unknown resolution on a marker-free file reports no markers rather than an error. `inspect` reads only, but the tool is registered `writes: true`, so a `readOnly` server refuses even `inspect` (see §71.3). `take_ours` / `take_theirs` drop the marker lines and keep only the chosen side's lines (Legacy's state machine), and write the result through `commit()` — the full before/after goes to review. An unknown resolution fails with `Unknown resolution '<resolution>'. Use 'inspect', 'take_ours', or 'take_theirs'.` Missing file: `File not found at path: <path>`; unreadable as UTF-8: `Unable to read content of file at <path>`. Legacy's absolute-path carve-out (a leading-`/` path used as a raw filesystem path, which could resolve conflicts outside the workspace) is **not** reproduced: paths resolve inside the workspace like every other Ycode tool. Ycode's `GitRepository.resolveConflict` seam is not used: it also stages the file (`git add`), while Legacy only writes the resolved text. See `assist-search-git-tools.md` ("Git tools").
+
+## 79. `git_log_viewer` — Git Log Viewer
+
+- **Description (verbatim):** "Retrieves structured commit history, commit hashes, dates, authors, and changed file stats."
+- **Capability:** `gitOperations`. **Risk:** `safeRead`. **Required permission:** `none`. **Read-only:** yes. **MCP annotations:** `readOnly: true, idempotent: true`. **`writes`:** `false`.
+
+```json
+{
+  "type": "object",
+  "description": "Fetches recent Git commit history with author and message details.",
+  "properties": {
+    "maxCount": {
+      "type": "integer",
+      "description": "Maximum number of commits to retrieve (default: 15)."
+    },
+    "path": {
+      "type": "string",
+      "description": "Optional specific file or directory path to filter log history for."
+    }
+  },
+  "required": []
+}
+```
+
+**Output (success).** No commits: `No commits found in the repository history.` Otherwise:
+
+```text
+### Recent Git Commits (<n> entries):
+
+- `<shortHash> | <author> | <date> | <subject>`
+…
+```
+
+**No structured data is returned.**
+
+**Accepted aliases:** `git_log` resolves to this tool; see §71.5.
+
+**Notes.** `maxCount` defaults to 15 and is passed to `git log -n` as given (Legacy does not clamp it). `path`, when non-empty, is resolved inside the workspace and passed as `git log … -- <workspace-relative path>`. A failing git run fails as `git log failed: <git output>` — including the "not a git repository" failure for a workspace with no repository. See `assist-search-git-tools.md` ("Git tools").
+
+## 80. `git_pr_summary` — PR Summary
+
+- **Description (verbatim):** "Builds a local markdown PR summary (commits, files changed, insertions/deletions) for head versus base using only local git history. No network, no GitHub API."
+- **Capability:** `gitOperations`. **Risk:** `safeRead`. **Required permission:** `none`. **Read-only:** yes. **MCP annotations:** `readOnly: true, idempotent: true`. **`writes`:** `false`.
+
+```json
+{
+  "type": "object",
+  "description": "Builds a local markdown PR summary for head versus base using only local git history.",
+  "properties": {
+    "base": {
+      "type": "string",
+      "description": "Base branch or ref. Default: main."
+    },
+    "head": {
+      "type": "string",
+      "description": "Head branch or ref. Default: HEAD."
+    }
+  },
+  "required": []
+}
+```
+
+**Output (success).** Message (exact shape):
+
+```text
+# PR Summary
+
+Base: `<base>` → Head: `<head>`
+
+## Commits (<n>)
+- <one-line commit>
+… (or "No commits in <head> not in <base>.")
+
+## Files changed (<n>)
+- `<file>`
+… (or "No files changed.")
+
+## Stats
+<diff --shortstat output, or "No changes.">
+
+Files changed: <n> | Insertions: <n> | Deletions: <n>
+```
+
+Structured data keys (all strings):
+
+| Key | Value |
+|---|---|
+| `summary` | The full markdown text above. |
+| `base` | Base ref, trimmed. |
+| `head` | Head ref, trimmed. |
+| `commitCount` | Commits in head not in base. |
+| `fileCount` | Files changed (from `--name-only` when non-empty, else from the shortstat count). |
+| `insertions` | Insertions parsed from the shortstat. |
+| `deletions` | Deletions parsed from the shortstat. |
+| `shortstat` | The `diff --shortstat` output, possibly empty. |
+
+**Notes.** `base` defaults to `main`, `head` to `HEAD`; both are trimmed and must be non-empty and pass Legacy's ref validator (`Base ref must not be empty.` / `Head ref must not be empty.` / `Invalid git ref for base: <base>` / `Invalid git ref for head: <head>`). The four git commands are `log --oneline <base>..<head>`, `diff --stat <base>...<head>`, `diff --shortstat <base>...<head>`, `diff --name-only <base>...<head>`; a failing log or stat fails the tool (`Git log failed for <base>..<head>: <detail>` / `Git diff failed for <base>...<head>: <detail>`), while a failing shortstat or name-only is tolerated as empty. Despite the name, this tool never contacts GitHub — it is purely local. See `assist-search-git-tools.md` ("Git tools").
+
+## 81. `git_stash_operator` — Git Stash Operator
+
+- **Description (verbatim):** "Manages Git stashes (save, pop, list, show, drop) to safely stash and restore changes during refactoring."
+- **Capability:** `gitOperations`. **Risk:** `safeMutation`. **Required permission:** `fileSystem`. **Read-only:** no. **Write.** **MCP annotations:** `readOnly: false, idempotent: true`. **`writes`:** `true`.
+
+```json
+{
+  "type": "object",
+  "description": "Save, restore, or inspect git stashed changes in the active workspace.",
+  "properties": {
+    "action": {
+      "type": "string",
+      "description": "Action: 'save', 'pop', 'list', 'show', 'drop'."
+    },
+    "message": {
+      "type": "string",
+      "description": "Optional descriptive message for 'save'."
+    },
+    "stashIndex": {
+      "type": "string",
+      "description": "Stash identifier for pop/show/drop (e.g. 'stash@{0}', defaults to 'stash@{0}')."
+    }
+  },
+  "required": ["action"]
+}
+```
+
+**Output (success).** Message: git's stdout when non-empty, else its stderr, else `Git stash <action> completed.` **No structured data is returned.**
+
+**Accepted aliases:** `git_stash` resolves to this tool; see §71.5.
+
+**Notes.** Actions (case-insensitive): `save` / `push` → `git stash push` (plus `-m <message>` when a non-empty message is given); `pop` → `git stash pop <stash>`; `list` → `git stash list`; `show` → `git stash show -p <stash>`; `drop` → `git stash drop <stash>`. `stashIndex` defaults to `stash@{0}` and must be `stash@{N}` or a plain number, else `Invalid stash identifier: <stashIndex>` — a tightening over Legacy, which passed it to argv unvalidated. Gate: save/pop/drop require approval before git runs; list/show do not, but the tool is registered `writes: true`, so a `readOnly` server refuses even those. A failing git run fails as `Git stash <action> failed (exit <code>):\n<stderr>\n<stdout>`. An unknown action fails with `Unsupported action '<action>'. Valid: save, pop, list, show, drop`. Ycode's `GitRepository` stash seam (`stashPatch` / `exportStash`) covers only exporting a stash as a patch and is not used here. See §71.3 and `assist-search-git-tools.md` ("Git tools").
+
+## 82. `github_repo` — GitHub Repository Inspector
+
+- **Description (verbatim):** "Reads real GitHub repositories: metadata, file trees, directory listings, source file contents, code search, and bounded full-repository retrieval. Public repos need no login; private repos use the user's saved GitHub credential."
+- **Capability:** `repositoryDiscovery`. **Risk:** `safeRead`. **Required permission:** `none`. **Read-only:** yes. **MCP annotations:** `readOnly: true, idempotent: true`. **`writes`:** `false`.
+
+```json
+{
+  "type": "object",
+  "description": "Inspects a GitHub repository. 'operation' is required; identify the repo with owner+repo or url.",
+  "properties": {
+    "operation": {
+      "type": "string",
+      "description": "One of: repository_info, list_files, get_file, get_directory, get_tree, search_code, fetch_repository."
+    },
+    "owner": {
+      "type": "string",
+      "description": "Repository owner or organization, e.g. 'dylans2010'."
+    },
+    "repo": {
+      "type": "string",
+      "description": "Repository name, e.g. 'SwiftCode-Mac'."
+    },
+    "url": {
+      "type": "string",
+      "description": "GitHub repository URL, e.g. https://github.com/dylans2010/SwiftCode-Mac. Alternative to owner+repo."
+    },
+    "ref": {
+      "type": "string",
+      "description": "Branch, tag, or commit SHA. Defaults to the repository's default branch."
+    },
+    "path": {
+      "type": "string",
+      "description": "Repository-relative file or directory path for list_files, get_file, get_directory."
+    },
+    "recursive": {
+      "type": "boolean",
+      "description": "For get_tree: fetch the full recursive tree (default true). For list_files: recurse into subdirectories via the tree."
+    },
+    "includeContent": {
+      "type": "boolean",
+      "description": "For list_files/get_directory: also fetch each file's content (bounded by maxBytes). Default false."
+    },
+    "maxResults": {
+      "type": "integer",
+      "description": "Maximum entries/files/matches to return. Defaults: 100 (listings), 5000 (tree), 50 (search), 50 (fetch_repository)."
+    },
+    "maxBytes": {
+      "type": "integer",
+      "description": "Maximum aggregate content bytes to return (fetch_repository, includeContent). Default 262144 (256 KB), hard cap 2097152 (2 MB)."
+    },
+    "query": {
+      "type": "string",
+      "description": "For search_code: text to find. For fetch_repository: prioritizes files whose path or name matches."
+    }
+  },
+  "required": ["operation"]
+}
+```
+
+**Output.** This tool has no success output in Ycode: its handler always fails with an error naming the missing GitHub API client/auth prerequisite. No GitHub data is fetched and none is faked.
+
+**Notes.** Legacy's tool reads live repositories over the GitHub API (public repos unauthenticated, private repos with the user's saved credential), with operations `repository_info`, `list_files`, `get_file`, `get_directory`, `get_tree`, `search_code`, `fetch_repository`; code search is client-side over fetched files, recursive trees are capped by the API, binary files are classified never decoded, and unauthenticated rate limits (60 requests/hour) are reported, never retried. None of that can be reproduced without a GitHub client, so the Ycode port keeps the ID, title, description, and schema (so callers and the catalogue stay aligned) and fails honestly. Remote/GitHub access is a later wave. See §71.4 and `assist-search-git-tools.md` ("Git tools").
+
+## 83. `recent_changes` — Recent Changes
+
+- **Description (verbatim):** "Lists workspace files modified within the last N hours, newest first. Catches local edits regardless of git state."
+- **Capability:** `repositoryDiscovery`. **Risk:** `safeRead`. **Required permission:** `none`. **Read-only:** yes. **MCP annotations:** `readOnly: true, idempotent: true`. **`writes`:** `false`.
+
+```json
+{
+  "type": "object",
+  "description": "Lists files modified within a recent time window.",
+  "properties": {
+    "hours": {
+      "type": "integer",
+      "description": "Look-back window in hours. Default 24, max 720."
+    },
+    "limit": {
+      "type": "integer",
+      "description": "Maximum files to return. Default 50, max 500."
+    }
+  },
+  "required": []
+}
+```
+
+**Output (success).** None found: `No files modified in the last <hours>h.` with data `count: "0"`. Found: `Files modified in the last <hours>h (<total> total):` followed by one line per file, newest first: `- <path> — <ISO-8601 modification date>`, plus a trailing line `… [truncated: showing <limit> of <total>]` when more files changed than shown. Structured data keys (all strings):
+
+| Key | Value |
+|---|---|
+| `count` | Total number of files modified in the window (not capped by `limit`). |
+| `hours` | The look-back window actually used. |
+
+**Notes.** `hours` defaults to 24 and is clamped to 1…720; `limit` defaults to 50 and is clamped to 1…500. The scan is the same workspace scan as `conflict_marker_scan` (hidden files and the top-level VCS/build/dependency directories skipped, at most 20,000 files) with no extension filter, and uses each file's modification date. This tool needs no git repository — it catches local edits regardless of git state. See `assist-search-git-tools.md` ("Git tools").
+
+## 84. `version_control_operator` — Version Control Operator
+
+- **Description (verbatim):** "Performs branch, commit, rollback, and diff operations using git."
+- **Capability:** `gitOperations`. **Risk:** `potentiallyDestructive`. **Required permission:** `fileSystem`. **Read-only:** no. **Write — destructive.** **MCP annotations:** `readOnly: false, destructive: true`. **`writes`:** `true`.
+
+```json
+{
+  "type": "object",
+  "description": "Performs branch, commit, rollback, and diff operations using git.",
+  "properties": {
+    "action": {
+      "type": "string",
+      "description": "The git action to perform: status, commit, branch, rollback, or diff. Unknown actions are rejected."
+    },
+    "message": {
+      "type": "string",
+      "description": "The commit message (used for commit action)."
+    },
+    "name": {
+      "type": "string",
+      "description": "The branch name (used for branch action)."
+    },
+    "ref": {
+      "type": "string",
+      "description": "The git ref to reset to (used for rollback action). Default: HEAD~1. Must match the strict ref pattern; shell metacharacters are rejected."
+    }
+  },
+  "required": ["action"]
+}
+```
+
+**Output (success).** Message: `Git action executed: <action>`. Structured data keys (all strings):
+
+| Key | Value |
+|---|---|
+| `output` | Git's merged stdout+stderr output, trimmed. |
+
+**Accepted aliases:** `git`, `git_status`, `git_diff`, `git_commit`, `git_branch`, `git_rollback`, `git_tool`, `version_control` resolve to this tool; see §71.5. (These aliases select the *tool*, not the action — the action still comes from the `action` argument.)
+
+**Notes.** Actions (case-insensitive; missing `action` defaults to `status` in Legacy, though the schema requires it): `status` → `git status --short`; `diff` → `git diff -- .`; `commit` → `git add -A` then `git commit -m <message>` (message defaults to `Assist automated commit`); `branch` → `git checkout -b <name>` (name defaults to `assist/automation`); `rollback` → `git reset --hard <ref>` (ref defaults to `HEAD~1`). Branch names and rollback refs must pass the strict allow-list validator (see `assist-search-git-tools.md` ("Git tools")). Gate: commit/branch/rollback require approval before git runs; status/diff do not, but the tool is registered `writes: true`, so a `readOnly` server refuses even those. Failures: `Git commit failed: <output>`, `Git branch checkout failed: <output>`, `Git rollback failed: <output>`, `Git status failed: <output>` / `Git diff failed: <output>`. Remote actions (`push`, `pull`, `fetch`, `clone`) are **not** implemented in Legacy and are rejected here with an explicit error naming the later-wave prerequisite, instead of the generic unknown-action error. Any other unknown action fails with `Unknown git action '<action>': expected status, commit, branch, rollback, or diff.` Legacy's `#if os(macOS)` gate ("Version control operations require macOS runtime") is dropped: the git CLI exists on Linux too. See §71.3 and `assist-search-git-tools.md` ("Git tools").
+
+## 85. Summary: capability / risk / permission / writes (Wave 3)
+
+| ID | Capability | Risk | Permission | Read-only | `writes` |
+|---|---|---|---|---|---|
+| `conflict_marker_scan` | diagnostics | safeRead | none | yes | false |
+| `git_bisect` | gitOperations | execution | none | **no** | **true** |
+| `git_blame_inspector` | gitOperations | safeRead | none | yes | false |
+| `git_branch_compare` | gitOperations | safeRead | none | yes | false |
+| `git_branch_manager` | gitOperations | safeMutation | fileSystem | **no** | **true** |
+| `git_cherry_pick` | gitOperations | safeMutation | fileSystem | **no** | **true** |
+| `git_conflict_resolver` | gitOperations | safeMutation | fileSystem | **no** | **true** |
+| `git_log_viewer` | gitOperations | safeRead | none | yes | false |
+| `git_pr_summary` | gitOperations | safeRead | none | yes | false |
+| `git_stash_operator` | gitOperations | safeMutation | fileSystem | **no** | **true** |
+| `github_repo` | repositoryDiscovery | safeRead | none | yes | false |
+| `recent_changes` | repositoryDiscovery | safeRead | none | yes | false |
+| `version_control_operator` | gitOperations | potentiallyDestructive | fileSystem | **no** | **true** |
+
+7 tools read; 6 tools write. The one `potentiallyDestructive` tool is `version_control_operator`; the one `execution` tool is `git_bisect`; `github_repo` is registered but honestly failing (§71.4).
+
 ## Evidence
 
 | Claim | Level | Source |
@@ -2865,3 +4433,11 @@ parameter. It runs in `readOnly` server mode. See §27.4 and
 | Wave 2: `file_write` alignment — Ycode's existing registration in `YcodeTools+Content.swift` (workspace/path/content, `path`/`created`/`lineCount`, `commit()`), its `destructive: true` annotation vs Legacy `safeMutation` | 1 | Ycode `ycode/Sources/YcodeMCP/YcodeTools+Content.swift` (`file_write` tool, `commit`, `writeFile`), read directly; Wave 1 `file_read` alignment precedent in `YcodeTools+Workspace.swift` (Legacy `lines` object added to the existing registration) |
 | Wave 2: output messages and structured data keys; `file_append` / `file_move` / `file_copy` return no data and no `filesChanged`; `code_generate` returns no `filesChanged`; `regex_replace_in_files` returns no data in any outcome | 1 | Each Legacy Wave 2 tool `execute()` listed above, read directly |
 | Wave 2: `file_delete` / `dir_delete` schemas contain only `path` (no `confirm` parameter) | 1 | Legacy `Tools/AssistDeleteFileTool.swift`, `Tools/AssistDeleteDirectoryTool.swift`, read directly |
+| Wave 3: all 16 IDs, titles, descriptions, capabilities, risk levels, and input schemas; `search_text` / `search_symbol` are distinct from Ycode's `search` / `symbol_search` | 1 | Legacy `SwiftCode/Backend/Assist/Tools/AssistCallHierarchyTool.swift`, `AssistCodeSummaryTool.swift`, `AssistDependencyGraphTool.swift`, `AssistImportGraphTool.swift`, `AssistProtocolConformanceListTool.swift`, `AssistRegexSearchTool.swift`, `search_skills.swift`, `AssistSymbolSearchTool.swift`, `AssistSearchTool.swift`, `AssistSemanticQueryEngine.swift`, `AssistSourceGraphBuilder.swift`, `AssistSymbolMoveFileTool.swift`, `AssistSymbolReferenceGraphTool.swift`, `AssistSymbolRenameProjectTool.swift`, `AssistTypeHierarchyTool.swift`, `AssistDataInspectionTools.swift` (`extract_code_symbols`), `AssistToolRegistry.swift` (register lines 83–87, 127–128, 144, 173, 245–246, 318, 332–335), read directly |
+| Wave 3: registry aliases for this wave; `search` → `search_text` deliberately NOT carried over (collides with Ycode's `search`) | 1 | Legacy `SwiftCode/Backend/Assist/AssistToolRegistry.swift` alias table, read directly; Ycode `ycode/Sources/YcodeMCP/YcodeTools+Workspace.swift` (`search`), read directly |
+| Wave 3: `semantic_query_engine` is a literal substring scan with `view` / `model` / `service` expansions, not an embedding/LLM search | 1 | Legacy `Tools/AssistSemanticQueryEngine.swift`, read directly |
+| Wave 3: `symbol_rename_project` is whole-word textual replacement with no symbol index; `symbol_move_file` is brace-count extraction with verify-and-restore | 1 | Legacy `Tools/AssistSymbolRenameProjectTool.swift`, `Tools/AssistSymbolMoveFileTool.swift`, read directly |
+| Wave 3: `search_skills` searches Legacy's `SkillIndex` (Application Support library); Ycode has no such catalogue — the port searches workspace skill files with Legacy's parsing and scoring | 1 | Legacy `Tools/search_skills.swift`, `SwiftCode/Core/AI/Agent/Skills/SkillIndex.swift`, read directly; Ycode `ycode/Sources/YcodeMCP/AgentSkill.swift`, read directly |
+| Wave 3: scan rules (1 MB cap, binary extensions, skipped dirs, 300 KB / 800 KB caps) and the clamping vs strict path resolvers | 1 | Legacy `Functions/AssistSearchFunctions.swift`, `Tools/AssistToolSharedHelpers.swift` (`AssistWorkspaceScan`), `Tools/AssistToolingSupport.swift`, read directly |
+| Wave 3 (Git): all 13 IDs, titles, descriptions, capabilities, risk levels, and input schemas; `git_pr_summary` is local-only, `github_repo` honestly failing | 1 | Legacy `SwiftCode/Backend/Assist/Tools/AssistConflictMarkerScanTool.swift`, `AssistGitBisectTool.swift`, `AssistGitBlameTool.swift`, `AssistGitBranchCompareTool.swift`, `AssistGitBranchManagerTool.swift`, `AssistGitCherryPickTool.swift`, `AssistGitConflictResolverTool.swift`, `AssistGitLogViewerTool.swift`, `AssistGitPRSummaryTool.swift`, `AssistGitStashTool.swift`, `AssistGitHubRepoTool.swift`, `AssistRecentChangesTool.swift`, `AssistVersionControlOperator.swift`, `AssistTool.swift` (capability/risk/permission defaults), `AssistToolRegistry.swift` (register lines 163, 177–180, 262–265, 389, 399; alias table lines 431–438, 505, 518–521), read directly |
+| Wave 3 (Git): `git_bisect` `.execution` risk (rank 2, between safeMutation and potentiallyDestructive); `git_pr_summary` local-only; `github_repo` GitHub API + credential | 1 | Legacy `AssistGitBisectTool.swift:11`, `AssistToolRouter.swift:19–31`; `AssistGitPRSummaryTool.swift:6` and its `execute()` (four local git commands, no network); `AssistGitHubRepoTool.swift:37–44, 105+`, read directly |

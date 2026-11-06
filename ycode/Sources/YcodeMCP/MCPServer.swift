@@ -305,6 +305,27 @@ public final class MCPServer: @unchecked Sendable {
         "insert_code_block": "code_insert",
         "insert_code": "code_insert",
         "regex_replace": "regex_replace_in_files",
+        // Wave 3 Search aliases (Legacy registry). `search` → `search_text`
+        // is deliberately NOT an alias: it would collide with Ycode's
+        // existing `search` tool.
+        "search_dir": "search_text",
+        "search_directory": "search_text",
+        "find_file": "search_text",
+        "symbol_graph": "symbol_reference_graph",
+        // Wave 3 Git aliases (Legacy registry).
+        "git": "version_control_operator",
+        "git_status": "version_control_operator",
+        "git_diff": "version_control_operator",
+        "git_commit": "version_control_operator",
+        "git_branch": "version_control_operator",
+        "git_rollback": "version_control_operator",
+        "git_tool": "version_control_operator",
+        "version_control": "version_control_operator",
+        "git_stash": "git_stash_operator",
+        "git_blame": "git_blame_inspector",
+        "git_branches": "git_branch_manager",
+        "git_log": "git_log_viewer",
+        "git_conflict": "git_conflict_resolver",
     ]
 
     public static let modernVersion = "2026-07-28"

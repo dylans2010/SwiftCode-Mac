@@ -124,7 +124,15 @@ import YcodeAssistant
                         "file_create", "file_append", "file_copy", "file_move", "file_rename", "file_delete", "dir_create", "dir_delete",
                         "code_replace", "code_insert", "code_multi_edit", "code_refactor", "code_format", "code_generate", "format_json_file",
                         "csv_to_json", "json_to_csv", "plist_to_json", "json_to_plist", "batch_rename_files", "generate_file_checksum",
-                        "plist_edit", "regex_replace_in_files"]
+                        "plist_edit", "regex_replace_in_files",
+                        "call_hierarchy", "code_summary", "dependency_graph", "extract_code_symbols", "import_graph",
+                        "protocol_conformance_list", "search_regex", "search_skills", "search_symbol", "search_text",
+                        "semantic_query_engine", "source_graph_builder", "symbol_move_file", "symbol_reference_graph",
+                        "symbol_rename_project", "type_hierarchy",
+                        "conflict_marker_scan", "git_bisect", "git_blame_inspector", "git_branch_compare",
+                        "git_branch_manager", "git_cherry_pick", "git_conflict_resolver", "git_log_viewer",
+                        "git_pr_summary", "git_stash_operator", "github_repo", "recent_changes",
+                        "version_control_operator"]
         #expect(tools.map(\.name) == expected)
         for t in tools {
             let l = t.listing

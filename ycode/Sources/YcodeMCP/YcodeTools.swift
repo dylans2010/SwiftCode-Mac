@@ -52,6 +52,7 @@ extension YcodeMCPHost {
         server.prompts = Self.prompts
         server.tools = workspaceTools + buildTools + runTools + contentTools + completionTools
             + fileReadingTools + fileInspectionTools + artifactTools + fileWritingTools
+            + searchTools + gitTools
     }
 
     /// A tool whose handler runs on the main actor.
