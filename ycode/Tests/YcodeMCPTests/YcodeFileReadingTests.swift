@@ -80,7 +80,7 @@ import YcodeIDECore
         let host = try await opened(sample)
         // An empty path is rejected by the handler as a missing argument.
         let empty = try await host.server.callTool("dir_read", ["path": ""])
-        #expect(empty.isToolError && empty.resultText.contains("Missing required parameter: path"))
+        #expect(empty.isToolError && empty.resultText.contains("missing the required argument \"path\""))
         let read = try await host.server.callTool("dir_read", ["path": "."])
         #expect(!read.isToolError, "\(read.resultText)")
         #expect(read.structured?["contents"] == "Package.swift\nPreviews/\nSources/\nStrings/\nTests/")

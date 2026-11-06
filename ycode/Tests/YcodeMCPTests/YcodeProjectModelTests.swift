@@ -932,7 +932,7 @@ import YcodeAssistant
         #expect(unknown.firstText == "Failed to restore snapshot: Snapshot 'no-such-snapshot' not found.")
         let empty = try await host.server.callTool("project_restore", ["snapshot_id": .string("")])
         #expect(empty.isToolError)
-        #expect(empty.firstText == "Missing required parameter: snapshot_id")
+        #expect(empty.firstText.contains("project_restore: missing the required argument \"snapshot_id\""))
     }
 
     @Test func projectSnapshotRefusedInReadOnlyMode() async throws {

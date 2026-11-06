@@ -180,12 +180,20 @@ extension YcodeMCPHost {
                  annotations: safeMutation, writes: true) { h, call in
                 try await h.gitBranchManager(call)
             },
+            // ALIGNED (Wave 8): the Legacy Agentic registry also owns
+            // `git_cherry_pick` with its own spelling (`hash` +
+            // `repositoryPath`), so this one registration serves both
+            // shapes instead of a second registration. `commit` and
+            // `hash` are alternatives (either one is required);
+            // `repositoryPath` defaults to the workspace root.
             tool("git_cherry_pick", "Git Cherry-Pick",
                  "Cherry-picks one commit onto the current branch. On conflict it reports the conflicted files and leaves the state for manual resolution.",
                  input: Schema.object(["workspace": Schema.workspace,
                                        "commit": Schema.string("Full or short commit SHA, or a validated ref to cherry-pick."),
+                                       "hash": Schema.string("Commit hash to cherry-pick (Agentic spelling of commit)."),
+                                       "repositoryPath": Schema.string("Repository path. Defaults to the workspace root when omitted; must stay inside the workspace."),
                                        "noCommit": Schema.string("Pass \"true\" to stage the change without committing (--no-commit). Default: false.")],
-                                      required: ["commit"]),
+                                      required: []),
                  output: Schema.output(["commit": Schema.str, "output": Schema.str]),
                  annotations: safeMutation, writes: true) { h, call in
                 try await h.gitCherryPick(call)
@@ -661,7 +669,10 @@ extension YcodeMCPHost {
 
     func gitCherryPick(_ call: MCPToolCall) async throws -> MCPToolResult {
         let s = try session(for: call)
-        guard let commitRaw = call.arguments["commit"]?.string else { throw MCPToolError("Missing required parameter: commit") }
+        // Wave 8 alignment: `commit` (Assist) and `hash` (Agentic) are
+        // alternatives; `repositoryPath` (Agentic) defaults to the
+        // workspace root. Either spelling must name the commit.
+        guard let commitRaw = call.arguments["commit"]?.string ?? call.arguments["hash"]?.string else { throw MCPToolError("Missing required parameter: commit") }
         let commit = commitRaw.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !commit.isEmpty else { throw MCPToolError("Missing required parameter: commit") }
         guard Self.gitIsValidCommit(commit) else { throw MCPToolError("Invalid commit: \(commit)") }
@@ -669,7 +680,12 @@ extension YcodeMCPHost {
         if Self.gitBoolValue(call.arguments["noCommit"]) { args.append("--no-commit") }
         args.append(commit)
         try await gitApproveChange(tool: call.name, summary: "Cherry-pick \(commit)\(args.contains("--no-commit") ? " (--no-commit)" : "")", in: s, call: call)
-        let root = Self.folder(of: s.model)
+        let root: URL
+        if let raw = call.arguments["repositoryPath"]?.string {
+            root = try resolveFileReadingPath(raw, in: s)
+        } else {
+            root = Self.folder(of: s.model)
+        }
         let result = try Self.runGit(args, in: root)
         let output = result.combined
         guard result.status == 0 else {

@@ -106,7 +106,7 @@ import YcodeIDECore
         defer { sample.remove() }
         let host = try await opened(sample)
         let missing = try await host.server.callTool("search_text", [:])
-        #expect(missing.isToolError && missing.resultText.contains("Missing required parameter: pattern"))
+        #expect(missing.isToolError && missing.resultText.contains("missing the required argument \"pattern\""))
         let found = try await host.server.callTool("search_text", ["pattern": .string("salutation")])
         #expect(!found.isToolError, "\(found.resultText)")
         let results = found.structured?["results"]?.string ?? ""
@@ -219,7 +219,7 @@ import YcodeIDECore
         #expect(none.structured?["count"] == 0)
         #expect(none.firstText == "No conformances to protocol 'Sequence' found.")
         let missing = try await host.server.callTool("protocol_conformance_list", [:])
-        #expect(missing.isToolError && missing.resultText.contains("Missing required parameter: protocol"))
+        #expect(missing.isToolError && missing.resultText.contains("missing the required argument \"protocol\""))
     }
 
     @Test func typeHierarchyListsAndFocuses() async throws {
@@ -259,7 +259,7 @@ import YcodeIDECore
         #expect(none.firstText == "No definition or callers found for function 'nonexistent'.")
         #expect(none.structured?["definitionCount"] == 0 && none.structured?["callerCount"] == 0)
         let missing = try await host.server.callTool("call_hierarchy", ["function": .string("  ")])
-        #expect(missing.isToolError && missing.resultText.contains("Missing required parameter: function"))
+        #expect(missing.isToolError && missing.resultText.contains("missing the required argument \"function\""))
     }
 
     @Test func symbolReferenceGraphReportsUsages() async throws {
@@ -335,7 +335,7 @@ import YcodeIDECore
         #expect(found.resultText.contains("SKILL.md"))
         #expect(found.resultText.contains("inspect instructions using `file_read`"))
         let missing = try await host.server.callTool("search_skills", ["query": .string("   ")])
-        #expect(missing.isToolError && missing.resultText.contains("Missing required parameter 'query'."))
+        #expect(missing.isToolError && missing.resultText.contains("missing the required argument \"query\""))
     }
 
     @Test func symbolRenameProjectRenamesWholeWord() async throws {

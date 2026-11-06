@@ -360,7 +360,7 @@ import YcodeAssistant
         #expect(noScheme.isToolError)
         let blankScheme = try await host.server.callTool("project_archive", ["scheme": .string(""),
                                                                               "archivePath": .string("Archives/Greeter.xcarchive")])
-        #expect(blankScheme.isToolError && blankScheme.firstText.contains("Missing required parameter: scheme"))
+        #expect(blankScheme.isToolError && blankScheme.firstText.contains("missing the required argument \"scheme\""))
         let noPath = try await host.server.callTool("project_archive", ["scheme": .string("Greeter")])
         #expect(noPath.isToolError)
         let badExtension = try await host.server.callTool("project_archive", ["scheme": .string("Greeter"),

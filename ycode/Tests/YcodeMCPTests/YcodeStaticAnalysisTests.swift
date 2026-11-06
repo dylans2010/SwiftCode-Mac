@@ -129,7 +129,7 @@ import YcodeIDECore
         #expect(found.firstText.contains("Line 3: Trailing whitespace detected."))
         #expect(found.firstText.contains("Line 3: Redundant trailing semicolon."))
         let missingArg = try await host.server.callTool("swift_format_lint", [:])
-        #expect(missingArg.isToolError && missingArg.firstText.contains("Missing required parameter: path"))
+        #expect(missingArg.isToolError && missingArg.firstText.contains("missing the required argument \"path\""))
         let missingFile = try await host.server.callTool("swift_format_lint", ["path": .string("Analysis/Nope.swift")])
         #expect(missingFile.isToolError && missingFile.firstText == "File not found at path: Analysis/Nope.swift")
     }
@@ -163,7 +163,7 @@ import YcodeIDECore
         #expect(found.firstText.contains("Unused private function 'hiddenHelper()'"))
         #expect(found.firstText.contains("shownHelper") == false)
         let missingArg = try await host.server.callTool("dead_code_eliminator", [:])
-        #expect(missingArg.isToolError && missingArg.firstText.contains("Missing required parameter: filePath"))
+        #expect(missingArg.isToolError && missingArg.firstText.contains("missing the required argument \"filePath\""))
         let missingFile = try await host.server.callTool("dead_code_eliminator", ["filePath": .string("Analysis/Nope.swift")])
         #expect(missingFile.isToolError && missingFile.firstText == "File does not exist: Analysis/Nope.swift")
     }

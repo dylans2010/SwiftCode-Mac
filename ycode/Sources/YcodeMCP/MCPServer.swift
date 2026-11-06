@@ -289,6 +289,18 @@ public final class MCPServer: @unchecked Sendable {
     /// Wave 7 also adds `checksum_verifier` -> `file_checksum_verifier`
     /// (Legacy's alias table; the target was ported in Wave 1, so the
     /// Wave 2 exclusion no longer applies).
+    /// Wave 8 removes the seven git aliases (`git_status`, `git_diff`,
+    /// `git_commit`, `git_branch`, `git_stash`, `git_blame`, `git_log`
+    /// -> the `version_control_operator` / `git_*_operator` tools):
+    /// the Legacy Agentic registry owns those names with its own
+    /// schemas, and the Agentic tools are now registered under them.
+    /// The operator tools are still callable by their own names, so
+    /// no capability is lost — only the shorthand. Wave 8 adds five
+    /// Agentic duplicate aliases (param-compatible, verified live):
+    /// `list_directory` -> `dir_read`, `execute_terminal_command` ->
+    /// `use_terminal`, `xcode_build` -> `project_build`,
+    /// `semantic_code_search` -> `semantic_query_engine`,
+    /// `cross_reference_search` -> `symbol_reference_graph`.
     public static let toolAliases: [String: String] = [
         "read_file": "file_read",
         "write_file": "file_write",
@@ -309,6 +321,12 @@ public final class MCPServer: @unchecked Sendable {
         "insert_code": "code_insert",
         "regex_replace": "regex_replace_in_files",
         "checksum_verifier": "file_checksum_verifier",
+        // Wave 8 Agentic duplicate aliases (param-compatible, verified live).
+        "list_directory": "dir_read",
+        "execute_terminal_command": "use_terminal",
+        "xcode_build": "project_build",
+        "semantic_code_search": "semantic_query_engine",
+        "cross_reference_search": "symbol_reference_graph",
         // Wave 3 Search aliases (Legacy registry). `search` → `search_text`
         // is deliberately NOT an alias: it would collide with Ycode's
         // existing `search` tool.
@@ -318,17 +336,10 @@ public final class MCPServer: @unchecked Sendable {
         "symbol_graph": "symbol_reference_graph",
         // Wave 3 Git aliases (Legacy registry).
         "git": "version_control_operator",
-        "git_status": "version_control_operator",
-        "git_diff": "version_control_operator",
-        "git_commit": "version_control_operator",
-        "git_branch": "version_control_operator",
         "git_rollback": "version_control_operator",
         "git_tool": "version_control_operator",
         "version_control": "version_control_operator",
-        "git_stash": "git_stash_operator",
-        "git_blame": "git_blame_inspector",
         "git_branches": "git_branch_manager",
-        "git_log": "git_log_viewer",
         "git_conflict": "git_conflict_resolver",
         // Wave 4 Terminal aliases (Legacy registry). `bash` / `sh` / `zsh`
         // resolve to `use_terminal`, exactly as in Legacy; they select the
