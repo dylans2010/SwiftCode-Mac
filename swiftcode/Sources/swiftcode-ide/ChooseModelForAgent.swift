@@ -6,7 +6,8 @@
 // Audit gap this port closes (claimed-covered-audit):
 //   - searchable model-chooser sheet
 // ADAPTATIONS:
-//   - Observation adaptation DEFERRED to wiring: view still uses @ObservedObject/@StateObject over ObservableObject models; destination swiftcode-ide uses @Observable (no ObservableObject anywhere) — adapt when the models land (A6 AssistManager et al.).
+//   - Observation adaptation (wiring-views): @ObservedObject/@StateObject over
+//     @Observable models replaced with @State (@Bindable where `$` bindings are used).
 //   - Added `import SwiftCodeAssistant` (views consume Assist models; module is a swiftcode-ide dependency).
 // UNRESOLVED DEPENDENCIES (no definition in the destination yet; resolve as the owning ports land):
 //   - AppSettings — UNOWNED (no worklist) (`SwiftCode/Models/AppSettings.swift`)
@@ -29,9 +30,9 @@ private let logger = Logger(subsystem: "com.swiftcode.ChooseModelForAgent", cate
 public struct ChooseModelForAgent: View {
     @Environment(\.dismiss) private var dismiss
 
-    @ObservedObject private var settings = AppSettings.shared
+    @State private var settings = AppSettings.shared
     private var foundationModels = FoundationModels.shared
-    @ObservedObject private var assistModelManager = AssistModelManager.shared
+    @State private var assistModelManager = AssistModelManager.shared
 
     @State private var searchText: String = ""
     @State private var dynamicModels: [DynamicModelOption] = []

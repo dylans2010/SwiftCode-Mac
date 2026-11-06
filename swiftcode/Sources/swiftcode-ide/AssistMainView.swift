@@ -11,7 +11,10 @@
 //   - Clear Chat History action
 // ADAPTATIONS:
 //   - `import AppKit` wrapped in #if canImport(AppKit) (destination convention). AppKit symbol sites the wiring phase must guard for Linux: L1642:NSPasteboard, L1643:NSPasteboard, L1820:NSPasteboard, L2308:NSPasteboard, L2309:NSPasteboard, L2461:NSEvent, L2462:NSMenu, L2470:NSMenuItem, L2473:NSMenuItem, L2475:NSAttributedString, L2476:NSFont, L2478:NSAttributedString (+7 more)
-//   - Observation adaptation DEFERRED to wiring: view still uses @ObservedObject/@StateObject over ObservableObject models; destination swiftcode-ide uses @Observable (no ObservableObject anywhere) — adapt when the models land (A6 AssistManager et al.).
+//   - Observation adaptation (wiring-views): @ObservedObject/@StateObject over
+//     @Observable models replaced with @State (@Bindable for the injected manager
+//     in DiagnosticsSheet); `GoogleAccountAuthService` is a plain @MainActor class,
+//     held in @State without observation — see the inline note.
 //   - Added `import SwiftCodeAssistant` (views consume Assist models; module is a swiftcode-ide dependency).
 // UNRESOLVED DEPENDENCIES (no definition in the destination yet; resolve as the owning ports land):
 //   - AgentFileContext — UNOWNED (no worklist) (`SwiftCode/Backend/Assist/Functions/FileAgentHelper.swift`)
@@ -58,7 +61,7 @@ private let logger = Logger(subsystem: "com.swiftcode.app", category: "AssistMai
 
 /// Highly-optimized, native desktop-first macOS experience for the SwiftCode Assist conversation workspace.
 public struct AssistMainView: View {
-    @StateObject private var manager = AssistManager.shared
+    @State private var manager = AssistManager.shared
     @State private var inputText: String = ""
     @State private var isEnhancingPrompt = false
     @State private var showDiagnosticsSheet = false
@@ -117,8 +120,12 @@ public struct AssistMainView: View {
     @State private var showCustomModelPicker = false
     @State private var showSpeechUI = false
     @State private var discoveryService = AssistModelDiscoveryService.shared
-    @ObservedObject private var googleAuth = GoogleAccountAuthService.shared
-    @ObservedObject private var settings = AppSettings.shared
+    // Wiring (wiring-views): `GoogleAccountAuthService` is a plain
+    // `@MainActor` class, not `@Observable` (per its own header the
+    // Accounts pane rebuilds on state change) — `@State` holds it
+    // without observation; reads such as `isAuthenticated` are snapshots.
+    @State private var googleAuth = GoogleAccountAuthService.shared
+    @State private var settings = AppSettings.shared
 
     public init() {}
 
@@ -1699,8 +1706,8 @@ private struct ServerErrorDialog: View {
 
 private struct AssistChatBubble: View {
     let message: AssistMessage
-    @ObservedObject private var manager = AssistManager.shared
-    @ObservedObject private var settings = AppSettings.shared
+    @State private var manager = AssistManager.shared
+    @State private var settings = AppSettings.shared
     @State private var sdkEventStore = SDKToolEventStore.shared
 
     private var alignment: HorizontalAlignment {
@@ -1856,7 +1863,7 @@ private struct AssistChatBubble: View {
 
 private struct AssistMessageActionBar: View {
     let message: AssistMessage
-    @ObservedObject private var manager = AssistManager.shared
+    @State private var manager = AssistManager.shared
     @State private var isCopied: Bool = false
     @State private var didThumbsUp: Bool = false
     @State private var isGeneratingFeedback: Bool = false
@@ -2193,7 +2200,7 @@ private struct AssistFeedbackSheet: View {
 // MARK: - Assist Header Feedback Button
 
 private struct AssistHeaderFeedbackButton: View {
-    @ObservedObject private var feedbackService = AssistFeedbackService.shared
+    @State private var feedbackService = AssistFeedbackService.shared
     @State private var generatedURL: URL? = nil
 
     var body: some View {
@@ -2707,7 +2714,7 @@ struct ExecutionModeSheet: View {
 /// in `selectedAssistModelID`.
 struct SDKModelProviderList: View {
     @Environment(\.dismiss) private var dismiss
-    @ObservedObject private var settings = AppSettings.shared
+    @State private var settings = AppSettings.shared
     @State private var openCodeModels: [OpenCodeModel] = []
     @State private var openRouterModels: [OpenRouterModel] = []
     @State private var hermesModels: [HermesProvider.HermesDiscoveredModel] = []
@@ -2812,7 +2819,7 @@ struct SDKModelProviderList: View {
 
 struct DiagnosticsSheet: View {
     @Environment(\.dismiss) private var dismiss
-    @ObservedObject var manager: AssistManager
+    @Bindable var manager: AssistManager
     @State private var searchText = ""
     @State private var selectedSeverity = "All"
     @State private var selectedProvider = "All"

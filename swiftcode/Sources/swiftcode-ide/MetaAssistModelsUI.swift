@@ -9,7 +9,8 @@
 //   - SCCloud rate-limiter remaining display
 //   - custom-endpoints list UI
 // ADAPTATIONS:
-//   - Observation adaptation DEFERRED to wiring: view still uses @ObservedObject/@StateObject over ObservableObject models; destination swiftcode-ide uses @Observable (no ObservableObject anywhere) — adapt when the models land (A6 AssistManager et al.).
+//   - Observation adaptation (wiring-views): @ObservedObject/@StateObject over
+//     @Observable models replaced with @State (@Bindable where `$` bindings are used).
 //   - Added `import SwiftCodeAssistant` (views consume Assist models; module is a swiftcode-ide dependency).
 // UNRESOLVED DEPENDENCIES (no definition in the destination yet; resolve as the owning ports land):
 //   - AppSettings — UNOWNED (no worklist) (`SwiftCode/Models/AppSettings.swift`)
@@ -31,7 +32,7 @@ import SwiftUI
 import SwiftCodeAssistant
 
 public struct MetaAssistModelsUI: View {
-    @ObservedObject private var settings = AppSettings.shared
+    @Bindable private var settings = AppSettings.shared
 
     @State private var models: [MetaModelItem] = []
     @State private var cloudModels: [SCCloudModelInfo] = []

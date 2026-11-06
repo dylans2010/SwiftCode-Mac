@@ -29,11 +29,11 @@ extension RemoteSimulator {
     }
 
     /// The host directory the preview host polls (the device's `/tmp/swiftcode-previews`).
-    public var previewDirectory: String { "\(remoteDevicePath)/\(PreviewHost.deviceRelativeDirectory)" }
+    public var previewDirectory: String { "\(remoteDevicePath)/\(SwiftCodePreviews.PreviewHost.deviceRelativeDirectory)" }
 
     /// The preview host's bundle on the simulator host (one per platform).
     public func remotePreviewHostPath(platform: PreviewPlatform) -> String {
-        "\(settings.dataDirectory)/apps/previews-\(platform.rawValue)/\(PreviewHost.appName)"
+        "\(settings.dataDirectory)/apps/previews-\(platform.rawValue)/\(SwiftCodePreviews.PreviewHost.appName)"
     }
 
     /// Starts the preview device with the host installed and launched, its
@@ -46,7 +46,7 @@ extension RemoteSimulator {
             + ": > \(q(previewDirectory + "/host.log")); echo SWIFTCODE-REMOTE-PID $$; exec env SWIFTCODE_WARM_BOOT=1 \(lean)\(q(settings.simdPath))"
             + " --device \(q(remoteDevicePath)) --runtime-root \(q(runtimeRoot))"
             + (target?.deviceTypeArguments ?? []).map { " " + q($0) }.joined()
-            + " --install-app \(q(remotePreviewHostPath(platform: platform))) --launch \(q(PreviewHost.bundleIdentifier))"
+            + " --install-app \(q(remotePreviewHostPath(platform: platform))) --launch \(q(SwiftCodePreviews.PreviewHost.bundleIdentifier))"
             + displayServerArguments.map { " " + q($0) }.joined()
             + Self.words(settings.additionalArguments).map { " " + q($0) }.joined()
             + cameraArguments.map { " " + q($0) }.joined()

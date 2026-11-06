@@ -15,7 +15,7 @@ struct ModelDownloadProgressView: View {
     let onComplete: (() async -> Void)?
 
     @Environment(\.dismiss) private var dismiss
-    @ObservedObject private var downloader = OfflineModelDownloader.shared
+    @State private var downloader = OfflineModelDownloader.shared
     @State private var errorMessage: String?
     @State private var hasStarted = false
     @State private var statusMessage = "Preparing Download…"

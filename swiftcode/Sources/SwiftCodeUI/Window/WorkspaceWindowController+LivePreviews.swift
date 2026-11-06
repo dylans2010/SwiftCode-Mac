@@ -275,7 +275,7 @@ extension WorkspaceWindowController {
                 let target = session.deploymentTarget
                 let built = await Task.detached { () -> Result<URL, PreviewFailure> in
                     do throws(PreviewFailure) {
-                        return .success(try PreviewHost.build(platform: platform, deploymentTarget: target, workDirectory: work))
+                        return .success(try SwiftCodePreviews.PreviewHost.build(platform: platform, deploymentTarget: target, workDirectory: work))
                     } catch { return .failure(error) }
                 }.value
                 guard case .success(let host) = built else {

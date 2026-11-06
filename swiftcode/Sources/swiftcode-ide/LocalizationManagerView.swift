@@ -6,6 +6,7 @@
 // References legacy types absent from the destination and from this worklist (wiring/integration gaps): LocalizedKey.
 // Static port only — no Swift toolchain here; build verification pending on Dylan's Mac.
 import SwiftCodeUI
+import SwiftCodeIDECore
 import SwiftUI
 import AppKit
 

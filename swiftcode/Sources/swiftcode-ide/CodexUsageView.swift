@@ -8,8 +8,8 @@ import SwiftCodeAssistant
 import SwiftUI
 
 struct CodexUsageView: View {
-    @ObservedObject private var tracker = CodexUsageTracker.shared
-    @ObservedObject private var manager = CodexManager.shared
+    @State private var tracker = CodexUsageTracker.shared
+    @State private var manager = CodexManager.shared
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {

@@ -66,8 +66,8 @@
 //   See DISPOSITIONS.md for both.
 // * `openProject` still calls
 //   `LocalizationCore.shared.scanProjectFiles(projectURL:)` verbatim.
-//   `LocalizationCore` does not exist on main (Legacy's is 488 lines;
-//   not small/self-contained) — see the wiring gap in DISPOSITIONS.md.
+//   `LocalizationCore` now exists on main (SwiftCodeIDECore/Model/
+//   LocalizationCore.swift, ported from Legacy's 488-line file).
 // * `decodeText` is a `private static func` (was an instance method):
 //   `readFileContent` calls it from a detached task, and a detached
 //   task must not capture the MainActor-isolated store under Swift 6
@@ -495,8 +495,6 @@ public final class ProjectSessionStore {
                 DocumentCoordinator.shared.inspectorSelection = nil
 
                 // Auto-discover and decode .xcstrings localization files immediately on project open
-                // (Wiring gap: `LocalizationCore` does not exist on main yet — see DISPOSITIONS.md.
-                // The call is kept verbatim so the behaviour lands with the Localization slice.)
                 LocalizationCore.shared.scanProjectFiles(projectURL: loadedProject.directoryURL)
 
                 // Update last opened date in library

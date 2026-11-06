@@ -287,7 +287,7 @@ public final class GitHubOAuth: NSObject {
 
     private static func randomState() -> String {
         let randomBytes = (0..<32).map { _ in UInt8.random(in: 0...255) }
-        let digest = SHA256.hash(data: Data(randomBytes))
+        let digest = CryptoKit.SHA256.hash(data: Data(randomBytes))
         return digest.compactMap { String(format: "%02x", $0) }.joined()
     }
 }

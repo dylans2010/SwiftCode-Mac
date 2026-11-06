@@ -9,8 +9,8 @@ import SwiftCodeUI
 import SwiftUI
 
 struct OfflineModelsView: View {
-    @StateObject private var manager = OfflineModelManager.shared
-    @ObservedObject private var downloader = OfflineModelDownloader.shared
+    @State private var manager = OfflineModelManager.shared
+    @State private var downloader = OfflineModelDownloader.shared
     @State private var availableModels: [OfflineModelMetadata] = []
     @State private var recommendations: [RecommendedOfflineModel] = []
     @State private var isLoading = false

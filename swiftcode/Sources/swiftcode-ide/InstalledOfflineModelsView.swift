@@ -8,7 +8,7 @@ import SwiftCodeAssistant
 import SwiftUI
 
 struct InstalledOfflineModelsView: View {
-    @ObservedObject var manager = OfflineModelManager.shared
+    @State var manager = OfflineModelManager.shared
 
     private let dateFormatter: DateFormatter = {
         let formatter = DateFormatter()

@@ -19,8 +19,8 @@ import SwiftUI
 import AppKit
 
 public struct ModernSkillsBrowserView: View {
-    @ObservedObject private var skillIndex = SkillIndex.shared
-    @ObservedObject private var discoveryService = SkillDiscoveryService.shared
+    @State private var skillIndex = SkillIndex.shared
+    @State private var discoveryService = SkillDiscoveryService.shared
 
     @State private var searchText: String = ""
     @State private var selectedSourceFilter: SkillSourceKind? = nil

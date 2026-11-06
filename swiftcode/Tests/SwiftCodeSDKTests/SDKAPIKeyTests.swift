@@ -6,7 +6,7 @@ import XCTest
 /// credentials.
 final class SDKAPIKeyTests: XCTestCase {
     private func makeStore() -> SDKAPIKeyStore {
-        SDKAPIKeyStore(store: MemorySecretStore())
+        SDKAPIKeyStore(store: SDKMemorySecretStore())
     }
 
     func testHMACRoundTrip() async throws {
@@ -58,7 +58,7 @@ final class SDKAPIKeyTests: XCTestCase {
     }
 
     func testExpiredKeyFailsVerification() async throws {
-        let store = MemorySecretStore()
+        let store = SDKMemorySecretStore()
         let keyStore = SDKAPIKeyStore(store: store)
         // Persist an already-expired key record directly, with a secret
         // generated from the store's own device key.

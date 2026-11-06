@@ -9,7 +9,7 @@
 //   - suggest-name action
 // ADAPTATIONS:
 //   - `import AppKit` wrapped in #if canImport(AppKit) (destination convention). AppKit symbol sites the wiring phase must guard for Linux: L257:NSWorkspace
-//   - Observation adaptation DEFERRED to wiring: view still uses @ObservedObject/@StateObject over ObservableObject models; destination swiftcode-ide uses @Observable (no ObservableObject anywhere) — adapt when the models land (A6 AssistManager et al.).
+//   - Observation adaptation (fixes-observedobject): AssistManager is @Observable, now held in @State. AssistConversationHistory is still @ObservedObject — the type is undeclared (Audit F section 2), so that site is left untouched pending its port.
 //   - Added `import SwiftCodeAssistant` (views consume Assist models; module is a swiftcode-ide dependency).
 // UNRESOLVED DEPENDENCIES (no definition in the destination yet; resolve as the owning ports land):
 //   - AssistConversationHistory — UNOWNED (no worklist) (`SwiftCode/Backend/Assist/AssistConversationHistory.swift`)
@@ -33,7 +33,7 @@ import SwiftCodeAssistant
 
 public struct AssistConversationsSheet: View {
     @ObservedObject private var history = AssistConversationHistory.shared
-    @ObservedObject private var manager = AssistManager.shared
+    @State private var manager = AssistManager.shared
     @Environment(\.dismiss) private var dismiss
 
     @State private var searchText = ""
