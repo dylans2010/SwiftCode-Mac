@@ -467,8 +467,11 @@ import YcodeAssistant
         let host = try await opened(sample)
         let unknown = try await host.server.callTool("use_extension", ["action": .string("explode")])
         #expect(unknown.isToolError && unknown.resultText.contains("Unknown or missing action"))
+        // The host is wired in (YcodeExtensions target + YcodeMCP
+        // dependency, Slice B): `list` answers from the real store
+        // instead of failing.
         let list = try await host.server.callTool("use_extension", ["action": .string("list")])
-        #expect(list.isToolError && list.resultText.contains("Extensions v2"))
+        #expect(!list.isToolError, "\(list.resultText)")
     }
 
     @Test func useComposioFailsNamingItsPrerequisite() async throws {

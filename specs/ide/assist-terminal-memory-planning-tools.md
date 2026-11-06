@@ -195,6 +195,13 @@ Legacy's `registerAllTools()` order.
   yet; no extension was listed, activated, or executed.` No extension
   was listed, activated, or executed in either case.
 
+**Wave 11 note (this section is Wave 4 history — the tool is now
+WIRED).** `use_extension` is implemented against the new
+`YcodeExtensions` target; see `specs/ide/extensions-platform.md`
+§7.2/§10 and `assist-tool-catalogue.md` §92. All 11 actions work;
+mutating actions require `confirm: true` and the Wave 2 approval
+gate; Node absent → honest failure naming the prerequisite.
+
 ## 8. `use_composio` — Execute Composio Tool (honestly failing)
 
 - Input: `toolSlug`, `arguments` (both strings, required; `arguments`
@@ -1043,7 +1050,9 @@ in Legacy's shape, only when the relevant-file count exceeds 8.
   honestly failing.
 - **`use_extension`:** needs the Extensions v2 platform (`ExtV2Manager`
   + extension host with Node.js). Blocker: the extension host /
-  marketplace wave. Registered and honestly failing.
+  marketplace wave. Registered and honestly failing. **(Wave 11:
+  UNBLOCKED — the `YcodeExtensions` host is implemented and the tool
+  is wired to it; see the Wave 11 note in §7.)**
 - **`use_composio`:** needs the Composio service (`ComposioService`
   with a Composio API key and connected integrations). Blocker: a
   Composio service + credential flow. Registered and honestly failing.

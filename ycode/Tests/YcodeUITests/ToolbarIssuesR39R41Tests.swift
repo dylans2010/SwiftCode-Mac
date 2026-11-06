@@ -110,7 +110,8 @@ private let ycodeDir = URL(fileURLWithPath: #filePath).deletingLastPathComponent
         #expect(!ids.contains("account") && ids.last == "inspectorToggle")
         // liquid-glass.md §2.2: Show Inspector sits at the far right of the
         // inspector's section (a flexible space before it).
-        #expect(Array(ids.suffix(6)) == ["addEditor", "editorOptions", "editorModes", "NSToolbarInspectorTrackingSeparatorItemIdentifier",
+        #expect(Array(ids.suffix(7)) == ["addEditor", "editorOptions", "editorModes", "extensions",
+                                         "NSToolbarInspectorTrackingSeparatorItemIdentifier",
                                          "NSToolbarFlexibleSpaceItem", "inspectorToggle"])
         let add = try #require(wc.toolbar(NSToolbar(), itemForItemIdentifier: .init("addEditor"), willBeInsertedIntoToolbar: false))
         let opts = try #require(wc.toolbar(NSToolbar(), itemForItemIdentifier: .init("editorOptions"), willBeInsertedIntoToolbar: false))

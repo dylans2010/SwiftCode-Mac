@@ -4438,7 +4438,8 @@ Structured data keys (all strings):
   schema, validate inputs first with Legacy-exact messages, then fail
   naming the exact prerequisite: `env_capture_logs`, `use_extension`,
   `use_composio`, `use_workers`, `take_screenrecord` (fully),
-  `use_mcp` and `use_app` (partially).
+  `use_mcp` and `use_app` (partially). (Wave 11: `use_extension` is
+  now wired to the `YcodeExtensions` host — see §92.)
 - **Annotations** follow §1.3, extended: `safeRead` → `readOnly: true,
   idempotent: true`, `writes: false`; `safeMutation` → `readOnly:
   false, idempotent: true`, `writes: true`; `execution` →
@@ -4749,6 +4750,19 @@ enable, disable, diagnostics.` A known action then fails naming the
 Extensions v2 prerequisite; no extension was listed, activated, or
 executed. See `assist-terminal-memory-planning-tools.md`
 ("`use_extension`").
+
+**Wave 11 note (this tool is now WIRED — the Wave 4 text above is
+history).** `use_extension` is implemented against the new
+`YcodeExtensions` target (`specs/ide/extensions-platform.md` §7.2,
+§10): all 11 actions work — list, details, list_commands,
+list_xcode_commands, activate, deactivate, execute,
+run_xcode_command, enable, disable, diagnostics. Mutating actions
+still require `confirm: true` and go through the Wave 2 approval
+gate; VS Code execution runs through the real out-of-process Node
+host (Node absent → honest failure naming the prerequisite); Xcode
+commands run registered source-editor command logic only (no XcodeKit
+binaries). The Extensions panel lives on the editor toolbar beside
+Assist (`YcodeUI/Extensions/ExtensionsPanelViewController.swift`).
 
 ## 93. `use_composio` — Execute Composio Tool
 
@@ -5435,7 +5449,7 @@ no application is operated. See
 | `take_screenrecord` | diagnostics | safeRead | screenRecording | yes | false |
 | `use_app` | systemExecution | safeMutation | accessibility | **no** | **true** |
 
-11 tools write; 6 tools read. Honestly failing, fully: `env_capture_logs`, `use_extension`, `use_composio`, `use_workers`, `take_screenrecord`. Partial: `use_mcp` (list only), `use_app` (4 of 30 actions). The one `safeRead` tool that writes is `take_screenshot` (§86, §101).
+11 tools write; 6 tools read. Honestly failing, fully: `env_capture_logs`, `use_extension`, `use_composio`, `use_workers`, `take_screenrecord`. Partial: `use_mcp` (list only), `use_app` (4 of 30 actions). The one `safeRead` tool that writes is `take_screenshot` (§86, §101). (Wave 11: `use_extension` is now wired — 4 fully failing remain.)
 
 ## Wave 4 — memory tools
 

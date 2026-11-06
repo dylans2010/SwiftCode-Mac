@@ -59,6 +59,8 @@ public final class WorkspaceWindowController: NSWindowController, NSToolbarDeleg
     let inspectorSlideBox = InspectorSlideState()
     /// The coding assistant (WorkspaceWindowController+CodingAssistant.swift).
     let codingAssistantHolder = CodingAssistantHolder()
+    /// The toolbar's Extensions panel (WorkspaceWindowController+Extensions.swift).
+    let extensionsPanelHolder = ExtensionsPanelHolder()
     /// Agent mode's MCP tools and requests (`+AgentMode`).
     let agentModeHolder = AgentModeHolder()
     final class BehaviorStore {
@@ -1778,6 +1780,7 @@ public final class WorkspaceWindowController: NSWindowController, NSToolbarDeleg
     static let leftPanesID = NSToolbarItem.Identifier("leftPanes")
     static let historyID = NSToolbarItem.Identifier("history")
     static let editorModesID = NSToolbarItem.Identifier("editorModes")
+    static let extensionsID = NSToolbarItem.Identifier("extensions")
     static let issuesID = NSToolbarItem.Identifier("issues")
     static let newConversationID = NSToolbarItem.Identifier("newConversation")
 
@@ -1796,7 +1799,7 @@ public final class WorkspaceWindowController: NSWindowController, NSToolbarDeleg
     public func toolbarDefaultItemIdentifiers(_ toolbar: NSToolbar) -> [NSToolbarItem.Identifier] {
         [Self.leftPanesID, .flexibleSpace, Self.runID, FlushSidebar.separatorIdentifier, Self.historyID, Self.activityID, .flexibleSpace,
          Self.newConversationID, .space, Self.schemeID, Self.issuesID,
-         .flexibleSpace, EditorOptionsMenu.addEditorID, EditorOptionsMenu.editorOptionsID, Self.editorModesID,
+         .flexibleSpace, EditorOptionsMenu.addEditorID, EditorOptionsMenu.editorOptionsID, Self.editorModesID, Self.extensionsID,
          .inspectorTrackingSeparator, .flexibleSpace, Self.inspectorToggleID]
     }
 
@@ -1961,6 +1964,22 @@ public final class WorkspaceWindowController: NSWindowController, NSToolbarDeleg
             // overflow, where it is "Editor Modes" with the three modes.
             item.visibilityPriority = .low
             item.menuFormRepresentation = editorModesMenuItem()
+            return item
+        case Self.extensionsID:
+            // extensions-platform.md §1.2: Extensions sits on the editor
+            // toolbar beside Assist (the editor-modes segment), not in
+            // the workspace sidebar. High visibility priority: the
+            // toolbar-fit steps only allow the editor-mode group in the
+            // overflow, so this small button stays visible while the
+            // modes group goes into the "»" menu.
+            let item = NSToolbarItem(itemIdentifier: id)
+            item.image = NSImage(systemSymbolName: "puzzlepiece.extension", accessibilityDescription: "Extensions")
+            item.label = "Extensions"
+            item.toolTip = "Extensions"
+            item.isBordered = true
+            item.target = self
+            item.action = #selector(toggleExtensionsPanel(_:))
+            item.visibilityPriority = .high
             return item
         case Self.stopID: return button("stop.fill", "Stop", #selector(stopProduct(_:)))
         case Self.libraryID: return button("plus", "Library", #selector(showLibrary(_:)))

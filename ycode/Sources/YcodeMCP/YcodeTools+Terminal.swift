@@ -1,6 +1,9 @@
 #if canImport(AppKit)
 import AppKit
 #endif
+#if canImport(YcodeExtensions)
+import YcodeExtensions
+#endif
 import Foundation
 import YcodeAssistant
 import YcodeIDECore
@@ -67,16 +70,20 @@ import YcodeSubprocess
 ///   The port declares the parameters they actually read, so the
 ///   arguments are validated instead of silently accepted.
 ///
-/// Implemented (10): `use_terminal`, `task_runner`, `env_info`,
+/// Implemented (11): `use_terminal`, `task_runner`, `env_info`,
 /// `environment_variable_manager`, `clipboard_manager_tool`,
 /// `process_monitor_tool`, `disk_space_analyzer`,
 /// `system_notification_tool`, `use_system`, `take_screenshot`
-/// (fullscreen only). Partially implemented (2): `use_mcp`
+/// (fullscreen only), `use_extension` (wired to the `YcodeExtensions`
+/// host, spec `extensions-platform.md` §7.2/§10; the real path is
+/// compiled in behind `#if canImport(YcodeExtensions)` and fails
+/// honestly naming the missing host if the target is ever unwired).
+/// Partially implemented (2): `use_mcp`
 /// (`list` answers honestly; execution fails), `use_app`
 /// (`list_applications` running-only, `launch`, `activate`,
 /// `close_application`, `list_windows`; the Accessibility actions
-/// fail per-action). Honestly failing (5): `env_capture_logs`,
-/// `use_extension`, `use_composio`, `use_workers`,
+/// fail per-action). Honestly failing (4): `env_capture_logs`,
+/// `use_composio`, `use_workers`,
 /// `take_screenrecord` — registered with Legacy's ID and schema,
 /// validating their inputs first, then failing with the exact
 /// prerequisite. No behaviour, credential, or network call is
@@ -603,16 +610,439 @@ extension YcodeMCPHost {
         throw MCPToolError("use_mcp needs an external MCP client (configured MCP servers with a connection manager), which Ycode's MCP host does not have yet: no external tool was called. Ycode itself is the MCP server here; its own tools are listed by tools/list.")
     }
 
-    // MARK: - `use_extension` (honestly failing)
+    // MARK: - `use_extension` (wired to YcodeExtensions)
+
+    /// The honestly-failing message while the `YcodeExtensions` target
+    /// is not wired into this build (Slice B owns `Package.swift` and
+    /// the target): the host side of every action is absent, so no
+    /// action is faked from an empty local state.
+    static let extensionsHostUnavailableMessage = "use_extension needs the Extensions v2 platform (ExtV2Manager + extension host with Node.js), which Ycode's MCP host does not have yet; no extension was listed, activated, or executed."
+
+    /// The `limit` argument (spec §7.2): default 50, clamped to
+    /// [1, 200]. The `Double` branch covers whole numerics (3.0);
+    /// a non-whole numeric never reaches here — the server's schema
+    /// validation rejects it first (`argumentProblem` in `run()`).
+    func extensionLimit(_ call: MCPToolCall) -> Int {
+        if let v = call.arguments["limit"]?.int { return min(200, max(1, v)) }
+        if let d = call.arguments["limit"]?.double { return min(200, max(1, Int(d))) }
+        return 50
+    }
+
+    /// The 8,000-character output cap (spec §7.2): longer output is
+    /// truncated with `"\n... (truncated)"` appended.
+    func extensionCap(_ text: String) -> String {
+        guard text.count > 8000 else { return text }
+        return String(text.prefix(8000)) + "\n... (truncated)"
+    }
+
+    /// A `run_xcode_command` target after the host-independent
+    /// validation (file containment, readability, selection bounds)
+    /// has passed. The buffer itself is built on the host side, where
+    /// the `SourceTextBuffer` type lives.
+    struct ExtensionXcodeFileTarget {
+        let url: URL
+        let relativePath: String
+        let content: String
+        let lines: [String]
+        let startLine: Int
+        let startColumn: Int
+        let endLine: Int
+        let endColumn: Int
+    }
+
+    /// Validates a `run_xcode_command` file + selection without touching
+    /// the host: the file must be workspace-relative (absolute or
+    /// escaping paths are an invalid request), must read as UTF-8, and
+    /// the selection (0-based, columns in Swift Characters / grapheme
+    /// clusters, spec §7.4) must lie inside the file. Defaults to the
+    /// whole file when no selection is given.
+    func validateXcodeFileTarget(_ call: MCPToolCall) throws -> ExtensionXcodeFileTarget {
+        let s = try session(for: call)
+        let file = try call.require("file")
+        guard !file.hasPrefix("/") else {
+            throw MCPToolError("Action 'run_xcode_command' requires a workspace-relative 'file'; absolute paths are rejected: \(file)")
+        }
+        let url: URL
+        do {
+            url = try resolve(file, in: s)
+        } catch {
+            throw MCPToolError("Action 'run_xcode_command' requires a workspace-relative 'file': \(Self.fileWritingErrorText(error))")
+        }
+        let rel = relative(url.path, in: s)
+        guard let content = text(of: url) else {
+            throw MCPToolError("Cannot read '\(rel)': no such file in the workspace.")
+        }
+        let lines = content.components(separatedBy: .newlines)
+        let sel = call.arguments["selection"]?.object ?? [:]
+        let startLine = sel["startLine"]?.int ?? 0
+        let startColumn = sel["startColumn"]?.int ?? 0
+        let endLine = sel["endLine"]?.int ?? max(0, lines.count - 1)
+        let endColumn = sel["endColumn"]?.int ?? (lines.indices.contains(endLine) ? lines[endLine].count : 0)
+        func outOfBounds(_ why: String) -> MCPToolError {
+            MCPToolError("Selection is out of bounds for '\(rel)': \(why) (\(lines.count) lines).")
+        }
+        guard startLine >= 0, endLine >= 0, startLine < lines.count, endLine < lines.count else {
+            throw outOfBounds("lines \(startLine)–\(endLine) do not exist")
+        }
+        guard startColumn >= 0, endColumn >= 0,
+              startColumn <= lines[startLine].count, endColumn <= lines[endLine].count else {
+            throw outOfBounds("columns \(startColumn)/\(endColumn) exceed their lines")
+        }
+        guard (startLine, startColumn) <= (endLine, endColumn) else {
+            throw outOfBounds("the selection starts after it ends")
+        }
+        return ExtensionXcodeFileTarget(url: url, relativePath: rel, content: content, lines: lines,
+                                        startLine: startLine, startColumn: startColumn, endLine: endLine, endColumn: endColumn)
+    }
 
     func useExtension(_ call: MCPToolCall) async throws -> MCPToolResult {
         let known = ["list", "details", "list_commands", "list_xcode_commands", "activate",
                      "deactivate", "execute", "run_xcode_command", "enable", "disable", "diagnostics"]
-        guard let actionRaw = call.arguments["action"]?.string, known.contains(actionRaw) else {
+        guard let action = call.arguments["action"]?.string, known.contains(action) else {
             throw MCPToolError("Unknown or missing action. Use one of: \(known.joined(separator: ", ")).")
         }
-        throw MCPToolError("use_extension needs the Extensions v2 platform (ExtV2Manager + extension host with Node.js), which Ycode's MCP host does not have yet; no extension was listed, activated, or executed.")
+        // Confirm rule (Legacy, spec §7.2): the mutating actions require
+        // `confirm: true`. This is in addition to, not instead of, the
+        // Wave 2 `approve()` gate (§5.4), which the mutating branches
+        // below call before acting.
+        let mutating: Set<String> = ["activate", "execute", "run_xcode_command", "enable", "disable"]
+        if mutating.contains(action), call.bool("confirm") != true {
+            throw MCPToolError("Action '\(action)' requires confirm: true.")
+        }
+        // `extensionId` is required for every action except `list` and
+        // `list_xcode_commands` (spec §7.2).
+        let extensionId: String?
+        if action == "list" || action == "list_xcode_commands" {
+            extensionId = call.string("extensionId")
+        } else {
+            guard let id = call.string("extensionId") else {
+                throw MCPToolError("Action '\(action)' requires 'extensionId'.")
+            }
+            extensionId = id
+        }
+        if action == "execute" || action == "run_xcode_command" {
+            guard call.string("command") != nil else {
+                throw MCPToolError("Action '\(action)' requires 'command'.")
+            }
+        }
+        // `run_xcode_command` validates its file + selection before the
+        // host is involved, so a bad path or selection fails the same
+        // way with or without the host present.
+        let xcodeTarget: ExtensionXcodeFileTarget?
+        if action == "run_xcode_command" {
+            xcodeTarget = try validateXcodeFileTarget(call)
+        } else {
+            xcodeTarget = nil
+        }
+#if canImport(YcodeExtensions)
+        return try await useExtensionViaHost(action, extensionId: extensionId, call: call, xcodeTarget: xcodeTarget)
+#else
+        _ = xcodeTarget
+        throw MCPToolError(Self.extensionsHostUnavailableMessage)
+#endif
     }
+
+#if canImport(YcodeExtensions)
+    /// The real `use_extension` dispatch against the spec §10.6
+    /// `ExtensionManager` API. Every branch follows spec §7.2 (per-action
+    /// behaviour, output cap, error mapping) and §5.4 (the single Wave 2
+    /// approval gate: mutating actions call `approve()` via
+    /// `terminalApproveChange`, `run_xcode_command` writes through
+    /// `commit()`; read-only actions and `deactivate` never approve).
+    func useExtensionViaHost(_ action: String, extensionId: String?, call: MCPToolCall,
+                             xcodeTarget: ExtensionXcodeFileTarget?) async throws -> MCPToolResult {
+        do {
+            return try await useExtensionHostDispatch(action, extensionId: extensionId, call: call, xcodeTarget: xcodeTarget)
+        } catch let toolError as MCPToolError {
+            throw toolError
+        } catch {
+            // Host errors are `YcodeExtensionError` (a `LocalizedError`
+            // whose messages match Legacy verbatim, spec §10.1); anything
+            // else surfaces by its own description, never as a success.
+            throw MCPToolError((error as? LocalizedError)?.errorDescription ?? error.localizedDescription)
+        }
+    }
+
+    func useExtensionHostDispatch(_ action: String, extensionId: String?, call: MCPToolCall,
+                                  xcodeTarget: ExtensionXcodeFileTarget?) async throws -> MCPToolResult {
+        let manager = ExtensionManager.shared
+        // The registry-only action needs no manager state; every other
+        // action loads it first (`ensureReady` is a no-op after the
+        // first load, spec §3.3).
+        if action != "list_xcode_commands" {
+            await manager.ensureReady()
+        }
+        let limit = extensionLimit(call)
+        switch action {
+        case "list":
+            manager.refreshInstalled()
+            let rows = manager.installed.prefix(limit).map {
+                " \($0.id) — \($0.metadata.displayName) v\($0.metadata.version) [\($0.metadata.kind.displayName), \($0.state.displayName)]"
+            }
+            let text = rows.isEmpty
+                ? "No extensions installed. Discover extensions from the Extensions sidebar (Open VSX registry) or register the sample native plugin."
+                : rows.joined(separator: "\n")
+            return .structured(["action": .string("list"), "count": .int(rows.count)], summary: extensionCap(text))
+
+        case "details":
+            let id = extensionId!
+            guard let installed = manager.installed.first(where: { $0.id == id }) else {
+                throw MCPToolError(YcodeExtensionError.notInstalled(id).localizedDescription)
+            }
+            return .structured(["action": .string("details"), "state": .string(installed.state.rawValue),
+                                "kind": .string(installed.metadata.kind.rawValue)],
+                               summary: extensionCap(extensionDetailsText(installed, manager: manager)))
+
+        case "list_commands":
+            let id = extensionId!
+            guard manager.installed.contains(where: { $0.id == id }) else {
+                throw MCPToolError(YcodeExtensionError.notInstalled(id).localizedDescription)
+            }
+            let text = extensionCommandsText(id, manager: manager)
+            return .structured(["action": .string("list_commands"), "extensionId": .string(id)], summary: extensionCap(text))
+
+        case "list_xcode_commands":
+            let ids = XcodeCommandRegistry.shared.allIdentifiers
+            let text = ids.isEmpty
+                ? "No Xcode-compatible commands are registered. Only registered source-editor command logic can run; XcodeKit binaries cannot run inside SwiftCode."
+                : ids.joined(separator: "\n")
+            return .structured(["action": .string("list_xcode_commands"), "count": .int(ids.count)], summary: extensionCap(text))
+
+        case "activate":
+            let id = extensionId!
+            guard manager.installed.contains(where: { $0.id == id }) else {
+                throw MCPToolError(YcodeExtensionError.notInstalled(id).localizedDescription)
+            }
+            // Mutating actions need a workspace session: it supplies the
+            // workspace root the host activates against, and the path the
+            // approval change is filed under (as in the other Wave 1–10
+            // mutating tools).
+            let s = try session(for: call)
+            manager.setWorkspaceRoot(Self.folder(of: s.model))
+            try await terminalApproveChange(tool: call.name,
+                                            summary: "Activate extension '\(id)' (runs its code in the extension host).",
+                                            in: s, call: call)
+            let contribution: ExtensionContribution
+            do {
+                contribution = try await manager.activate(extensionId: id)
+            } catch {
+                throw MCPToolError((error as? LocalizedError)?.errorDescription ?? error.localizedDescription)
+            }
+            var text = "Activated \(id)."
+            if !contribution.commands.isEmpty {
+                text += "\nCommands:\n" + contribution.commands.map { "- \($0.command) (\($0.title))" }.joined(separator: "\n")
+            }
+            if !contribution.outputLines.isEmpty {
+                text += "\nOutput:\n" + contribution.outputLines.joined(separator: "\n")
+            }
+            return .structured(["action": .string("activate"), "state": .string("running")], summary: extensionCap(text))
+
+        case "deactivate":
+            // Legacy classifies `deactivate` read-only: no confirm, no
+            // approval gate (spec §5.4/§7.2).
+            let id = extensionId!
+            manager.deactivate(extensionId: id)
+            return .structured(["action": .string("deactivate")], summary: "Deactivated \(id).")
+
+        case "execute":
+            let id = extensionId!
+            let command = call.string("command")!
+            guard let installed = manager.installed.first(where: { $0.id == id }) else {
+                throw MCPToolError(YcodeExtensionError.notInstalled(id).localizedDescription)
+            }
+            guard installed.isEnabled, installed.state != .disabled else {
+                throw MCPToolError(YcodeExtensionError.disabled(id).localizedDescription)
+            }
+            let s = try session(for: call)
+            manager.setWorkspaceRoot(Self.folder(of: s.model))
+            try await terminalApproveChange(tool: call.name,
+                                            summary: "Execute command '\(command)' from extension '\(id)' (runs extension code).",
+                                            in: s, call: call)
+            // Args go as a single JSON object argument (empty args → no
+            // args), so the extension receives its named arguments
+            // intact (spec §7.2; the `key=value` form is Legacy's
+            // inconsistency, D-10, and is not used).
+            let argsObject = call.arguments["args"]?.object ?? [:]
+            let args: [JSONValue] = argsObject.isEmpty ? [] : [.object(argsObject.mapValues { extensionJSONValue($0) })]
+            let result: String
+            do {
+                result = try await manager.executeCommand(extensionId: id, command: command, args: args)
+            } catch {
+                throw MCPToolError((error as? LocalizedError)?.errorDescription ?? error.localizedDescription)
+            }
+            let text = result.isEmpty ? "(command returned no output)" : result
+            return .structured(["action": .string("execute"), "result": .string(result)], summary: extensionCap(text))
+
+        case "run_xcode_command":
+            let command = call.string("command")!
+            let target = xcodeTarget!
+            let s = try session(for: call)
+            guard XcodeCommandRegistry.shared.command(for: command) != nil else {
+                let ids = XcodeCommandRegistry.shared.allIdentifiers
+                throw MCPToolError("Unknown Xcode command '\(command)'. Registered commands: \(ids.isEmpty ? "none" : ids.joined(separator: ", ")).")
+            }
+            manager.setWorkspaceRoot(Self.folder(of: s.model))
+            let buffer = SourceTextBuffer(lines: target.lines,
+                                          selections: [SourceRange(start: SourcePosition(line: target.startLine, column: target.startColumn),
+                                                                   end: SourcePosition(line: target.endLine, column: target.endColumn))])
+            let linesBefore = target.lines.count
+            do {
+                try await XcodeCommandRegistry.shared.perform(identifier: command, buffer: buffer)
+            } catch {
+                // The buffer is in-memory: a throwing command leaves the
+                // file untouched (spec §7.2).
+                throw MCPToolError((error as? LocalizedError)?.errorDescription ?? error.localizedDescription)
+            }
+            let newContent = buffer.completeBuffer
+            guard newContent != target.content else {
+                return .structured(["action": .string("run_xcode_command"), "changed": .bool(false),
+                                    "filesChanged": .array([])],
+                                   summary: "Command '\(command)' made no changes to \(target.relativePath).")
+            }
+            let linesAfter = newContent.components(separatedBy: .newlines).count
+            // The file write itself goes through `commit()` — the Wave 2
+            // gate (spec §5.4) — exactly as the file tools do.
+            try await commit(MCPChange(tool: call.name, path: target.url.path, relativePath: target.relativePath,
+                                       original: target.content, proposed: newContent,
+                                       summary: "Run Xcode command '\(command)' on \(target.relativePath)"),
+                             call: call, session: s)
+            let summary = "Command '\(command)' updated \(target.relativePath): \(linesBefore) lines → \(linesAfter) lines.\n\(newContent)"
+            return .structured(["action": .string("run_xcode_command"), "changed": .bool(true),
+                                "filesChanged": .array([.string(target.relativePath)]),
+                                "linesBefore": .int(linesBefore), "linesAfter": .int(linesAfter)],
+                               summary: extensionCap(summary))
+
+        case "enable", "disable":
+            let id = extensionId!
+            let enabled = action == "enable"
+            guard let installed = manager.installed.first(where: { $0.id == id }) else {
+                throw MCPToolError(YcodeExtensionError.notInstalled(id).localizedDescription)
+            }
+            let s = try session(for: call)
+            try await terminalApproveChange(tool: call.name,
+                                            summary: "\(enabled ? "Enable" : "Disable") extension '\(id)'.",
+                                            in: s, call: call)
+            manager.setEnabled(extensionId: id, enabled: enabled)
+            manager.refreshInstalled()
+            let state = manager.installed.first(where: { $0.id == id })?.state.displayName ?? installed.state.displayName
+            return .structured(["action": .string(action), "state": .string(state)],
+                               summary: "\(enabled ? "Enabled" : "Disabled") \(id) (state: \(state)).")
+
+        case "diagnostics":
+            let id = extensionId!
+            let formatter = ISO8601DateFormatter()
+            formatter.formatOptions = [.withInternetDateTime]
+            let entries = DiagnosticsService.shared.entries(for: id).suffix(limit)
+            let text = entries.isEmpty
+                ? "No diagnostics recorded for \(id)."
+                : entries.map { "[\(formatter.string(from: $0.timestamp))] [\($0.level.rawValue)] \($0.message)" }.joined(separator: "\n")
+            return .structured(["action": .string("diagnostics"), "count": .int(entries.count)], summary: extensionCap(text))
+
+        default:
+            throw MCPToolError("Unknown or missing action. Use one of: list, details, list_commands, list_xcode_commands, activate, deactivate, execute, run_xcode_command, enable, disable, diagnostics.")
+        }
+    }
+
+    /// `AnyJSON` → the host's `JSONValue` (same cases, same nesting).
+    func extensionJSONValue(_ value: AnyJSON) -> JSONValue {
+        switch value {
+        case .null: return .null
+        case .bool(let b): return .bool(b)
+        case .int(let i): return .int(i)
+        case .double(let d): return .double(d)
+        case .string(let s): return .string(s)
+        case .array(let a): return .array(a.map { extensionJSONValue($0) })
+        case .object(let o): return .object(o.mapValues { extensionJSONValue($0) })
+        }
+    }
+
+    /// The `details` text (spec §7.2): display name + id, version, kind,
+    /// state, enabled, description; dependencies with satisfied/missing
+    /// per dep; granted capabilities (display names, or `"none"`);
+    /// `lastError` when set; for VS Code kind, the manifest re-parsed
+    /// with `Compatible:` + notes; running contribution commands.
+    func extensionDetailsText(_ installed: InstalledExtension, manager: ExtensionManager) -> String {
+        let m = installed.metadata
+        var lines = ["\(m.displayName) (\(m.id))",
+                     "Version: \(m.version)",
+                     "Kind: \(m.kind.displayName)",
+                     "State: \(installed.state.displayName)",
+                     "Enabled: \(installed.isEnabled ? "yes" : "no")",
+                     "Description: \(m.description.isEmpty ? "—" : m.description)"]
+        let byID = Dictionary(uniqueKeysWithValues: manager.installed.map { ($0.id, $0) })
+        let missing = Set(DependencyResolver.missingDependencies(for: installed, installedByID: byID))
+        if installed.dependencies.isEmpty {
+            lines.append("Dependencies: none")
+        } else {
+            lines.append("Dependencies:")
+            for dep in installed.dependencies {
+                lines.append("- \(dep) (\(missing.contains(dep) ? "missing" : "satisfied"))")
+            }
+        }
+        let granted = manager.permissions.grantedCapabilities(for: installed.id)
+        lines.append("Granted capabilities: \(granted.isEmpty ? "none" : granted.map(\.displayName).joined(separator: ", "))")
+        if let lastError = installed.lastError, !lastError.isEmpty {
+            lines.append("Last error: \(lastError)")
+        }
+        if m.kind == .vscode {
+            let manifestURL = URL(fileURLWithPath: installed.installPath)
+                .appendingPathComponent("extension/package.json")
+            do {
+                let manifest = try VSCodeManifestParser.parseFile(at: manifestURL)
+                let report = Compatibility.evaluate(manifest: manifest)
+                lines.append("Compatible: \(report.compatible)")
+                for reason in report.reasons { lines.append("- \(reason)") }
+            } catch {
+                lines.append("Manifest could not be read: \(error.localizedDescription)")
+            }
+        }
+        if let contribution = manager.contributions[installed.id], !contribution.commands.isEmpty {
+            lines.append("Running commands:")
+            for c in contribution.commands { lines.append("- \(c.command) (\(c.title))") }
+        }
+        return lines.joined(separator: "\n")
+    }
+
+    /// The `list_commands` text (spec §7.2). VS Code: the running
+    /// contribution's commands when the host is running, else the
+    /// manifest's `contributes.commands`; native: the plugin manifest's
+    /// commands; Xcode-command kind: the registered Xcode commands.
+    func extensionCommandsText(_ id: String, manager: ExtensionManager) -> String {
+        guard let installed = manager.installed.first(where: { $0.id == id }) else {
+            return "Extension \(id) contributes no commands (not installed)."
+        }
+        switch installed.metadata.kind {
+        case .xcodeCommand:
+            let ids = XcodeCommandRegistry.shared.allIdentifiers
+            return ids.isEmpty
+                ? "No Xcode-compatible commands are registered. Only registered source-editor command logic can run; XcodeKit binaries cannot run inside SwiftCode."
+                : ids.joined(separator: "\n")
+        case .native:
+            if let manifest = NativePluginRegistry.shared.manifests.first(where: { $0.metadata.id == id }) {
+                return manifest.commands.isEmpty
+                    ? "Extension \(id) contributes no commands (native plugin)."
+                    : manifest.commands.map { "\($0.command) (\($0.title)) — native plugin" }.joined(separator: "\n")
+            }
+            return "Extension \(id) contributes no commands (native plugin not registered)."
+        case .vscode:
+            if manager.hostManager.isRunning(extensionId: id),
+               let contribution = manager.contributions[id], !contribution.commands.isEmpty {
+                return contribution.commands.map { "\($0.command) (\($0.title)) (running)" }.joined(separator: "\n")
+            }
+            let manifestURL = URL(fileURLWithPath: installed.installPath)
+                .appendingPathComponent("extension/package.json")
+            do {
+                let manifest = try VSCodeManifestParser.parseFile(at: manifestURL)
+                return manifest.contributesCommands.isEmpty
+                    ? "Extension \(id) contributes no commands (not running; activate first to execute)."
+                    : manifest.contributesCommands.map { "\($0.command) (\($0.title)) — not running; activate first to execute" }.joined(separator: "\n")
+            } catch {
+                return "No commands found for extension \(id): manifest could not be read."
+            }
+        }
+    }
+#endif
+
 
     // MARK: - `use_composio` (honestly failing)
 

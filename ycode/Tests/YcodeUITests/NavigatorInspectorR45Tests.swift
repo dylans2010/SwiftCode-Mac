@@ -465,9 +465,10 @@ import YcodeProject
         let ids = wc.toolbarDefaultItemIdentifiers(NSToolbar())
         let items = ids.filter { !WorkspaceWindowController.toolbarSpacers.contains($0) }.map(\.rawValue)
         // §2.1 items 1–7 and 9–11 (item 9's two pull-downs are two toolbar
-        // items); item 8 (the notices button) is left out.
-        #expect(items.count == 11, "\(items)")
+        // items); item 8 (the notices button) is left out; the Extensions
+        // button sits beside the editor modes (Wave 11).
+        #expect(items.count == 12, "\(items)")
         #expect(!items.contains { $0.localizedCaseInsensitiveContains("notice") || $0.localizedCaseInsensitiveContains("cloud") })
-        #expect(wc.toolbarAllowedItemIdentifiers(NSToolbar()).filter { !WorkspaceWindowController.toolbarSpacers.contains($0) }.count == 11)
+        #expect(wc.toolbarAllowedItemIdentifiers(NSToolbar()).filter { !WorkspaceWindowController.toolbarSpacers.contains($0) }.count == 12)
     }
 }
