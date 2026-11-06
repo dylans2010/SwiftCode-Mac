@@ -1,0 +1,125 @@
+// STAGED PORT — SwiftCode-Legacy `Backend/Assist/AssistExecutionEngine.swift`
+// (Legacy main d51a8f0d; Dylan's own code, direct port authorised under MIT).
+// Target: SwiftCodeAssistant. Body is Legacy verbatim unless noted below.
+// Dependency of _AssistCriticalExecutionEngine (baseEngine.execute(plan:)). Ledger SUPERSEDED by SwiftCodeMCP/MCPServer.swift — the MCP server is non-importable from SwiftCodeAssistant and is not a plan-step execution loop; the staged critical engine delegates its whole execute(plan:) to this class. Ported verbatim, including AssistExecutionError.
+// BLOCKED sub-deps (recorded in _notes/agent-frameworks-decisions.md): AssistToolRegistry (820-line Legacy registry, SUPERSEDED by the MCP tool registry — deliberately NOT ported; see decision log) and ProjectSessionStore (SUPERSEDED, SwiftCodeIDECore, non-importable), plus TasksAIPlanner (staged alongside here).
+// Remaining deps (now staged in AssistModels.swift by the parallel port — see _notes/agent-models-decisions.md): AssistContext (logger, fileSystem, safetyLevel), AssistExecutionPlan/AssistExecutionStep/AssistExecutionStatus/AssistToolResult.
+
+import Foundation
+
+@MainActor
+public final class AssistExecutionEngine {
+    private let context: AssistContext
+    private let registry: AssistToolRegistry
+
+    public init(context: AssistContext, registry: AssistToolRegistry) {
+        self.context = context
+        self.registry = registry
+    }
+
+    public func execute(plan: inout AssistExecutionPlan) async throws {
+        await context.logger.info("Executing plan: \(plan.goal)")
+        plan.status = .running
+
+        for i in 0..<plan.steps.count {
+            var step = plan.steps[i]
+            let stepTitle = "Step \(i+1)/\(plan.steps.count)"
+            await context.logger.info("\(stepTitle): \(step.description)", toolId: step.toolId)
+
+            step.status = .running
+            plan.steps[i] = step
+            TasksAIPlanner.shared.updateStep(id: step.id, status: .running)
+
+            do {
+                // Unified tool execution logic (integrating what was previously in AssistLoop)
+                guard let tool = registry.getTool(step.toolId) else {
+                    throw AssistExecutionError.toolNotFound(step.toolId)
+                }
+
+                await self.context.logger.info("Executing tool: \(tool.name)", toolId: step.toolId)
+
+                // Map the input to [String: Any] as required by AssistTool protocol
+                var toolInput = step.input as [String: Any]
+                if i > 0, let previous = plan.steps[i - 1].result {
+                    toolInput["previous_output"] = previous.output
+                    if let previousData = previous.data {
+                        for (k, v) in previousData {
+                            if toolInput[k] == nil { toolInput[k] = v }
+                        }
+                    }
+                }
+                if let path = toolInput["path"] as? String,
+                   ["code_refactor", "file_append"].contains(step.toolId),
+                   !self.context.fileSystem.exists(at: path),
+                   let createFileTool = self.registry.getTool("file_create") {
+                    _ = try await createFileTool.execute(input: ["path": path, "content": "", "overwrite": false], context: self.context)
+                    await self.context.logger.info("Auto-created missing file at \(path) before executing \(step.toolId)", toolId: "file_create")
+                }
+
+                let result = try await tool.execute(input: toolInput, context: self.context)
+
+                step.result = result
+                step.status = result.success ? .completed : .failed
+                plan.steps[i] = step
+                TasksAIPlanner.shared.updateStep(id: step.id, status: step.status, result: result)
+
+                let observation = interpretResult(toolId: step.toolId, result: result, stepDescription: step.description)
+                await context.logger.info("Observation [\(step.toolId)]: \(observation)", toolId: step.toolId)
+
+                if !result.success {
+                    await context.logger.error("Step failed: \(result.error ?? "Unknown error")", toolId: step.toolId)
+                    if context.safetyLevel == .conservative {
+                        plan.status = .failed
+                        return
+                    }
+                } else {
+                    if ["file_write", "code_refactor", "file_create", "file_append"].contains(step.toolId) {
+                        if let project = await ProjectSessionStore.shared.activeProject {
+                            await ProjectSessionStore.shared.refreshFileTree(for: project)
+                        }
+                    }
+                }
+            } catch {
+                await context.logger.error("Step execution error: \(error.localizedDescription)", toolId: step.toolId)
+                step.status = .failed
+                plan.status = .failed
+                plan.steps[i] = step
+                throw error
+            }
+        }
+
+        let anyStepFailed = plan.steps.contains { $0.status == .failed }
+        plan.status = anyStepFailed ? .failed : .completed
+        if TasksAIPlanner.shared.currentPlan?.id == plan.id {
+            TasksAIPlanner.shared.currentPlan?.status = plan.status
+        }
+        await context.logger.info(anyStepFailed ? "Plan execution finished with failed steps: \(plan.goal)" : "Plan execution completed: \(plan.goal)")
+    }
+
+    private func interpretResult(toolId: String, result: AssistToolResult, stepDescription: String) -> String {
+        if result.success {
+            if !result.filesChanged.isEmpty {
+                return "Success: \(result.filesChanged.joined(separator: ", ")) modified"
+            }
+            if let diff = result.diff, !diff.isEmpty {
+                let added = diff.components(separatedBy: "\n").filter { $0.hasPrefix("+") && !$0.hasPrefix("+++") }.count
+                let deleted = diff.components(separatedBy: "\n").filter { $0.hasPrefix("-") && !$0.hasPrefix("---") }.count
+                return "Success: +\(added)/-\(deleted) lines changed"
+            }
+            return "Success: \(stepDescription)"
+        } else {
+            let error = result.error ?? result.output
+            return "Failed: \(error.prefix(200))"
+        }
+    }
+}
+
+public enum AssistExecutionError: LocalizedError {
+    case toolNotFound(String)
+
+    public var errorDescription: String? {
+        switch self {
+        case .toolNotFound(let id): return "Tool not found: \(id)"
+        }
+    }
+}

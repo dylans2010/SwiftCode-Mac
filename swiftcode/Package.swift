@@ -127,7 +127,7 @@ let package = Package(
         .target(name: "SwiftCodeCloud", dependencies: ["SwiftCodeAssistant"]),
         .testTarget(name: "SwiftCodeCloudTests", dependencies: ["SwiftCodeCloud", "SwiftCodeAssistant"]),
         // Google account auth (specs/ide/cloud-accounts.md §10).
-        .target(name: "SwiftCodeGoogleAuth", dependencies: ["SwiftCodeAssistant", .product(name: "Crypto", package: "swift-crypto")]),
+        .target(name: "SwiftCodeGoogleAuth", dependencies: ["SwiftCodeAssistant", .product(name: "Crypto", package: "swift-crypto")], resources: [.copy("Resources/GoogleCloudSDK")]),
         .testTarget(name: "SwiftCodeGoogleAuthTests", dependencies: ["SwiftCodeGoogleAuth", "SwiftCodeAssistant"]),
         // Paywall / entitlement runtime (specs/ide/storekit-paywall.md):
         // Apple StoreKit 2 only (behind `#if canImport(StoreKit)`),
