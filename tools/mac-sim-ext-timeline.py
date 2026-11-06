@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 """Black-box timeline of process starts during a boot of Apple's iOS
 Simulator on this Mac (specs/simulator/boot-profile.md §6). Uses only
-`xcrun simctl` and `ps`. Works only on devices named ycode-test-*.
+`xcrun simctl` and `ps`. Works only on devices named swiftcode-test-*.
 
 Usage:
-  python3 -I tools/mac-sim-ext-timeline.py --device ycode-test-NAME --boots N --out DIR
+  python3 -I tools/mac-sim-ext-timeline.py --device swiftcode-test-NAME --boots N --out DIR
          [--window 90] [--poll 0.25]
 
 Each boot: shut the device down, boot it with `simctl bootstatus -b`, and
@@ -152,7 +152,7 @@ def main():
     ap.add_argument("--window", type=float, default=90)
     ap.add_argument("--poll", type=float, default=0.25)
     args = ap.parse_args()
-    assert args.device.startswith("ycode-test-"), "only devices named ycode-test-*"
+    assert args.device.startswith("swiftcode-test-"), "only devices named swiftcode-test-*"
     os.makedirs(args.out, exist_ok=True)
     udid = None
     for line in run("xcrun", "simctl", "list", "devices").splitlines():

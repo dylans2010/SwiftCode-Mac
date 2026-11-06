@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Black-box boot measurements of Apple's iOS Simulator on this Mac, with
-the same lean profile Ycode uses (specs/simulator/lean-boot.md,
+the same lean profile SwiftCode uses (specs/simulator/lean-boot.md,
 specs/simulator/parity-ladder.md). Uses only `xcrun simctl`, `ps` and files
 the simulator writes (read as formats). Never touches devices it did not
 create: every device it makes is named <prefix>-<mode>-<n> and deleted at
@@ -11,11 +11,11 @@ Usage:
          [--keep label,label]       # lean: these labels stay enabled (ladder step base+k)
          [--enable label,label]     # lean: only these are disabled (all-but-one with one label)
          [--order full,lean,...]    # interleave several modes, N rounds each
-         [--sample-at 120] [--second-sample-at S] [--cpu-every 5] [--timeout 900] [--prefix ycode-test-L]
+         [--sample-at 120] [--second-sample-at S] [--cpu-every 5] [--timeout 900] [--prefix swiftcode-test-L]
 
 Per boot (first boot of a new device, then a second boot of the same device):
   home_s     first screenshot whose mean brightness (grey, 70x102) is > 60, the
-             end point of Ycode's harness (SX/bin/homewatch.py); polled about
+             end point of SwiftCode's harness (SX/bin/homewatch.py); polled about
              once a second from the moment `simctl bootstatus -b` starts
   bootstatus_s  when `simctl bootstatus -b` returns
   cpu        per-process CPU seconds of the device's processes (descendants of
@@ -34,14 +34,14 @@ Per boot (first boot of a new device, then a second boot of the same device):
              mean number of cores used by all processes outside this device
              during the window (from cumulative `ps` CPU times)
 --second-sample-at lengthens the second boot's window (e.g. 700 s, the length
-of a Ycode harness run) to compare restart counts over the same wall time.
-The lists come from ycode/Sources/ycode-simd/LeanBoot.swift, so the Mac and
-Ycode always use the same labels and subsystems.
+of a SwiftCode harness run) to compare restart counts over the same wall time.
+The lists come from swiftcode/Sources/swiftcode-simd/LeanBoot.swift, so the Mac and
+SwiftCode always use the same labels and subsystems.
 """
 import argparse, json, os, plistlib, re, shutil, subprocess, sys, time
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-LEAN_SWIFT = os.path.join(ROOT, "ycode/Sources/ycode-simd/LeanBoot.swift")
+LEAN_SWIFT = os.path.join(ROOT, "swiftcode/Sources/swiftcode-simd/LeanBoot.swift")
 DEVICE_TYPE = "com.apple.CoreSimulator.SimDeviceType.iPhone-Duo"
 RUNTIME = "com.apple.CoreSimulator.SimRuntime.iOS-27-1"
 DEVICES = os.path.expanduser("~/Library/Developer/CoreSimulator/Devices")
@@ -221,7 +221,7 @@ def measure_boot(udid, outdir, tag, sample_at, timeout, cpu_every):
             bootstatus = round(now, 1)
         if home is None:
             # The iPhone Duo type has several displays; "primary" (LCD, 1398x2034)
-            # is the one Ycode renders. Without --display simctl picks LCD-1.
+            # is the one SwiftCode renders. Without --display simctl picks LCD-1.
             try:
                 r = subprocess.run(["xcrun", "simctl", "io", udid, "screenshot", "--display=primary", shot],
                                    capture_output=True, timeout=20)
@@ -315,12 +315,12 @@ def main():
     ap.add_argument("--timeout", type=float, default=900)
     ap.add_argument("--cpu-every", type=float, default=5)
     ap.add_argument("--second-sample-at", type=float, default=None,
-                    help="sample window of the second boot (default --sample-at); e.g. 700 to match a Ycode harness run")
-    ap.add_argument("--prefix", default="ycode-test-L")
+                    help="sample window of the second boot (default --sample-at); e.g. 700 to match a SwiftCode harness run")
+    ap.add_argument("--prefix", default="swiftcode-test-L")
     ap.add_argument("--start-index", type=int, default=1)
     ap.add_argument("--keep-device", action="store_true")
     args = ap.parse_args()
-    assert args.prefix.startswith("ycode-test-"), "devices must be named ycode-test-*"
+    assert args.prefix.startswith("swiftcode-test-"), "devices must be named swiftcode-test-*"
     keep = set(filter(None, args.keep.split(",")))
     enable = None if args.enable is None else list(filter(None, args.enable.split(",")))
     modes = args.order.split(",") if args.order else [args.mode]

@@ -90,8 +90,8 @@ captures:
 
 ```json
 {
-  "format": "capture-session/1", "session": "glass-scroll-edges", "target": "ycode",
-  "label": "Ycode", "display": {"scale": 2, "refresh_hz": 120},
+  "format": "capture-session/1", "session": "glass-scroll-edges", "target": "swiftcode",
+  "label": "SwiftCode", "display": {"scale": 2, "refresh_hz": 120},
   "steps": [
     {"index": 2, "id": "editor-scroll-down", "note": "...",
      "still_before": "02-editor-scroll-down-before.png",

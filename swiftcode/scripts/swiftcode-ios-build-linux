@@ -1,0 +1,60 @@
+#!/bin/bash
+# swiftcode-ios-build-linux: builds an iOS Simulator app (arm64) on an x86-64 or
+# arm64 Linux machine with SwiftCode's swift-build engine, for a run on a SwiftCode
+# simulator host (specs/simulator/sim-link.md §9; the recipe is RES-STRINGS',
+# specs/ide/string-catalog.md §C.7).
+#
+# usage: swiftcode-ios-build-linux <project.xcodeproj> <scheme> <derived data dir> [NAME=value ...]
+#
+# Needs, from the environment (never committed: machine paths, the user's SDK):
+#   SWIFTCODE_USER_SDK   a developer folder holding the user's own copy of
+#                    Platforms/iPhoneSimulator.platform and
+#                    Toolchains/XcodeDefault.xctoolchain (usr/lib/swift, usr/lib/clang)
+#   SWIFTCODE_SWB        a built swiftcode-swb (swiftcode/Tools/swiftcode-swb; default: bin/swiftcode-swb of a release or the Flatpak)
+#   SWIFTCODE            the swiftcode command (default: bin/swiftcode of a release or the Flatpak, else the
+#                    debug build next to this script's package)
+#   SWIFTCODE_LD64       an upstream ld64.lld (swift.org's lld refuses Apple platforms;
+#                    default: the newest /usr/lib/llvm-*/bin/ld64.lld)
+#   SWIFTCODE_SWIFT_BIN  the Swift toolchain's real bin folder (default: swiftly's newest toolchain)
+# The app is <derived data>/Products/Debug-iphonesimulator/<product>.app.
+set -eu
+[ $# -ge 3 ] || { sed -n '2,20p' "$0"; exit 64; }
+project=$1; scheme=$2; dd=$3; shift 3
+here=$(cd "$(dirname "$0")" && pwd); pkg=$(cd "$here/.." && pwd)
+[ -n "${SWIFTCODE_USER_SDK:-}" ] || { echo "No iOS SDK: set SWIFTCODE_USER_SDK to a folder with your own copy of Xcode's Platforms/iPhoneSimulator.platform and Toolchains/XcodeDefault.xctoolchain (see the header of $0)" >&2; exit 2; }
+[ -d "$SWIFTCODE_USER_SDK/Platforms/iPhoneSimulator.platform" ] || { echo "SWIFTCODE_USER_SDK ($SWIFTCODE_USER_SDK) has no Platforms/iPhoneSimulator.platform" >&2; exit 2; }
+# A release (bin/ next to scripts/) or the Flatpak (/app/bin) carries swiftcode and swiftcode-swb.
+[ -n "${SWIFTCODE_SWB:-}" ] || { [ -x "$pkg/bin/swiftcode-swb" ] && SWIFTCODE_SWB=$pkg/bin/swiftcode-swb; }
+: "${SWIFTCODE_SWB:?set SWIFTCODE_SWB to a built swiftcode-swb (see the header)}"
+if [ -z "${SWIFTCODE:-}" ]; then
+    if [ -x "$pkg/bin/swiftcode" ]; then SWIFTCODE=$pkg/bin/swiftcode; else SWIFTCODE=$pkg/.build/debug/swiftcode; fi
+fi
+LD64=${SWIFTCODE_LD64:-$(ls -1 /usr/lib/llvm-*/bin/ld64.lld 2>/dev/null | sort -V | tail -1)}
+[ -x "$LD64" ] || { echo "no ld64.lld (set SWIFTCODE_LD64)" >&2; exit 2; }
+SWIFT_BIN=${SWIFTCODE_SWIFT_BIN:-$(ls -d "$HOME"/.local/share/swiftly/toolchains/*/usr/bin 2>/dev/null | sort -V | tail -1)}
+TC=$SWIFTCODE_USER_SDK/Toolchains/XcodeDefault.xctoolchain
+RT=$(ls -1 "$TC"/usr/lib/clang/*/lib/darwin/libclang_rt.iossim.a 2>/dev/null | sort -V | tail -1)
+[ -f "$RT" ] || { echo "no libclang_rt.iossim.a in $TC/usr/lib/clang" >&2; exit 2; }
+export SWIFTCODE_SWB PATH="$SWIFT_BIN:$PATH" DEVELOPER_DIR=$SWIFTCODE_USER_SDK
+build() {
+  "$SWIFTCODE" build "$project" -scheme "$scheme" -destination "generic/platform=iOS Simulator" -derivedDataPath "$dd" \
+    --engine swift-build CODE_SIGNING_ALLOWED=NO SDKROOT=iphonesimulator ARCHS=arm64 \
+    "OTHER_SWIFT_FLAGS=-resource-dir $TC/usr/lib/swift" \
+    "OTHER_LDFLAGS=-fuse-ld=lld --ld-path=$LD64 $RT" \
+    DONT_RUN_SWIFT_STDLIB_TOOL=YES LM_SKIP_METADATA_EXTRACTION=YES "$@"
+}
+# DEVELOPER_DIR alone registers the SDK's platforms with the swift-build
+# SwiftCode ships (naming them again in XCODE_EXTRA_PLATFORM_FOLDERS makes it
+# refuse: "platform … already registered"). Older swift-builds load no
+# platforms from DEVELOPER_DIR for a Swift toolchain: when the build can't
+# find the SDK or its platform, it runs again with the folders named.
+log=$(mktemp)
+trap 'rm -f "$log"' EXIT
+build "$@" 2>&1 | tee "$log"
+status=${PIPESTATUS[0]}
+if [ "$status" != 0 ] && grep -qiE "unable to find sdk|(sdk|platform)[^\n]*not found|unknown platform" "$log"; then
+  echo "swiftcode-ios-build-linux: building again with XCODE_EXTRA_PLATFORM_FOLDERS"
+  XCODE_EXTRA_PLATFORM_FOLDERS=$SWIFTCODE_USER_SDK/Platforms build "$@"
+  status=$?
+fi
+exit "$status"

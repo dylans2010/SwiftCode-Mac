@@ -13,7 +13,7 @@ import subprocess
 import sys
 from concurrent.futures import ThreadPoolExecutor
 
-# Components Apple publishes as open source. Ycode reuses these instead of
+# Components Apple publishes as open source. SwiftCode reuses these instead of
 # reimplementing them. Keys are bundle names without the extension.
 OPEN_SOURCE = {
     "SwiftBuild": "swiftlang/swift-build",

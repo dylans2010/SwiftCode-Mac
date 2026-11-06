@@ -4,7 +4,7 @@
 Usage: python3 -I tools/mac-sim-lean-summary.py [--diff A B] DIR [DIR...]
 
 Prints, per group (device name without its run number, e.g.
-ycode-test-L2-full) and boot (first/second): n, home_s (each, mean, sd),
+swiftcode-test-L2-full) and boot (first/second): n, home_s (each, mean, sd),
 bootstatus_s mean, processes alive at the sample time and distinct
 processes seen, device CPU seconds in the sample window, launchd spawns (all programs,
 whole TMP/launchd.log of the boot), crash reports
@@ -18,7 +18,7 @@ two, per boot (what accounts for the difference).
 import glob, json, os, re, statistics, sys
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-text = open(os.path.join(ROOT, "ycode/Sources/ycode-simd/LeanBoot.swift")).read()
+text = open(os.path.join(ROOT, "swiftcode/Sources/swiftcode-simd/LeanBoot.swift")).read()
 LABELS = re.findall(r'"([^"]+)"', re.search(r"defaultDisabledLabels: \[String\] = \[(.*?)\n    \]", text, re.S).group(1))
 
 
