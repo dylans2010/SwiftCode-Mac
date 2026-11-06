@@ -37,6 +37,19 @@ let package = Package(
         // `StoreKit` product — that module re-implements the StoreKit
         // API under the same name and would shadow Apple's real one.
         .library(name: "YcodePaywall", targets: ["YcodePaywall"]),
+        // SDK platform (specs/ide/sdk-platform.md): Legacy's SwiftCode/SDK —
+        // versioned contracts, kits, host (API keys, capability broker,
+        // registry, security, service adapters, runtime IPC) and the
+        // Studio UI models. The `swiftcode` CLI and SDK tools are thin
+        // executable wrappers over YcodeSDK entry points.
+        .library(name: "YcodeSDK", targets: ["YcodeSDK"]),
+        .library(name: "YcodeSDKStudio", targets: ["YcodeSDKStudio"]),
+        .executable(name: "swiftcode-sdk", targets: ["YcodeSDKCLI"]),
+        .executable(name: "project-generator", targets: ["YcodeSDKProjectGenerator"]),
+        .executable(name: "project-inspector", targets: ["YcodeSDKProjectInspector"]),
+        .executable(name: "extension-validator", targets: ["YcodeSDKExtensionValidator"]),
+        .executable(name: "diagnostics", targets: ["YcodeSDKDiagnostics"]),
+        .executable(name: "documentation-indexer", targets: ["YcodeSDKDocumentationIndexer"]),
         // Gauge, the profiler (specs/ide/profiler.md): trace format, analysis, Linux recording
         .library(name: "YcodeProfiler", targets: ["YcodeProfiler"]),
         // Gauge's in-process sampler for Linux processes (LD_PRELOAD; profiler.md §3.2)
@@ -111,6 +124,25 @@ let package = Package(
         // no third-party dependency.
         .target(name: "YcodePaywall"),
         .testTarget(name: "YcodePaywallTests", dependencies: ["YcodePaywall"]),
+        // SDK platform (specs/ide/sdk-platform.md): Legacy's SwiftCode/SDK.
+        // YcodeSDK is the host platform (contracts, kits, host, runtime);
+        // YcodeSDKStudio holds the Studio UI models separately because
+        // they need YcodeSDK and YcodeExtensions both, which would be a
+        // dependency cycle inside a single target.
+        .target(name: "YcodeSDK", dependencies: ["YcodeExtensions", "YcodeSubprocess", "YcodeAssistant", "YcodeBuild",
+                                                 .product(name: "Crypto", package: "swift-crypto")],
+                resources: [.copy("Resources/SwiftCodeSDK.json")]),
+        .target(name: "YcodeSDKStudio", dependencies: ["YcodeSDK", "YcodeExtensions"]),
+        .testTarget(name: "YcodeSDKTests", dependencies: ["YcodeSDK", "YcodeExtensions", "YcodeSDKStudio"]),
+        // The `swiftcode` CLI and SDK tools (Legacy SwiftCode/SDK/Sources/):
+        // thin wrappers over YcodeSDK entry points; no `sdk-test-runner`
+        // product — Legacy's hand-rolled runner is superseded by `swift test`.
+        .executableTarget(name: "YcodeSDKCLI", dependencies: ["YcodeSDK"]),
+        .executableTarget(name: "YcodeSDKProjectGenerator", dependencies: ["YcodeSDK"]),
+        .executableTarget(name: "YcodeSDKProjectInspector", dependencies: ["YcodeSDK"]),
+        .executableTarget(name: "YcodeSDKExtensionValidator", dependencies: ["YcodeSDK"]),
+        .executableTarget(name: "YcodeSDKDiagnostics", dependencies: ["YcodeSDK"]),
+        .executableTarget(name: "YcodeSDKDocumentationIndexer", dependencies: ["YcodeSDK"]),
         // Predictive code completion: context, backends (Ollama, llama-server, OpenAI-compatible), shaping, the editor session (specs/ide/predictive-completion.md)
         .target(name: "YcodeCompletion", dependencies: ["YcodeAssistant"]),
         .testTarget(name: "YcodeCompletionTests", dependencies: ["YcodeCompletion", "YcodeAssistant"]),
@@ -351,7 +383,7 @@ if FileManager.default.fileExists(atPath: Context.packageDirectory + "/../framew
     package.products += [.executable(name: "ycode-ide", targets: ["ycode-ide"])]
     package.targets += [
         .executableTarget(name: "ycode-ide", dependencies: ["YcodeRelease", "YcodeIDEShell", "YcodeIDECore", "YcodeSyntax", "YcodeBuild", "YcodeEditorKit", "YcodeCompletion", "YcodeAssistant",
-                                                          "YcodePreviews",
+                                                          "YcodePreviews", "YcodeExtensions", "YcodeSDK", "YcodeSDKStudio",
                                                           .product(name: "StoreKitConfiguration", package: "ycode-storekit"),
                                                           .product(name: "SwiftUI", package: "swiftui"),
                                                           .product(name: "OVPlatform", package: "swiftui"),
@@ -362,7 +394,7 @@ if FileManager.default.fileExists(atPath: Context.packageDirectory + "/../framew
 package.products += [.executable(name: "ycode-ide", targets: ["ycode-ide"])]
 package.targets += [
     .executableTarget(name: "ycode-ide", dependencies: ["YcodeRelease", "YcodeIDEShell", "YcodeIDECore", "YcodeSyntax", "YcodeBuild", "YcodeEditorKit", "YcodeCompletion", "YcodeAssistant",
-                                                      "YcodePreviews",
+                                                      "YcodePreviews", "YcodeExtensions", "YcodeSDK", "YcodeSDKStudio",
                                                       .product(name: "StoreKitConfiguration", package: "ycode-storekit")]),
 ]
 #endif

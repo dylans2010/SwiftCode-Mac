@@ -1,0 +1,34 @@
+# macOS / Xcode
+
+build/
+DerivedData/
+*.pbxuser
+*.mode1v3
+*.mode2v3
+*.perspectivev3
+*.xccheckout
+xcuserdata/
+*.moved-aside
+*.xcuserstate
+*.xcscmblueprint
+*.xcsettings
+
+# Swift Package Manager
+
+.swiftpm/
+.build/
+Packages/
+
+# Xcode generated
+
+*.dSYM.zip
+*.dSYM
+
+# macOS
+
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+.Spotlight-V100
+.Trashes

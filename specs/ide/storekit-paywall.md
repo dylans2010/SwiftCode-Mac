@@ -476,7 +476,7 @@ with an enum.
 | 6 | `StoreKitDiagnosticsView` | Diagnostics, Validation | Issue list from `StoreKitValidationService` with severity/category/message and a "Fix Issue" button per fixable issue (§6.7); "All Diagnostics Passed!" empty state |
 | 7 | `StoreKitStorefrontEditorView` | Storefronts | Table of 6 hardcoded storefronts (USA/USD, CAN/CAD, FRA/EUR, GBR/GBP, JPN/JPY, AUS/AUD) with an availability toggle per row. **Local-only list, not persisted into the config** — the config's `settings.storefront` is a single string; the editor's table edits nothing on disk |
 | 8 | `StoreKitLocalizationEditorView` | Localization | Per-product localization matrix; "Add Language" appends a locale entry (see §6.5b) |
-| 9 | `StoreKitAssetEditorView` | Assets | Asset table (file name, sandbox path, size, type); `scanMockAssets()` fills it with **two hardcoded fake rows** (`premium_promotional_art.png` 1.2 MB, `pro_upgrade_screenshot.png` 840 KB, paths under `/home/sandbox/project/assets/`) — it scans nothing. DROP the fake scan; the port either scans the real project or shows an honest empty state |
+| 9 | `StoreKitAssetEditorView` | Assets | Asset table (file name, sandbox path, size, type); `scanMockAssets()` fills it with **two hardcoded fake rows** (`premium_promotional_art.png` 1.2 MB, `pro_upgrade_screenshot.png` 840 KB, paths under `/home/<user>/project/assets/`) — it scans nothing. DROP the fake scan; the port either scans the real project or shows an honest empty state |
 | 10 | `StoreKitOfferEditorView` | Offers | Per-subscription intro offers (add/remove) and promo offers (add/remove with offer ID); win-back offers and offer codes have model fields but **no editor UI** |
 | 11 | `StoreKitCompareView` | Compare View | Side-by-side counts vs a hardcoded baseline (2 products, 1 group, version 4.0) with computed "Added: N custom non-consumables" lines. The baseline is a constant, not a loaded file — it compares against nothing real |
 | 12 | `StoreKitVersionHistoryView` | Version History | Revision list with "Restore Revision" (replaces `activeConfig`); revisions are **seeded on appear with two fake entries** ("Automatic auto-save backup." = current config, "Initial clean file initialization." = empty config) — no snapshot is ever captured on edit or save. The port must capture real snapshots or drop the view |
@@ -1026,7 +1026,7 @@ read only to place it. It is **not** part of this wave:
 9. **Command palette rows do nothing.** Wire the five commands to
    real actions or drop the palette.
 10. **Asset editor scans nothing.** Its two rows are hardcoded
-    fakes under `/home/sandbox/project/assets/`. Scan the real
+    fakes under `/home/<user>/project/assets/`. Scan the real
     project or show an honest empty state.
 11. **Storefront editor edits nothing on disk.** Its six-row table
     is local state; the config only stores one `storefront` string.
