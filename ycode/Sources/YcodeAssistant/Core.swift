@@ -9,6 +9,19 @@ public enum ProviderKind: String, Codable, Sendable, CaseIterable, Hashable {
     case ollama, llamaCpp, openAI, claudeCode, codex, antigravity
     /// An external Agent Client Protocol agent (a command set in Settings).
     case acpAgent
+    /// OpenRouter's OpenAI-compatible API (Wave 9: Legacy OpenRouter).
+    case openRouter
+    /// The local OpenCode server (Wave 9: Legacy OpenCodeClient).
+    case openCode
+    /// The Hermes CLI agent, driven one-shot (Wave 9: Legacy Hermes).
+    case hermes
+    /// Apple's on-device Foundation Models (Wave 9: Legacy
+    /// `Services/FoundationModels.swift`). No key, no account.
+    case foundationModels
+    /// SwiftCode Cloud (Wave 9: Legacy `SCCloudModel.swift`). No
+    /// default endpoint is shipped; unconfigured until Dylan supplies
+    /// a real one.
+    case scCloud
 
     public var displayName: String {
         switch self {
@@ -19,11 +32,16 @@ public enum ProviderKind: String, Codable, Sendable, CaseIterable, Hashable {
         case .codex: "Codex"
         case .antigravity: "Antigravity"
         case .acpAgent: "ACP Agent"
+        case .openRouter: "OpenRouter"
+        case .openCode: "OpenCode"
+        case .hermes: "Hermes"
+        case .foundationModels: "Foundation Models"
+        case .scCloud: "SwiftCode Cloud"
         }
     }
 
-    /// A local model server (Ollama, llama-server).
-    public var isLocalServer: Bool { self == .ollama || self == .llamaCpp }
+    /// A local model server (Ollama, llama-server, OpenCode).
+    public var isLocalServer: Bool { self == .ollama || self == .llamaCpp || self == .openCode }
     /// An agent command-line tool Ycode runs as a subprocess.
     public var cliAgent: CLIAgentKind? {
         switch self {

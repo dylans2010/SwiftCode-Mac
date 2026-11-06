@@ -38,6 +38,12 @@ public enum SecretAccount {
     /// The issued client registration and host ID, kept after sign-out.
     public static let openAIRegistration = "openai.chatgpt-registration"
     public static let llamaCppKey = "llamacpp.api-key"
+    /// OpenRouter's API key (Wave 9: Legacy OpenRouter).
+    public static let openRouterKey = "openrouter.api-key"
+    /// The SCCloud device fingerprint (`ssc_…`), generated once and
+    /// stored (Wave 9: Legacy SCCloud has no API key — auth is this
+    /// per-device fingerprint, never an `Authorization` header).
+    public static let scCloudFingerprint = "sccloud.device-fingerprint"
 }
 
 public enum SecretStoreError: Error, Equatable, LocalizedError {

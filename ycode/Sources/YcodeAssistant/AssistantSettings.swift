@@ -8,6 +8,14 @@ public struct AssistantSettings: Codable, Sendable, Equatable {
     public var ollamaURL = OllamaProvider.defaultBaseURL
     public var llamaCppURL = ChatCompletionsProvider.defaultBaseURL
     public var openAIURL = OpenAIProvider.defaultBaseURL
+    /// OpenRouter's API root (Wave 9).
+    public var openRouterURL = OpenRouterProvider.defaultBaseURL
+    /// The local OpenCode server's address (Wave 9).
+    public var openCodeURL = OpenCodeProvider.defaultBaseURL
+    /// SwiftCode Cloud's base URL (Wave 9). Empty by default: no
+    /// endpoint is shipped, and the provider reports unconfigured
+    /// until Dylan enters a real one.
+    public var scCloudURL = ""
     public var openAIAuth: OpenAIAuth = .chatGPT
     /// The chosen model per provider (raw value → model ID; "" = the
     /// tool's default).
@@ -42,6 +50,9 @@ public struct AssistantSettings: Codable, Sendable, Equatable {
         ollamaURL = (try? c.decode(String.self, forKey: .ollamaURL)) ?? d.ollamaURL
         llamaCppURL = (try? c.decode(String.self, forKey: .llamaCppURL)) ?? d.llamaCppURL
         openAIURL = (try? c.decode(String.self, forKey: .openAIURL)) ?? d.openAIURL
+        openRouterURL = (try? c.decode(String.self, forKey: .openRouterURL)) ?? d.openRouterURL
+        openCodeURL = (try? c.decode(String.self, forKey: .openCodeURL)) ?? d.openCodeURL
+        scCloudURL = (try? c.decode(String.self, forKey: .scCloudURL)) ?? d.scCloudURL
         openAIAuth = (try? c.decode(OpenAIAuth.self, forKey: .openAIAuth)) ?? d.openAIAuth
         models = (try? c.decode([String: String].self, forKey: .models)) ?? [:]
         toolPaths = (try? c.decode([String: String].self, forKey: .toolPaths)) ?? [:]
@@ -86,6 +97,29 @@ public struct AssistantBackends: Sendable {
             return CLIAgentProvider(agent: agent, executable: locator.find(agent.executableName, override: settings.toolPaths[kind.rawValue]))
         case .acpAgent:
             return ACPAgentProvider(command: settings.acpCommand, locator: locator)
+        case .openRouter:
+            return OpenRouterProvider(baseURL: settings.openRouterURL, apiKey: store.readString(SecretAccount.openRouterKey))
+        case .openCode:
+            return OpenCodeProvider(baseURL: settings.openCodeURL)
+        case .hermes:
+            return HermesProvider(locator: locator, secretStore: store)
+        case .foundationModels:
+            return FoundationModelsProvider()
+        case .scCloud:
+            // The fingerprint is provisioned (once, then stored) only
+            // when an endpoint is actually configured, so merely
+            // surveying providers never writes to the keychain.
+            let fingerprint: String?
+            if settings.scCloudURL.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                fingerprint = nil
+            } else if let stored = store.readString(SecretAccount.scCloudFingerprint) {
+                fingerprint = stored
+            } else {
+                let fresh = SCCloudProvider.provisionFingerprint()
+                try? store.write(Data(fresh.utf8), for: SecretAccount.scCloudFingerprint)
+                fingerprint = fresh
+            }
+            return SCCloudProvider(baseURL: settings.scCloudURL, fingerprint: fingerprint)
         }
     }
 
@@ -110,5 +144,10 @@ public struct AssistantBackends: Sendable {
     • OpenAI: sign in with ChatGPT, or enter an API key, in Settings ▸ Coding Assistant.
     • Claude Code, Codex or the Antigravity CLI: install one and sign in to it once in Terminal.
     • An ACP agent: set its command in Settings ▸ Coding Assistant.
+    • OpenRouter: enter an API key in Settings ▸ Coding Assistant.
+    • OpenCode: run `opencode serve` in Terminal.
+    • Hermes: install Hermes and sign in once in Terminal.
+    • Foundation Models: use a Mac with Apple Intelligence (macOS 26+).
+    • SwiftCode Cloud: enter a real endpoint URL in Settings ▸ Coding Assistant.
     """
 }

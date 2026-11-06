@@ -61,6 +61,31 @@ public final class CodingAssistantSettingsPane: SettingsPane {
         }
         row("OpenAI address:", field(s.openAIURL, width: 260) { [weak self] v in self?.settings.openAIURL = v.isEmpty ? OpenAIProvider.defaultBaseURL : v })
 
+        heading("OpenRouter")
+        row("API key:", secretRow(SecretAccount.openRouterKey, placeholder: "sk-or-…"))
+        note("Requests are billed to the API key's organization. The key is kept in the keychain. Models are discovered live from OpenRouter — Ycode names none itself.")
+        row("OpenRouter address:", field(s.openRouterURL, width: 260) { [weak self] v in self?.settings.openRouterURL = v.isEmpty ? OpenRouterProvider.defaultBaseURL : v })
+
+        heading("OpenCode")
+        row("OpenCode address:", field(s.openCodeURL, width: 260) { [weak self] v in self?.settings.openCodeURL = v.isEmpty ? OpenCodeProvider.defaultBaseURL : v })
+        note("The local OpenCode server (default \(OpenCodeProvider.defaultBaseURL)). Start it with `opencode serve` in Terminal.")
+
+        heading("Hermes")
+        let hermesFound = services.locator.find("hermes")
+        let hermesStatus = NSTextField(labelWithString: hermesFound.map { "Found: \($0.path)" } ?? "Not found (`hermes`)")
+        hermesStatus.textColor = hermesFound == nil ? .secondaryLabelColor : .labelColor
+        hermesStatus.font = .systemFont(ofSize: 11)
+        hermesStatus.lineBreakMode = .byTruncatingMiddle
+        row("Hermes:", hermesStatus)
+        note("The Hermes CLI agent, run one-shot per task. Install Hermes and sign in once by running `hermes setup` and `hermes model` in Terminal. Hermes runs its own tools; Ycode only observes.")
+
+        heading("Foundation Models")
+        note("Apple's on-device model (macOS 26+, Apple Intelligence-capable Mac). No API key, no account, nothing to configure.")
+
+        heading("SwiftCode Cloud")
+        row("SwiftCode Cloud address:", field(s.scCloudURL, width: 260, placeholder: "No endpoint configured") { [weak self] v in self?.settings.scCloudURL = v })
+        note("SwiftCode's own cloud model. No endpoint is shipped — enter a real one. The device identity used for fair-use metering is generated automatically and kept in the keychain.")
+
         heading("Agent Tools")
         note("Ycode runs these tools in the workspace folder with their own editing turned off; in agent mode (below) they change files through Ycode's tools, each change reviewed by you. Ycode never reads their sign-in or settings. Sign in to each tool once in Terminal.")
         for agent in CLIAgentKind.allCases {
