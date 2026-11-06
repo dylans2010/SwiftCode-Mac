@@ -27,6 +27,10 @@ let package = Package(
         // Extensions v2 platform (specs/ide/extensions-platform.md):
         // VS Code extension host, manifests, registry, grants.
         .library(name: "YcodeExtensions", targets: ["YcodeExtensions"]),
+        // Cloud accounts and auth (specs/ide/cloud-accounts.md):
+        // the Appwrite Account REST client, the Cloud framework
+        // types, and the CloudManager orchestration.
+        .library(name: "YcodeCloud", targets: ["YcodeCloud"]),
         // Gauge, the profiler (specs/ide/profiler.md): trace format, analysis, Linux recording
         .library(name: "YcodeProfiler", targets: ["YcodeProfiler"]),
         // Gauge's in-process sampler for Linux processes (LD_PRELOAD; profiler.md §3.2)
@@ -91,6 +95,11 @@ let package = Package(
         .target(name: "YcodeExtensions", dependencies: ["YcodeSubprocess"],
                 resources: [.copy("Resources/extension-host.js")]),
         .testTarget(name: "YcodeExtensionsTests", dependencies: ["YcodeExtensions"]),
+        // Cloud accounts and auth (specs/ide/cloud-accounts.md §1):
+        // a URLSession REST client for Appwrite, no third-party
+        // dependency. Depends on YcodeAssistant only for SecretStore.
+        .target(name: "YcodeCloud", dependencies: ["YcodeAssistant"]),
+        .testTarget(name: "YcodeCloudTests", dependencies: ["YcodeCloud", "YcodeAssistant"]),
         // Predictive code completion: context, backends (Ollama, llama-server, OpenAI-compatible), shaping, the editor session (specs/ide/predictive-completion.md)
         .target(name: "YcodeCompletion", dependencies: ["YcodeAssistant"]),
         .testTarget(name: "YcodeCompletionTests", dependencies: ["YcodeCompletion", "YcodeAssistant"]),
@@ -144,9 +153,9 @@ package.targets += [
     .target(name: "YcodeDeviceUI", dependencies: ["YcodeDisplayStream", "YcodeSimFeatures", "YcodeDeviceModel"]),
     .testTarget(name: "YcodeDeviceUITests", dependencies: ["YcodeDeviceUI", "YcodeDeviceModel", "YcodeDisplayStream"]),
     .executableTarget(name: "ycode-sim-viewer", dependencies: ["YcodeRelease", "YcodeDisplayStream", "YcodeSimFeatures", "YcodeDeviceModel", "YcodeDeviceUI", "YcodeRemoteViewer", "YcodeSimLink"]),
-    .target(name: "YcodeUI", dependencies: ["YcodeMCP", "YcodeIDECore", "YcodeCompletion", "YcodePreviews", "YcodeProject", "YcodeWorkspace", "YcodeSettings", "YcodeBuild", "YcodeDebug", "YcodeLanguage", "YcodeXcodebuild", "YcodeSubprocess", "YcodeAssistant", "YcodeGitHub", "YcodeExtensions", "YcodeSimFeatures", "YcodeDeviceModel", "YcodeDeviceUI", "YcodeProfiler"]),
+    .target(name: "YcodeUI", dependencies: ["YcodeMCP", "YcodeIDECore", "YcodeCompletion", "YcodePreviews", "YcodeProject", "YcodeWorkspace", "YcodeSettings", "YcodeBuild", "YcodeDebug", "YcodeLanguage", "YcodeXcodebuild", "YcodeSubprocess", "YcodeAssistant", "YcodeGitHub", "YcodeExtensions", "YcodeSimFeatures", "YcodeDeviceModel", "YcodeDeviceUI", "YcodeProfiler", "YcodeCloud"]),
     .executableTarget(name: "YcodeApp", dependencies: ["YcodeRelease", "YcodeUI"]),
-    .testTarget(name: "YcodeUITests", dependencies: ["YcodeMCP", "YcodeUI", "YcodeIDECore", "YcodeCompletion", "YcodePreviews", "YcodeDisplayStream", "YcodeSimFeatures", "YcodeDeviceModel", "YcodeDeviceUI", "YcodeBuild", "YcodeDebug", "YcodeLanguage", "YcodeXcodebuild", "YcodeSubprocess", "YcodeAssistant", "YcodeExtensions", "YcodeProfiler", "YcodeBuildServer", "YcodeIDEShell"]),
+    .testTarget(name: "YcodeUITests", dependencies: ["YcodeMCP", "YcodeUI", "YcodeIDECore", "YcodeCompletion", "YcodePreviews", "YcodeDisplayStream", "YcodeSimFeatures", "YcodeDeviceModel", "YcodeDeviceUI", "YcodeBuild", "YcodeDebug", "YcodeLanguage", "YcodeXcodebuild", "YcodeSubprocess", "YcodeAssistant", "YcodeExtensions", "YcodeProfiler", "YcodeBuildServer", "YcodeIDEShell", "YcodeCloud"]),
 ]
 #else
 // The Linux viewer: an SDL 3 window (loaded at run time) on the portable viewer (display-stream.md §13).

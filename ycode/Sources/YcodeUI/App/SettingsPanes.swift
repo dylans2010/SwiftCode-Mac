@@ -1,5 +1,6 @@
 import AppKit
 import UniformTypeIdentifiers
+import YcodeCloud
 import YcodeCompletion
 import YcodeIDECore
 import YcodeSettings
@@ -464,7 +465,59 @@ public final class GeneralSettingsPane: SettingsPane {
 
 @MainActor
 public final class AccountsSettingsPane: SettingsPane, NSTableViewDataSource {
-    public init(prefs: Preferences = .shared) { super.init(AccountsPage.title, prefs: prefs) }
+    /// The SwiftCode cloud account (slice B): injectable so tests can
+    /// substitute a stub-backed manager; the app uses the shared one.
+    public let authManager: CloudAuthManager
+    public let cloudManager: CloudManager
+    public let syncEngine: CloudSyncEngine
+    /// The SwiftCode section's selected tab.
+    public var selectedCloudTab: CloudAccountsTab = .account { didSet { if isViewLoaded { rebuild() } } }
+    /// The last sync statistics (`CloudSyncEngine.getStatistics()`).
+    public var statistics = CloudStatistics()
+    /// The server test's result text, if a test has run.
+    public var connectionResult: String?
+    /// Whether the last server test succeeded, if one has run.
+    public var connectionSucceeded: Bool?
+    public var isTestingConnection = false
+    /// The last account action's message (verification sent, or a
+    /// user-facing error), shown in the account tab.
+    public var accountMessage: String?
+    /// The delete-account confirmation text shown (tests); nil when
+    /// the alert was never asked for.
+    public var shownDeleteConfirmation: String?
+    /// The SwiftCode id field the account tab shows (tests).
+    public var swiftCodeIDField: NSTextField?
+    /// The SwiftCode section's explanation: the account signs in to
+    /// Dylan's Appwrite backend, and only a session secret is kept,
+    /// in the Keychain — never the password.
+    public static let swiftCodeExplanation = "Sign in with your SwiftCode Cloud account to enable cloud sync and backups. "
+        + "The account signs in to Dylan's Appwrite backend; Ycode stores only a session secret in the Keychain, never your password."
+    /// Scopes the + button's "never asks for credentials" wording:
+    /// it is about App Store Connect keys, not the SwiftCode account.
+    public static let appStoreConnectScopeNote = "The explanation the + button shows above refers to App Store Connect keys: "
+        + "Ycode never asks for or stores those credentials. The SwiftCode account below is separate."
+    /// The server test's success text (Legacy's wording).
+    public static let connectionSucceededText = "Connection Succeeded (Appwrite Server Reachable)"
+    /// The delete-account alert's title (Legacy's wording).
+    public static let deleteAccountTitle = "Permanently Delete SwiftCode Account?"
+    /// The delete-account alert's text (Legacy's exact wording).
+    public static let deleteAccountMessage = "Warning: This will permanently delete your user account and all remote credentials "
+        + "on the Appwrite authentication server. This action is destructive and cannot be undone."
+    public static let verificationSentText = "Verification email sent."
+
+    /// The one background statistics load (guarded in the extension).
+    var statsTask: Task<Void, Never>?
+    var presentedAuthSheet: CloudAuthSheetController?
+    var presentedChangeEmailSheet: CloudChangeEmailSheetController?
+    var presentedChangePasswordSheet: CloudChangePasswordSheetController?
+
+    public init(prefs: Preferences = .shared, authManager: CloudAuthManager = CloudAuthManager.shared,
+                cloudManager: CloudManager? = nil, syncEngine: CloudSyncEngine = CloudSyncEngine.shared) {
+        self.authManager = authManager
+        self.cloudManager = cloudManager ?? CloudManager(authManager: authManager)
+        self.syncEngine = syncEngine
+        super.init(AccountsPage.title, prefs: prefs)
+    }
     // Informational only: Ycode never asks for or stores credentials.
     /// The explanation shown by + (for tests).
     public static let notSupported = AccountsPage.explanation(keychain: true)
@@ -519,6 +572,9 @@ public final class AccountsSettingsPane: SettingsPane, NSTableViewDataSource {
         emptyLabel = empty
         addButton = add
         cardContent(box, inset: 0)
+        // The SwiftCode account section (slice B), below the App Store
+        // Connect key list, which is unchanged above.
+        buildSwiftCodeSection()
     }
 
     public func numberOfRows(in tableView: NSTableView) -> Int { AccountsPage.rows(from: keyStore).count }

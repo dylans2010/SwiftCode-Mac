@@ -47,6 +47,15 @@ public enum SecretAccount {
     /// stored (Wave 9: Legacy SCCloud has no API key — auth is this
     /// per-device fingerprint, never an `Authorization` header).
     public static let scCloudFingerprint = "sccloud.device-fingerprint"
+    /// The Appwrite session secret: the value of the
+    /// `a_session_<project>` cookie the Account API sets when a session
+    /// is created (Wave 12: Legacy kept the session in the Appwrite
+    /// SDK's cookie jar; the REST client persists the secret here
+    /// instead, and sends it back as a `Cookie` header).
+    public static let appwriteSessionSecret = "appwrite.session-secret"
+    /// The signed-in Appwrite user id, kept so callers can identify the
+    /// account without a network round-trip.
+    public static let appwriteUserID = "appwrite.user-id"
 }
 
 public enum SecretStoreError: Error, Equatable, LocalizedError {
