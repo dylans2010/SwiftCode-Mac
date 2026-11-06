@@ -2,8 +2,9 @@
 //
 // Ported from Legacy `SwiftCode/Views/Utilities/StoreKit/Editors/StoreKitEditors.swift` (SwiftCode-Mac migration, Views/UI worklist).
 // Worklist verdict: PARTIAL.
-// Missing behaviour ported: AI product generation (SmartProductGeneratorSheet / generateProductWithAI); asset editor (assets are an honest note: the .storekit format stores no images); product editing as a separate sheet (editing exists inline in the inspector)
+// Missing behaviour ported: AI product generation (SmartProductGeneratorSheet / generateProductWithAI); product editing as a separate sheet (editing exists inline in the inspector)
 // References legacy types absent from the destination and from this worklist (wiring/integration gaps): BulkActionType, CommandItem, StoreKitConfig.
+// Cleanup (2026-11-06, StoreKit mock pass, A3): W-V3's mock deletions verified still in place — no "Bulk generated description placeholder.", no "AI Synthesized description placeholder.", no scanMockAssets() (Legacy's two hardcoded /home/sandbox asset rows are gone). 3-way merge of X1's staged fixes-placeholders version applied in full, no conflicts: file-scope helpers storeKitGeneratedDescription() (descriptions built only from each product's own referenceName/type/price) and scanImageAssets(under:) (real FileManager enumeration, real paths/sizes) now back the bulk-localization generator, the AI-generator fallback, the validation missing-localization fix, and StoreKitAssetEditorView.scanProjectAssets(), which scans ProjectSessionStore.shared.activeProject?.directoryURL and stays empty (honest "No Marketing Deliverables Found" state) with no active project. Tree-kept over X1: the "Promotional graphics and App Store screen assets for this project." subtitle and the "Sandbox Path" table column (X1's "Path" rename not taken — cosmetic only).
 // Static port only — no Swift toolchain here; build verification pending on Dylan's Mac.
 import SwiftCodeIDECore
 import SwiftUI
@@ -11,6 +12,47 @@ import UniformTypeIdentifiers
 import os
 
 private let logger = Logger(subsystem: "com.swiftcode.storekit", category: "Editors")
+
+/// A generated localization description built only from the product's own
+/// fields (reference name, type, price). Used wherever a description has
+/// to be produced without user-written copy — bulk generation, the AI
+/// fallback, and the validation fix — so no canned description text
+/// ever ships in a localization again. The wording is deliberately
+/// plain: it states facts about the product and invents no feature claims.
+private func storeKitGeneratedDescription(referenceName: String, type: String, price: Double) -> String {
+    "\(referenceName) — \(type) priced at $\(String(format: "%.2f", price))"
+}
+
+/// Scans a directory tree for real image files and returns one SKAsset per
+/// file found, with its real path and real on-disk size. Hidden files and
+/// package descendants are skipped; the result is capped and sorted by
+/// file name.
+private func scanImageAssets(under root: URL, limit: Int = 200) -> [SKAsset] {
+    let imageExtensions: Set<String> = ["png", "jpg", "jpeg", "gif", "heic", "webp", "svg", "tiff", "bmp", "pdf"]
+    let fileManager = FileManager.default
+    guard let enumerator = fileManager.enumerator(
+        at: root,
+        includingPropertiesForKeys: [.isRegularFileKey, .fileSizeKey],
+        options: [.skipsHiddenFiles, .skipsPackageDescendants]
+    ) else { return [] }
+    let formatter = ByteCountFormatter()
+    formatter.countStyle = .file
+    var found: [SKAsset] = []
+    for case let url as URL in enumerator {
+        guard found.count < limit else { break }
+        let ext = url.pathExtension.lowercased()
+        guard imageExtensions.contains(ext) else { continue }
+        guard let values = try? url.resourceValues(forKeys: [.isRegularFileKey, .fileSizeKey]),
+              values.isRegularFile == true else { continue }
+        found.append(SKAsset(
+            fileName: url.lastPathComponent,
+            resolvedPath: url.path,
+            size: formatter.string(fromByteCount: Int64(values.fileSize ?? 0)),
+            type: ext.uppercased()
+        ))
+    }
+    return found.sorted { $0.fileName.localizedCaseInsensitiveCompare($1.fileName) == .orderedAscending }
+}
 
 // MARK: - 1. StoreKitDashboardView
 
@@ -595,8 +637,9 @@ struct StoreKitProductsView: View {
         case .bulkLocalization:
             for idx in 0..<session.activeConfig.products.count {
                 if session.activeConfig.products[idx].localizations.isEmpty {
+                    let product = session.activeConfig.products[idx]
                     session.activeConfig.products[idx].localizations = [
-                        SKLocalization(locale: "en_US", displayName: session.activeConfig.products[idx].referenceName, description: "")
+                        SKLocalization(locale: "en_US", displayName: product.referenceName, description: storeKitGeneratedDescription(referenceName: product.referenceName, type: product.type, price: product.price))
                     ]
                 }
             }
@@ -686,13 +729,15 @@ struct SmartProductGeneratorSheet: View {
                 session.activeConfig.products.append(parsedProd)
                 statusMessage = "Successfully generated Product!"
             } else {
-                // Fallback smart parser
+                // Fallback smart parser — the description is derived from
+                // the developer's own prompt and the product's real fields,
+                // never a canned string.
                 let smartID = "com.app." + prompt.lowercased().replacingOccurrences(of: " ", with: "_").prefix(14)
                 let smartProduct = SKProduct(
                     productID: String(smartID),
                     referenceName: prompt,
                     type: "NonConsumable",
-                    localizations: [SKLocalization(locale: "en_US", displayName: prompt, description: "")],
+                    localizations: [SKLocalization(locale: "en_US", displayName: prompt, description: storeKitGeneratedDescription(referenceName: prompt, type: "NonConsumable", price: 4.99))],
                     price: 4.99
                 )
                 session.activeConfig.products.append(smartProduct)
@@ -892,11 +937,12 @@ struct StoreKitDiagnosticsView: View {
         case .generateMissingLocalization:
             guard let id = productID else { return }
             if let idx = session.activeConfig.products.firstIndex(where: { $0.productID == id }) {
+                let product = session.activeConfig.products[idx]
                 session.activeConfig.products[idx].localizations = [
-                    SKLocalization(locale: "en_US", displayName: session.activeConfig.products[idx].referenceName, description: "")
+                    SKLocalization(locale: "en_US", displayName: product.referenceName, description: storeKitGeneratedDescription(referenceName: product.referenceName, type: product.type, price: product.price))
                 ]
             }
-            StoreKitSimulationService.shared.logActivity(category: "Validation", title: "Missing Localizations Fixed", message: "Generated fallback US English localization.")
+            StoreKitSimulationService.shared.logActivity(category: "Validation", title: "Missing Localizations Fixed", message: "Generated fallback US English description from the product's own details.")
 
         case .fixNegativePrice:
             guard let id = productID else { return }
@@ -1100,6 +1146,28 @@ struct StoreKitAssetEditorView: View {
                 }
             }
             .padding(24)
+        }
+        .onAppear {
+            scanProjectAssets()
+        }
+    }
+
+    /// Scans the active project's real directory tree for image files and
+    /// lists what is actually there (real paths, real sizes). With no
+    /// active project the list stays empty and the view shows its honest
+    /// "No Marketing Deliverables Found" state. The scan runs off the
+    /// main thread; the previous version assigned two hardcoded rows with
+    /// invented paths and was removed.
+    private func scanProjectAssets() {
+        guard let projectDir = ProjectSessionStore.shared.activeProject?.directoryURL else {
+            projectAssets = []
+            return
+        }
+        Task {
+            let found = await Task.detached(priority: .userInitiated) {
+                scanImageAssets(under: projectDir)
+            }.value
+            projectAssets = found
         }
     }
 }

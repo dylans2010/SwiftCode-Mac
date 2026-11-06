@@ -1,5 +1,5 @@
 // Ported from Legacy `SwiftCode/Views/Utilities/StoreKit/Inspector/StoreKitInspectorView.swift` (SwiftCode-Mac migration, P-UTIL).
-// Flag (Legacy's own static content, ported verbatim): the 'App Store Review Info' section hardcodes review-notes text and a 'promotion_banner.png' mock-image row — not live data.
+// Cleanup (2026-11-06, StoreKit mock pass, A3): the 'App Store Review Info' section's hardcoded review-notes text ("This unlock gives lifetime access…") and 'promotion_banner.png' mock-image row (Legacy's own static content, ported verbatim) are DELETED. Replacement is real data only: the section now shows the inspected product's own localized description (en_US preferred, via localizedDescription(for:)) and an honest empty state for review notes — SKProduct carries no review-notes field (verified in SwiftCodeIDECore/Model/StoreKitModels.swift), so none is invented and none is editable here. The mock-image row was deleted with no substitute.
 // Static port only — no Swift toolchain here; build verification pending on Dylan's Mac.
 
 import SwiftUI
@@ -176,6 +176,7 @@ struct StoreKitInspectorView: View {
             get: { product },
             set: { updateProductOnWorkspace($0) }
         )
+        let reviewDescription = localizedDescription(for: product)
 
         VStack(alignment: .leading, spacing: 14) {
             // Section: Meta Identity
@@ -247,41 +248,52 @@ struct StoreKitInspectorView: View {
             }
             .padding(.horizontal, 12)
 
-            // Section: App Store Review Info
+            // Section: App Store Review Info — real data only. SKProduct
+            // carries no review-notes field (verified against
+            // SwiftCodeIDECore/Model/StoreKitModels.swift: productID,
+            // referenceName, type, localizations, price, familySharing,
+            // index, availability, images), so review notes are an honest
+            // empty state, and the description shown is the product's own
+            // localized description (en_US preferred). The Legacy
+            // hardcoded review-notes text and 'promotion_banner.png'
+            // mock-image row were deleted with no substitute.
             VStack(alignment: .leading, spacing: 6) {
                 Text("APP STORE REVIEW METADATA")
                     .font(.system(size: 9, weight: .bold))
                     .foregroundColor(.secondary)
 
                 VStack(alignment: .leading, spacing: 8) {
+                    Text("Localized Description")
+                        .font(.system(size: 10))
+                        .foregroundColor(.secondary)
+
+                    Text(reviewDescription ?? "No localized description for this product.")
+                        .font(.system(size: 10))
+                        .foregroundColor(reviewDescription == nil ? .secondary : .primary)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(6)
+                        .background(Color.secondary.opacity(0.06), in: RoundedRectangle(cornerRadius: 6))
+
                     Text("Review Notes")
                         .font(.system(size: 10))
                         .foregroundColor(.secondary)
 
-                    TextEditor(text: .constant("This unlock gives lifetime access. Please purchase to verify view controllers are unlocked correctly."))
-                        .font(.system(size: 10, design: .monospaced))
-                        .frame(height: 60)
-                        .cornerRadius(6)
-                        .border(Color.secondary.opacity(0.3))
-
-                    Text("Mock Images & Screenshots")
-                        .font(.system(size: 10, weight: .semibold))
+                    Text("No review notes stored for this product — the .storekit format carries no review-notes field.")
+                        .font(.system(size: 10))
                         .foregroundColor(.secondary)
-
-                    HStack {
-                        Image(systemName: "photo.on.rectangle")
-                            .font(.system(size: 11))
-                        Text("promotion_banner.png")
-                            .font(.system(size: 10))
-                            .foregroundColor(.secondary)
-                    }
-                    .padding(6)
-                    .liquidGlass(style: .standard, cornerRadius: 4)
                 }
                 .padding(10)
                 .liquidGlass(style: .standard, cornerRadius: 8)
             }
             .padding(.horizontal, 12)
         }
+    }
+
+    /// The product's own localized description (en_US preferred, otherwise
+    /// the first non-empty one), or nil when the product has no description.
+    /// Returns nil rather than invented copy.
+    private func localizedDescription(for product: SKProduct) -> String? {
+        product.localizations.first(where: { $0.locale == "en_US" && !$0.description.isEmpty })?.description
+            ?? product.localizations.first(where: { !$0.description.isEmpty })?.description
     }
 }
